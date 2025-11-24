@@ -1,0 +1,40 @@
+{
+  "users": [
+    {
+      "id": "1763980288808",
+      "email": "admin@studentscoring.com",
+      "password": "$2b$10$vB4pOqTEf/0PZj1cnU1O.uynfxc9QOZr5BwTg8y614BT7otTR.b.y",
+      "name": "Admin",
+      "role": "admin",
+      "createdAt": "2025-11-24T10:31:28.808Z"
+    },
+    {
+      "id": "1763980617325",
+      "email": "testing@studentscoring.com",
+      "password": "$2b$10$Gxv.XfyPTfWQHTBzfJdC3.5GoiKPutxMSgS.nSYYT50ektRXqqjDq",
+      "name": "Testing",
+      "role": "organization",
+      "organizationId": "1763980617324",
+      "createdAt": "2025-11-24T10:36:57.325Z"
+    },
+    {
+      "id": "1763980672227",
+      "email": "testingwpt",
+      "username": "TestingWPT",
+      "password": "$2b$10$SRmXMyzjgokGrJKoGWO6x.o7wdLQUXJs1qbtTzc7VHgUsfBokjVNu",
+      "name": "Wong Pui Tak",
+      "teacherId": "TestingWPT",
+      "gender": "male",
+      "role": "teacher",
+      "organizationId": "1763980617324",
+      "createdAt": "2025-11-24T10:37:52.227Z",
+      "classViewStudents": [
+        "1763980770553"
+      ],
+      "assignedStudents": [
+        "1763980770553"
+      ]
+    }
+  ],
+  "lastUpdate": "2025-11-24T14:17:58.862Z"
+}

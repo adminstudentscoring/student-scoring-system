@@ -1,0 +1,11 @@
+{
+  "day": "Friday",
+  "time": "18:30",
+  "savedAt": "2025-11-07T11:10:11.695Z",
+  "challenge": {
+    "currentLevel": 1,
+    "currentHP": 36,
+    "completedLevels": [],
+    "totalDamage": 14
+  }
+}

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*;">
+    <title>Game Zone</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="game-styles.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .game-window-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            min-height: calc(100vh - 40px);
+        }
+        .game-area-content {
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-window-container">
+        <div class="game-area-content" id="gameAreaContent"></div>
+    </div>
+    <script>
+        console.log('Game window opened');
+        window.API_BASE = '/api';
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => resolve();
+                script.onerror = (error) => reject(error);
+                document.body.appendChild(script);
+            });
+        }
+
+        function showError(message) {
+            const container = document.getElementById('gameAreaContent');
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: red;">
+                        <h3>Error</h3>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        (async function initializeGameWindow() {
+            const params = new URLSearchParams(window.location.search);
+            const gameKey = params.get('game') || 'monsterFight';
+            const content = document.getElementById('gameAreaContent');
+            if (!content) {
+                return;
+            }
+
+            try {
+                if (gameKey === 'runningQueen') {
+                    content.innerHTML = `
+                        <div id="runningQueenGame" class="running-queen-root">
+                            <h2>♕ Running Queen</h2>
+                            <p>Loading game...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('runningQueenPlayers');
+                        if (storedPlayers) {
+                            window.runningQueenPlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore running queen players from storage:', error);
+                    }
+                    await loadScript('/running-queen.js');
+                    if (window.initRunningQueen) {
+                        window.initRunningQueen();
+                    } else {
+                        showError('Running Queen script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'royalExchange') {
+                    content.innerHTML = `
+                        <div id="royalExchangeGame" class="royal-exchange-root">
+                            <h2>♘ Royal Exchange</h2>
+                            <p>Loading game...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('royalExchangePlayers');
+                        if (storedPlayers) {
+                            window.royalExchangePlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore royal exchange players from storage:', error);
+                    }
+                    await loadScript('/royal-exchange.js');
+                    if (window.initRoyalExchange) {
+                        window.initRoyalExchange();
+                    } else {
+                        showError('Royal Exchange script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'puzzleMonsterFight') {
+                    content.innerHTML = `
+                        <div id="puzzleMonsterFightGame" class="puzzle-monster-root">
+                            <h2>🧩 Puzzle Monster Fight</h2>
+                            <p>Loading game...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('puzzleMonsterFightPlayers');
+                        if (storedPlayers) {
+                            window.puzzleMonsterFightPlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore puzzle monster fight players from storage:', error);
+                    }
+                    await loadScript('/puzzle-monster-fight.js');
+                    if (window.initPuzzleMonsterFight) {
+                        window.initPuzzleMonsterFight();
+                    } else {
+                        showError('Puzzle Monster Fight script loaded but init function missing.');
+                    }
+                } else {
+                    content.innerHTML = `
+                        <div id="monsterFightGame">
+                            <h2>🐉 Monster Fight</h2>
+                            <p>Loading game...</p>
+                        </div>
+                    `;
+                    await loadScript('/game.js');
+                    if (window.initMonsterFight) {
+                        window.initMonsterFight();
+                    } else {
+                        showError('Monster Fight script loaded but init function missing.');
+                    }
+                }
+            } catch (error) {
+                console.error('Game window init error:', error);
+                showError('Failed to load game scripts. See console for details.');
+            }
+        })();
+    </script>
+</body>
+</html>
+

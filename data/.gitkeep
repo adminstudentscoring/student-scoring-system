@@ -1,0 +1,2 @@
+# This file ensures the data directory is created
+# Actual data files (students.txt) should not be committed to git

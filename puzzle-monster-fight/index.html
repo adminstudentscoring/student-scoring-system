@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Monster Fight</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">Puzzle Monster Fight</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#/home" class="sidebar-nav-item active" data-route="/home">
+                    <span>Home</span>
+                </a>
+                <a href="#/story" class="sidebar-nav-item" data-route="/story">
+                    <span>Story Mode</span>
+                </a>
+                <a href="#/backpack" class="sidebar-nav-item" data-route="/backpack">
+                    <span>Backpack</span>
+                </a>
+                <a href="#/pets" class="sidebar-nav-item" data-route="/pets">
+                    <span>Pets</span>
+                </a>
+                <a href="#/shop" class="sidebar-nav-item" data-route="/shop">
+                    <span>Shop</span>
+                </a>
+                <a href="#/settings" class="sidebar-nav-item" data-route="/settings">
+                    <span>Settings</span>
+                </a>
+                <a href="#/pet-list" class="sidebar-nav-item" data-route="/pet-list">
+                    <span>Pet List</span>
+                </a>
+                <a href="#/item-list" class="sidebar-nav-item" data-route="/item-list">
+                    <span>Item List</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div id="pmfApiStatus" class="api-status">Checking connection...</div>
+            </div>
+        </aside>
+
+        <!-- Mobile Hamburger Menu -->
+        <button class="hamburger-menu" id="hamburgerMenu" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div id="pageContainer" class="page-container"></div>
+        </main>
+    </div>
+    
+    <!-- Load Configuration -->
+    <script src="config.js"></script>
+    <!-- Load Game Logic -->
+    <script src="puzzle-monster-fight.js"></script>
+    <!-- Load Pets Data -->
+    <script src="pets-data.js"></script>
+    <!-- Load Page Components -->
+    <script src="pages.js"></script>
+    <!-- Load Router -->
+    <script src="router.js"></script>
+    <!-- Initialize App -->
+    <script>
+        // Check API connection
+        async function checkApiConnection() {
+            const statusEl = document.getElementById('pmfApiStatus');
+            if (!statusEl) return;
+            
+            try {
+                const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.getStudents}`);
+                if (response.ok) {
+                    statusEl.textContent = 'Connected to Student Score System';
+                    statusEl.className = 'api-status api-status-success';
+                } else {
+                    throw new Error('API response error');
+                }
+            } catch (error) {
+                statusEl.textContent = 'Unable to connect to Student Score System';
+                statusEl.className = 'api-status api-status-error';
+                console.error('API connection error:', error);
+            }
+        }
+
+        // Mobile menu handlers
+        function initMobileMenu() {
+            const hamburgerMenu = document.getElementById('hamburgerMenu');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (!hamburgerMenu || !sidebar || !overlay) return;
+
+            function openMenu() {
+                sidebar.classList.add('sidebar-open');
+                overlay.classList.add('overlay-visible');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeMenu() {
+                sidebar.classList.remove('sidebar-open');
+                overlay.classList.remove('overlay-visible');
+                document.body.style.overflow = '';
+            }
+
+            hamburgerMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (sidebar.classList.contains('sidebar-open')) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            });
+
+            overlay.addEventListener('click', closeMenu);
+
+            // Close menu when clicking nav items on mobile
+            const navItems = document.querySelectorAll('.sidebar-nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        closeMenu();
+                    }
+                });
+            });
+        }
+
+        // Initialize app
+        window.addEventListener('DOMContentLoaded', () => {
+            const pageContainer = document.getElementById('pageContainer');
+            if (pageContainer) {
+                Router.init(pageContainer);
+            }
+            checkApiConnection();
+            initMobileMenu();
+        });
+    </script>
+</body>
+</html>

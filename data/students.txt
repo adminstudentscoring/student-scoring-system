@@ -1,0 +1,2509 @@
+{
+  "students": [
+    {
+      "id": "1762335062252",
+      "name": "Anthony  Tse",
+      "studentId": "vcanthonyt",
+      "answerCount": 24,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 251,
+      "score": 251,
+      "createdAt": "2025-11-05T09:31:02.252Z",
+      "stats": {
+        "daily": {
+          "2025-11-12": {
+            "answerCount": 8,
+            "totalPoints": 26
+          },
+          "2025-11-20": {
+            "answerCount": 6,
+            "totalPoints": 6
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 8,
+            "totalPoints": 26
+          },
+          "2025-W46": {
+            "answerCount": 6,
+            "totalPoints": 6
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 14,
+            "totalPoints": 32
+          }
+        }
+      }
+    },
+    {
+      "id": "1762335089721",
+      "name": "PiggyBella",
+      "studentId": "vcirinac",
+      "answerCount": 12,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 261,
+      "score": 261,
+      "createdAt": "2025-11-05T09:31:29.721Z",
+      "stats": {
+        "daily": {
+          "2025-11-19": {
+            "answerCount": 7,
+            "totalPoints": 38
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 7,
+            "totalPoints": 38
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 7,
+            "totalPoints": 38
+          }
+        }
+      }
+    },
+    {
+      "id": "1762335141391",
+      "name": "Hayden Tang",
+      "studentId": "vchaydentang",
+      "answerCount": 19,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 250,
+      "score": 250,
+      "createdAt": "2025-11-05T09:32:21.391Z",
+      "stats": {
+        "daily": {
+          "2025-11-19": {
+            "answerCount": 4,
+            "totalPoints": 17
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 4,
+            "totalPoints": 17
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 4,
+            "totalPoints": 17
+          }
+        }
+      }
+    },
+    {
+      "id": "1762340532241",
+      "name": "Ashton Fu",
+      "studentId": "vcashtonf",
+      "answerCount": 21,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 249,
+      "score": 249,
+      "createdAt": "2025-11-05T11:02:12.241Z",
+      "stats": {
+        "daily": {
+          "2025-11-12": {
+            "answerCount": 11,
+            "totalPoints": 30
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 11,
+            "totalPoints": 30
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 11,
+            "totalPoints": 30
+          }
+        }
+      }
+    },
+    {
+      "id": "1762340544227",
+      "name": "Hin Yi",
+      "studentId": "Tempotse",
+      "answerCount": 47,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 5,
+      "rank": "Platinum",
+      "rankIndex": 4,
+      "experience": 402,
+      "score": 402,
+      "createdAt": "2025-11-05T11:02:24.227Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 7,
+            "totalPoints": 56
+          },
+          "2025-11-12": {
+            "answerCount": 5,
+            "totalPoints": 34
+          },
+          "2025-11-17": {
+            "answerCount": 5,
+            "totalPoints": 44
+          },
+          "2025-11-19": {
+            "answerCount": 10,
+            "totalPoints": 39
+          },
+          "2025-11-24": {
+            "answerCount": 10,
+            "totalPoints": 10
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 12,
+            "totalPoints": 90
+          },
+          "2025-W46": {
+            "answerCount": 15,
+            "totalPoints": 83
+          },
+          "2025-W47": {
+            "answerCount": 10,
+            "totalPoints": 10
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 37,
+            "totalPoints": 183
+          }
+        }
+      }
+    },
+    {
+      "id": "1762340568129",
+      "name": "Zachary Ng",
+      "studentId": "vczachary",
+      "answerCount": 6,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 255,
+      "score": 255,
+      "createdAt": "2025-11-05T11:02:48.129Z",
+      "stats": {
+        "daily": {
+          "2025-11-19": {
+            "answerCount": 4,
+            "totalPoints": 53
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 4,
+            "totalPoints": 53
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 4,
+            "totalPoints": 53
+          }
+        }
+      }
+    },
+    {
+      "id": "1762340582439",
+      "name": "Jasper Cheung",
+      "studentId": "vcjasperc2",
+      "answerCount": 34,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 358,
+      "score": 358,
+      "createdAt": "2025-11-05T11:03:02.439Z",
+      "stats": {
+        "daily": {
+          "2025-11-12": {
+            "answerCount": 5,
+            "totalPoints": 63
+          },
+          "2025-11-15": {
+            "answerCount": 2,
+            "totalPoints": 11
+          },
+          "2025-11-19": {
+            "answerCount": 8,
+            "totalPoints": 37
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 7,
+            "totalPoints": 74
+          },
+          "2025-W46": {
+            "answerCount": 8,
+            "totalPoints": 37
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 15,
+            "totalPoints": 111
+          }
+        }
+      }
+    },
+    {
+      "id": "1762342034165",
+      "name": "Brooklyn",
+      "studentId": "Mrfunnychess",
+      "answerCount": 19,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 324,
+      "score": 324,
+      "createdAt": "2025-11-05T11:27:14.165Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 2,
+            "totalPoints": 41
+          },
+          "2025-11-12": {
+            "answerCount": 4,
+            "totalPoints": 43
+          },
+          "2025-11-17": {
+            "answerCount": 3,
+            "totalPoints": 12
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 6,
+            "totalPoints": 84
+          },
+          "2025-W46": {
+            "answerCount": 3,
+            "totalPoints": 12
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 9,
+            "totalPoints": 96
+          }
+        }
+      }
+    },
+    {
+      "id": "1762418050470",
+      "name": "Ryan Chan",
+      "studentId": "vcryanchan",
+      "answerCount": 13,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 231,
+      "score": 231,
+      "createdAt": "2025-11-06T08:34:10.470Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 10,
+            "totalPoints": 10
+          },
+          "2025-11-15": {
+            "answerCount": 1,
+            "totalPoints": 10
+          },
+          "2025-11-20": {
+            "answerCount": 2,
+            "totalPoints": 11
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 10,
+            "totalPoints": 10
+          },
+          "2025-W45": {
+            "answerCount": 1,
+            "totalPoints": 10
+          },
+          "2025-W46": {
+            "answerCount": 2,
+            "totalPoints": 11
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 13,
+            "totalPoints": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "1762427046040",
+      "name": "Aiden Chan",
+      "studentId": "vcaidenclb",
+      "answerCount": 23,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 250,
+      "score": 250,
+      "createdAt": "2025-11-06T11:04:06.040Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 12,
+            "totalPoints": 21
+          },
+          "2025-11-13": {
+            "answerCount": 11,
+            "totalPoints": 29
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 12,
+            "totalPoints": 21
+          },
+          "2025-W45": {
+            "answerCount": 11,
+            "totalPoints": 29
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 23,
+            "totalPoints": 50
+          }
+        }
+      }
+    },
+    {
+      "id": "1762427059451",
+      "name": "Henry Yip",
+      "studentId": "vchenryy",
+      "answerCount": 22,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 233,
+      "score": 233,
+      "createdAt": "2025-11-06T11:04:19.451Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 12,
+            "totalPoints": 23
+          },
+          "2025-11-23": {
+            "answerCount": 10,
+            "totalPoints": 10
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 12,
+            "totalPoints": 23
+          },
+          "2025-W46": {
+            "answerCount": 10,
+            "totalPoints": 10
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 22,
+            "totalPoints": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "1762427081817",
+      "name": "Dominic Wong",
+      "studentId": "vcdominicw",
+      "answerCount": 16,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 234,
+      "score": 234,
+      "createdAt": "2025-11-06T11:04:41.817Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 13,
+            "totalPoints": 22
+          },
+          "2025-11-13": {
+            "answerCount": 2,
+            "totalPoints": 11
+          },
+          "2025-11-20": {
+            "answerCount": 1,
+            "totalPoints": 1
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 13,
+            "totalPoints": 22
+          },
+          "2025-W45": {
+            "answerCount": 2,
+            "totalPoints": 11
+          },
+          "2025-W46": {
+            "answerCount": 1,
+            "totalPoints": 1
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 16,
+            "totalPoints": 34
+          }
+        }
+      }
+    },
+    {
+      "id": "1762427094710",
+      "name": "Henry Lin",
+      "studentId": "vchenryl",
+      "answerCount": 25,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 293,
+      "score": 293,
+      "createdAt": "2025-11-06T11:04:54.710Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-11-13": {
+            "answerCount": 6,
+            "totalPoints": 56
+          },
+          "2025-11-15": {
+            "answerCount": 6,
+            "totalPoints": 15
+          },
+          "2025-11-20": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-W45": {
+            "answerCount": 12,
+            "totalPoints": 71
+          },
+          "2025-W46": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 25,
+            "totalPoints": 93
+          }
+        }
+      }
+    },
+    {
+      "id": "1762430606457",
+      "name": "Rex Hung",
+      "studentId": "RexHung",
+      "answerCount": 7,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 215,
+      "score": 215,
+      "createdAt": "2025-11-06T12:03:26.457Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 7,
+            "totalPoints": 25
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 7,
+            "totalPoints": 25
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 7,
+            "totalPoints": 25
+          }
+        }
+      }
+    },
+    {
+      "id": "1762430626350",
+      "name": "Sunny Shih",
+      "studentId": "vcsunnys",
+      "answerCount": 9,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 218,
+      "score": 218,
+      "createdAt": "2025-11-06T12:03:46.350Z",
+      "stats": {
+        "daily": {
+          "2025-11-06": {
+            "answerCount": 9,
+            "totalPoints": 28
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 9,
+            "totalPoints": 28
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 9,
+            "totalPoints": 28
+          }
+        }
+      }
+    },
+    {
+      "id": "1762508249516",
+      "name": "Harris Chan",
+      "studentId": "vcharrisc",
+      "answerCount": 36,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 295,
+      "score": 295,
+      "createdAt": "2025-11-07T09:37:29.516Z",
+      "stats": {
+        "daily": {
+          "2025-11-07": {
+            "answerCount": 14,
+            "totalPoints": 33
+          },
+          "2025-11-10": {
+            "answerCount": 1,
+            "totalPoints": 20
+          },
+          "2025-11-11": {
+            "answerCount": 8,
+            "totalPoints": 27
+          },
+          "2025-11-18": {
+            "answerCount": 13,
+            "totalPoints": 35
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 14,
+            "totalPoints": 33
+          },
+          "2025-W45": {
+            "answerCount": 9,
+            "totalPoints": 47
+          },
+          "2025-W46": {
+            "answerCount": 13,
+            "totalPoints": 35
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 36,
+            "totalPoints": 115
+          }
+        }
+      }
+    },
+    {
+      "id": "1762511551092",
+      "name": "Hinson Lee",
+      "studentId": "vchinsonl",
+      "answerCount": 31,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 238,
+      "score": 238,
+      "createdAt": "2025-11-07T10:32:31.092Z",
+      "stats": {
+        "daily": {
+          "2025-11-07": {
+            "answerCount": 6,
+            "totalPoints": 6
+          },
+          "2025-11-14": {
+            "answerCount": 15,
+            "totalPoints": 33
+          },
+          "2025-11-21": {
+            "answerCount": 10,
+            "totalPoints": 19
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 6,
+            "totalPoints": 6
+          },
+          "2025-W45": {
+            "answerCount": 15,
+            "totalPoints": 33
+          },
+          "2025-W46": {
+            "answerCount": 10,
+            "totalPoints": 19
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 31,
+            "totalPoints": 58
+          }
+        }
+      }
+    },
+    {
+      "id": "1762511583282",
+      "name": "Darren Chan",
+      "studentId": "Sdarren012295",
+      "answerCount": 13,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 202,
+      "score": 202,
+      "createdAt": "2025-11-07T10:33:03.282Z",
+      "stats": {
+        "daily": {
+          "2025-11-07": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-11-17": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-W46": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 13,
+            "totalPoints": 22
+          }
+        }
+      }
+    },
+    {
+      "id": "1762511639427",
+      "name": "Joseph Lam",
+      "studentId": "vcjosephl",
+      "answerCount": 22,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 211,
+      "score": 211,
+      "createdAt": "2025-11-07T10:33:59.427Z",
+      "stats": {
+        "daily": {
+          "2025-11-07": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-11-14": {
+            "answerCount": 12,
+            "totalPoints": 21
+          },
+          "2025-11-21": {
+            "answerCount": 6,
+            "totalPoints": 6
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-W45": {
+            "answerCount": 12,
+            "totalPoints": 21
+          },
+          "2025-W46": {
+            "answerCount": 6,
+            "totalPoints": 6
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 22,
+            "totalPoints": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "1762567502462",
+      "name": "Isaac Chu",
+      "studentId": "vcisaacc",
+      "answerCount": 21,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 229,
+      "score": 229,
+      "createdAt": "2025-11-08T02:05:02.462Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 11,
+            "totalPoints": 30
+          },
+          "2025-11-15": {
+            "answerCount": 10,
+            "totalPoints": 19
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 11,
+            "totalPoints": 30
+          },
+          "2025-W45": {
+            "answerCount": 10,
+            "totalPoints": 19
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 21,
+            "totalPoints": 49
+          }
+        }
+      }
+    },
+    {
+      "id": "1762567545227",
+      "name": "Savis Tau",
+      "studentId": "vcsavist",
+      "answerCount": 16,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 214,
+      "score": 214,
+      "createdAt": "2025-11-08T02:05:45.227Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 7,
+            "totalPoints": 16
+          },
+          "2025-11-15": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 7,
+            "totalPoints": 16
+          },
+          "2025-W45": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 16,
+            "totalPoints": 34
+          }
+        }
+      }
+    },
+    {
+      "id": "1762568020447",
+      "name": "Cardiff Chiu",
+      "studentId": "vccardiffc",
+      "answerCount": 12,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 192,
+      "score": 192,
+      "createdAt": "2025-11-08T02:13:40.447Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-11-15": {
+            "answerCount": 8,
+            "totalPoints": 8
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 4,
+            "totalPoints": 4
+          },
+          "2025-W45": {
+            "answerCount": 8,
+            "totalPoints": 8
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 12,
+            "totalPoints": 12
+          }
+        }
+      }
+    },
+    {
+      "id": "1762570994759",
+      "name": "Nathan Yuen",
+      "studentId": "vcnathany",
+      "answerCount": 6,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 194,
+      "score": 194,
+      "createdAt": "2025-11-08T03:03:14.759Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 5,
+            "totalPoints": 14
+          },
+          "2025-11-15": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 5,
+            "totalPoints": 14
+          },
+          "2025-W45": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 6,
+            "totalPoints": 24
+          }
+        }
+      }
+    },
+    {
+      "id": "1762571028803",
+      "name": "Braydon Chik",
+      "studentId": "Braydongong2",
+      "answerCount": 15,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 203,
+      "score": 203,
+      "createdAt": "2025-11-08T03:03:48.803Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 9,
+            "totalPoints": 18
+          },
+          "2025-11-15": {
+            "answerCount": 6,
+            "totalPoints": 15
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 9,
+            "totalPoints": 18
+          },
+          "2025-W45": {
+            "answerCount": 6,
+            "totalPoints": 15
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 15,
+            "totalPoints": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "1762571134281",
+      "name": "Trevor Cheuk",
+      "studentId": "vctrevorcheuk",
+      "answerCount": 6,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 194,
+      "score": 194,
+      "createdAt": "2025-11-08T03:05:34.281Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 5,
+            "totalPoints": 14
+          },
+          "2025-11-15": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 5,
+            "totalPoints": 14
+          },
+          "2025-W45": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 6,
+            "totalPoints": 24
+          }
+        }
+      }
+    },
+    {
+      "id": "1762571158549",
+      "name": "Jaden Kwok",
+      "studentId": "vcjadenk",
+      "answerCount": 0,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 170,
+      "score": 170,
+      "createdAt": "2025-11-08T03:05:58.549Z",
+      "stats": {
+        "daily": {},
+        "weekly": {},
+        "monthly": {}
+      }
+    },
+    {
+      "id": "1762585256751",
+      "name": "Kai Liu",
+      "studentId": "vckaiz",
+      "answerCount": 6,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 203,
+      "score": 203,
+      "createdAt": "2025-11-08T07:00:56.751Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 3,
+            "totalPoints": 12
+          },
+          "2025-11-15": {
+            "answerCount": 3,
+            "totalPoints": 21
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 3,
+            "totalPoints": 12
+          },
+          "2025-W45": {
+            "answerCount": 3,
+            "totalPoints": 21
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 6,
+            "totalPoints": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "1762585321077",
+      "name": "Noah Mok",
+      "studentId": "vcnoahmok",
+      "answerCount": 7,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 195,
+      "score": 195,
+      "createdAt": "2025-11-08T07:02:01.077Z",
+      "stats": {
+        "daily": {
+          "2025-11-08": {
+            "answerCount": 5,
+            "totalPoints": 14
+          },
+          "2025-11-15": {
+            "answerCount": 2,
+            "totalPoints": 11
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 5,
+            "totalPoints": 14
+          },
+          "2025-W45": {
+            "answerCount": 2,
+            "totalPoints": 11
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 7,
+            "totalPoints": 25
+          }
+        }
+      }
+    },
+    {
+      "id": "1762650267649",
+      "name": "Celeste Yang",
+      "studentId": "vccelestey",
+      "answerCount": 12,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 182,
+      "score": 182,
+      "createdAt": "2025-11-09T01:04:27.649Z",
+      "stats": {
+        "daily": {
+          "2025-11-09": {
+            "answerCount": 12,
+            "totalPoints": 12
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 12,
+            "totalPoints": 12
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 12,
+            "totalPoints": 12
+          }
+        }
+      }
+    },
+    {
+      "id": "1762655991202",
+      "name": "Quinton Wong",
+      "studentId": "lovemessi1",
+      "answerCount": 17,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 196,
+      "score": 196,
+      "createdAt": "2025-11-09T02:39:51.202Z",
+      "stats": {
+        "daily": {
+          "2025-11-09": {
+            "answerCount": 8,
+            "totalPoints": 17
+          },
+          "2025-11-23": {
+            "answerCount": 9,
+            "totalPoints": 9
+          }
+        },
+        "weekly": {
+          "2025-W44": {
+            "answerCount": 8,
+            "totalPoints": 17
+          },
+          "2025-W46": {
+            "answerCount": 9,
+            "totalPoints": 9
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 17,
+            "totalPoints": 26
+          }
+        }
+      }
+    },
+    {
+      "id": "1762768035276",
+      "name": "Malcolm Wong",
+      "studentId": "vcmalcolmw",
+      "answerCount": 9,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 227,
+      "score": 227,
+      "createdAt": "2025-11-10T09:47:15.276Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 3,
+            "totalPoints": 32
+          },
+          "2025-11-17": {
+            "answerCount": 2,
+            "totalPoints": 21
+          },
+          "2025-11-24": {
+            "answerCount": 4,
+            "totalPoints": 4
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 3,
+            "totalPoints": 32
+          },
+          "2025-W46": {
+            "answerCount": 2,
+            "totalPoints": 21
+          },
+          "2025-W47": {
+            "answerCount": 4,
+            "totalPoints": 4
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 9,
+            "totalPoints": 57
+          }
+        }
+      }
+    },
+    {
+      "id": "1762768076718",
+      "name": "Thaddeus Cheuk",
+      "studentId": "vcthaddeusc",
+      "answerCount": 2,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 172,
+      "score": 172,
+      "createdAt": "2025-11-10T09:47:56.718Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 1,
+            "totalPoints": 1
+          },
+          "2025-11-24": {
+            "answerCount": 1,
+            "totalPoints": 1
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 1,
+            "totalPoints": 1
+          },
+          "2025-W47": {
+            "answerCount": 1,
+            "totalPoints": 1
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 2,
+            "totalPoints": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "1762768090697",
+      "name": "Charis Chong",
+      "studentId": "vccharisc",
+      "answerCount": 3,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 173,
+      "score": 173,
+      "createdAt": "2025-11-10T09:48:10.697Z",
+      "stats": {
+        "daily": {
+          "2025-11-24": {
+            "answerCount": 3,
+            "totalPoints": 3
+          }
+        },
+        "weekly": {
+          "2025-W47": {
+            "answerCount": 3,
+            "totalPoints": 3
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 3,
+            "totalPoints": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "1762768106494",
+      "name": "Kingsway Chong",
+      "studentId": "vckingsway",
+      "answerCount": 11,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 181,
+      "score": 181,
+      "createdAt": "2025-11-10T09:48:26.494Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 6,
+            "totalPoints": 6
+          },
+          "2025-11-24": {
+            "answerCount": 5,
+            "totalPoints": 5
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 6,
+            "totalPoints": 6
+          },
+          "2025-W47": {
+            "answerCount": 5,
+            "totalPoints": 5
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 11,
+            "totalPoints": 11
+          }
+        }
+      }
+    },
+    {
+      "id": "1762776606669",
+      "name": "Nathan Chan",
+      "studentId": "vcnathanczh",
+      "answerCount": 5,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 165,
+      "score": 165,
+      "createdAt": "2025-11-10T12:10:06.669Z",
+      "stats": {
+        "daily": {
+          "2025-11-17": {
+            "answerCount": 5,
+            "totalPoints": 5
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 5,
+            "totalPoints": 5
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 5,
+            "totalPoints": 5
+          }
+        }
+      }
+    },
+    {
+      "id": "1762776615890",
+      "name": "Kate Wong",
+      "studentId": "vckatew",
+      "answerCount": 2,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 190,
+      "score": 190,
+      "createdAt": "2025-11-10T12:10:15.890Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 1,
+            "totalPoints": 20
+          },
+          "2025-11-17": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 1,
+            "totalPoints": 20
+          },
+          "2025-W46": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 2,
+            "totalPoints": 30
+          }
+        }
+      }
+    },
+    {
+      "id": "1762776631073",
+      "name": "Hayden Tsang",
+      "studentId": "vchaydent",
+      "answerCount": 3,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 4,
+      "rank": "Gold",
+      "rankIndex": 3,
+      "experience": 241,
+      "score": 241,
+      "createdAt": "2025-11-10T12:10:31.073Z",
+      "stats": {
+        "daily": {
+          "2025-11-10": {
+            "answerCount": 1,
+            "totalPoints": 10
+          },
+          "2025-11-17": {
+            "answerCount": 1,
+            "totalPoints": 70
+          },
+          "2025-11-24": {
+            "answerCount": 1,
+            "totalPoints": 1
+          }
+        },
+        "weekly": {
+          "2025-W45": {
+            "answerCount": 1,
+            "totalPoints": 10
+          },
+          "2025-W46": {
+            "answerCount": 1,
+            "totalPoints": 70
+          },
+          "2025-W47": {
+            "answerCount": 1,
+            "totalPoints": 1
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 3,
+            "totalPoints": 81
+          }
+        }
+      }
+    },
+    {
+      "id": "1762855338054",
+      "name": "Wong Sir",
+      "studentId": "vcstudent001",
+      "answerCount": 1,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 150,
+      "score": 150,
+      "createdAt": "2025-11-11T10:02:18.054Z",
+      "stats": {
+        "daily": {
+          "2025-11-24": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "weekly": {
+          "2025-W47": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 1,
+            "totalPoints": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "1762858872541",
+      "name": "Karson Ng",
+      "studentId": "Beansir1029",
+      "answerCount": 0,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 140,
+      "score": 140,
+      "createdAt": "2025-11-11T11:01:12.541Z",
+      "stats": {
+        "daily": {},
+        "weekly": {},
+        "monthly": {}
+      }
+    },
+    {
+      "id": "1762859015707",
+      "name": "Milo Lau",
+      "studentId": "vcmilol",
+      "answerCount": 3,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 170,
+      "score": 170,
+      "createdAt": "2025-11-11T11:03:35.707Z",
+      "stats": {
+        "daily": {
+          "2025-11-18": {
+            "answerCount": 3,
+            "totalPoints": 30
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 3,
+            "totalPoints": 30
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 3,
+            "totalPoints": 30
+          }
+        }
+      }
+    },
+    {
+      "id": "1762859102237",
+      "name": "Julian Lim",
+      "studentId": "vcjulianl",
+      "answerCount": 4,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 180,
+      "score": 180,
+      "createdAt": "2025-11-11T11:05:02.237Z",
+      "stats": {
+        "daily": {
+          "2025-11-18": {
+            "answerCount": 4,
+            "totalPoints": 40
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 4,
+            "totalPoints": 40
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 4,
+            "totalPoints": 40
+          }
+        }
+      }
+    },
+    {
+      "id": "1763377351141",
+      "name": "Jason Leong",
+      "studentId": "Ki3000",
+      "answerCount": 16,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 2,
+      "rank": "Bronze",
+      "rankIndex": 1,
+      "experience": 84,
+      "score": 84,
+      "createdAt": "2025-11-17T11:02:31.141Z",
+      "stats": {
+        "daily": {
+          "2025-11-17": {
+            "answerCount": 14,
+            "totalPoints": 32
+          },
+          "2025-11-23": {
+            "answerCount": 2,
+            "totalPoints": 2
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 16,
+            "totalPoints": 34
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 16,
+            "totalPoints": 34
+          }
+        }
+      }
+    },
+    {
+      "id": "1763460094099",
+      "name": "George Fung",
+      "studentId": "vcgeorgef",
+      "answerCount": 9,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 2,
+      "rank": "Bronze",
+      "rankIndex": 1,
+      "experience": 58,
+      "score": 58,
+      "createdAt": "2025-11-18T10:01:34.099Z",
+      "stats": {
+        "daily": {
+          "2025-11-18": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 9,
+            "totalPoints": 18
+          }
+        }
+      }
+    },
+    {
+      "id": "1763717499879",
+      "name": "Damian Lam",
+      "studentId": "vcdamianl",
+      "answerCount": 7,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 1,
+      "rank": "Wood",
+      "rankIndex": 0,
+      "experience": 16,
+      "score": 16,
+      "createdAt": "2025-11-21T09:31:39.879Z",
+      "stats": {
+        "daily": {
+          "2025-11-21": {
+            "answerCount": 7,
+            "totalPoints": 16
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 7,
+            "totalPoints": 16
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 7,
+            "totalPoints": 16
+          }
+        }
+      }
+    },
+    {
+      "id": "1763860452665",
+      "name": "Grace Tong",
+      "studentId": "vcgracet",
+      "answerCount": 2,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 1,
+      "rank": "Wood",
+      "rankIndex": 0,
+      "experience": 2,
+      "score": 2,
+      "createdAt": "2025-11-23T01:14:12.665Z",
+      "stats": {
+        "daily": {
+          "2025-11-23": {
+            "answerCount": 2,
+            "totalPoints": 2
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 2,
+            "totalPoints": 2
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 2,
+            "totalPoints": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "1763863366741",
+      "name": "Harvey Wong",
+      "studentId": "vcharveyw",
+      "answerCount": 3,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 1,
+      "rank": "Wood",
+      "rankIndex": 0,
+      "experience": 3,
+      "score": 3,
+      "createdAt": "2025-11-23T02:02:46.741Z",
+      "stats": {
+        "daily": {
+          "2025-11-23": {
+            "answerCount": 3,
+            "totalPoints": 3
+          }
+        },
+        "weekly": {
+          "2025-W46": {
+            "answerCount": 3,
+            "totalPoints": 3
+          }
+        },
+        "monthly": {
+          "2025-11": {
+            "answerCount": 3,
+            "totalPoints": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "1763980770553",
+      "name": "Anthony",
+      "studentId": "ddanthony",
+      "organizationId": "1763980617324",
+      "answerCount": 0,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 1,
+      "rank": "Wood",
+      "rankIndex": 0,
+      "experience": 1,
+      "score": 1,
+      "createdAt": "2025-11-24T10:39:30.553Z",
+      "stats": {
+        "daily": {},
+        "weekly": {},
+        "monthly": {}
+      }
+    }
+  ],
+  "battles": [],
+  "lastUpdate": "2025-11-24T14:17:23.681Z",
+  "challenge": {
+    "currentLevel": 1,
+    "currentHP": 50,
+    "completedLevels": [],
+    "totalDamage": 0,
+    "selectedStudentIds": [
+      "1763980770553"
+    ]
+  },
+  "gameState": {
+    "current": {
+      "currentLevel": 1,
+      "currentTurn": 1,
+      "phase": "character_selection",
+      "players": [
+        {
+          "studentId": "1762855338054",
+          "studentName": "Wong Sir",
+          "characterClass": null,
+          "currentHP": 0,
+          "maxHP": 0,
+          "attack": 0,
+          "puzzlePoints": 0,
+          "isAlive": true,
+          "skills": [],
+          "skillCooldowns": {},
+          "accumulatedReviveRate": 0,
+          "stats": {
+            "totalDamage": 0,
+            "kills": 0,
+            "healing": 0
+          },
+          "statuses": []
+        }
+      ],
+      "monsters": [],
+      "actionLog": [],
+      "levelConfig": [],
+      "gameConfig": {
+        "damageMultiplier": 0.2,
+        "critRate": 0.1,
+        "critDamage": 2,
+        "baseReviveRate": 0.01,
+        "reviveRateDecay": 0.95,
+        "maxReviveRate": 0.66,
+        "difficultyCurve": {
+          "1": {
+            "monstersPerStudent": 1,
+            "strengthMultiplier": 1
+          },
+          "2": {
+            "monstersPerStudent": 1.5,
+            "strengthMultiplier": 1.2
+          },
+          "3": {
+            "monstersPerStudent": 2,
+            "strengthMultiplier": 1.5
+          }
+        }
+      },
+      "monsterSequence": 0
+    }
+  },
+  "gameSettings": {
+    "config": {
+      "damageMultiplier": 0.2,
+      "critRate": 0.1,
+      "critDamage": 2,
+      "baseReviveRate": 0.01,
+      "reviveRateDecay": 0.95,
+      "maxReviveRate": 0.66,
+      "difficultyCurve": {
+        "1": {
+          "monstersPerStudent": 1,
+          "strengthMultiplier": 1
+        },
+        "2": {
+          "monstersPerStudent": 1.5,
+          "strengthMultiplier": 1.2
+        },
+        "3": {
+          "monstersPerStudent": 2,
+          "strengthMultiplier": 1.5
+        }
+      }
+    },
+    "playerClasses": [
+      {
+        "id": "archer",
+        "name": "Archer",
+        "emoji": "🏹",
+        "baseAttack": 10,
+        "baseHP": 80,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Precision Shot",
+            "type": "passive",
+            "description": "Damage increased by 1.2-1.5x",
+            "effect": {
+              "damageMultiplier": {
+                "min": 1.2,
+                "max": 1.5
+              }
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Multi Shot",
+            "type": "active",
+            "cooldown": 4,
+            "description": "Attack multiple enemies",
+            "emoji": "🎯",
+            "effect": {
+              "targetCount": 3
+            }
+          },
+          {
+            "id": "active_2",
+            "name": "Critical Strike",
+            "type": "active",
+            "cooldown": 4,
+            "description": "Guaranteed critical hit",
+            "emoji": "💢",
+            "effect": {
+              "guaranteedCrit": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "warrior",
+        "name": "Warrior",
+        "emoji": "⚔️",
+        "baseAttack": 12,
+        "baseHP": 100,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Berserker",
+            "type": "passive",
+            "description": "Attack increases when HP is low",
+            "effect": {
+              "lowHPBonus": true
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Power Strike",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Deal 1.5x damage",
+            "emoji": "⚡",
+            "effect": {
+              "damageMultiplier": 1.5
+            }
+          },
+          {
+            "id": "active_2",
+            "name": "Charge",
+            "type": "active",
+            "cooldown": 3,
+            "description": "Attack and stun enemy for 2 turns",
+            "emoji": "🐎",
+            "effect": {
+              "stunTurns": 2,
+              "damageMultiplier": 1.5
+            }
+          }
+        ]
+      },
+      {
+        "id": "wizard",
+        "name": "Wizard",
+        "emoji": "🔮",
+        "baseAttack": 20,
+        "baseHP": 70,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Arcane Surge",
+            "type": "passive",
+            "description": "Attacks deal 1.0-3.0x damage (higher multipliers are rarer; 3.0x ≈1%)",
+            "effect": {
+              "randomMultiplier": {
+                "ranges": [
+                  {
+                    "chance": 0.01,
+                    "min": 3,
+                    "max": 3
+                  },
+                  {
+                    "chance": 0.04,
+                    "min": 2.5,
+                    "max": 2.99
+                  },
+                  {
+                    "chance": 0.1,
+                    "min": 2,
+                    "max": 2.49
+                  },
+                  {
+                    "chance": 0.25,
+                    "min": 1.5,
+                    "max": 1.99
+                  },
+                  {
+                    "chance": 0.6,
+                    "min": 1,
+                    "max": 1.49
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Fireball",
+            "type": "active",
+            "cooldown": 3,
+            "description": "Area damage to all enemies (ignores taunt)",
+            "emoji": "🔥",
+            "effect": {
+              "areaDamage": true,
+              "ignoreTaunt": true,
+              "damageMultiplier": 0.35
+            }
+          },
+          {
+            "id": "active_2",
+            "name": "Freeze",
+            "type": "active",
+            "cooldown": 4,
+            "description": "Single-target damage with 40% chance to freeze for 1 turn (ignores taunt)",
+            "emoji": "❄️",
+            "effect": {
+              "freezeChance": 0.4,
+              "freezeDuration": 1,
+              "damageMultiplier": 1.2,
+              "ignoreTaunt": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "priest",
+        "name": "Priest",
+        "emoji": "✨",
+        "baseAttack": 8,
+        "baseHP": 90,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Divine Blessing",
+            "type": "passive",
+            "description": "Regenerate HP each turn",
+            "effect": {
+              "regenPerTurn": 5
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Heal",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Restore HP to ally",
+            "effect": {
+              "heal": 30
+            }
+          },
+          {
+            "id": "active_2",
+            "name": "Revive",
+            "type": "active",
+            "cooldown": 5,
+            "description": "Revive fallen ally",
+            "effect": {
+              "revive": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "assassin",
+        "name": "Assassin",
+        "emoji": "🗡️",
+        "baseAttack": 9,
+        "baseHP": 70,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Shadow Step",
+            "type": "passive",
+            "description": "Critical rate increased by 30%",
+            "effect": {
+              "critRateBonus": 0.3
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Backstab",
+            "type": "active",
+            "cooldown": 3,
+            "description": "High damage from behind",
+            "emoji": "🗡️",
+            "effect": {
+              "damageMultiplier": 2
+            }
+          },
+          {
+            "id": "active_2",
+            "name": "Poison",
+            "type": "active",
+            "cooldown": 4,
+            "description": "Apply poison damage over time",
+            "emoji": "☠️",
+            "effect": {
+              "dotMultiplier": 0.2,
+              "dotTurns": 3
+            }
+          }
+        ]
+      },
+      {
+        "id": "shield_warrior",
+        "name": "Shield Warrior",
+        "emoji": "🛡️",
+        "baseAttack": 9,
+        "baseHP": 120,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Shield Block",
+            "type": "passive",
+            "description": "Reduce damage by 30%",
+            "effect": {
+              "damageReduction": 0.3
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Shield Bash",
+            "type": "active",
+            "cooldown": 3,
+            "description": "Attack and reduce enemy attack",
+            "emoji": "🔰",
+            "effect": {
+              "debuff": "attack",
+              "damageMultiplier": 1.1
+            }
+          },
+          {
+            "id": "active_2",
+            "name": "Shield Smash",
+            "type": "active",
+            "cooldown": 4,
+            "description": "Attack with 30% chance to stun",
+            "emoji": "🥊",
+            "effect": {
+              "damageMultiplier": 1.2,
+              "stunChance": 0.3,
+              "stunTurns": 1
+            }
+          }
+        ]
+      }
+    ],
+    "monsterTypes": [
+      {
+        "id": "shaman",
+        "name": "Shaman",
+        "emoji": "🧙",
+        "baseAttack": 20,
+        "baseHP": 80,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Vital Infusion",
+            "type": "passive",
+            "description": "Each turn heal the lowest HP ally (including self) for 10% max HP with a chance to critically amplify heals",
+            "effect": {
+              "healLowestAllyFraction": 0.1,
+              "critHealChance": 0.4,
+              "critHealMultiplier": 2.5
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Vital Storm",
+            "type": "active",
+            "cooldown": 3,
+            "description": "Heal all allies for 40% of their missing HP",
+            "effect": {
+              "areaHeal": true,
+              "missingHpFraction": 0.4
+            }
+          }
+        ]
+      },
+      {
+        "id": "slime",
+        "name": "Slime",
+        "emoji": "🟢",
+        "baseAttack": 12,
+        "baseHP": 60,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Split",
+            "type": "passive",
+            "description": "On first death split into mini slimes",
+            "effect": {
+              "splitOnDeath": true,
+              "splitMin": 2,
+              "splitMax": 4
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Acid Spit",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Deal damage over time",
+            "effect": {
+              "dot": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "mini_slime",
+        "name": "Mini Slime",
+        "emoji": "🟢",
+        "baseAttack": 12,
+        "baseHP": 20,
+        "skills": []
+      },
+      {
+        "id": "goblin",
+        "name": "Goblin",
+        "emoji": "👺",
+        "baseAttack": 13,
+        "baseHP": 70,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Cunning Momentum",
+            "type": "passive",
+            "description": "Gains +1 attack permanently each time it lands a successful strike",
+            "effect": {
+              "attackIncreaseOnHit": 1
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Shadow Stab",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Strike a non-shield foe, ignoring taunt",
+            "effect": {
+              "damageMultiplier": 1,
+              "ignoreTaunt": true,
+              "preferNonShield": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "brute",
+        "name": "Brute",
+        "emoji": "👹",
+        "baseAttack": 15,
+        "baseHP": 120,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Tough",
+            "type": "passive",
+            "description": "Reduce damage by 20% and taunt player attacks",
+            "effect": {
+              "damageReduction": 0.2,
+              "tauntPlayers": true
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Bone Slam",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Devastating 2.5× single-target smash (taunt applies)",
+            "effect": {
+              "damageMultiplier": 2.5
+            }
+          }
+        ]
+      },
+      {
+        "id": "dark_mage",
+        "name": "Dark Mage",
+        "emoji": "🧛",
+        "baseAttack": 18,
+        "baseHP": 90,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Dark Aura",
+            "type": "passive",
+            "description": "Inflict 3-turn bleed on attack",
+            "effect": {
+              "applyBleed": {
+                "turns": 3,
+                "damageFraction": 0.01
+              }
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Dark Bolt",
+            "type": "active",
+            "cooldown": 3,
+            "description": "Force a player to strike an ally with their last attack power",
+            "effect": {
+              "forcePlayerAttack": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "tiger",
+        "name": "Evil Tiger",
+        "emoji": "🐅",
+        "baseAttack": 30,
+        "baseHP": 100,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Bleeding Claw",
+            "type": "passive",
+            "description": "Attack ×1.5 when HP ≤ 50% and normal attacks inflict a stacking bleed over time",
+            "effect": {
+              "lowHPBonus": {
+                "threshold": 0.5,
+                "multiplier": 1.5
+              },
+              "bleedingClaw": {
+                "damageFraction": 0.2,
+                "turns": 2
+              }
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Savage Roar",
+            "type": "active",
+            "cooldown": 3,
+            "description": "Deal 2× damage and silence the target for 1 turn (40% chance)",
+            "effect": {
+              "damageMultiplier": 2,
+              "silenceChance": 0.4,
+              "silenceDuration": 1
+            }
+          }
+        ]
+      },
+      {
+        "id": "dragon",
+        "name": "Evil Dragon",
+        "emoji": "🐉",
+        "isBoss": true,
+        "baseAttack": 30,
+        "baseHP": 300,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Firestorm Aura",
+            "type": "passive",
+            "description": "20% chance to dodge normal attacks and scorch foes before they act",
+            "effect": {
+              "dodgeChance": 0.2,
+              "firestormAura": {
+                "baseFraction": 0.02,
+                "enragedFraction": 0.05,
+                "threshold": 0.5
+              }
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Fire Breath",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Unleash 2× attack damage to all players, ignoring taunt",
+            "effect": {
+              "areaDamage": true,
+              "damageMultiplier": 2,
+              "ignoreTaunt": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "three_headed_wolf",
+        "name": "Three-Headed Wolf",
+        "emoji": "🐺",
+        "isBoss": true,
+        "baseAttack": 30,
+        "baseHP": 250,
+        "skills": [
+          {
+            "id": "passive_1",
+            "name": "Triple Attack",
+            "type": "passive",
+            "description": "Attack 3 times per turn (0.8x damage)",
+            "effect": {
+              "attackCount": 3,
+              "attackMultiplier": 0.8
+            }
+          },
+          {
+            "id": "active_1",
+            "name": "Fatal Bite",
+            "type": "active",
+            "cooldown": 2,
+            "description": "Ignore taunt and rip away 80% of the target’s remaining HP",
+            "effect": {
+              "reduceRemainingHpFraction": 0.8,
+              "ignoreTaunt": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

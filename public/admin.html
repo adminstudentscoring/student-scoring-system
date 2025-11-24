@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Student Scoring System</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .org-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        .org-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .org-actions {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="admin-header">
+                <h1>👑 Admin Dashboard</h1>
+                <div>
+                    <span id="adminName">Loading...</span>
+                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Organizations</h3>
+                <div class="number" id="totalOrgs">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Teachers</h3>
+                <div class="number" id="totalTeachers">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Students</h3>
+                <div class="number" id="totalStudents">-</div>
+            </div>
+        </div>
+
+        <section class="card">
+            <h2>Organization List</h2>
+            <div id="organizationsList">
+                <p>Loading...</p>
+            </div>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        // Check authentication
+        if (!window.authUtils.requireRole('admin')) {
+            // Redirect will happen in requireRole
+        }
+
+        async function loadAdminInfo() {
+            try {
+                const response = await window.authUtils.authenticatedFetch('/auth/me');
+                if (!response) return;
+                
+                const user = await response.json();
+                document.getElementById('adminName').textContent = user.name || user.email;
+            } catch (error) {
+                console.error('Error loading admin info:', error);
+            }
+        }
+
+        async function loadOrganizations() {
+            try {
+                const response = await window.authUtils.authenticatedFetch('/admin/organizations');
+                if (!response) return;
+
+                const organizations = await response.json();
+
+                // Update stats
+                document.getElementById('totalOrgs').textContent = organizations.length;
+                const totalTeachers = organizations.reduce((sum, org) => sum + (org.teacherCount || 0), 0);
+                const totalStudents = organizations.reduce((sum, org) => sum + (org.studentCount || 0), 0);
+                document.getElementById('totalTeachers').textContent = totalTeachers;
+                document.getElementById('totalStudents').textContent = totalStudents;
+
+                // Display organizations
+                if (organizations.length === 0) {
+                    document.getElementById('organizationsList').innerHTML = '<p>No organizations yet</p>';
+                    return;
+                }
+
+                const html = organizations.map(org => `
+                    <div class="org-card">
+                        <div class="org-card-header">
+                            <div>
+                                <h3>${org.name}</h3>
+                                <p>Email: ${org.email} | Phone: ${org.phone || 'N/A'}</p>
+                                <p>Created: ${new Date(org.createdAt).toLocaleString('en-US')}</p>
+                            </div>
+                            <div class="org-actions">
+                                <button class="btn btn-info" onclick="viewOrgDetails('${org.id}')">View Details</button>
+                                <button class="btn btn-primary" onclick="editOrg('${org.id}')">Edit</button>
+                            </div>
+                        </div>
+                        <div>
+                            <p>Teachers: ${org.teacherCount || 0} | Students: ${org.studentCount || 0}</p>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.getElementById('organizationsList').innerHTML = html;
+            } catch (error) {
+                console.error('Error loading organizations:', error);
+                document.getElementById('organizationsList').innerHTML = '<p>Failed to load</p>';
+            }
+        }
+
+        function viewOrgDetails(orgId) {
+            alert('View details feature under development...\nOrganization ID: ' + orgId);
+            // TODO: Open modal or navigate to detail page
+        }
+
+        function editOrg(orgId) {
+            const newName = prompt('Enter new organization name:');
+            if (!newName) return;
+
+            const newEmail = prompt('Enter new Email:');
+            if (!newEmail) return;
+
+            const newPhone = prompt('Enter new phone:');
+
+            updateOrganization(orgId, { name: newName, email: newEmail, phone: newPhone });
+        }
+
+        async function updateOrganization(orgId, data) {
+            try {
+                const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+
+                if (!response) return;
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Update failed');
+                }
+
+                alert('Organization updated successfully!');
+                loadOrganizations();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function logout() {
+            window.authUtils.logout();
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            loadAdminInfo();
+            loadOrganizations();
+        });
+    </script>
+</body>
+</html>
+

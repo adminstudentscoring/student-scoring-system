@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Student Scoring System</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .login-card {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-card h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .login-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+        }
+        .login-tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+        }
+        .login-tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            font-weight: bold;
+        }
+        .login-form {
+            display: none;
+        }
+        .login-form.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-login:hover {
+            background: #5568d3;
+        }
+        .btn-login:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
+        .success-message {
+            background: #efe;
+            color: #3c3;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .success-message.show {
+            display: block;
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+        .register-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <h1>🎓 Student Scoring System</h1>
+            
+            <div class="login-tabs">
+                <button class="login-tab active" onclick="switchTab('login')">Login</button>
+                <button class="login-tab" onclick="switchTab('register')">Register Organization</button>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="loginForm" class="login-form active">
+                <div id="loginError" class="error-message"></div>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email / Username:</label>
+                        <input type="text" id="loginEmail" name="loginIdentifier" required placeholder="Enter email or username">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password:</label>
+                        <input type="password" id="loginPassword" required placeholder="Enter password">
+                    </div>
+                    <button type="submit" class="btn-login" id="loginBtn">Login</button>
+                </form>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="registerForm" class="login-form">
+                <div id="registerError" class="error-message"></div>
+                <div id="registerSuccess" class="success-message"></div>
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="orgName">Organization Name:</label>
+                        <input type="text" id="orgName" required placeholder="Enter organization name">
+                    </div>
+                    <div class="form-group">
+                        <label for="orgEmail">Organization Email:</label>
+                        <input type="email" id="orgEmail" required placeholder="Enter organization email">
+                    </div>
+                    <div class="form-group">
+                        <label for="orgPhone">Contact Phone:</label>
+                        <input type="tel" id="orgPhone" required placeholder="Enter contact phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="orgPassword">Password:</label>
+                        <input type="password" id="orgPassword" required placeholder="At least 6 characters" minlength="6">
+                    </div>
+                    <button type="submit" class="btn-login" id="registerBtn">Register</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script>
+        function switchTab(tab) {
+            // Update tabs
+            document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.login-tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+            
+            // Update forms
+            document.getElementById('loginForm').classList.toggle('active', tab === 'login');
+            document.getElementById('registerForm').classList.toggle('active', tab === 'register');
+            
+            // Clear messages
+            document.getElementById('loginError').classList.remove('show');
+            document.getElementById('registerError').classList.remove('show');
+            document.getElementById('registerSuccess').classList.remove('show');
+        }
+        
+        async function handleLogin(event) {
+            event.preventDefault();
+            const loginIdentifier = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('loginError');
+            
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+            errorDiv.classList.remove('show');
+            
+            try {
+                // Try email first, then username
+                const isEmail = loginIdentifier.includes('@');
+                const loginData = isEmail 
+                    ? { email: loginIdentifier, password }
+                    : { username: loginIdentifier, password };
+                
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(loginData)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Login failed');
+                }
+                
+                // Save token
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                
+                // Redirect based on role
+                redirectByRole(data.user.role);
+                
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.add('show');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Login';
+            }
+        }
+        
+        async function handleRegister(event) {
+            event.preventDefault();
+            const organizationName = document.getElementById('orgName').value;
+            const email = document.getElementById('orgEmail').value;
+            const phone = document.getElementById('orgPhone').value;
+            const password = document.getElementById('orgPassword').value;
+            const btn = document.getElementById('registerBtn');
+            const errorDiv = document.getElementById('registerError');
+            const successDiv = document.getElementById('registerSuccess');
+            
+            btn.disabled = true;
+            btn.textContent = 'Registering...';
+            errorDiv.classList.remove('show');
+            successDiv.classList.remove('show');
+            
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ organizationName, email, phone, password })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Registration failed');
+                }
+                
+                // Show success message
+                successDiv.textContent = 'Registration successful! Redirecting...';
+                successDiv.classList.add('show');
+                
+                // Save token and redirect
+                setTimeout(() => {
+                    localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    redirectByRole(data.user.role);
+                }, 1500);
+                
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.add('show');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Register';
+            }
+        }
+        
+        function redirectByRole(role) {
+            switch(role) {
+                case 'admin':
+                    window.location.href = '/admin.html';
+                    break;
+                case 'organization':
+                    window.location.href = '/organization.html';
+                    break;
+                case 'teacher':
+                    window.location.href = '/teacher.html';
+                    break;
+                default:
+                    window.location.href = '/index.html';
+            }
+        }
+        
+        // Check if already logged in
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('authToken');
+            const userStr = localStorage.getItem('user');
+            
+            if (token && userStr) {
+                const user = JSON.parse(userStr);
+                redirectByRole(user.role);
+            }
+        });
+    </script>
+</body>
+</html>
+

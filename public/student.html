@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*;">
+    <title>Student Scoring System - Student View</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container student-view">
+        <header>
+            <h1>🏆 Student Leaderboard</h1>
+            <div class="auto-refresh">
+                <span>Auto-refresh: <span id="refreshStatus">ON</span></span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Leaderboard -->
+            <section class="card">
+                <h2>Top Students</h2>
+                <div id="leaderboard" class="leaderboard">
+                    <!-- Leaderboard will be loaded here -->
+                </div>
+            </section>
+
+            <!-- All Students -->
+            <section class="card">
+                <h2>All Students</h2>
+                <div id="allStudentsList" class="students-list">
+                    <!-- All students will be loaded here -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="floating-indicator">🔝 Always on Top</div>
+    <script src="student.js"></script>
+    <script>
+        // Detect if running in Electron
+        if (window.navigator.userAgent.indexOf('Electron') !== -1) {
+            document.body.classList.add('electron');
+        }
+    </script>
+</body>
+</html>

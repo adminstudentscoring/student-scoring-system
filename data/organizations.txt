@@ -1,0 +1,18 @@
+{
+  "organizations": [
+    {
+      "id": "1763980617324",
+      "name": "Testing",
+      "email": "testing@studentscoring.com",
+      "phone": "12345678",
+      "createdAt": "2025-11-24T10:36:57.324Z",
+      "teachers": [
+        "1763980672227"
+      ],
+      "students": [
+        "1763980770553"
+      ]
+    }
+  ],
+  "lastUpdate": "2025-11-24T10:39:30.555Z"
+}

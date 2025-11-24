@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monster Fight</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <div id="monsterFightGame">
+            <h2>🐉 Monster Fight</h2>
+            <p>Loading game...</p>
+        </div>
+    </div>
+    
+    <!-- Load Configuration -->
+    <script src="config.js"></script>
+    <!-- Load Game Logic -->
+    <script src="monster-fight.js"></script>
+    <!-- Initialize App -->
+    <script>
+        // Set API base for game
+        window.API_BASE = API_CONFIG.baseURL;
+        window.GAME_API_BASE = API_CONFIG.baseURL;
+        
+        // Check API connection
+        async function checkApiConnection() {
+            try {
+                const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.getGameConfig}`);
+                if (response.ok) {
+                    console.log('Connected to Student Score System');
+                } else {
+                    throw new Error('API response error');
+                }
+            } catch (error) {
+                console.error('API connection error:', error);
+                const container = document.getElementById('monsterFightGame');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: red;">
+                            <h3>Unable to connect to Student Score System</h3>
+                            <p>Please ensure the student score system is running.</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // Initialize app
+        window.addEventListener('DOMContentLoaded', () => {
+            checkApiConnection();
+            if (window.initMonsterFight) {
+                window.initMonsterFight();
+            } else {
+                console.error('initMonsterFight function not found');
+            }
+        });
+    </script>
+</body>
+</html>
+
