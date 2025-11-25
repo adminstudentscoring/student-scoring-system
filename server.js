@@ -32,6 +32,11 @@ const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUse
 // Note: requireOrganizationAccess will be created after readUsers function is defined
 
 // Middleware
+// Trust proxy for correct hostname/protocol detection behind reverse proxy (Railway, etc.)
+if (NODE_ENV === 'production') {
+  app.set('trust proxy', true);
+}
+
 // Configure CORS based on environment
 const corsOptions = {
   origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map(origin => origin.trim()),
@@ -43,12 +48,18 @@ app.use(bodyParser.json());
 // Redirect root domain to www subdomain
 // This handles the DNS limitation where @ (root domain) cannot have CNAME due to MX record conflict
 app.use((req, res, next) => {
-  const hostname = req.hostname || req.get('host');
+  // Get hostname from request, handling both with and without port
+  let hostname = req.get('host') || req.hostname || '';
+  
+  // Remove port number if present (e.g., "studentscoring.com:3000" -> "studentscoring.com")
+  if (hostname.includes(':')) {
+    hostname = hostname.split(':')[0];
+  }
   
   // Check if request is for root domain (without www)
   // Only redirect in production environment
   if (NODE_ENV === 'production' && hostname === 'studentscoring.com') {
-    const protocol = req.protocol || 'https';
+    const protocol = req.protocol || (req.secure ? 'https' : 'http') || 'https';
     const path = req.originalUrl || req.url;
     const redirectUrl = `${protocol}://www.studentscoring.com${path}`;
     
