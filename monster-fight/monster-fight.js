@@ -13,12 +13,32 @@ let monsterTypes = [];
 const CLASS_ICON_MAP = {};
 let monsterIconMap = {};
 
+// Helper function to safely get playerClasses array
+function getPlayerClasses() {
+    if (!Array.isArray(playerClasses)) {
+        playerClasses = window.playerClasses || [];
+    }
+    return playerClasses;
+}
+
+// Helper function to safely get monsterTypes array
+function getMonsterTypes() {
+    if (!Array.isArray(monsterTypes)) {
+        monsterTypes = window.monsterTypes || [];
+    }
+    return monsterTypes;
+}
+
 function cacheIconMaps() {
-    playerClasses.forEach(cls => {
+    // Use helper functions to ensure arrays are valid
+    const classes = getPlayerClasses();
+    const types = getMonsterTypes();
+    
+    classes.forEach(cls => {
         CLASS_ICON_MAP[cls.id] = cls.emoji || '🎯';
     });
     monsterIconMap = {};
-    monsterTypes.forEach(type => {
+    types.forEach(type => {
         monsterIconMap[type.id] = type.emoji || '🧟';
     });
 }
@@ -345,8 +365,9 @@ function initGameWebSocket() {
             }
         } else if (data.type === 'gameConfigUpdated') {
             gameConfig = data.config;
-            playerClasses = data.playerClasses;
-            monsterTypes = data.monsterTypes;
+            // Safety check: ensure arrays are valid before assigning
+            playerClasses = Array.isArray(data.playerClasses) ? data.playerClasses : (playerClasses || []);
+            monsterTypes = Array.isArray(data.monsterTypes) ? data.monsterTypes : (monsterTypes || []);
             cacheIconMaps();
             // Make available globally
             window.playerClasses = playerClasses;
@@ -374,13 +395,15 @@ async function loadGameConfig() {
         }
         const data = await response.json();
         gameConfig = data.config;
-        playerClasses = data.playerClasses;
-        monsterTypes = data.monsterTypes;
+        // Safety check: ensure arrays are valid before assigning
+        playerClasses = Array.isArray(data.playerClasses) ? data.playerClasses : [];
+        monsterTypes = Array.isArray(data.monsterTypes) ? data.monsterTypes : [];
         cacheIconMaps();
         // Make available globally
         window.playerClasses = playerClasses;
         window.monsterTypes = monsterTypes;
         console.log('Game config loaded successfully');
+        console.log(`Loaded ${playerClasses.length} player classes and ${monsterTypes.length} monster types`);
     } catch (error) {
         console.error('Error loading game config:', error);
         throw error;
@@ -601,12 +624,12 @@ function renderCharacterSelection() {
                         <h3>${player.studentName}</h3>
                         ${player.characterClass ? `
                             <div class="selected-character">
-                                <span class="character-emoji">${playerClasses.find(c => c.id === player.characterClass)?.emoji || '❓'}</span>
-                                <p>${playerClasses.find(c => c.id === player.characterClass)?.name || 'Unknown'}</p>
+                                <span class="character-emoji">${getPlayerClasses().find(c => c.id === player.characterClass)?.emoji || '❓'}</span>
+                                <p>${getPlayerClasses().find(c => c.id === player.characterClass)?.name || 'Unknown'}</p>
                             </div>
                         ` : `
                             <div class="character-options">
-                                ${playerClasses.map(charClass => `
+                                ${getPlayerClasses().map(charClass => `
                                     <div class="character-option" onclick="selectCharacter('${player.studentId}', '${charClass.id}')">
                                         <span class="character-emoji">${charClass.emoji}</span>
                                         <p>${charClass.name}</p>
@@ -1190,8 +1213,8 @@ function renderPuzzleInput() {
                     <div class="puzzle-input-card">
                         <h3>${player.studentName}</h3>
                         <div class="character-info">
-                            <span class="character-emoji">${playerClasses.find(c => c.id === player.characterClass)?.emoji || '❓'}</span>
-                            <span>${playerClasses.find(c => c.id === player.characterClass)?.name || 'Unknown'}</span>
+                            <span class="character-emoji">${getPlayerClasses().find(c => c.id === player.characterClass)?.emoji || '❓'}</span>
+                            <span>${getPlayerClasses().find(c => c.id === player.characterClass)?.name || 'Unknown'}</span>
                         </div>
                         <input type="number" 
                                id="puzzle_${player.studentId}" 
@@ -1316,7 +1339,7 @@ function renderBattleMode() {
 // Render player card with all actions integrated (puzzle input + actions in player_turn)
 function renderPlayerCardWithActions(player, isPlayerTurn) {
     console.log(`Rendering player card for ${player.studentName}, isPlayerTurn: ${isPlayerTurn}`);
-    const charClass = playerClasses.find(c => c.id === player.characterClass);
+    const charClass = getPlayerClasses().find(c => c.id === player.characterClass);
     const hpPercent = player.maxHP > 0 ? (player.currentHP / player.maxHP) * 100 : 0;
     const aliveMonsters = gameState.monsters ? gameState.monsters.filter(m => m.isAlive) : [];
     const alivePlayers = gameState.players ? gameState.players.filter(p => p.isAlive) : [];
@@ -1445,7 +1468,8 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
 
 // Render monster card
 function renderMonsterCard(monster) {
-    const monsterType = monsterTypes.find(m => m.id === monster.type);
+    const types = getMonsterTypes();
+    const monsterType = types.find(m => m.id === monster.type);
     const hpPercent = (monster.currentHP / monster.maxHP) * 100;
     
     return `
@@ -2226,7 +2250,7 @@ console.log('monster-fight.js loaded successfully');
 function addIconToName(name, type, id) {
     if (!name) return '';
     if (type === 'player') {
-        const cls = playerClasses.find(c => c.id === id);
+        const cls = getPlayerClasses().find(c => c.id === id);
         const icon = (cls && cls.emoji) || CLASS_ICON_MAP[id] || '🧑';
         return `${icon} ${name}`;
     }
