@@ -39,6 +39,26 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
+
+// Redirect root domain to www subdomain
+// This handles the DNS limitation where @ (root domain) cannot have CNAME due to MX record conflict
+app.use((req, res, next) => {
+  const hostname = req.hostname || req.get('host');
+  
+  // Check if request is for root domain (without www)
+  // Only redirect in production environment
+  if (NODE_ENV === 'production' && hostname === 'studentscoring.com') {
+    const protocol = req.protocol || 'https';
+    const path = req.originalUrl || req.url;
+    const redirectUrl = `${protocol}://www.studentscoring.com${path}`;
+    
+    // Use 301 permanent redirect for SEO
+    return res.redirect(301, redirectUrl);
+  }
+  
+  next();
+});
+
 app.use(express.static('public'));
 // Serve standalone project puzzle-monster-fight
 app.use('/puzzle-monster-fight', express.static('puzzle-monster-fight'));
