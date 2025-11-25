@@ -9,7 +9,8 @@
     "electron": "electron .",
     "electron-dev": "electron . --dev",
     "app": "electron .",
-    "init-admin": "node scripts/init-admin.js"
+    "init-admin": "node scripts/init-admin.js",
+    "migrate-students": "node scripts/migrate-students.js"
   },
   "keywords": ["student", "scoring", "zoom", "education"],
   "author": "",
