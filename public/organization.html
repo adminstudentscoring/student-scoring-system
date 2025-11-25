@@ -9,14 +9,14 @@
         .org-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             margin-bottom: 20px;
-            position: relative;
         }
         .org-header-left {
             display: flex;
             flex-direction: column;
             gap: 8px;
+            flex: 1;
         }
         .org-header h1 {
             margin: 0;
@@ -28,12 +28,10 @@
             margin-left: 0;
         }
         .user-info {
-            position: absolute;
-            top: 0;
-            right: 0;
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-shrink: 0;
         }
         .tabs {
             display: flex;
