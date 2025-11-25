@@ -82,9 +82,8 @@ RUNNING_QUEEN_LEADERBOARD_FILE=data/running-queen-leaderboard.txt
 ROYAL_EXCHANGE_LEADERBOARD_FILE=data/royal-exchange-leaderboard.txt
 
 # CORS Configuration
-# 替换为你的实际域名，例如：
-# CORS_ORIGIN=https://yourdomain.com,https://www.yourdomain.com
-CORS_ORIGIN=*
+# 使用你的自定义域名 studentscoring.com
+CORS_ORIGIN=https://studentscoring.com,https://www.studentscoring.com
 
 # JWT Secret (使用步骤 2.1 生成的密钥)
 JWT_SECRET=你的生成的密钥
@@ -98,6 +97,10 @@ USERS_FILE=data/users.txt
 # Organizations Data File
 ORGANIZATIONS_FILE=data/organizations.txt
 ```
+
+**注意**: 
+- `CORS_ORIGIN` 应该设置为你的实际域名
+- 如果暂时使用平台提供的域名，可以先设置为平台域名，配置自定义域名后再更新
 
 ---
 
@@ -129,11 +132,21 @@ ORGANIZATIONS_FILE=data/organizations.txt
 2. 等待部署完成（通常 2-5 分钟）
 3. 获取提供的域名（例如：`your-project.up.railway.app`）
 
-#### 3.6 更新 CORS_ORIGIN
+#### 3.6 配置域名和 CORS_ORIGIN
+
+**选项 A: 使用 Railway 提供的域名（临时）**
 1. 在 Railway 环境变量中更新 `CORS_ORIGIN`
 2. 设置为你的 Railway 域名：
    ```
    CORS_ORIGIN=https://your-project.up.railway.app
+   ```
+3. 重新部署
+
+**选项 B: 使用自定义域名 studentscoring.com（推荐）**
+1. 先完成步骤 5（配置自定义域名）
+2. 配置完成后，更新 `CORS_ORIGIN`：
+   ```
+   CORS_ORIGIN=https://studentscoring.com,https://www.studentscoring.com
    ```
 3. 重新部署
 
@@ -163,24 +176,99 @@ ORGANIZATIONS_FILE=data/organizations.txt
 
 ---
 
-### 步骤 5: 自定义域名（可选）
+### 步骤 5: 配置自定义域名 (studentscoring.com)
 
-#### 5.1 购买域名
-- Namecheap: https://www.namecheap.com
-- GoDaddy: https://www.godaddy.com
-- Google Domains: https://domains.google
+你已经购买了域名 `studentscoring.com`，现在需要将其连接到你的部署平台。
 
-#### 5.2 配置 DNS
-1. 在域名注册商处添加 CNAME 记录
-2. 指向你的部署平台提供的域名
-3. 等待 DNS 传播（通常 5-30 分钟）
+#### 5.1 在 Google Domains 配置 DNS
 
-#### 5.3 在部署平台配置域名
-- **Railway**: Settings → Domains → Add Custom Domain
-- **Render**: Settings → Custom Domains → Add
+1. **登录 Google Domains**
+   - 访问 https://domains.google.com
+   - 登录你的 Google 账号
+   - 找到 `studentscoring.com` 域名
 
-#### 5.4 更新 CORS_ORIGIN
-更新环境变量中的 `CORS_ORIGIN` 为你的自定义域名
+2. **添加 DNS 记录**
+
+   根据你选择的部署平台，添加相应的 DNS 记录：
+
+   **如果使用 Railway:**
+   - 在 Google Domains 的 DNS 设置中，添加 **CNAME 记录**：
+     - **名称**: `@` 或留空（表示根域名）
+     - **类型**: CNAME
+     - **TTL**: 3600（或默认值）
+     - **数据**: `your-project.up.railway.app`（替换为 Railway 提供的域名）
+   
+   - 如果需要支持 `www.studentscoring.com`，再添加一条：
+     - **名称**: `www`
+     - **类型**: CNAME
+     - **数据**: `your-project.up.railway.app`
+
+   **如果使用 Render:**
+   - 添加 CNAME 记录：
+     - **名称**: `@`
+     - **类型**: CNAME
+     - **数据**: `your-service.onrender.com`（Render 提供的域名）
+
+3. **等待 DNS 传播**
+   - DNS 更改通常需要 5-30 分钟生效
+   - 可以使用 https://dnschecker.org 检查 DNS 传播状态
+
+#### 5.2 在部署平台配置自定义域名
+
+**Railway:**
+1. 进入你的 Railway 项目
+2. 点击 "Settings" → "Domains"
+3. 点击 "Add Custom Domain"
+4. 输入 `studentscoring.com`
+5. Railway 会自动配置 SSL 证书（HTTPS）
+
+**Render:**
+1. 进入你的 Render 服务设置
+2. 点击 "Settings" → "Custom Domains"
+3. 点击 "Add"
+4. 输入 `studentscoring.com`
+5. Render 会自动配置 SSL 证书
+
+#### 5.3 更新 CORS_ORIGIN 环境变量
+
+在部署平台的环境变量中，更新 `CORS_ORIGIN`：
+
+```
+CORS_ORIGIN=https://studentscoring.com,https://www.studentscoring.com
+```
+
+**重要**: 
+- 确保包含 `https://` 前缀
+- 如果支持 www 子域名，两个都加上
+- 多个域名用逗号分隔，**不要有空格**
+
+#### 5.4 验证配置
+
+1. **检查 DNS 解析**
+   ```bash
+   # 在命令行运行（Windows PowerShell）
+   nslookup studentscoring.com
+   ```
+   应该返回你的部署平台的 IP 地址
+
+2. **访问网站**
+   - 等待 10-30 分钟后，访问 https://studentscoring.com
+   - 应该能看到你的应用
+
+3. **检查 HTTPS**
+   - 确认浏览器显示绿色锁图标
+   - URL 应该是 `https://` 开头
+
+#### 5.5 常见问题
+
+**问题**: DNS 配置后无法访问
+- **解决**: 等待更长时间（最多 48 小时），清除浏览器缓存
+
+**问题**: SSL 证书未自动配置
+- **解决**: 大多数平台（Railway/Render）会自动配置，等待 5-10 分钟
+
+**问题**: CORS 错误仍然出现
+- **解决**: 确认 `CORS_ORIGIN` 环境变量已更新，并重新部署应用
 
 ---
 
