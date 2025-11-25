@@ -1406,6 +1406,225 @@ app.get('/api/organizations/teachers/:teacherId/students', authenticateUser, aut
   }
 });
 
+// ==================== Organization Settings API ====================
+
+// Get organization settings
+app.get('/api/organizations/settings', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    
+    if (!orgUser || !orgUser.organizationId) {
+      return res.status(403).json({ error: 'Organization not found' });
+    }
+    
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === orgUser.organizationId);
+    
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // Return settings or default settings if not set
+    const defaultSettings = {
+      teacherPermissions: {
+        canCreateStudents: true,
+        canDeleteStudents: true,
+        canModifyScores: true,
+        canUseClassView: true,
+        canResetScores: true,
+        canViewStatistics: true
+      },
+      studentPermissions: {
+        canViewLeaderboard: true,
+        canViewOtherScores: true,
+        canViewOwnDetails: true
+      },
+      classViewMode: {
+        enabled: true,
+        defaultDifficulty: 1,
+        rewardRule: 'fixed',
+        hpCalculation: 'byScore',
+        hpMultiplier: 1
+      },
+      studentLevelUp: {
+        experiencePerLevel: 100,
+        rankSystem: {
+          enabled: true,
+          baseScore: 50,
+          multiplier: 2
+        }
+      },
+      displaySettings: {
+        leaderboardCount: 10,
+        showScore: true,
+        showLevel: true,
+        showRank: true,
+        themeColor: '#667eea',
+        fontSize: 'medium'
+      },
+      scheduleSettings: {
+        classTimes: [],
+        autoSaveEnabled: true,
+        autoSaveInterval: 30
+      },
+      scoringRules: {
+        correctAnswerPoints: 10,
+        incorrectAnswerPoints: 2,
+        customRules: []
+      },
+      challengeLevels: {
+        levels: [
+          { level: 1, name: 'Slime', maxHP: 50, reward: 10, emoji: '🟢' },
+          { level: 2, name: 'Goblin', maxHP: 100, reward: 20, emoji: '👺' },
+          { level: 3, name: 'Orc', maxHP: 150, reward: 30, emoji: '👹' },
+          { level: 4, name: 'Dragon', maxHP: 250, reward: 40, emoji: '🐉' },
+          { level: 5, name: 'Demon', maxHP: 400, reward: 50, emoji: '😈' },
+          { level: 6, name: 'Boss Lv1', maxHP: 650, reward: 60, emoji: '👑' },
+          { level: 7, name: 'Boss Lv2', maxHP: 1050, reward: 75, emoji: '👑' },
+          { level: 8, name: 'Boss Lv3', maxHP: 1700, reward: 100, emoji: '👑' },
+          { level: 9, name: 'Boss Lv4', maxHP: 2750, reward: 125, emoji: '👑' },
+          { level: 10, name: 'Final Boss', maxHP: 4450, reward: 150, emoji: '👑' }
+        ]
+      },
+      backupSettings: {
+        autoBackupEnabled: true,
+        backupFrequency: 'daily',
+        backupRetention: 7
+      },
+      notificationSettings: {
+        websocketUpdateFrequency: 1000,
+        soundEnabled: false,
+        notificationMethod: 'websocket'
+      },
+      organizationInfo: {
+        logo: '',
+        primaryColor: '#667eea',
+        secondaryColor: '#764ba2'
+      },
+      securitySettings: {
+        passwordMinLength: 6,
+        maxLoginAttempts: 5,
+        sessionTimeout: 3600000
+      }
+    };
+    
+    // Merge default settings with saved settings
+    const savedSettings = organization.settings || {};
+    const mergedSettings = {
+      ...defaultSettings,
+      ...savedSettings,
+      teacherPermissions: { ...defaultSettings.teacherPermissions, ...(savedSettings.teacherPermissions || {}) },
+      studentPermissions: { ...defaultSettings.studentPermissions, ...(savedSettings.studentPermissions || {}) },
+      classViewMode: { ...defaultSettings.classViewMode, ...(savedSettings.classViewMode || {}) },
+      studentLevelUp: {
+        ...defaultSettings.studentLevelUp,
+        ...(savedSettings.studentLevelUp || {}),
+        rankSystem: { ...defaultSettings.studentLevelUp.rankSystem, ...(savedSettings.studentLevelUp?.rankSystem || {}) }
+      },
+      displaySettings: { ...defaultSettings.displaySettings, ...(savedSettings.displaySettings || {}) },
+      scheduleSettings: { ...defaultSettings.scheduleSettings, ...(savedSettings.scheduleSettings || {}) },
+      scoringRules: { ...defaultSettings.scoringRules, ...(savedSettings.scoringRules || {}) },
+      challengeLevels: savedSettings.challengeLevels || defaultSettings.challengeLevels,
+      backupSettings: { ...defaultSettings.backupSettings, ...(savedSettings.backupSettings || {}) },
+      notificationSettings: { ...defaultSettings.notificationSettings, ...(savedSettings.notificationSettings || {}) },
+      organizationInfo: { ...defaultSettings.organizationInfo, ...(savedSettings.organizationInfo || {}) },
+      securitySettings: { ...defaultSettings.securitySettings, ...(savedSettings.securitySettings || {}) }
+    };
+    
+    res.json(mergedSettings);
+  } catch (error) {
+    console.error('Error getting organization settings:', error);
+    res.status(500).json({ error: 'Failed to get organization settings' });
+  }
+});
+
+// Update organization settings
+app.put('/api/organizations/settings', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const settings = req.body;
+    
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({ error: 'Settings data is required' });
+    }
+    
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    
+    if (!orgUser || !orgUser.organizationId) {
+      return res.status(403).json({ error: 'Organization not found' });
+    }
+    
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === orgUser.organizationId);
+    
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // Update settings
+    organization.settings = settings;
+    organization.updatedAt = new Date().toISOString();
+    
+    const orgIndex = organizations.findIndex(o => o.id === organization.id);
+    organizations[orgIndex] = organization;
+    await writeOrganizations(organizations);
+    
+    res.json({
+      message: 'Settings saved successfully',
+      settings: organization.settings
+    });
+  } catch (error) {
+    console.error('Error updating organization settings:', error);
+    res.status(500).json({ error: 'Failed to update organization settings' });
+  }
+});
+
+// Reset organization settings to default
+app.post('/api/organizations/settings/reset', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { category } = req.body; // Optional: reset specific category or all if not provided
+    
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    
+    if (!orgUser || !orgUser.organizationId) {
+      return res.status(403).json({ error: 'Organization not found' });
+    }
+    
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === orgUser.organizationId);
+    
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // If category is specified, reset only that category
+    if (category && organization.settings) {
+      // Reset specific category logic would go here
+      // For now, we'll reset all settings
+      organization.settings = {};
+    } else {
+      // Reset all settings
+      organization.settings = {};
+    }
+    
+    organization.updatedAt = new Date().toISOString();
+    
+    const orgIndex = organizations.findIndex(o => o.id === organization.id);
+    organizations[orgIndex] = organization;
+    await writeOrganizations(organizations);
+    
+    res.json({
+      message: 'Settings reset successfully',
+      settings: organization.settings
+    });
+  } catch (error) {
+    console.error('Error resetting organization settings:', error);
+    res.status(500).json({ error: 'Failed to reset organization settings' });
+  }
+});
+
 // ==================== Teacher Management API ====================
 
 // Teacher selects students for Class View
