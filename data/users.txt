@@ -1,14 +1,6 @@
 {
   "users": [
     {
-      "id": "1763980288808",
-      "email": "admin@studentscoring.com",
-      "password": "$2b$10$vB4pOqTEf/0PZj1cnU1O.uynfxc9QOZr5BwTg8y614BT7otTR.b.y",
-      "name": "Admin",
-      "role": "admin",
-      "createdAt": "2025-11-24T10:31:28.808Z"
-    },
-    {
       "id": "1763980617325",
       "email": "testing@studentscoring.com",
       "password": "$2b$10$Gxv.XfyPTfWQHTBzfJdC3.5GoiKPutxMSgS.nSYYT50ektRXqqjDq",
@@ -34,7 +26,15 @@
       "assignedStudents": [
         "1763980770553"
       ]
+    },
+    {
+      "id": "1764084685051",
+      "email": "admin@studentscoring.com",
+      "password": "$2b$10$sr9Au0xHHPfq.V.5at3aHuyQiHMnKke.8iq8/u5G7TmUB57VSZH0u",
+      "name": "System Administrator",
+      "role": "admin",
+      "createdAt": "2025-11-25T15:31:25.051Z"
     }
   ],
-  "lastUpdate": "2025-11-24T14:17:58.862Z"
+  "lastUpdate": "2025-11-25T15:31:25.052Z"
 }
