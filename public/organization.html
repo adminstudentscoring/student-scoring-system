@@ -694,7 +694,7 @@
 
         async function loadSettings() {
             try {
-                const response = await window.authUtils.authenticatedFetch('/api/organizations/settings');
+                const response = await window.authUtils.authenticatedFetch('/organizations/settings');
                 if (!response) return;
 
                 if (!response.ok) {
@@ -1352,7 +1352,7 @@
 
         async function saveSettings() {
             try {
-                const response = await window.authUtils.authenticatedFetch('/api/organizations/settings', {
+                const response = await window.authUtils.authenticatedFetch('/organizations/settings', {
                     method: 'PUT',
                     body: JSON.stringify(currentSettings)
                 });
