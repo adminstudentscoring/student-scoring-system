@@ -928,18 +928,28 @@ app.post('/api/auth/login', async (req, res) => {
     
     // Find user by email or username
     const users = await readUsers();
+    console.log(`[LOGIN] Attempting login with: ${loginIdentifier}`);
+    console.log(`[LOGIN] Total users: ${users.length}`);
+    
     const user = users.find(u => 
       u.email === loginIdentifier.toLowerCase() || 
       u.username === loginIdentifier
     );
     
     if (!user) {
+      console.log(`[LOGIN] User not found: ${loginIdentifier}`);
+      console.log(`[LOGIN] Available emails: ${users.map(u => u.email).join(', ')}`);
       return res.status(401).json({ error: 'Invalid email/username or password' });
     }
     
+    console.log(`[LOGIN] User found: ${user.email} (${user.role})`);
+    
     // Verify password
     const isValidPassword = await comparePassword(password, user.password);
+    console.log(`[LOGIN] Password valid: ${isValidPassword}`);
+    
     if (!isValidPassword) {
+      console.log(`[LOGIN] Password verification failed for: ${user.email}`);
       return res.status(401).json({ error: 'Invalid email/username or password' });
     }
     
