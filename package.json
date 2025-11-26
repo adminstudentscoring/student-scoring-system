@@ -4,8 +4,9 @@
   "description": "Student scoring system for Zoom classes with gamification features",
   "main": "main.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "start": "node sync-users.js && node server.js",
+    "dev": "node sync-users.js && node server.js",
+    "sync-users": "node sync-users.js",
     "electron": "electron .",
     "electron-dev": "electron . --dev",
     "app": "electron .",
