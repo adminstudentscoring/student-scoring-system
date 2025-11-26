@@ -28,13 +28,13 @@
       ]
     },
     {
-      "id": "1764084685051",
+      "id": "1764132563553",
       "email": "admin@studentscoring.com",
-      "password": "$2b$10$sr9Au0xHHPfq.V.5at3aHuyQiHMnKke.8iq8/u5G7TmUB57VSZH0u",
+      "password": "$2b$10$VU6I.ARfZiq01YzFrFSau.Z0amDxV81KuwUpHPRM1.FAYW9D0NB12",
       "name": "System Administrator",
       "role": "admin",
-      "createdAt": "2025-11-25T15:31:25.051Z"
+      "createdAt": "2025-11-26T04:49:23.553Z"
     }
   ],
-  "lastUpdate": "2025-11-25T15:31:25.052Z"
+  "lastUpdate": "2025-11-26T10:19:35.731Z"
 }
