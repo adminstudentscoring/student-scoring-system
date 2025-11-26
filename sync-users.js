@@ -1,53 +1,12 @@
 /**
  * Sync users.txt into the runtime data directory.
- * Merges existing users with required users (preserves Volume users, adds/updates admin).
+ * Clears all existing users and creates only the admin user.
  */
 require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
 const { hashPassword } = require('./auth');
-
-// Required users that must exist (from Git repository)
-// Note: Admin password will be hashed dynamically
-async function getRequiredUsers() {
-  // Hash admin password
-  const adminPasswordHash = await hashPassword('C25da1212');
-  
-  return [
-    {
-      id: "1763980617325",
-      email: "testing@studentscoring.com",
-      password: "$2b$10$Gxv.XfyPTfWQHTBzfJdC3.5GoiKPutxMSgS.nSYYT50ektRXqqjDq",
-      name: "Testing",
-      role: "organization",
-      organizationId: "1763980617324",
-      createdAt: "2025-11-24T10:36:57.325Z"
-    },
-    {
-      id: "1763980672227",
-      email: "testingwpt",
-      username: "TestingWPT",
-      password: "$2b$10$SRmXMyzjgokGrJKoGWO6x.o7wdLQUXJs1qbtTzc7VHgUsfBokjVNu",
-      name: "Wong Pui Tak",
-      teacherId: "TestingWPT",
-      gender: "male",
-      role: "teacher",
-      organizationId: "1763980617324",
-      createdAt: "2025-11-24T10:37:52.227Z",
-      classViewStudents: ["1763980770553"],
-      assignedStudents: ["1763980770553"]
-    },
-    {
-      id: "1764132563553",
-      email: "admin@studentscoring.com",
-      password: adminPasswordHash, // Dynamically hashed
-      name: "System Administrator",
-      role: "admin",
-      createdAt: "2025-11-26T04:49:23.553Z"
-    }
-  ];
-}
 
 // Use the same logic as server.js to determine target file
 const envUsersFile = process.env.USERS_FILE || path.join('data', 'users.txt');
@@ -57,53 +16,29 @@ const targetFile = path.isAbsolute(envUsersFile)
 
 async function syncUsers() {
   try {
-    // Get required users (must exist)
-    const requiredUsers = await getRequiredUsers();
-    
     console.log(`[sync-users] Target: ${targetFile}`);
+    console.log(`[sync-users] Clearing all existing users and creating fresh admin user...`);
     
-    // Read existing users from Volume (if file exists)
-    let existingUsers = [];
-    if (fs.existsSync(targetFile)) {
-      try {
-        const existingContent = fs.readFileSync(targetFile, 'utf8');
-        const existingData = JSON.parse(existingContent);
-        existingUsers = existingData.users || [];
-        console.log(`[sync-users] Found ${existingUsers.length} existing users in Volume`);
-      } catch (error) {
-        console.warn(`[sync-users] Could not read existing file, starting fresh: ${error.message}`);
-      }
-    }
-
-    // Merge users: keep existing users, update/add required users
-    const mergedUsers = [...existingUsers];
+    // Hash admin password
+    const adminPasswordHash = await hashPassword('C25da1212');
     
-    requiredUsers.forEach(requiredUser => {
-      const existingIndex = mergedUsers.findIndex(u => 
-        u.email === requiredUser.email || 
-        (requiredUser.username && u.username === requiredUser.username)
-      );
-      
-      if (existingIndex >= 0) {
-        // Update existing user
-        console.log(`[sync-users] Updating user: ${requiredUser.email || requiredUser.username}`);
-        mergedUsers[existingIndex] = requiredUser;
-      } else {
-        // Add new user
-        console.log(`[sync-users] Adding new user: ${requiredUser.email || requiredUser.username}`);
-        mergedUsers.push(requiredUser);
-      }
-    });
-
-    const mergedData = {
-      users: mergedUsers,
+    // Create fresh users data with only admin
+    const usersData = {
+      users: [
+        {
+          id: Date.now().toString(),
+          email: "admin@studentscoring.com",
+          password: adminPasswordHash,
+          name: "System Administrator",
+          role: "admin",
+          createdAt: new Date().toISOString()
+        }
+      ],
       lastUpdate: new Date().toISOString()
     };
 
-    console.log(`[sync-users] Merged result: ${mergedUsers.length} total users`);
-    mergedUsers.forEach((user, i) => {
-      console.log(`[sync-users]   ${i + 1}. ${user.email || user.username} (${user.role})`);
-    });
+    console.log(`[sync-users] Creating admin user: admin@studentscoring.com`);
+    console.log(`[sync-users] Password: C25da1212`);
 
     const targetDir = path.dirname(targetFile);
     if (!fs.existsSync(targetDir)) {
@@ -111,14 +46,14 @@ async function syncUsers() {
       console.log(`[sync-users] Created target directory: ${targetDir}`);
     }
 
-    // Write merged data to target file
-    fs.writeFileSync(targetFile, JSON.stringify(mergedData, null, 2), 'utf8');
+    // Write fresh data to target file (overwrites all existing users)
+    fs.writeFileSync(targetFile, JSON.stringify(usersData, null, 2), 'utf8');
     console.log(`[sync-users] ✅ Users file written to ${targetFile}`);
     
     // Verify the written file
     const targetContent = fs.readFileSync(targetFile, 'utf8');
     const targetData = JSON.parse(targetContent);
-    console.log(`[sync-users] ✅ Verified: Target file contains ${targetData.users.length} users`);
+    console.log(`[sync-users] ✅ Verified: Target file contains ${targetData.users.length} user(s)`);
     
     // Check for admin user
     const adminUser = targetData.users.find(u => u.email === 'admin@studentscoring.com' && u.role === 'admin');
