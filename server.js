@@ -1227,6 +1227,40 @@ app.put('/api/admin/organizations/:id', authenticateUser, authorizeRole('admin')
   }
 });
 
+// Admin updates organization password
+app.patch('/api/admin/organizations/:id/password', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const users = await readUsers();
+    const orgUserIndex = users.findIndex(u => u.organizationId === id && u.role === 'organization');
+    if (orgUserIndex === -1) {
+      return res.status(404).json({ error: 'Organization user account not found' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    users[orgUserIndex].password = hashedPassword;
+    users[orgUserIndex].updatedAt = new Date().toISOString();
+    await writeUsers(users);
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error updating organization password:', error);
+    res.status(500).json({ error: 'Failed to update organization password' });
+  }
+});
+
 // Get organization details (admin only)
 app.get('/api/admin/organizations/:id', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {

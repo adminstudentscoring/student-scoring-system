@@ -362,6 +362,13 @@ function renderSecurityCompliance(settings) {
                 </div>
                 <div class="help-text">Leave empty to allow all IPs. Add IP addresses to restrict access.</div>
             </div>
+            <div class="settings-group">
+                <label>Reset Organization Password</label>
+                <input type="password" id="sc_newPassword" placeholder="Enter new password (min 6 chars)">
+                <input type="password" id="sc_confirmPassword" placeholder="Confirm new password" style="margin-top: 10px;">
+                <div class="help-text">Use this to force-reset the organization admin login password.</div>
+                <button class="btn btn-danger" style="margin-top: 10px;" onclick="resetOrgPassword()">Update Password</button>
+            </div>
         </div>
     `;
 }
@@ -403,6 +410,62 @@ function renderNotifications(settings) {
             </div>
         </div>
     `;
+}
+
+async function resetOrgPassword() {
+    if (!currentOrgId) {
+        alert('No organization selected.');
+        return;
+    }
+
+    const newPasswordInput = document.getElementById('sc_newPassword');
+    const confirmPasswordInput = document.getElementById('sc_confirmPassword');
+    
+    if (!newPasswordInput || !confirmPasswordInput) {
+        alert('Password inputs not found.');
+        return;
+    }
+
+    const password = newPasswordInput.value.trim();
+    const confirmPassword = confirmPasswordInput.value.trim();
+
+    if (!password) {
+        alert('Please enter a new password.');
+        return;
+    }
+
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters.');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        alert('Passwords do not match.');
+        return;
+    }
+
+    if (!confirm('Are you sure you want to update this organization password?')) {
+        return;
+    }
+
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${currentOrgId}/password`, {
+            method: 'PATCH',
+            body: JSON.stringify({ password })
+        });
+        if (!response) return;
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update password');
+        }
+
+        alert('Password updated successfully!');
+        newPasswordInput.value = '';
+        confirmPasswordInput.value = '';
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
 }
 
 /**
