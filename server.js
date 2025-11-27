@@ -71,10 +71,12 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static('public'));
-// Serve standalone project puzzle-monster-fight
-app.use('/puzzle-monster-fight', express.static('puzzle-monster-fight'));
-// Serve standalone project monster-fight
-app.use('/monster-fight', express.static('monster-fight'));
+// Serve game directory (all game-related files)
+app.use('/game', express.static('game'));
+// Serve standalone project puzzle-monster-fight (now in game directory)
+app.use('/game/puzzle-monster-fight', express.static('game/puzzle-monster-fight'));
+// Serve standalone project monster-fight (now in game directory)
+app.use('/game/monster-fight', express.static('game/monster-fight'));
 
 // Ensure data directory exists
 async function ensureDataDir() {

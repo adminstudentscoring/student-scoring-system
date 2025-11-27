@@ -1140,7 +1140,7 @@ async function startMonsterFight() {
         
         // 打開獨立專案的頁面
         // 使用伺服器提供的路徑訪問獨立專案
-        const gameUrl = '/monster-fight/index.html';
+        const gameUrl = '/game/monster-fight/index.html';
         
         // 嘗試在新視窗中打開
         const gameWindow = window.open(
@@ -1209,7 +1209,7 @@ async function startRunningQueen() {
 
         if (!window.runningQueenLoaded) {
             const script = document.createElement('script');
-            script.src = '/running-queen.js';
+            script.src = '/game/running-queen.js';
             script.onload = () => {
                 window.runningQueenLoaded = true;
                 ensureScriptLoaded();
@@ -1271,7 +1271,7 @@ async function startRoyalExchange() {
 
         if (!window.royalExchangeLoaded) {
             const script = document.createElement('script');
-            script.src = '/royal-exchange.js';
+            script.src = '/game/royal-exchange.js';
             script.onload = () => {
                 window.royalExchangeLoaded = true;
                 ensureScriptLoaded();
@@ -1313,7 +1313,7 @@ async function startPuzzleMonsterFight() {
 
     // 打開獨立專案的頁面
     // 使用伺服器提供的路徑訪問獨立專案
-    const gameUrl = '/puzzle-monster-fight/index.html';
+    const gameUrl = '/game/puzzle-monster-fight/index.html';
     
     // 嘗試在新視窗中打開
     const gameWindow = window.open(
@@ -1389,13 +1389,13 @@ function openGameInNewWindow() {
     
     if (isElectron) {
         // In Electron, use a special URL that will be handled by main.js
-        const gameWindow = window.open(`http://localhost:3000/game-window.html?${query}`, 'gameWindow');
+        const gameWindow = window.open(`http://localhost:3000/game/game-window.html?${query}`, 'gameWindow');
         if (!gameWindow) {
             showNotification('Please allow popups to open game in new window', 'error');
         }
     } else {
         // In browser, create a new window with the game content
-        const gameWindow = window.open(`/game-window.html?${query}`, 'gameWindow', 'width=1200,height=800,alwaysOnTop=yes');
+        const gameWindow = window.open(`/game/game-window.html?${query}`, 'gameWindow', 'width=1200,height=800,alwaysOnTop=yes');
         if (!gameWindow) {
             showNotification('Please allow popups to open game in new window', 'error');
         }

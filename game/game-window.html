@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*;">
     <title>Game Zone</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="game-styles.css">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/game/game-styles.css">
     <style>
         body {
             margin: 0;
@@ -80,7 +80,7 @@
                     } catch (error) {
                         console.warn('Unable to restore running queen players from storage:', error);
                     }
-                    await loadScript('/running-queen.js');
+                    await loadScript('/game/running-queen.js');
                     if (window.initRunningQueen) {
                         window.initRunningQueen();
                     } else {
@@ -101,7 +101,7 @@
                     } catch (error) {
                         console.warn('Unable to restore royal exchange players from storage:', error);
                     }
-                    await loadScript('/royal-exchange.js');
+                    await loadScript('/game/royal-exchange.js');
                     if (window.initRoyalExchange) {
                         window.initRoyalExchange();
                     } else {
@@ -122,7 +122,7 @@
                     } catch (error) {
                         console.warn('Unable to restore puzzle monster fight players from storage:', error);
                     }
-                    await loadScript('/puzzle-monster-fight.js');
+                    await loadScript('/game/puzzle-monster-fight.js');
                     if (window.initPuzzleMonsterFight) {
                         window.initPuzzleMonsterFight();
                     } else {
@@ -135,7 +135,7 @@
                             <p>Loading game...</p>
                         </div>
                     `;
-                    await loadScript('/game.js');
+                    await loadScript('/game/game.js');
                     if (window.initMonsterFight) {
                         window.initMonsterFight();
                     } else {
