@@ -244,10 +244,11 @@
             </div>
             <div class="modal-body">
                 <div class="tools-tabs" id="orgSettingsTabs">
-                    <button class="tools-tab active" onclick="switchOrgSettingsMode('settings')">⚙️ Settings</button>
-                    <button class="tools-tab" onclick="switchOrgSettingsMode('statistics')">📊 Statistics</button>
-                    <button class="tools-tab" onclick="switchOrgSettingsMode('audit')">📋 Audit Logs</button>
-                    <button class="tools-tab" onclick="switchOrgSettingsMode('batch')">⚡ Batch Operations</button>
+                    <button class="tools-tab active" data-mode="settings" onclick="switchOrgSettingsMode('settings')">⚙️ Settings</button>
+                    <button class="tools-tab" data-mode="manage" onclick="switchOrgSettingsMode('manage')">🛠 Manage Data</button>
+                    <button class="tools-tab" data-mode="statistics" onclick="switchOrgSettingsMode('statistics')">📊 Statistics</button>
+                    <button class="tools-tab" data-mode="audit" onclick="switchOrgSettingsMode('audit')">📋 Audit Logs</button>
+                    <button class="tools-tab" data-mode="batch" onclick="switchOrgSettingsMode('batch')">⚡ Batch Operations</button>
                 </div>
                 <div id="orgSettingsContainer">
                     <p>Loading settings...</p>
@@ -309,9 +310,11 @@
                                 <p>Created: ${new Date(org.createdAt).toLocaleString('en-US')}</p>
                             </div>
                             <div class="org-actions">
+                                <button class="btn btn-warning" onclick="openOrgSettings('${org.id}', 'manage')">Manage</button>
                                 <button class="btn btn-info" onclick="viewOrgDetails('${org.id}')">View Details</button>
                                 <button class="btn btn-secondary" onclick="openOrgSettings('${org.id}')">⚙️ Settings</button>
                                 <button class="btn btn-primary" onclick="editOrg('${org.id}')">Edit</button>
+                                <button class="btn btn-danger" onclick="deleteOrg('${org.id}', '${org.name.replace(/'/g, "\\'")}')">Delete</button>
                             </div>
                         </div>
                         <div>
@@ -385,19 +388,10 @@
             }
         }
 
-        function openOrgSettings(orgId) {
+        function openOrgSettings(orgId, defaultMode = 'settings') {
             currentOrgModalId = orgId;
-            currentOrgSettingsMode = 'settings';
             document.getElementById('orgSettingsModal').classList.add('active');
-            document.getElementById('orgSettingsContainer').style.display = 'block';
-            document.getElementById('orgToolsContainer').style.display = 'none';
-            
-            // Update tabs
-            document.querySelectorAll('.tools-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tools-tab')[0].classList.add('active');
-            
-            // Load settings
-            loadOrgSettings(orgId);
+            switchOrgSettingsMode(defaultMode);
         }
 
         function closeOrgSettings() {
@@ -405,13 +399,20 @@
             currentOrgModalId = null;
         }
 
+        function setActiveToolsTab(mode) {
+            document.querySelectorAll('.tools-tab').forEach(tab => {
+                if (tab.dataset.mode === mode) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+        }
+
         function switchOrgSettingsMode(mode) {
             currentOrgSettingsMode = mode;
-            
-            // Update tabs
-            document.querySelectorAll('.tools-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            
+            setActiveToolsTab(mode);
+
             if (mode === 'settings') {
                 document.getElementById('orgSettingsContainer').style.display = 'block';
                 document.getElementById('orgToolsContainer').style.display = 'none';
@@ -422,7 +423,12 @@
                 document.getElementById('orgSettingsContainer').style.display = 'none';
                 document.getElementById('orgToolsContainer').style.display = 'block';
                 
-                if (mode === 'statistics') {
+                if (mode === 'manage') {
+                    if (currentOrgModalId) {
+                        currentOrgIdForTools = currentOrgModalId;
+                        loadOrgManagementTools(currentOrgModalId);
+                    }
+                } else if (mode === 'statistics') {
                     if (currentOrgModalId) {
                         currentOrgIdForTools = currentOrgModalId;
                         loadOrgStatistics(currentOrgModalId);
@@ -465,6 +471,33 @@
                 }
 
                 alert('Organization updated successfully!');
+                loadOrganizations();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteOrg(orgId, orgName = 'this organization') {
+            if (!confirm(`Are you sure you want to delete "${orgName}"? This will remove all teachers and students under it.`)) {
+                return;
+            }
+
+            try {
+                const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response) return;
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Delete failed');
+                }
+
+                alert('Organization deleted successfully!');
+                if (currentOrgModalId === orgId) {
+                    closeOrgSettings();
+                }
                 loadOrganizations();
             } catch (error) {
                 alert('Error: ' + error.message);

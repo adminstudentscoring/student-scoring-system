@@ -1260,6 +1260,230 @@ app.get('/api/admin/organizations/:id', authenticateUser, authorizeRole('admin')
   }
 });
 
+// Delete organization (admin only)
+app.delete('/api/admin/organizations/:id', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizations = await readOrganizations();
+    const orgIndex = organizations.findIndex(o => o.id === id);
+    if (orgIndex === -1) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const organization = organizations[orgIndex];
+    const users = await readUsers();
+    const removedUsers = users.filter(u => u.organizationId === id);
+    const remainingUsers = users.filter(u => u.organizationId !== id);
+
+    const data = await readData();
+    const removedStudents = data.students.filter(s => s.organizationId === id);
+    const removedStudentIds = new Set(removedStudents.map(s => s.id));
+    data.students = data.students.filter(s => s.organizationId !== id);
+
+    if (data.challenge && Array.isArray(data.challenge.selectedStudentIds)) {
+      data.challenge.selectedStudentIds = data.challenge.selectedStudentIds.filter(studentId => !removedStudentIds.has(studentId));
+    }
+
+    if (data.gameState && data.gameState.current && Array.isArray(data.gameState.current.players)) {
+      data.gameState.current.players = data.gameState.current.players.filter(player => !removedStudentIds.has(player.studentId));
+    }
+
+    data.lastUpdate = new Date().toISOString();
+
+    organizations.splice(orgIndex, 1);
+
+    await writeUsers(remainingUsers);
+    await writeData(data);
+    await writeOrganizations(organizations);
+
+    if (removedStudents.length > 0) {
+      broadcast({ type: 'studentsRemoved', studentIds: Array.from(removedStudentIds) });
+    }
+    broadcast({ type: 'organizationDeleted', organizationId: id });
+
+    res.json({
+      message: 'Organization deleted successfully',
+      removedStudents: removedStudents.length,
+      removedUsers: removedUsers.length,
+      organizationName: organization.name
+    });
+  } catch (error) {
+    console.error('Error deleting organization:', error);
+    res.status(500).json({ error: 'Failed to delete organization' });
+  }
+});
+
+// Admin creates a teacher for an organization
+app.post('/api/admin/organizations/:id/teachers', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, teacherId, gender, username, password } = req.body;
+
+    if (!name || !teacherId || !gender || !username || !password) {
+      return res.status(400).json({ error: 'Name, teacher ID, gender, username, and password are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const users = await readUsers();
+    const normalizedUsername = username.toLowerCase();
+    const existingUser = users.find(u => u.email === normalizedUsername || u.username === normalizedUsername);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    const existingTeacher = users.find(u =>
+      u.organizationId === id &&
+      u.role === 'teacher' &&
+      u.teacherId === teacherId
+    );
+    if (existingTeacher) {
+      return res.status(400).json({ error: 'Teacher ID already exists in this organization' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    const newTeacher = {
+      id: Date.now().toString(),
+      email: normalizedUsername,
+      username: normalizedUsername,
+      password: hashedPassword,
+      name,
+      teacherId,
+      gender,
+      role: 'teacher',
+      organizationId: id,
+      createdAt: new Date().toISOString(),
+      classViewStudents: [],
+      assignedStudents: []
+    };
+
+    users.push(newTeacher);
+    await writeUsers(users);
+
+    organization.teachers = organization.teachers || [];
+    organization.teachers.push(newTeacher.id);
+    organization.updatedAt = new Date().toISOString();
+    await writeOrganizations(organizations);
+
+    const { password: _, ...teacherWithoutPassword } = newTeacher;
+    res.status(201).json({
+      teacher: teacherWithoutPassword
+    });
+  } catch (error) {
+    console.error('Error creating teacher as admin:', error);
+    res.status(500).json({ error: 'Failed to create teacher' });
+  }
+});
+
+// Admin creates a student for an organization
+app.post('/api/admin/organizations/:id/students', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, studentId, score = 0 } = req.body;
+
+    if (!name || !studentId) {
+      return res.status(400).json({ error: 'Name and Student ID are required' });
+    }
+
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const data = await readData();
+    const existingStudent = data.students.find(s =>
+      s.organizationId === id &&
+      s.studentId === studentId
+    );
+    if (existingStudent) {
+      return res.status(400).json({ error: 'Student ID already exists in this organization' });
+    }
+
+    const scoreNumber = Number(score || 0);
+    const rankInfo = getRankInfo(scoreNumber);
+    const newStudent = {
+      id: Date.now().toString(),
+      name,
+      studentId,
+      organizationId: id,
+      answerCount: 0,
+      totalAnswers: 0,
+      correctAnswers: 0,
+      level: rankInfo.rankIndex + 1,
+      rank: rankInfo.rank,
+      rankIndex: rankInfo.rankIndex,
+      experience: scoreNumber,
+      score: scoreNumber,
+      createdAt: new Date().toISOString(),
+      stats: {
+        daily: {},
+        weekly: {},
+        monthly: {}
+      }
+    };
+
+    data.students.push(newStudent);
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+
+    organization.students = organization.students || [];
+    organization.students.push(newStudent.id);
+    organization.updatedAt = new Date().toISOString();
+    await writeOrganizations(organizations);
+
+    broadcast({ type: 'studentAdded', student: newStudent });
+    res.status(201).json(newStudent);
+  } catch (error) {
+    console.error('Error creating student as admin:', error);
+    res.status(500).json({ error: 'Failed to create student' });
+  }
+});
+
+// Admin updates a student's score
+app.patch('/api/admin/organizations/:orgId/students/:studentId', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { orgId, studentId } = req.params;
+    const { score } = req.body;
+
+    if (score === undefined || score === null || isNaN(Number(score))) {
+      return res.status(400).json({ error: 'Valid score is required' });
+    }
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === studentId && s.organizationId === orgId);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found in this organization' });
+    }
+
+    const numericScore = Number(score);
+    student.score = numericScore;
+    student.experience = numericScore;
+    const rankInfo = getRankInfo(numericScore);
+    student.rank = rankInfo.rank;
+    student.rankIndex = rankInfo.rankIndex;
+    student.level = rankInfo.rankIndex + 1;
+    student.updatedAt = new Date().toISOString();
+
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+
+    broadcast({ type: 'studentUpdated', student });
+    res.json(student);
+  } catch (error) {
+    console.error('Error updating student score as admin:', error);
+    res.status(500).json({ error: 'Failed to update student score' });
+  }
+});
+
 // ==================== Admin Organization Settings API ====================
 
 // Get organization settings (admin only)

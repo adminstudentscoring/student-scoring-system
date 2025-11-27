@@ -7,6 +7,7 @@
 let currentOrgIdForTools = null;
 let auditLogs = [];
 let statisticsData = null;
+let orgManagementData = null;
 
 /**
  * Load organization statistics
@@ -114,6 +115,233 @@ async function loadAuditLogs(orgId) {
     } catch (error) {
         console.error('Error loading audit logs:', error);
         document.getElementById('orgToolsContainer').innerHTML = '<p>Failed to load audit logs: ' + error.message + '</p>';
+    }
+}
+
+/**
+ * Load management tools for organization
+ */
+async function loadOrgManagementTools(orgId) {
+    try {
+        currentOrgIdForTools = orgId;
+        const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}`);
+        if (!response) return;
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to load organization details');
+        }
+
+        orgManagementData = await response.json();
+        renderOrgManagementTools();
+    } catch (error) {
+        console.error('Error loading management tools:', error);
+        document.getElementById('orgToolsContainer').innerHTML = '<p>Failed to load management tools: ' + error.message + '</p>';
+    }
+}
+
+function renderOrgManagementTools() {
+    if (!orgManagementData) {
+        document.getElementById('orgToolsContainer').innerHTML = '<p>No organization selected.</p>';
+        return;
+    }
+
+    const teachers = orgManagementData.teachers || [];
+    const students = orgManagementData.students || [];
+    const studentsOptions = students.length > 0
+        ? students.map(student => `<option value="${student.id}">${student.name} (${student.studentId}) - Score: ${student.score || 0}</option>`).join('')
+        : '';
+
+    const html = `
+        <div class="tools-container">
+            <h2>🛠 Manage ${orgManagementData.name}</h2>
+
+            <div class="card" style="margin-bottom: 20px;">
+                <h3>Add Teacher</h3>
+                <form id="adminAddTeacherForm" data-org-id="${orgManagementData.id}" onsubmit="handleAdminAddTeacher(event)">
+                    <div class="settings-group">
+                        <label>Teacher Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="settings-group">
+                        <label>Teacher ID</label>
+                        <input type="text" name="teacherId" required>
+                    </div>
+                    <div class="settings-group">
+                        <label>Gender</label>
+                        <select name="gender" required>
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label>Username (email)</label>
+                        <input type="email" name="username" required placeholder="teacher@example.com">
+                    </div>
+                    <div class="settings-group">
+                        <label>Password</label>
+                        <input type="password" name="password" required minlength="6">
+                    </div>
+                    <button class="btn btn-primary" type="submit">Create Teacher</button>
+                </form>
+                <div style="margin-top: 15px;">
+                    <h4>Existing Teachers (${teachers.length})</h4>
+                    ${teachers.length ? `<ul>${teachers.map(t => `<li>${t.name || t.email} (${t.teacherId || 'N/A'})</li>`).join('')}</ul>` : '<p>No teachers yet.</p>'}
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 20px;">
+                <h3>Add Student</h3>
+                <form id="adminAddStudentForm" data-org-id="${orgManagementData.id}" onsubmit="handleAdminAddStudent(event)">
+                    <div class="settings-group">
+                        <label>Student Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="settings-group">
+                        <label>Student ID</label>
+                        <input type="text" name="studentId" required>
+                    </div>
+                    <div class="settings-group">
+                        <label>Initial Score (optional)</label>
+                        <input type="number" name="score" min="0" placeholder="0">
+                    </div>
+                    <button class="btn btn-primary" type="submit">Create Student</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Update Student Score</h3>
+                ${students.length ? `
+                    <form id="adminUpdateScoreForm" data-org-id="${orgManagementData.id}" onsubmit="handleAdminUpdateStudentScore(event)">
+                        <div class="settings-group">
+                            <label>Select Student</label>
+                            <select name="studentId" required>
+                                ${studentsOptions}
+                            </select>
+                        </div>
+                        <div class="settings-group">
+                            <label>New Score</label>
+                            <input type="number" name="score" min="0" required>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Update Score</button>
+                    </form>
+                ` : '<p>No students available.</p>'}
+            </div>
+        </div>
+    `;
+
+    document.getElementById('orgToolsContainer').innerHTML = html;
+}
+
+async function handleAdminAddTeacher(event) {
+    event.preventDefault();
+    const form = event.target;
+    const orgId = form.dataset.orgId;
+    const payload = {
+        name: form.name.value.trim(),
+        teacherId: form.teacherId.value.trim(),
+        gender: form.gender.value,
+        username: form.username.value.trim(),
+        password: form.password.value
+    };
+
+    if (!payload.name || !payload.teacherId || !payload.gender || !payload.username || !payload.password) {
+        alert('All fields are required');
+        return;
+    }
+
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}/teachers`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!response) return;
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create teacher');
+        }
+
+        alert('Teacher created successfully!');
+        form.reset();
+        loadOrgManagementTools(orgId);
+        loadOrganizations();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function handleAdminAddStudent(event) {
+    event.preventDefault();
+    const form = event.target;
+    const orgId = form.dataset.orgId;
+    const payload = {
+        name: form.name.value.trim(),
+        studentId: form.studentId.value.trim(),
+        score: form.score.value ? Number(form.score.value) : undefined
+    };
+
+    if (!payload.name || !payload.studentId) {
+        alert('Name and student ID are required');
+        return;
+    }
+
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}/students`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!response) return;
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create student');
+        }
+
+        alert('Student created successfully!');
+        form.reset();
+        loadOrgManagementTools(orgId);
+        loadOrganizations();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function handleAdminUpdateStudentScore(event) {
+    event.preventDefault();
+    const form = event.target;
+    const orgId = form.dataset.orgId;
+    const studentId = form.studentId.value;
+    const scoreValue = Number(form.score.value);
+
+    if (!studentId) {
+        alert('Please select a student');
+        return;
+    }
+
+    if (isNaN(scoreValue)) {
+        alert('Please enter a valid score');
+        return;
+    }
+
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}/students/${studentId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ score: scoreValue })
+        });
+        if (!response) return;
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update score');
+        }
+
+        alert('Student score updated successfully!');
+        form.reset();
+        loadOrgManagementTools(orgId);
+    } catch (error) {
+        alert('Error: ' + error.message);
     }
 }
 
