@@ -340,11 +340,11 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Student Name:</label>
-                            <input type="text" id="studentName" required>
+                            <input type="text" id="createStudentName" required>
                         </div>
                         <div class="form-group">
                             <label>Student ID:</label>
-                            <input type="text" id="studentId" required>
+                            <input type="text" id="createStudentId" required>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Create Student</button>
@@ -374,7 +374,6 @@
         </div>
     </div>
 
-    <script src="auth.js"></script>
     <script src="organization-settings.js"></script>
     <script>
         // Check authentication
@@ -478,10 +477,6 @@
                     return;
                 }
 
-                // Get organization ID
-                const orgUser = users.find(u => u.id === req.user.id);
-                const organizationId = orgUser?.organizationId || null;
-                
                 const html = `
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
                         ${teachers.map((teacher, index) => {
@@ -520,8 +515,8 @@
 
         async function createStudent(event) {
             event.preventDefault();
-            const name = document.getElementById('studentName').value;
-            const studentId = document.getElementById('studentId').value;
+            const name = document.getElementById('createStudentName').value;
+            const studentId = document.getElementById('createStudentId').value;
 
             try {
                 const response = await window.authUtils.authenticatedFetch('/organizations/students', {

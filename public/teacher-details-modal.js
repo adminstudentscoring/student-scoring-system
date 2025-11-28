@@ -3,7 +3,7 @@
 
 let currentTeacher = null;
 let originalTeacherData = null;
-let currentOrgId = null;
+let currentTeacherOrgId = null;
 
 // Initialize teacher details modal
 function initTeacherDetailsModal() {
@@ -139,7 +139,7 @@ async function openTeacherDetailsModal(teacher, organizationId) {
     
     currentTeacher = teacher;
     // If organizationId not provided, try to get from teacher object
-    currentOrgId = organizationId || teacher.organizationId || null;
+    currentTeacherOrgId = organizationId || teacher.organizationId || null;
     originalTeacherData = JSON.parse(JSON.stringify(teacher)); // Deep copy
     
     const modal = document.getElementById('teacherDetailsModal');
@@ -229,7 +229,7 @@ function closeModal() {
         document.body.style.overflow = '';
         currentTeacher = null;
         originalTeacherData = null;
-        currentOrgId = null;
+        currentTeacherOrgId = null;
         clearMessages();
         clearFieldErrors();
     }
