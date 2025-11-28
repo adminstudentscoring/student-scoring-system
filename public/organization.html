@@ -294,12 +294,12 @@
                 <form id="createTeacherForm" onsubmit="createTeacher(event)">
                     <div class="form-group">
                         <label>Teacher Name:</label>
-                        <input type="text" id="teacherName" required>
+                        <input type="text" id="createTeacherName" required>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Teacher ID:</label>
-                            <input type="text" id="teacherId" required>
+                            <input type="text" id="createTeacherId" required>
                         </div>
                         <div class="form-group">
                             <label>Gender:</label>
@@ -427,8 +427,8 @@
 
         async function createTeacher(event) {
             event.preventDefault();
-            const name = document.getElementById('teacherName').value;
-            const teacherId = document.getElementById('teacherId').value;
+            const name = document.getElementById('createTeacherName').value;
+            const teacherId = document.getElementById('createTeacherId').value;
             const gender = document.getElementById('teacherGender').value;
             const username = document.getElementById('teacherUsername').value;
             const password = document.getElementById('teacherPassword').value;
