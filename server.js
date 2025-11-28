@@ -2014,6 +2014,58 @@ app.delete('/api/organizations/teachers/:teacherId', authenticateUser, authorize
   }
 });
 
+// Organization or Admin login as teacher (impersonation)
+app.post('/api/organizations/teachers/:teacherId/login-as', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    
+    // Get users
+    const users = await readUsers();
+    const teacher = users.find(u => u.id === teacherId && u.role === 'teacher');
+    
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+    
+    // Verify organization access
+    // If current user is organization (not admin), verify teacher belongs to their organization
+    if (req.user.role === 'organization') {
+      const orgUser = users.find(u => u.id === req.user.id);
+      if (!orgUser || !orgUser.organizationId) {
+        return res.status(403).json({ error: 'Organization not found' });
+      }
+      
+      if (teacher.organizationId !== orgUser.organizationId) {
+        return res.status(403).json({ error: 'You don\'t have permission to login as this teacher' });
+      }
+    }
+    // Admin can login as any teacher
+    
+    // Generate token for teacher
+    const token = generateToken(teacher);
+    
+    // Return user info (without password)
+    const { password: _, ...teacherWithoutPassword } = teacher;
+    
+    // Include organization info if teacher has organizationId
+    if (teacher.organizationId) {
+      const organizations = await readOrganizations();
+      const organization = organizations.find(o => o.id === teacher.organizationId);
+      if (organization) {
+        teacherWithoutPassword.organization = organization;
+      }
+    }
+    
+    res.json({
+      user: teacherWithoutPassword,
+      token
+    });
+  } catch (error) {
+    console.error('Error logging in as teacher:', error);
+    res.status(500).json({ error: 'Failed to login as teacher' });
+  }
+});
+
 // ==================== Organization Student Assignment API ====================
 
 // Organization assigns students to teachers (many-to-many)

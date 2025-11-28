@@ -227,6 +227,42 @@
         .settings-category-content.active {
             display: block;
         }
+        /* Toast Notification Styles */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: 500;
+            z-index: 10001;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s;
+            min-width: 250px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast-success {
+            background: #10b981;
+        }
+        .toast-error {
+            background: #ef4444;
+        }
+        .toast-info {
+            background: #3b82f6;
+        }
+        /* Teacher Card Styles */
+        .teacher-card {
+            transition: all 0.2s;
+        }
+        .teacher-card:hover {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -444,15 +480,19 @@
                 const html = `
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
                         ${teachers.map(teacher => `
-                            <div class="card" style="padding: 15px;">
-                                <h4>${teacher.name || 'Unnamed'}</h4>
-                                <p>Teacher ID: ${teacher.teacherId || 'N/A'}</p>
-                                <p>Username: ${teacher.username || teacher.email}</p>
+                            <div class="card teacher-card" style="padding: 15px; cursor: pointer; transition: all 0.2s;" 
+                                 onmouseover="this.style.backgroundColor='rgba(255,255,255,0.15)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)'" 
+                                 onmouseout="this.style.backgroundColor=''; this.style.boxShadow=''"
+                                 onclick="this.style.transform='scale(0.98)'; setTimeout(() => this.style.transform='', 150)">
+                                <h4>${escapeHtml(teacher.name || 'Unnamed')}</h4>
+                                <p>Teacher ID: ${escapeHtml(teacher.teacherId || 'N/A')}</p>
+                                <p>Username: ${escapeHtml(teacher.username || teacher.email)}</p>
                                 <p>Gender: ${teacher.gender === 'male' ? 'Male' : teacher.gender === 'female' ? 'Female' : 'N/A'}</p>
                                 <p>Created: ${new Date(teacher.createdAt).toLocaleString('en-US')}</p>
-                                <div style="margin-top: 10px; display: flex; gap: 10px;">
-                                    <button class="btn btn-primary" onclick="assignStudents('${teacher.id}', '${teacher.name}')" style="flex: 1;">Assign Students</button>
-                                    <button class="btn btn-danger" onclick="deleteTeacher('${teacher.id}', '${teacher.name}')" style="flex: 1;">Delete</button>
+                                <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button class="btn btn-primary" onclick="event.stopPropagation(); assignStudents('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Assign Students</button>
+                                    <button class="btn btn-success" onclick="event.stopPropagation(); loginAsTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Login as Teacher</button>
+                                    <button class="btn btn-danger" onclick="event.stopPropagation(); deleteTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Delete</button>
                                 </div>
                             </div>
                         `).join('')}
@@ -742,6 +782,86 @@
                 window.currentAssignModal = null;
                 window.currentTeacherId = null;
             }
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Login as teacher
+        async function loginAsTeacher(teacherId, teacherName) {
+            // Show confirmation dialog
+            const confirmed = confirm(`Are you sure you want to login as ${teacherName}?`);
+            if (!confirmed) return;
+            
+            // Show loading toast
+            showToast('Logging in...', 'info');
+            
+            try {
+                const response = await window.authUtils.authenticatedFetch(`/organizations/teachers/${teacherId}/login-as`, {
+                    method: 'POST'
+                });
+                
+                if (!response) {
+                    showToast('Failed to login as teacher. Please try again.', 'error');
+                    return;
+                }
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to login as teacher');
+                }
+                
+                const data = await response.json();
+                
+                // Update localStorage with teacher's token and user info
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                
+                // Redirect to teacher page
+                window.location.href = '/teacher.html';
+            } catch (error) {
+                console.error('Error logging in as teacher:', error);
+                
+                // Show appropriate error message
+                let errorMessage = 'Failed to login as teacher. Please try again.';
+                if (error.message.includes('permission')) {
+                    errorMessage = 'You don\'t have permission to login as this teacher.';
+                } else if (error.message.includes('not found')) {
+                    errorMessage = 'Teacher not found.';
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+                
+                showToast(errorMessage, 'error');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            // Remove existing toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            // Show toast
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Hide toast after 3 seconds (or 5 seconds for info)
+            const duration = type === 'info' ? 5000 : 3000;
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
         }
 
         function logout() {
