@@ -1,0 +1,1121 @@
+// Course Management Module
+// Handles all course-related functionality for organizations
+
+// Predefined colors (10 colors in 5x2 grid)
+const PREDEFINED_COLORS = [
+  '#3B82F6', // Blue
+  '#10B981', // Green
+  '#8B5CF6', // Purple
+  '#EF4444', // Red
+  '#F59E0B', // Orange
+  '#EAB308', // Yellow
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#84CC16', // Lime
+  '#6B7280'  // Gray
+];
+
+// State
+let courses = [];
+let currentSort = { field: 'createdAt', direction: 'desc' };
+let currentSearch = '';
+let currentPriceRange = { min: 0, max: 1000 };
+let selectedCourseIds = new Set();
+let currentPage = 1;
+const ITEMS_PER_PAGE = 20;
+
+// Initialize course management
+window.loadCourseManagement = function() {
+  const container = document.getElementById('courseManagementContainer');
+  if (!container) return;
+  
+  renderCourseManagement();
+  loadCourses();
+};
+
+// Render course management UI
+function renderCourseManagement() {
+  const container = document.getElementById('courseManagementContainer');
+  if (!container) return;
+  
+  // Get saved sub-tab from localStorage
+  const savedSubTab = localStorage.getItem('courseManagementSubTab') || 'courses';
+  
+  container.innerHTML = `
+    <div class="course-management">
+      <!-- Sub-tabs -->
+      <div class="course-sub-tabs">
+        <button class="course-sub-tab" data-subtab="timetable">📅 Timetable</button>
+        <button class="course-sub-tab active" data-subtab="courses">📚 Courses</button>
+        <button class="course-sub-tab" data-subtab="package">📦 Course Package</button>
+        <button class="course-sub-tab" data-subtab="accounting">💰 Accounting</button>
+        <button class="course-sub-tab" data-subtab="sales">📊 Sales</button>
+      </div>
+      
+      <!-- Courses Sub-tab Content -->
+      <div id="coursesSubTabContent" class="course-sub-tab-content active">
+        <div class="courses-header">
+          <div class="courses-controls">
+            <div class="search-filter-group">
+              <input type="text" id="courseSearch" class="search-input" placeholder="Search courses..." oninput="handleCourseSearch()">
+              <div class="price-filter">
+                <label>Price Range: <span id="priceRangeLabel">$0 - $1000</span></label>
+                <div class="range-slider-container">
+                  <input type="range" id="priceMin" min="0" max="1000" value="0" oninput="handlePriceFilter()">
+                  <input type="range" id="priceMax" min="0" max="1000" value="1000" oninput="handlePriceFilter()">
+                </div>
+              </div>
+              <select id="courseSort" class="sort-select" onchange="handleCourseSort()">
+                <option value="name-asc">Name ↑</option>
+                <option value="name-desc">Name ↓</option>
+                <option value="price-asc">Price ↑</option>
+                <option value="price-desc">Price ↓</option>
+                <option value="date-asc">Date ↑</option>
+                <option value="date-desc" selected>Date ↓</option>
+              </select>
+            </div>
+            <div class="courses-actions">
+              <button id="deleteCoursesBtn" class="btn btn-danger" style="display: none;" onclick="handleDeleteSelected()">Delete (<span id="selectedCount">0</span>)</button>
+              <button class="btn btn-primary" onclick="openCreateCourseModal()">Create</button>
+            </div>
+          </div>
+        </div>
+        
+        <div id="coursesListContainer">
+          <p>Loading courses...</p>
+        </div>
+      </div>
+      
+      <!-- Other sub-tabs (placeholder) -->
+      <div id="timetableSubTabContent" class="course-sub-tab-content">
+        <p>Timetable feature coming soon...</p>
+      </div>
+      <div id="packageSubTabContent" class="course-sub-tab-content">
+        <p>Course Package feature coming soon...</p>
+      </div>
+      <div id="accountingSubTabContent" class="course-sub-tab-content">
+        <p>Accounting feature coming soon...</p>
+      </div>
+      <div id="salesSubTabContent" class="course-sub-tab-content">
+        <p>Sales feature coming soon...</p>
+      </div>
+    </div>
+  `;
+  
+  // Add sub-tab click handlers
+  document.querySelectorAll('.course-sub-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      const subTab = this.dataset.subtab;
+      switchSubTab(subTab);
+      localStorage.setItem('courseManagementSubTab', subTab);
+    });
+  });
+  
+  // Restore saved sub-tab
+  switchSubTab(savedSubTab);
+}
+
+// Switch sub-tab
+function switchSubTab(subTab) {
+  document.querySelectorAll('.course-sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.course-sub-tab-content').forEach(c => c.classList.remove('active'));
+  
+  const tab = document.querySelector(`[data-subtab="${subTab}"]`);
+  const content = document.getElementById(`${subTab}SubTabContent`);
+  
+  if (tab) tab.classList.add('active');
+  if (content) content.classList.add('active');
+  
+  // Load courses when switching to courses tab
+  if (subTab === 'courses') {
+    loadCourses();
+  }
+}
+
+// Load courses from API
+async function loadCourses() {
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/courses');
+    if (!response) return;
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to load courses');
+    }
+    
+    courses = await response.json();
+    
+    // Update price filter max
+    updatePriceFilterMax();
+    
+    // Render courses
+    renderCourses();
+  } catch (error) {
+    console.error('Error loading courses:', error);
+    showToast('Failed to load courses. Please try again.', 'error');
+    renderCoursesError();
+  }
+}
+
+// Update price filter max based on courses
+function updatePriceFilterMax() {
+  if (courses.length === 0) {
+    currentPriceRange.max = 1000;
+    document.getElementById('priceMax').max = 1000;
+    document.getElementById('priceMax').value = 1000;
+    updatePriceRangeLabel();
+    return;
+  }
+  
+  const maxPrice = Math.max(...courses.map(c => c.price));
+  const roundedMax = Math.ceil(maxPrice / 100) * 100; // Round up to nearest 100
+  const finalMax = Math.max(roundedMax, 1000); // At least 1000
+  
+  currentPriceRange.max = finalMax;
+  document.getElementById('priceMax').max = finalMax;
+  document.getElementById('priceMax').value = finalMax;
+  updatePriceRangeLabel();
+}
+
+// Update price range label
+function updatePriceRangeLabel() {
+  const label = document.getElementById('priceRangeLabel');
+  if (label) {
+    label.textContent = `$${formatNumber(currentPriceRange.min)} - $${formatNumber(currentPriceRange.max)}`;
+  }
+}
+
+// Handle course search
+window.handleCourseSearch = function() {
+  currentSearch = document.getElementById('courseSearch').value.toLowerCase().trim();
+  currentPage = 1;
+  renderCourses();
+};
+
+// Handle price filter
+window.handlePriceFilter = function() {
+  const minInput = document.getElementById('priceMin');
+  const maxInput = document.getElementById('priceMax');
+  
+  let min = parseInt(minInput.value);
+  let max = parseInt(maxInput.value);
+  
+  // Ensure min <= max
+  if (min > max) {
+    if (minInput === document.activeElement) {
+      max = min;
+      maxInput.value = max;
+    } else {
+      min = max;
+      minInput.value = min;
+    }
+  }
+  
+  currentPriceRange.min = min;
+  currentPriceRange.max = max;
+  updatePriceRangeLabel();
+  currentPage = 1;
+  renderCourses();
+};
+
+// Handle course sort
+window.handleCourseSort = function() {
+  const sortValue = document.getElementById('courseSort').value;
+  const [field, direction] = sortValue.split('-');
+  
+  currentSort = { field, direction };
+  currentPage = 1;
+  renderCourses();
+  
+  // Update sort select display
+  updateSortDisplay();
+};
+
+// Update sort display
+function updateSortDisplay() {
+  const sortSelect = document.getElementById('courseSort');
+  if (!sortSelect) return;
+  
+  const option = sortSelect.querySelector(`option[value="${currentSort.field}-${currentSort.direction}"]`);
+  if (option) {
+    sortSelect.value = `${currentSort.field}-${currentSort.direction}`;
+  }
+}
+
+// Render courses list
+function renderCourses() {
+  const container = document.getElementById('coursesListContainer');
+  if (!container) return;
+  
+  // Filter courses
+  let filteredCourses = courses.filter(course => {
+    // Search filter
+    if (currentSearch && !course.name.toLowerCase().includes(currentSearch)) {
+      return false;
+    }
+    
+    // Price filter
+    if (course.price < currentPriceRange.min || course.price > currentPriceRange.max) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  // Sort courses
+  filteredCourses.sort((a, b) => {
+    let aVal, bVal;
+    
+    switch (currentSort.field) {
+      case 'name':
+        aVal = a.name.toLowerCase();
+        bVal = b.name.toLowerCase();
+        break;
+      case 'price':
+        aVal = a.price;
+        bVal = b.price;
+        break;
+      case 'createdAt':
+      default:
+        aVal = new Date(a.createdAt);
+        bVal = new Date(b.createdAt);
+        break;
+    }
+    
+    if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+  
+  // Pagination
+  const totalPages = Math.ceil(filteredCourses.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedCourses = filteredCourses.slice(startIndex, endIndex);
+  
+  // Empty state
+  if (filteredCourses.length === 0) {
+    if (currentSearch || currentPriceRange.min > 0 || currentPriceRange.max < 10000) {
+      container.innerHTML = '<p>No courses found matching your criteria.</p>';
+    } else {
+      container.innerHTML = '<p>No courses yet. Click \'Create\' to add your first course.</p>';
+    }
+    return;
+  }
+  
+  // Render table
+  let html = `
+    <table class="courses-table">
+      <thead>
+        <tr>
+          <th style="width: 40px;">
+            <input type="checkbox" id="selectAllCourses" onchange="handleSelectAll()">
+          </th>
+          <th style="flex: 1;">Course Name</th>
+          <th style="width: 180px;">Price</th>
+          <th style="width: 100px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  
+  paginatedCourses.forEach(course => {
+    const isSelected = selectedCourseIds.has(course.id);
+    const priceDisplay = formatPrice(course.price);
+    
+    html += `
+      <tr class="${isSelected ? 'selected' : ''}" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.05)'" onmouseout="this.style.backgroundColor=''">
+        <td>
+          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="handleCourseSelect('${course.id}', this.checked)">
+        </td>
+        <td>${escapeHtml(course.name)}</td>
+        <td>${priceDisplay}</td>
+        <td>
+          <button class="btn btn-secondary" onclick="openEditCourseModal('${course.id}')">Edit</button>
+        </td>
+      </tr>
+    `;
+  });
+  
+  html += `
+      </tbody>
+    </table>
+  `;
+  
+  // Add pagination if needed
+  if (filteredCourses.length >= ITEMS_PER_PAGE) {
+    html += `
+      <div class="pagination">
+        <div class="pagination-info">
+          Showing ${startIndex + 1}-${Math.min(endIndex, filteredCourses.length)} of ${filteredCourses.length} courses
+        </div>
+        <div class="pagination-controls">
+          <button class="btn btn-secondary" ${currentPage === 1 ? 'disabled' : ''} onclick="changePage(${currentPage - 1})">Previous</button>
+          <span>Page ${currentPage} of ${totalPages}</span>
+          <button class="btn btn-secondary" ${currentPage === totalPages ? 'disabled' : ''} onclick="changePage(${currentPage + 1})">Next</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+  
+  // Update select all checkbox
+  const selectAll = document.getElementById('selectAllCourses');
+  if (selectAll) {
+    const allSelected = paginatedCourses.length > 0 && paginatedCourses.every(c => selectedCourseIds.has(c.id));
+    selectAll.checked = allSelected;
+  }
+  
+  // Update delete button
+  updateDeleteButton();
+}
+
+// Change page
+window.changePage = function(page) {
+  currentPage = page;
+  renderCourses();
+};
+
+// Handle select all
+window.handleSelectAll = function() {
+  const selectAll = document.getElementById('selectAllCourses');
+  if (!selectAll) return;
+  
+  const container = document.getElementById('coursesListContainer');
+  const checkboxes = container.querySelectorAll('tbody input[type="checkbox"]');
+  
+  checkboxes.forEach(checkbox => {
+    const courseId = checkbox.onchange.toString().match(/'([^']+)'/)[1];
+    checkbox.checked = selectAll.checked;
+    handleCourseSelect(courseId, selectAll.checked);
+  });
+};
+
+// Handle course select
+window.handleCourseSelect = function(courseId, selected) {
+  if (selected) {
+    selectedCourseIds.add(courseId);
+  } else {
+    selectedCourseIds.delete(courseId);
+  }
+  updateDeleteButton();
+  
+  // Update select all checkbox
+  const selectAll = document.getElementById('selectAllCourses');
+  if (selectAll) {
+    const container = document.getElementById('coursesListContainer');
+    const checkboxes = container.querySelectorAll('tbody input[type="checkbox"]');
+    const allSelected = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+    selectAll.checked = allSelected;
+  }
+};
+
+// Update delete button
+function updateDeleteButton() {
+  const deleteBtn = document.getElementById('deleteCoursesBtn');
+  const countSpan = document.getElementById('selectedCount');
+  
+  if (deleteBtn && countSpan) {
+    const count = selectedCourseIds.size;
+    deleteBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    countSpan.textContent = count;
+  }
+}
+
+// Handle delete selected
+window.handleDeleteSelected = async function() {
+  if (selectedCourseIds.size === 0) return;
+  
+  const count = selectedCourseIds.size;
+  const confirmed = confirm(`Are you sure you want to delete ${count} course(s)?`);
+  
+  if (!confirmed) return;
+  
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/courses', {
+      method: 'DELETE',
+      body: JSON.stringify({ courseIds: Array.from(selectedCourseIds) })
+    });
+    
+    if (!response) return;
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to delete courses');
+    }
+    
+    selectedCourseIds.clear();
+    showToast(`${count} course(s) deleted successfully`, 'success');
+    loadCourses();
+  } catch (error) {
+    console.error('Error deleting courses:', error);
+    showToast('Failed to delete courses: ' + error.message, 'error');
+  }
+};
+
+// Render courses error
+function renderCoursesError() {
+  const container = document.getElementById('coursesListContainer');
+  if (container) {
+    container.innerHTML = `
+      <p>Failed to load courses. <button class="btn btn-secondary" onclick="loadCourses()">Retry</button></p>
+    `;
+  }
+}
+
+// Open create course modal
+window.openCreateCourseModal = function() {
+  openCourseModal(null);
+};
+
+// Open edit course modal
+window.openEditCourseModal = function(courseId) {
+  const course = courses.find(c => c.id === courseId);
+  if (!course) {
+    showToast('Course not found', 'error');
+    return;
+  }
+  openCourseModal(course);
+};
+
+// Open course modal (create or edit)
+function openCourseModal(course) {
+  const isEdit = !!course;
+  const randomColor = PREDEFINED_COLORS[Math.floor(Math.random() * PREDEFINED_COLORS.length)];
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>${isEdit ? 'Edit Course' : 'Create New Course'}</h2>
+        <button class="modal-close" onclick="closeCourseModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="courseForm" onsubmit="saveCourse(event, ${isEdit ? `'${course.id}'` : 'null'})">
+          <div class="form-group">
+            <label>Course Name <span class="required">*</span></label>
+            <input type="text" id="courseName" required maxlength="50" value="${isEdit ? escapeHtml(course.name) : ''}">
+            <div class="error-message" id="courseNameError"></div>
+          </div>
+          
+          <div class="form-group">
+            <label>Price <span class="required">*</span></label>
+            <input type="text" id="coursePrice" required placeholder="0.00" value="${isEdit ? course.price : ''}" onblur="formatPriceInput(this)" onfocus="unformatPriceInput(this)">
+            <span class="input-hint">per lesson</span>
+            <div class="error-message" id="coursePriceError"></div>
+          </div>
+          
+          <div class="form-group">
+            <label>Color (Optional)</label>
+            <div class="color-selector">
+              <div class="predefined-colors">
+                ${PREDEFINED_COLORS.map((color, index) => `
+                  <div class="color-option ${isEdit && course.color === color ? 'selected' : !isEdit && color === randomColor ? 'selected' : ''}" 
+                       style="background-color: ${color}" 
+                       onclick="selectPredefinedColor('${color}')"
+                       data-color="${color}"></div>
+                `).join('')}
+              </div>
+              <div class="custom-color-input">
+                <input type="text" id="customColor" placeholder="#RRGGBB" value="${isEdit && course.color && !PREDEFINED_COLORS.includes(course.color) ? course.color : ''}" oninput="validateColorInput(this)">
+                <input type="color" id="colorPicker" value="${isEdit && course.color ? course.color : randomColor}" onchange="handleColorPickerChange(this)">
+              </div>
+            </div>
+            <div class="error-message" id="courseColorError"></div>
+          </div>
+          
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeCourseModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="saveCourseBtn">${isEdit ? 'Update' : 'Create'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Set initial color
+  if (isEdit && course.color) {
+    document.getElementById('colorPicker').value = course.color;
+  } else if (!isEdit) {
+    document.getElementById('colorPicker').value = randomColor;
+  }
+  
+  // Store original form data for unsaved changes check
+  window.courseModalOriginalData = {
+    name: isEdit ? course.name : '',
+    price: isEdit ? course.price : '',
+    color: isEdit ? course.color : randomColor
+  };
+  
+  window.currentCourseModal = modal;
+}
+
+// Close course modal
+window.closeCourseModal = function() {
+  if (!window.currentCourseModal) return;
+  
+  // Check for unsaved changes
+  const form = document.getElementById('courseForm');
+  if (form) {
+    const currentData = {
+      name: document.getElementById('courseName').value,
+      price: document.getElementById('coursePrice').value,
+      color: document.getElementById('colorPicker').value
+    };
+    
+    const hasChanges = JSON.stringify(currentData) !== JSON.stringify(window.courseModalOriginalData);
+    
+    if (hasChanges) {
+      const confirmed = confirm('You have unsaved changes. Are you sure you want to close?');
+      if (!confirmed) return;
+    }
+  }
+  
+  document.body.removeChild(window.currentCourseModal);
+  window.currentCourseModal = null;
+  window.courseModalOriginalData = null;
+};
+
+// Select predefined color
+window.selectPredefinedColor = function(color) {
+  document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+  document.querySelector(`[data-color="${color}"]`).classList.add('selected');
+  document.getElementById('colorPicker').value = color;
+  document.getElementById('customColor').value = '';
+};
+
+// Handle color picker change
+window.handleColorPickerChange = function(picker) {
+  const color = picker.value;
+  document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+  const predefined = document.querySelector(`[data-color="${color}"]`);
+  if (predefined) {
+    predefined.classList.add('selected');
+    document.getElementById('customColor').value = '';
+  } else {
+    document.getElementById('customColor').value = color;
+  }
+};
+
+// Validate color input
+window.validateColorInput = function(input) {
+  const color = input.value.trim();
+  const errorDiv = document.getElementById('courseColorError');
+  
+  if (color === '') {
+    errorDiv.textContent = '';
+    return;
+  }
+  
+  if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
+    errorDiv.textContent = 'Color must be in #RRGGBB format';
+    return;
+  }
+  
+  errorDiv.textContent = '';
+  document.getElementById('colorPicker').value = color;
+  document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+};
+
+// Format price input (add thousand separator on blur)
+window.formatPriceInput = function(input) {
+  const value = input.value.replace(/,/g, '');
+  const num = parseFloat(value);
+  
+  if (!isNaN(num)) {
+    input.value = formatNumber(num);
+  }
+};
+
+// Unformat price input (remove thousand separator on focus)
+window.unformatPriceInput = function(input) {
+  input.value = input.value.replace(/,/g, '');
+};
+
+// Save course
+window.saveCourse = async function(event, courseId) {
+  event.preventDefault();
+  
+  const name = document.getElementById('courseName').value.trim();
+  const priceInput = document.getElementById('coursePrice').value.replace(/,/g, '');
+  const price = parseFloat(priceInput);
+  const color = document.getElementById('colorPicker').value;
+  
+  // Clear previous errors
+  document.getElementById('courseNameError').textContent = '';
+  document.getElementById('coursePriceError').textContent = '';
+  document.getElementById('courseColorError').textContent = '';
+  
+  // Validation
+  let hasError = false;
+  
+  if (!name || name.length === 0) {
+    document.getElementById('courseNameError').textContent = 'Course name is required';
+    hasError = true;
+  } else if (name.length > 50) {
+    document.getElementById('courseNameError').textContent = 'Course name must be 50 characters or less';
+    hasError = true;
+  }
+  
+  if (isNaN(price) || price < 0) {
+    document.getElementById('coursePriceError').textContent = price < 0 ? 'Price must be greater than or equal to 0' : 'Price must be a valid number';
+    hasError = true;
+  }
+  
+  if (color && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+    document.getElementById('courseColorError').textContent = 'Color must be in #RRGGBB format';
+    hasError = true;
+  }
+  
+  if (hasError) return;
+  
+  // Check name uniqueness (frontend check)
+  const existingCourse = courses.find(c => 
+    c.id !== courseId &&
+    c.name.toLowerCase().trim() === name.toLowerCase().trim()
+  );
+  
+  if (existingCourse) {
+    document.getElementById('courseNameError').textContent = 'Course name already exists in this organization';
+    return;
+  }
+  
+  // Disable save button
+  const saveBtn = document.getElementById('saveCourseBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+  
+  try {
+    const url = courseId ? `/organizations/courses/${courseId}` : '/organizations/courses';
+    const method = courseId ? 'PUT' : 'POST';
+    
+    const response = await window.authUtils.authenticatedFetch(url, {
+      method: method,
+      body: JSON.stringify({
+        name: name,
+        price: price,
+        color: color || null
+      })
+    });
+    
+    if (!response) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = courseId ? 'Update' : 'Create';
+      return;
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save course');
+    }
+    
+    showToast(`Course ${courseId ? 'updated' : 'created'} successfully`, 'success');
+    closeCourseModal();
+    loadCourses();
+  } catch (error) {
+    console.error('Error saving course:', error);
+    showToast('Failed to save course: ' + error.message, 'error');
+    saveBtn.disabled = false;
+    saveBtn.textContent = courseId ? 'Update' : 'Create';
+  }
+};
+
+// Format price for display
+function formatPrice(price) {
+  if (price % 1 === 0) {
+    return `$${formatNumber(price)} / per lesson`;
+  }
+  return `$${formatNumber(price.toFixed(2))} / per lesson`;
+}
+
+// Format number with thousand separator
+function formatNumber(num) {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// Escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Show toast notification
+function showToast(message, type = 'success') {
+  // Remove existing toast
+  const existingToast = document.querySelector('.toast');
+  if (existingToast) {
+    existingToast.remove();
+  }
+  
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  // Show toast
+  setTimeout(() => toast.classList.add('show'), 10);
+  
+  // Hide toast after 3 seconds
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// Add CSS styles
+const style = document.createElement('style');
+style.textContent = `
+  .course-management {
+    padding: 20px;
+  }
+  
+  .course-sub-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px;
+    border-radius: 8px;
+  }
+  
+  .course-sub-tab {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s;
+    border-radius: 6px;
+  }
+  
+  .course-sub-tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 1);
+  }
+  
+  .course-sub-tab.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+    border-bottom-color: #fff;
+    font-weight: bold;
+  }
+  
+  .course-sub-tab-content {
+    display: none;
+  }
+  
+  .course-sub-tab-content.active {
+    display: block;
+  }
+  
+  .courses-header {
+    margin-bottom: 20px;
+  }
+  
+  .courses-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .search-filter-group {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+  
+  .price-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 200px;
+  }
+  
+  .price-filter label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+  
+  .range-slider-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .range-slider-container input[type="range"] {
+    flex: 1;
+  }
+  
+  .sort-select {
+    padding: 8px 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+  
+  .courses-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  
+  .courses-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  .courses-table thead {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  
+  .courses-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: bold;
+    color: #fff;
+  }
+  
+  .courses-table td {
+    padding: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+  }
+  
+  .courses-table tbody tr.selected {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+  }
+  
+  .pagination-info {
+    color: rgba(255, 255, 255, 0.9);
+  }
+  
+  .pagination-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+  
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  }
+  
+  .modal-content {
+    background: #2c3e50;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .modal-header h2 {
+    margin: 0;
+    color: #fff;
+  }
+  
+  .modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .modal-body {
+    padding: 20px;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+  }
+  
+  .required {
+    color: #ef4444;
+  }
+  
+  .form-group input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    box-sizing: border-box;
+  }
+  
+  .input-hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  
+  .error-message {
+    color: #ef4444;
+    font-size: 12px;
+    margin-top: 5px;
+  }
+  
+  .color-selector {
+    margin-top: 10px;
+  }
+  
+  .predefined-colors {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .color-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  
+  .color-option:hover {
+    transform: scale(1.1);
+    border-color: #fff;
+  }
+  
+  .color-option.selected {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
+  
+  .custom-color-input {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .custom-color-input input[type="text"] {
+    flex: 1;
+  }
+  
+  .custom-color-input input[type="color"] {
+    width: 50px;
+    height: 40px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 4px;
+    color: #fff;
+    font-weight: 500;
+    z-index: 10001;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s;
+  }
+  
+  .toast.show {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .toast-success {
+    background: #10b981;
+  }
+  
+  .toast-error {
+    background: #ef4444;
+  }
+  
+  @media (max-width: 768px) {
+    .courses-table {
+      display: block;
+      overflow-x: auto;
+    }
+    
+    .search-filter-group {
+      flex-direction: column;
+    }
+    
+    .predefined-colors {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+`;
+
+document.head.appendChild(style);
+
