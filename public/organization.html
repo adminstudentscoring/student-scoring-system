@@ -85,6 +85,22 @@
                 grid-template-columns: 1fr;
             }
         }
+        /* Form text color improvements for better visibility */
+        .card .form-group label {
+            color: #333 !important;
+            font-weight: 600;
+        }
+        .card .form-group input[type="text"],
+        .card .form-group input[type="password"],
+        .card .form-group select {
+            color: #333 !important;
+        }
+        .card .form-group input::placeholder {
+            color: #999 !important;
+        }
+        .card .form-group select option {
+            color: #333 !important;
+        }
         /* Student card button area - ensure buttons don't overflow */
         .student-card-actions {
             display: flex;
