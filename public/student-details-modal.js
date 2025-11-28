@@ -203,9 +203,16 @@ async function openStudentDetailsModal(student, organizationId) {
     currentOrgId = organizationId || student.organizationId || null;
     originalStudentData = JSON.parse(JSON.stringify(student)); // Deep copy
     
-    const modal = document.getElementById('studentDetailsModal');
+    let modal = document.getElementById('studentDetailsModal');
     if (!modal) {
         initStudentDetailsModal();
+        // Re-get modal after initialization
+        modal = document.getElementById('studentDetailsModal');
+    }
+    
+    if (!modal) {
+        console.error('Failed to create student details modal');
+        return;
     }
     
     // Populate form with student data

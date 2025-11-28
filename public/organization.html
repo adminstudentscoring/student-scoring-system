@@ -95,12 +95,23 @@
         .card .form-group select {
             color: #333 !important;
             border: 2px solid #e0e0e0 !important;
+            background-color: #fff !important;
         }
         .card .form-group input::placeholder {
             color: #999 !important;
         }
         .card .form-group select option {
             color: #333 !important;
+            background-color: #fff !important;
+        }
+        /* Specific selectors for form inputs to ensure border color */
+        #createTeacherForm input[type="text"],
+        #createTeacherForm input[type="password"],
+        #createTeacherForm select,
+        #createStudentForm input[type="text"] {
+            border: 2px solid #e0e0e0 !important;
+            color: #333 !important;
+            background-color: #fff !important;
         }
         /* Student card button area - ensure buttons don't overflow */
         .student-card-actions {
