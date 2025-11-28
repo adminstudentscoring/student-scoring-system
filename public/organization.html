@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <script src="auth.js"></script>
     <script src="student-details-modal.js"></script>
+    <script src="teacher-details-modal.js"></script>
     <script src="course-management.js"></script>
     <style>
         .org-header {
@@ -477,9 +478,15 @@
                     return;
                 }
 
+                // Get organization ID
+                const orgUser = users.find(u => u.id === req.user.id);
+                const organizationId = orgUser?.organizationId || null;
+                
                 const html = `
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
-                        ${teachers.map(teacher => `
+                        ${teachers.map((teacher, index) => {
+                            const teacherData = JSON.stringify(teacher).replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+                            return `
                             <div class="card teacher-card" style="padding: 15px; cursor: pointer; transition: all 0.2s;" 
                                  onmouseover="this.style.backgroundColor='rgba(255,255,255,0.15)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)'" 
                                  onmouseout="this.style.backgroundColor=''; this.style.boxShadow=''"
@@ -491,14 +498,19 @@
                                 <p>Created: ${new Date(teacher.createdAt).toLocaleString('en-US')}</p>
                                 <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
                                     <button class="btn btn-primary" onclick="event.stopPropagation(); assignStudents('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Assign Students</button>
+                                    <button class="btn btn-secondary" onclick="event.stopPropagation(); editTeacher('${teacher.id}')" style="flex: 1; min-width: 120px;">Edit</button>
                                     <button class="btn btn-success" onclick="event.stopPropagation(); loginAsTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Login as Teacher</button>
                                     <button class="btn btn-danger" onclick="event.stopPropagation(); deleteTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Delete</button>
                                 </div>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                     <p style="margin-top: 15px; color: #666;">Total: ${teachers.length} teacher(s)</p>
                 `;
+                
+                // Store teachers data for edit function
+                window.teachersData = teachers;
                 document.getElementById('teachersList').innerHTML = html;
             } catch (error) {
                 console.error('Error loading teachers:', error);
@@ -874,6 +886,35 @@
         window.refreshStudentList = function() {
             loadStudents();
         };
+
+        // Refresh teacher list function for modal
+        window.refreshTeacherList = function() {
+            loadTeachers();
+        };
+
+        // Edit teacher function
+        function editTeacher(teacherId) {
+            if (!window.teachersData) {
+                console.error('Teachers data not available');
+                return;
+            }
+            
+            const teacher = window.teachersData.find(t => t.id === teacherId);
+            if (!teacher) {
+                console.error('Teacher not found');
+                return;
+            }
+            
+            // Get organization ID from current user
+            const currentUser = window.authUtils?.getCurrentUser();
+            const organizationId = currentUser?.organizationId || teacher.organizationId || null;
+            
+            if (window.openTeacherDetailsModal) {
+                window.openTeacherDetailsModal(teacher, organizationId);
+            } else {
+                console.error('openTeacherDetailsModal function not available');
+            }
+        }
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {

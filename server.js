@@ -1948,6 +1948,20 @@ app.post('/api/admin/organizations/batch-settings', authenticateUser, authorizeR
 
 // ==================== Organization Management API (continued) ====================
 
+// Initialize teacher fields (ensure contactPhone and remark exist)
+function initializeTeacherFields(teacher) {
+  if (!teacher || teacher.role !== 'teacher') return teacher;
+  
+  if (teacher.contactPhone === undefined) {
+    teacher.contactPhone = null;
+  }
+  if (teacher.remark === undefined) {
+    teacher.remark = null;
+  }
+  
+  return teacher;
+}
+
 // Get organization's teachers (organization only)
 app.get('/api/organizations/teachers', authenticateUser, requireOrganizationAccess, async (req, res) => {
   try {
@@ -1964,8 +1978,9 @@ app.get('/api/organizations/teachers', authenticateUser, requireOrganizationAcce
       u.role === 'teacher'
     );
     
-    // Remove passwords
+    // Initialize teacher fields and remove passwords
     const teachersWithoutPasswords = teachers.map(t => {
+      initializeTeacherFields(t);
       const { password: _, ...teacherWithoutPassword } = t;
       return teacherWithoutPassword;
     });
@@ -2063,6 +2078,115 @@ app.post('/api/organizations/teachers/:teacherId/login-as', authenticateUser, au
   } catch (error) {
     console.error('Error logging in as teacher:', error);
     res.status(500).json({ error: 'Failed to login as teacher' });
+  }
+});
+
+// Update teacher information (organization and admin)
+app.put('/api/organizations/teachers/:teacherId', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { name, teacherId: newTeacherId, gender, email, contactPhone, remark } = req.body;
+    
+    // Get users
+    const users = await readUsers();
+    const teacherIndex = users.findIndex(u => u.id === teacherId && u.role === 'teacher');
+    
+    if (teacherIndex === -1) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+    
+    const teacher = users[teacherIndex];
+    
+    // Verify organization access
+    if (req.user.role === 'organization') {
+      const orgUser = users.find(u => u.id === req.user.id);
+      if (!orgUser || !orgUser.organizationId) {
+        return res.status(403).json({ error: 'Organization not found' });
+      }
+      
+      if (teacher.organizationId !== orgUser.organizationId) {
+        return res.status(403).json({ error: 'You don\'t have permission to update this teacher' });
+      }
+    }
+    // Admin can update any teacher
+    
+    // Validation
+    if (name !== undefined) {
+      if (!name || name.trim().length === 0) {
+        return res.status(400).json({ error: 'Teacher name is required' });
+      }
+      if (name.length > 100) {
+        return res.status(400).json({ error: 'Teacher name must be 100 characters or less' });
+      }
+      teacher.name = name.trim();
+    }
+    
+    if (newTeacherId !== undefined) {
+      if (!newTeacherId || newTeacherId.trim().length === 0) {
+        return res.status(400).json({ error: 'Teacher ID is required' });
+      }
+      if (newTeacherId.length > 50) {
+        return res.status(400).json({ error: 'Teacher ID must be 50 characters or less' });
+      }
+      
+      // Check if teacher ID already exists in this organization (excluding current teacher)
+      const existingTeacher = users.find(u => 
+        u.id !== teacherId &&
+        u.organizationId === teacher.organizationId &&
+        u.role === 'teacher' &&
+        u.teacherId === newTeacherId.trim()
+      );
+      
+      if (existingTeacher) {
+        return res.status(400).json({ error: 'Teacher ID already exists in this organization' });
+      }
+      
+      teacher.teacherId = newTeacherId.trim();
+    }
+    
+    if (gender !== undefined) {
+      if (gender && gender !== 'male' && gender !== 'female') {
+        return res.status(400).json({ error: 'Gender must be male or female' });
+      }
+      teacher.gender = gender || null;
+    }
+    
+    if (email !== undefined) {
+      // Email is optional, no format validation, no uniqueness check
+      teacher.email = email ? email.trim().toLowerCase() : null;
+      // Also update username if email is provided (for backward compatibility)
+      if (email) {
+        teacher.username = email.trim().toLowerCase();
+      }
+    }
+    
+    if (contactPhone !== undefined) {
+      if (contactPhone && contactPhone.length > 20) {
+        return res.status(400).json({ error: 'Contact phone must be 20 characters or less' });
+      }
+      teacher.contactPhone = contactPhone ? contactPhone.trim() : null;
+    }
+    
+    if (remark !== undefined) {
+      if (remark && remark.length > 1000) {
+        return res.status(400).json({ error: 'Remark must be 1000 characters or less' });
+      }
+      teacher.remark = remark ? remark.trim() : null;
+    }
+    
+    // Update updatedAt timestamp
+    teacher.updatedAt = new Date().toISOString();
+    
+    users[teacherIndex] = teacher;
+    await writeUsers(users);
+    
+    // Return teacher info (without password)
+    const { password: _, ...teacherWithoutPassword } = teacher;
+    
+    res.json(teacherWithoutPassword);
+  } catch (error) {
+    console.error('Error updating teacher:', error);
+    res.status(500).json({ error: 'Failed to update teacher' });
   }
 });
 
