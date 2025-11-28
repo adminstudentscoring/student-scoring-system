@@ -121,6 +121,13 @@ async function loadAuditLogs(orgId) {
 /**
  * Load management tools for organization
  */
+// Refresh student list function for modal
+window.refreshStudentList = function() {
+    if (currentOrgIdForTools) {
+        loadOrgManagementTools(currentOrgIdForTools);
+    }
+};
+
 async function loadOrgManagementTools(orgId) {
     try {
         currentOrgIdForTools = orgId;
@@ -228,10 +235,47 @@ function renderOrgManagementTools() {
                     </form>
                 ` : '<p>No students available.</p>'}
             </div>
+
+            <div class="card">
+                <h3>Students List</h3>
+                ${students.length ? `
+                    <div class="students-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
+                        ${students.map(student => `
+                            <div class="student-card" style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" data-student-id="${student.id}">
+                                <h4 style="margin: 0 0 8px 0; color: #333;">${escapeHtml(student.name || 'Unknown')}</h4>
+                                <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">ID: ${escapeHtml(student.studentId || 'N/A')}</p>
+                                <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">Score: ${student.score || 0}</p>
+                                <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">Level: ${student.level || 1}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<p>No students available.</p>'}
+            </div>
         </div>
     `;
 
     document.getElementById('orgToolsContainer').innerHTML = html;
+    
+    // Add click handlers to student cards
+    if (students.length > 0) {
+        document.querySelectorAll('.student-card[data-student-id]').forEach(card => {
+            card.addEventListener('click', async (e) => {
+                const studentId = card.getAttribute('data-student-id');
+                const student = students.find(s => s.id === studentId);
+                if (student && typeof openStudentDetailsModal === 'function') {
+                    await openStudentDetailsModal(student, orgManagementData.id);
+                }
+            });
+        });
+    }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 async function handleAdminAddTeacher(event) {

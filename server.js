@@ -545,11 +545,46 @@ async function initializeDataFile() {
   }
 }
 
+// Initialize student fields (add new fields if missing)
+function initializeStudentFields(student) {
+  const newFields = {
+    dateOfBirth: null,
+    gender: null,
+    contactPhone: null,
+    contactEmail: null,
+    emergencyContactName: null,
+    emergencyContactRelation: null,
+    emergencyContactNumber: null,
+    remark: null,
+    membership: null,
+    membershipStartDate: null,
+    membershipEndDate: null
+  };
+  
+  // Only add fields that don't exist
+  Object.keys(newFields).forEach(key => {
+    if (!(key in student)) {
+      student[key] = newFields[key];
+    }
+  });
+  
+  return student;
+}
+
 // Read data from txt file
 async function readData() {
   try {
     const content = await fs.readFile(DATA_FILE, 'utf8');
-    return JSON.parse(content);
+    const data = JSON.parse(content);
+    
+    // Initialize new fields for all students
+    if (data.students && Array.isArray(data.students)) {
+      data.students.forEach(student => {
+        initializeStudentFields(student);
+      });
+    }
+    
+    return data;
   } catch (error) {
     console.error('Error reading data:', error);
     return { students: [], battles: [], lastUpdate: new Date().toISOString() };
@@ -559,6 +594,13 @@ async function readData() {
 // Write data to txt file
 async function writeData(data) {
   try {
+    // Ensure all students have new fields initialized before writing
+    if (data.students && Array.isArray(data.students)) {
+      data.students.forEach(student => {
+        initializeStudentFields(student);
+      });
+    }
+    
     await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
     return true;
   } catch (error) {
@@ -1481,6 +1523,37 @@ app.post('/api/admin/organizations/:id/students', authenticateUser, authorizeRol
   } catch (error) {
     console.error('Error creating student as admin:', error);
     res.status(500).json({ error: 'Failed to create student' });
+  }
+});
+
+// Check if student ID is available in an organization
+app.get('/api/organizations/:orgId/students/check-id/:studentId', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
+  try {
+    const { orgId, studentId } = req.params;
+    const { excludeId } = req.query; // Optional: exclude this student ID when checking (for editing)
+    
+    // Verify organization access
+    if (req.user.role === 'organization' && req.user.organizationId !== orgId) {
+      return res.status(403).json({ error: 'You can only check student IDs in your organization' });
+    }
+    
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === orgId);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    const data = await readData();
+    const existingStudent = data.students.find(s => 
+      s.organizationId === orgId && 
+      s.studentId === studentId &&
+      s.id !== excludeId // Exclude current student when editing
+    );
+    
+    res.json({ available: !existingStudent });
+  } catch (error) {
+    console.error('Error checking student ID:', error);
+    res.status(500).json({ error: 'Failed to check student ID' });
   }
 });
 
@@ -2569,6 +2642,61 @@ app.post('/api/students/:id/answer', async (req, res) => {
   }
 });
 
+// Helper function to validate date format DD/MM/YYYY
+function isValidDateFormat(dateString) {
+  if (!dateString || dateString.trim() === '') return true; // Empty is allowed
+  const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+  return regex.test(dateString);
+}
+
+// Helper function to validate date value (DD/MM/YYYY)
+function isValidDate(dateString) {
+  if (!dateString || dateString.trim() === '') return true; // Empty is allowed
+  if (!isValidDateFormat(dateString)) return false;
+  
+  const parts = dateString.split('/');
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  
+  // Check if date is valid
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return false;
+  }
+  
+  return true;
+}
+
+// Helper function to check if date is in the future
+function isFutureDate(dateString) {
+  if (!dateString || dateString.trim() === '') return false;
+  if (!isValidDate(dateString)) return false;
+  
+  const parts = dateString.split('/');
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  const date = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return date > today;
+}
+
+// Helper function to compare dates (DD/MM/YYYY)
+function compareDates(date1, date2) {
+  if (!date1 || !date2) return 0;
+  if (!isValidDate(date1) || !isValidDate(date2)) return 0;
+  
+  const parts1 = date1.split('/');
+  const parts2 = date2.split('/');
+  const d1 = new Date(parseInt(parts1[2]), parseInt(parts1[1]) - 1, parseInt(parts1[0]));
+  const d2 = new Date(parseInt(parts2[2]), parseInt(parts2[1]) - 1, parseInt(parts2[0]));
+  
+  return d1 - d2;
+}
+
 // Update student manually (requires organization, teacher, or admin authentication)
 app.put('/api/students/:id', authenticateUser, authorizeRole('organization', 'teacher', 'admin'), async (req, res) => {
   try {
@@ -2596,6 +2724,106 @@ app.put('/api/students/:id', authenticateUser, authorizeRole('organization', 'te
       }
     }
 
+    // Validate student name (required)
+    if (updates.name !== undefined) {
+      if (!updates.name || updates.name.trim() === '') {
+        return res.status(400).json({ error: 'Student name is required' });
+      }
+      if (updates.name.length > 100) {
+        return res.status(400).json({ error: 'Student name must be 100 characters or less' });
+      }
+    }
+
+    // Validate student ID uniqueness (if being updated)
+    if (updates.studentId !== undefined && updates.studentId !== student.studentId) {
+      if (updates.studentId && updates.studentId.trim() !== '') {
+        if (updates.studentId.length > 50) {
+          return res.status(400).json({ error: 'Student ID must be 50 characters or less' });
+        }
+        
+        const existingStudent = data.students.find(s => 
+          s.organizationId === student.organizationId && 
+          s.studentId === updates.studentId &&
+          s.id !== id
+        );
+        
+        if (existingStudent) {
+          return res.status(400).json({ error: 'Student ID already exists in this organization' });
+        }
+      }
+    }
+
+    // Validate date fields
+    if (updates.dateOfBirth !== undefined && updates.dateOfBirth !== null && updates.dateOfBirth !== '') {
+      if (!isValidDateFormat(updates.dateOfBirth)) {
+        return res.status(400).json({ error: 'Date of birth must be in DD/MM/YYYY format' });
+      }
+      if (!isValidDate(updates.dateOfBirth)) {
+        return res.status(400).json({ error: 'Invalid date of birth' });
+      }
+      if (isFutureDate(updates.dateOfBirth)) {
+        return res.status(400).json({ error: 'Date of birth cannot be in the future' });
+      }
+    }
+
+    if (updates.membershipStartDate !== undefined && updates.membershipStartDate !== null && updates.membershipStartDate !== '') {
+      if (!isValidDateFormat(updates.membershipStartDate)) {
+        return res.status(400).json({ error: 'Membership start date must be in DD/MM/YYYY format' });
+      }
+      if (!isValidDate(updates.membershipStartDate)) {
+        return res.status(400).json({ error: 'Invalid membership start date' });
+      }
+    }
+
+    if (updates.membershipEndDate !== undefined && updates.membershipEndDate !== null && updates.membershipEndDate !== '') {
+      if (!isValidDateFormat(updates.membershipEndDate)) {
+        return res.status(400).json({ error: 'Membership end date must be in DD/MM/YYYY format' });
+      }
+      if (!isValidDate(updates.membershipEndDate)) {
+        return res.status(400).json({ error: 'Invalid membership end date' });
+      }
+      
+      // Validate that end date is after start date
+      const startDate = updates.membershipStartDate || student.membershipStartDate;
+      if (startDate && startDate.trim() !== '') {
+        if (compareDates(updates.membershipEndDate, startDate) < 0) {
+          return res.status(400).json({ error: 'Membership end date must be after start date' });
+        }
+      }
+    }
+
+    // Validate field lengths
+    const fieldLengths = {
+      contactPhone: 20,
+      contactEmail: 100,
+      emergencyContactName: 100,
+      emergencyContactNumber: 20,
+      remark: 1000,
+      membership: 50
+    };
+
+    for (const [field, maxLength] of Object.entries(fieldLengths)) {
+      if (updates[field] !== undefined && updates[field] !== null && updates[field] !== '') {
+        if (updates[field].length > maxLength) {
+          return res.status(400).json({ error: `${field} must be ${maxLength} characters or less` });
+        }
+      }
+    }
+
+    // Validate gender
+    if (updates.gender !== undefined && updates.gender !== null && updates.gender !== '') {
+      if (!['Male', 'Female'].includes(updates.gender)) {
+        return res.status(400).json({ error: 'Gender must be Male or Female' });
+      }
+    }
+
+    // Validate emergency contact relation
+    if (updates.emergencyContactRelation !== undefined && updates.emergencyContactRelation !== null && updates.emergencyContactRelation !== '') {
+      if (!['Parent', 'Guardian', 'Other'].includes(updates.emergencyContactRelation)) {
+        return res.status(400).json({ error: 'Emergency contact relation must be Parent, Guardian, or Other' });
+      }
+    }
+
     const studentIndex = data.students.findIndex(s => s.id === id);
     
     // If score is being updated, recalculate rank
@@ -2607,7 +2835,23 @@ app.put('/api/students/:id', authenticateUser, authorizeRole('organization', 'te
       updates.experience = updates.score;
     }
 
-    data.students[studentIndex] = { ...data.students[studentIndex], ...updates };
+    // Merge updates with existing student data
+    // Only update fields that are provided (not undefined)
+    const allowedFields = [
+      'name', 'studentId', 'dateOfBirth', 'gender', 'contactPhone', 'contactEmail',
+      'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber',
+      'remark', 'membership', 'membershipStartDate', 'membershipEndDate', 'score'
+    ];
+    
+    const cleanUpdates = {};
+    allowedFields.forEach(field => {
+      if (updates[field] !== undefined) {
+        cleanUpdates[field] = updates[field] === '' ? null : updates[field];
+      }
+    });
+
+    data.students[studentIndex] = { ...data.students[studentIndex], ...cleanUpdates };
+    data.students[studentIndex].updatedAt = new Date().toISOString();
     data.lastUpdate = new Date().toISOString();
     await writeData(data);
 
