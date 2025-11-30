@@ -7,17 +7,36 @@ let currentTeacherOrgId = null;
 
 // Initialize teacher details modal
 function initTeacherDetailsModal() {
-    createModalHTML();
+    const created = createModalHTML();
+    if (!created) {
+        console.error('Failed to create teacher modal HTML structure');
+        return false;
+    }
     setupEventListeners();
+    return true;
 }
 
 // Create modal HTML structure
 function createModalHTML() {
-    if (document.getElementById('teacherDetailsModal')) {
-        return; // Modal already exists
-    }
+    try {
+        // Check if modal already exists
+        if (document.getElementById('teacherDetailsModal')) {
+            return true; // Modal already exists
+        }
 
-    const modalHTML = `
+        // Check if document.body is available
+        if (!document.body) {
+            console.error('Cannot create teacher modal: document.body is not available');
+            return false;
+        }
+
+        // Check if document.head is available
+        if (!document.head) {
+            console.error('Cannot create teacher modal: document.head is not available');
+            return false;
+        }
+
+        const modalHTML = `
         <div id="teacherDetailsModal" class="modal" style="display: none;">
             <div class="modal-content" style="max-width: 900px; max-height: 85vh; width: 95vw; min-width: 400px; margin: 20px auto; overflow-y: auto;">
                 <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #ddd; position: sticky; top: 0; background: white; z-index: 10;">
@@ -90,26 +109,50 @@ function createModalHTML() {
         </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Add responsive styles
-    const style = document.createElement('style');
-    style.textContent = `
-        @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr !important;
-            }
-            #teacherDetailsModal .modal-content {
-                width: 100vw !important;
-                max-width: 100vw !important;
-                min-width: 100vw !important;
-                margin: 0 !important;
-                max-height: 100vh !important;
-                border-radius: 0 !important;
-            }
+        // Insert modal HTML into body
+        try {
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        } catch (insertError) {
+            console.error('Error inserting teacher modal HTML:', insertError);
+            return false;
         }
-    `;
-    document.head.appendChild(style);
+        
+        // Add responsive styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @media (max-width: 768px) {
+                .form-row {
+                    grid-template-columns: 1fr !important;
+                }
+                #teacherDetailsModal .modal-content {
+                    width: 100vw !important;
+                    max-width: 100vw !important;
+                    min-width: 100vw !important;
+                    margin: 0 !important;
+                    max-height: 100vh !important;
+                    border-radius: 0 !important;
+                }
+            }
+        `;
+        try {
+            document.head.appendChild(style);
+        } catch (styleError) {
+            console.error('Error appending teacher modal style:', styleError);
+            // Don't fail if style append fails
+        }
+        
+        // Verify modal was created
+        const createdModal = document.getElementById('teacherDetailsModal');
+        if (!createdModal) {
+            console.error('Teacher modal HTML was inserted but element not found in DOM');
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error creating teacher modal HTML:', error);
+        return false;
+    }
 }
 
 // Setup event listeners
@@ -134,28 +177,86 @@ function setupEventListeners() {
 
 // Open modal with teacher data
 async function openTeacherDetailsModal(teacher, organizationId) {
-    // Close any existing modal first
-    closeAllModals();
-    
-    currentTeacher = teacher;
-    // If organizationId not provided, try to get from teacher object
-    currentTeacherOrgId = organizationId || teacher.organizationId || null;
-    originalTeacherData = JSON.parse(JSON.stringify(teacher)); // Deep copy
-    
-    const modal = document.getElementById('teacherDetailsModal');
-    if (!modal) {
-        initTeacherDetailsModal();
+    try {
+        // Validate teacher data
+        if (!teacher) {
+            console.error('Cannot open teacher modal: teacher data is required');
+            return;
+        }
+        
+        // Ensure document.body is available
+        if (!document.body) {
+            console.error('Cannot open teacher modal: document.body is not available');
+            // Wait for body to be available
+            await new Promise(resolve => {
+                if (document.body) {
+                    resolve();
+                } else {
+                    const checkBody = setInterval(() => {
+                        if (document.body) {
+                            clearInterval(checkBody);
+                            resolve();
+                        }
+                    }, 50);
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        clearInterval(checkBody);
+                        resolve();
+                    }, 5000);
+                }
+            });
+            
+            if (!document.body) {
+                console.error('Timeout waiting for document.body');
+                return;
+            }
+        }
+        
+        // Close any existing modal first
+        closeAllModals();
+        
+        currentTeacher = teacher;
+        // If organizationId not provided, try to get from teacher object
+        currentTeacherOrgId = organizationId || teacher.organizationId || null;
+        originalTeacherData = JSON.parse(JSON.stringify(teacher)); // Deep copy
+        
+        let modal = document.getElementById('teacherDetailsModal');
+        if (!modal) {
+            const initialized = initTeacherDetailsModal();
+            if (!initialized) {
+                console.error('Failed to initialize teacher modal');
+                return;
+            }
+            // Wait for DOM to update
+            await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        resolve();
+                    });
+                });
+            });
+            modal = document.getElementById('teacherDetailsModal');
+        }
+        
+        if (!modal) {
+            console.error('Failed to create teacher details modal');
+            return;
+        }
+        
+        // Populate form with teacher data
+        populateForm(teacher);
+        
+        // Clear messages
+        clearMessages();
+        
+        // Show modal
+        modal.style.display = 'block';
+        if (document.body) {
+            document.body.style.overflow = 'hidden';
+        }
+    } catch (error) {
+        console.error('Error opening teacher details modal:', error);
     }
-    
-    // Populate form with teacher data
-    populateForm(teacher);
-    
-    // Clear messages
-    clearMessages();
-    
-    // Show modal
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
 }
 
 // Close all modals (ensure only one is open)
@@ -416,6 +517,14 @@ async function handleSave() {
     }
 }
 
-// Make function globally available
+// Make function globally available immediately (before any other code execution)
+// This ensures the function is available even if script execution is interrupted
 window.openTeacherDetailsModal = openTeacherDetailsModal;
+
+// Initialize on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTeacherDetailsModal);
+} else {
+    initTeacherDetailsModal();
+}
 
