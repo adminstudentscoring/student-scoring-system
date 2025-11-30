@@ -53,20 +53,28 @@ function initStudentDetailsModal() {
 }
 
 // Create modal HTML structure
-function createModalHTML() {
-    // Immediate validation - ensure function is actually executing
-    try {
+// Use function expression wrapped in IIFE to ensure proper definition and isolation
+const createModalHTML = (function() {
+    'use strict';
+    
+    // Return the actual function
+    return function createModalHTML() {
+        // CRITICAL: First executable line - must run immediately
         console.log('[Modal Debug] ========== createModalHTML() EXECUTION START ==========');
+        console.log('[Modal Debug] Timestamp:', new Date().toISOString());
+        
+        // Verify function context
         console.log('[Modal Debug] Function type:', typeof createModalHTML);
         console.log('[Modal Debug] Function name:', createModalHTML.name);
-        console.log('[Modal Debug] Timestamp:', new Date().toISOString());
-        console.log('[Modal Debug] Call stack:', new Error().stack);
-    } catch (earlyError) {
-        console.error('[Modal Debug] CRITICAL: Error in early logging:', earlyError);
-        return false;
-    }
-    
-    try {
+        console.log('[Modal Debug] This context:', typeof this !== 'undefined' ? this : 'undefined');
+        
+        try {
+            console.log('[Modal Debug] Call stack:', new Error().stack);
+        } catch (stackError) {
+            console.warn('[Modal Debug] Could not get stack:', stackError);
+        }
+        
+        try {
         // Check if modal already exists
         const existingModal = document.getElementById('studentDetailsModal');
         if (existingModal) {
@@ -398,7 +406,8 @@ function createModalHTML() {
     } finally {
         console.log('[Modal Debug] ========== createModalHTML() EXECUTION END ==========');
     }
-}
+    };
+})(); // Immediately invoke to create the function
 
 // Setup event listeners
 function setupEventListeners() {
@@ -922,6 +931,30 @@ async function handleSave() {
         saveBtn.textContent = originalText;
     }
 }
+
+// Verify function definition immediately after script load
+(function() {
+    'use strict';
+    console.log('[Modal Debug] ========== Script loaded, verifying function definitions ==========');
+    console.log('[Modal Debug] createModalHTML type:', typeof createModalHTML);
+    console.log('[Modal Debug] createModalHTML is function:', typeof createModalHTML === 'function');
+    if (typeof createModalHTML === 'function') {
+        console.log('[Modal Debug] createModalHTML name:', createModalHTML.name);
+        console.log('[Modal Debug] createModalHTML length (params):', createModalHTML.length);
+        // Test if function can be called (but don't actually create modal yet)
+        try {
+            const testResult = createModalHTML.toString().substring(0, 100);
+            console.log('[Modal Debug] createModalHTML source preview:', testResult);
+        } catch (e) {
+            console.error('[Modal Debug] ERROR getting function source:', e);
+        }
+    } else {
+        console.error('[Modal Debug] CRITICAL: createModalHTML is not a function!');
+        console.error('[Modal Debug] createModalHTML value:', createModalHTML);
+    }
+    console.log('[Modal Debug] initStudentDetailsModal type:', typeof initStudentDetailsModal);
+    console.log('[Modal Debug] ================================================================');
+})();
 
 // Initialize on DOM ready
 if (document.readyState === 'loading') {
