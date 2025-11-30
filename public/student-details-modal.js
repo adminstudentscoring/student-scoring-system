@@ -7,35 +7,74 @@ let currentOrgId = null;
 
 // Initialize student details modal
 function initStudentDetailsModal() {
+    console.log('[Modal Debug] ========== initStudentDetailsModal() called ==========');
+    console.log('[Modal Debug] Call stack:', new Error().stack);
+    
     const created = createModalHTML();
+    console.log('[Modal Debug] createModalHTML() returned:', created);
+    
     if (!created) {
-        console.error('Failed to create modal HTML structure');
+        console.error('[Modal Debug] ERROR: Failed to create modal HTML structure');
+        console.error('[Modal Debug] Current DOM state:', {
+            bodyExists: !!document.body,
+            headExists: !!document.head,
+            modalExists: !!document.getElementById('studentDetailsModal'),
+            readyState: document.readyState
+        });
         return false;
     }
+    
+    console.log('[Modal Debug] Setting up event listeners...');
     setupEventListeners();
+    console.log('[Modal Debug] Event listeners set up');
+    console.log('[Modal Debug] ========== initStudentDetailsModal() completed ==========');
     return true;
 }
 
 // Create modal HTML structure
 function createModalHTML() {
+    console.log('[Modal Debug] Starting createModalHTML()');
+    console.log('[Modal Debug] Timestamp:', new Date().toISOString());
+    
     try {
         // Check if modal already exists
-        if (document.getElementById('studentDetailsModal')) {
+        const existingModal = document.getElementById('studentDetailsModal');
+        if (existingModal) {
+            console.log('[Modal Debug] Modal already exists in DOM');
+            console.log('[Modal Debug] Existing modal:', existingModal);
             return true; // Modal already exists
         }
+        console.log('[Modal Debug] No existing modal found');
 
         // Check if document.body is available
         if (!document.body) {
-            console.error('Cannot create modal: document.body is not available');
+            console.error('[Modal Debug] ERROR: document.body is not available');
+            console.error('[Modal Debug] Document readyState:', document.readyState);
+            console.error('[Modal Debug] Document state:', {
+                documentElement: !!document.documentElement,
+                head: !!document.head,
+                body: !!document.body
+            });
             return false;
         }
+        console.log('[Modal Debug] document.body is available');
+        console.log('[Modal Debug] Body children count before:', document.body.children.length);
+        console.log('[Modal Debug] Body innerHTML length before:', document.body.innerHTML.length);
 
         // Check if document.head is available
         if (!document.head) {
-            console.error('Cannot create modal: document.head is not available');
+            console.error('[Modal Debug] ERROR: document.head is not available');
             return false;
         }
+        console.log('[Modal Debug] document.head is available');
 
+        // Check for ID conflicts
+        const conflictingElements = document.querySelectorAll('[id="studentDetailsModal"]');
+        if (conflictingElements.length > 0) {
+            console.warn('[Modal Debug] WARNING: Found conflicting elements with ID studentDetailsModal:', conflictingElements);
+        }
+
+        console.log('[Modal Debug] Creating modal HTML string...');
         const modalHTML = `
         <div id="studentDetailsModal" class="modal" style="display: none;">
             <div class="modal-content" style="max-width: 900px; max-height: 85vh; width: 95vw; min-width: 400px; margin: 20px auto; overflow-y: auto;">
@@ -170,10 +209,67 @@ function createModalHTML() {
         </div>
     `;
 
+        console.log('[Modal Debug] Modal HTML string created');
+        console.log('[Modal Debug] HTML length:', modalHTML.length);
+        console.log('[Modal Debug] HTML preview (first 200 chars):', modalHTML.substring(0, 200));
+        console.log('[Modal Debug] HTML preview (last 200 chars):', modalHTML.substring(modalHTML.length - 200));
+        
+        // Check for potential HTML issues
+        const hasUnclosedTags = (modalHTML.match(/<[^/>]+>/g) || []).length !== (modalHTML.match(/<\/[^>]+>/g) || []).length;
+        if (hasUnclosedTags) {
+            console.warn('[Modal Debug] WARNING: Potential unclosed tags detected');
+        }
+        
+        // Check for special characters that might cause issues
+        const hasProblematicChars = /[^\x20-\x7E\n\r\t]/.test(modalHTML);
+        if (hasProblematicChars) {
+            console.warn('[Modal Debug] WARNING: Non-ASCII characters detected in HTML');
+        }
+
         // Insert modal HTML into body
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        console.log('[Modal Debug] Attempting to insert HTML into body...');
+        console.log('[Modal Debug] Body element:', document.body);
+        console.log('[Modal Debug] Body tagName:', document.body.tagName);
+        console.log('[Modal Debug] Body parentNode:', document.body.parentNode);
+        
+        try {
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            console.log('[Modal Debug] insertAdjacentHTML completed successfully');
+        } catch (insertError) {
+            console.error('[Modal Debug] ERROR in insertAdjacentHTML:', insertError);
+            console.error('[Modal Debug] Insert error details:', {
+                name: insertError.name,
+                message: insertError.message,
+                stack: insertError.stack
+            });
+            throw insertError; // Re-throw to be caught by outer catch
+        }
+        
+        // Check body state after insertion
+        console.log('[Modal Debug] Body children count after insertion:', document.body.children.length);
+        console.log('[Modal Debug] Body last child:', document.body.lastElementChild);
+        console.log('[Modal Debug] Body last child ID:', document.body.lastElementChild?.id);
+        console.log('[Modal Debug] Body last child tagName:', document.body.lastElementChild?.tagName);
+        
+        // Immediately check if modal exists
+        const immediateCheck = document.getElementById('studentDetailsModal');
+        console.log('[Modal Debug] Immediate getElementById check:', immediateCheck);
+        if (immediateCheck) {
+            console.log('[Modal Debug] Modal found immediately after insertion');
+            console.log('[Modal Debug] Modal parent:', immediateCheck.parentElement);
+            console.log('[Modal Debug] Modal parentNode:', immediateCheck.parentNode);
+        } else {
+            console.warn('[Modal Debug] WARNING: Modal not found immediately after insertion');
+            // Check all elements with similar IDs
+            const allModals = document.querySelectorAll('[id*="studentDetails"]');
+            console.log('[Modal Debug] All elements with "studentDetails" in ID:', allModals);
+            // Check if it's in a different location
+            const allDivs = document.querySelectorAll('div[id]');
+            console.log('[Modal Debug] Total divs with IDs:', allDivs.length);
+        }
         
         // Add responsive styles
+        console.log('[Modal Debug] Creating style element...');
         const style = document.createElement('style');
         style.textContent = `
             @media (max-width: 768px) {
@@ -190,24 +286,84 @@ function createModalHTML() {
                 }
             }
         `;
-        document.head.appendChild(style);
+        try {
+            document.head.appendChild(style);
+            console.log('[Modal Debug] Style element appended to head');
+        } catch (styleError) {
+            console.error('[Modal Debug] ERROR appending style:', styleError);
+            // Don't fail if style append fails
+        }
+        
+        // Wait a bit and verify modal was created (synchronous check first)
+        console.log('[Modal Debug] Performing immediate verification...');
         
         // Verify modal was created
         const createdModal = document.getElementById('studentDetailsModal');
+        console.log('[Modal Debug] Final getElementById check:', createdModal);
+        
         if (!createdModal) {
-            console.error('Modal HTML was inserted but element not found in DOM');
+            console.error('[Modal Debug] ERROR: Modal HTML was inserted but element not found in DOM');
+            console.error('[Modal Debug] Body HTML length:', document.body.innerHTML.length);
+            console.error('[Modal Debug] Body HTML preview (last 500 chars):', document.body.innerHTML.substring(Math.max(0, document.body.innerHTML.length - 500)));
+            
+            // Try querySelector as alternative
+            const queryResult = document.querySelector('#studentDetailsModal');
+            console.error('[Modal Debug] querySelector result:', queryResult);
+            
+            // Check if it's in a shadow DOM or iframe
+            console.error('[Modal Debug] Document location:', window.location.href);
+            console.error('[Modal Debug] Document type:', document.doctype);
+            
             return false;
         }
         
+        console.log('[Modal Debug] Modal successfully created and verified');
+        console.log('[Modal Debug] Modal element:', createdModal);
+        console.log('[Modal Debug] Modal classes:', createdModal.className);
+        console.log('[Modal Debug] Modal style.display:', createdModal.style.display);
+        console.log('[Modal Debug] Modal parent:', createdModal.parentElement);
+        
         return true;
     } catch (error) {
-        console.error('Error creating modal HTML:', error);
-        console.error('Error details:', {
+        console.error('[Modal Debug] ========== ERROR CAUGHT ==========');
+        console.error('[Modal Debug] Error creating modal HTML:', error);
+        console.error('[Modal Debug] Error name:', error.name);
+        console.error('[Modal Debug] Error message:', error.message);
+        console.error('[Modal Debug] Error stack:', error.stack);
+        console.error('[Modal Debug] Error details:', {
+            name: error.name,
             message: error.message,
             stack: error.stack,
             bodyExists: !!document.body,
-            headExists: !!document.head
+            headExists: !!document.head,
+            documentReadyState: document.readyState,
+            documentBodyType: document.body?.constructor?.name,
+            documentHeadType: document.head?.constructor?.name,
+            bodyChildrenCount: document.body?.children?.length || 0,
+            bodyInnerHTMLLength: document.body?.innerHTML?.length || 0
         });
+        
+        // Additional diagnostics
+        if (error.message) {
+            console.error('[Modal Debug] Error message analysis:');
+            if (error.message.includes('insertAdjacentHTML')) {
+                console.error('[Modal Debug] - Error is related to insertAdjacentHTML');
+            }
+            if (error.message.includes('Invalid')) {
+                console.error('[Modal Debug] - Error suggests invalid HTML');
+            }
+            if (error.message.includes('Security')) {
+                console.error('[Modal Debug] - Error suggests security/CSP violation');
+            }
+        }
+        
+        // Check if error is a DOMException
+        if (error instanceof DOMException) {
+            console.error('[Modal Debug] DOMException code:', error.code);
+            console.error('[Modal Debug] DOMException name:', error.name);
+        }
+        
+        console.error('[Modal Debug] ====================================');
         return false;
     }
 }
@@ -282,38 +438,68 @@ async function openStudentDetailsModal(student, organizationId) {
         const maxRetries = 3;
         
         // Try to create modal if it doesn't exist
+        console.log('[Modal Debug] ========== Starting modal creation retry loop ==========');
         while (!modal && retryCount < maxRetries) {
+            console.log(`[Modal Debug] Retry attempt ${retryCount + 1}/${maxRetries}`);
+            console.log(`[Modal Debug] Current modal state:`, {
+                modalExists: !!document.getElementById('studentDetailsModal'),
+                bodyChildren: document.body?.children?.length || 0
+            });
+            
             const initialized = initStudentDetailsModal();
+            console.log(`[Modal Debug] initStudentDetailsModal() returned:`, initialized);
+            
             if (!initialized) {
-                console.error(`Failed to initialize modal (attempt ${retryCount + 1}/${maxRetries})`);
+                console.error(`[Modal Debug] ERROR: Failed to initialize modal (attempt ${retryCount + 1}/${maxRetries})`);
+                console.error(`[Modal Debug] Error context:`, {
+                    retryCount: retryCount + 1,
+                    maxRetries: maxRetries,
+                    bodyExists: !!document.body,
+                    headExists: !!document.head,
+                    readyState: document.readyState
+                });
                 retryCount++;
                 if (retryCount < maxRetries) {
+                    console.log(`[Modal Debug] Waiting 100ms before retry...`);
                     // Wait a bit before retrying
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
                 continue;
             }
             
+            console.log('[Modal Debug] Waiting for DOM to update...');
             // Wait for DOM to update and verify modal was created
             await new Promise(resolve => {
                 // Use requestAnimationFrame to ensure DOM is updated
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
+                        console.log('[Modal Debug] DOM update frames completed');
                         resolve();
                     });
                 });
             });
             
+            console.log('[Modal Debug] Checking for modal after DOM update...');
             modal = document.getElementById('studentDetailsModal');
+            console.log(`[Modal Debug] Modal found after update:`, !!modal);
             
             if (!modal) {
+                console.warn(`[Modal Debug] WARNING: Modal not found after initialization (attempt ${retryCount + 1}/${maxRetries})`);
+                console.warn(`[Modal Debug] Current DOM state:`, {
+                    bodyChildren: document.body?.children?.length || 0,
+                    bodyLastChild: document.body?.lastElementChild?.id || 'none',
+                    allModals: document.querySelectorAll('[id*="Modal"]').length
+                });
                 retryCount++;
                 if (retryCount < maxRetries) {
-                    console.warn(`Modal not found after initialization (attempt ${retryCount}/${maxRetries}), retrying...`);
+                    console.warn(`[Modal Debug] Retrying... (attempt ${retryCount}/${maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
+            } else {
+                console.log('[Modal Debug] Modal successfully found!');
             }
         }
+        console.log('[Modal Debug] ========== Retry loop completed ==========');
         
         if (!modal) {
             console.error('Failed to create student details modal after multiple attempts');
