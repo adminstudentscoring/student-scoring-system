@@ -50,9 +50,35 @@ function initTeacherDetailsModal() {
 
 // Create modal HTML structure
 // DIAGNOSTIC: Check if this declaration will cause a conflict
-console.log('[Teacher Modal Debug] About to declare function createModalHTML()...');
+console.log('[Teacher Modal Debug] ========== About to declare function createModalHTML() ==========');
 console.log('[Teacher Modal Debug] Current createModalHTML before declaration:', typeof createModalHTML);
+console.log('[Teacher Modal Debug] createModalHTML in window:', window.createModalHTML);
+console.log('[Teacher Modal Debug] createModalHTML descriptor:', Object.getOwnPropertyDescriptor(window, 'createModalHTML'));
+console.log('[Teacher Modal Debug] Checking if createModalHTML is const/let/var...');
 
+// Try to check if createModalHTML is a const (which would cause conflict)
+try {
+    // If createModalHTML is const, this will throw
+    createModalHTML = 'test';
+    console.log('[Teacher Modal Debug] createModalHTML can be reassigned (not const)');
+} catch (e) {
+    console.error('[Teacher Modal Debug] ERROR: Cannot reassign createModalHTML (it is const/let):', e);
+    console.error('[Teacher Modal Debug] This means function declaration will FAIL!');
+}
+
+// Check all global variables
+console.log('[Teacher Modal Debug] All global variables with "Modal" in name:');
+for (let key in window) {
+    if (key.includes('Modal') || key.includes('modal')) {
+        console.log(`[Teacher Modal Debug]   - ${key}: ${typeof window[key]}`);
+    }
+}
+
+console.log('[Teacher Modal Debug] ================================================================');
+console.log('[Teacher Modal Debug] ATTEMPTING TO DECLARE function createModalHTML()...');
+console.log('[Teacher Modal Debug] If you see a SyntaxError after this, the declaration failed!');
+
+// CRITICAL: This function declaration will fail if createModalHTML already exists as const/let
 function createModalHTML() {
     console.log('[Teacher Modal Debug] createModalHTML() function body executing');
     try {
