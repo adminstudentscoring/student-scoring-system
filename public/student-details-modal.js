@@ -7,17 +7,36 @@ let currentOrgId = null;
 
 // Initialize student details modal
 function initStudentDetailsModal() {
-    createModalHTML();
+    const created = createModalHTML();
+    if (!created) {
+        console.error('Failed to create modal HTML structure');
+        return false;
+    }
     setupEventListeners();
+    return true;
 }
 
 // Create modal HTML structure
 function createModalHTML() {
-    if (document.getElementById('studentDetailsModal')) {
-        return true; // Modal already exists
-    }
+    try {
+        // Check if modal already exists
+        if (document.getElementById('studentDetailsModal')) {
+            return true; // Modal already exists
+        }
 
-    const modalHTML = `
+        // Check if document.body is available
+        if (!document.body) {
+            console.error('Cannot create modal: document.body is not available');
+            return false;
+        }
+
+        // Check if document.head is available
+        if (!document.head) {
+            console.error('Cannot create modal: document.head is not available');
+            return false;
+        }
+
+        const modalHTML = `
         <div id="studentDetailsModal" class="modal" style="display: none;">
             <div class="modal-content" style="max-width: 900px; max-height: 85vh; width: 95vw; min-width: 400px; margin: 20px auto; overflow-y: auto;">
                 <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #ddd; position: sticky; top: 0; background: white; z-index: 10;">
@@ -151,29 +170,46 @@ function createModalHTML() {
         </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Add responsive styles
-    const style = document.createElement('style');
-    style.textContent = `
-        @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr !important;
+        // Insert modal HTML into body
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Add responsive styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @media (max-width: 768px) {
+                .form-row {
+                    grid-template-columns: 1fr !important;
+                }
+                #studentDetailsModal .modal-content {
+                    width: 100vw !important;
+                    max-width: 100vw !important;
+                    min-width: 100vw !important;
+                    margin: 0 !important;
+                    max-height: 100vh !important;
+                    border-radius: 0 !important;
+                }
             }
-            #studentDetailsModal .modal-content {
-                width: 100vw !important;
-                max-width: 100vw !important;
-                min-width: 100vw !important;
-                margin: 0 !important;
-                max-height: 100vh !important;
-                border-radius: 0 !important;
-            }
+        `;
+        document.head.appendChild(style);
+        
+        // Verify modal was created
+        const createdModal = document.getElementById('studentDetailsModal');
+        if (!createdModal) {
+            console.error('Modal HTML was inserted but element not found in DOM');
+            return false;
         }
-    `;
-    document.head.appendChild(style);
-    
-    // Verify modal was created
-    return document.getElementById('studentDetailsModal') !== null;
+        
+        return true;
+    } catch (error) {
+        console.error('Error creating modal HTML:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            bodyExists: !!document.body,
+            headExists: !!document.head
+        });
+        return false;
+    }
 }
 
 // Setup event listeners
@@ -198,43 +234,114 @@ function setupEventListeners() {
 
 // Open modal with student data
 async function openStudentDetailsModal(student, organizationId) {
-    // Close any existing modal first
-    closeAllModals();
-    
-    currentStudent = student;
-    // If organizationId not provided, try to get from student object
-    currentOrgId = organizationId || student.organizationId || null;
-    originalStudentData = JSON.parse(JSON.stringify(student)); // Deep copy
-    
-    let modal = document.getElementById('studentDetailsModal');
-    if (!modal) {
-        initStudentDetailsModal();
-        // Wait for DOM to update and verify modal was created
-        await new Promise(resolve => {
-            // Use requestAnimationFrame to ensure DOM is updated
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
+    try {
+        // Close any existing modal first
+        closeAllModals();
+        
+        // Validate student data
+        if (!student) {
+            console.error('Cannot open modal: student data is required');
+            return;
+        }
+        
+        currentStudent = student;
+        // If organizationId not provided, try to get from student object
+        currentOrgId = organizationId || student.organizationId || null;
+        originalStudentData = JSON.parse(JSON.stringify(student)); // Deep copy
+        
+        // Ensure document.body is available
+        if (!document.body) {
+            console.error('Cannot open modal: document.body is not available');
+            // Wait for body to be available
+            await new Promise(resolve => {
+                if (document.body) {
                     resolve();
+                } else {
+                    const checkBody = setInterval(() => {
+                        if (document.body) {
+                            clearInterval(checkBody);
+                            resolve();
+                        }
+                    }, 50);
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        clearInterval(checkBody);
+                        resolve();
+                    }, 5000);
+                }
+            });
+            
+            if (!document.body) {
+                console.error('Timeout waiting for document.body');
+                return;
+            }
+        }
+        
+        let modal = document.getElementById('studentDetailsModal');
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        // Try to create modal if it doesn't exist
+        while (!modal && retryCount < maxRetries) {
+            const initialized = initStudentDetailsModal();
+            if (!initialized) {
+                console.error(`Failed to initialize modal (attempt ${retryCount + 1}/${maxRetries})`);
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    // Wait a bit before retrying
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                continue;
+            }
+            
+            // Wait for DOM to update and verify modal was created
+            await new Promise(resolve => {
+                // Use requestAnimationFrame to ensure DOM is updated
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        resolve();
+                    });
                 });
             });
+            
+            modal = document.getElementById('studentDetailsModal');
+            
+            if (!modal) {
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    console.warn(`Modal not found after initialization (attempt ${retryCount}/${maxRetries}), retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+        }
+        
+        if (!modal) {
+            console.error('Failed to create student details modal after multiple attempts');
+            alert('無法打開學生詳情視窗，請刷新頁面後重試。\nUnable to open student details modal, please refresh the page and try again.');
+            return;
+        }
+        
+        // Populate form with student data
+        populateForm(student);
+        
+        // Clear messages
+        clearMessages();
+        
+        // Show modal
+        modal.style.display = 'block';
+        if (document.body) {
+            document.body.style.overflow = 'hidden';
+        }
+    } catch (error) {
+        console.error('Error opening student details modal:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            student: student ? student.id : null,
+            bodyExists: !!document.body
         });
-        modal = document.getElementById('studentDetailsModal');
+        alert('打開學生詳情視窗時發生錯誤，請刷新頁面後重試。\nAn error occurred while opening the student details modal, please refresh the page and try again.');
     }
-    
-    if (!modal) {
-        console.error('Failed to create student details modal');
-        return;
-    }
-    
-    // Populate form with student data
-    populateForm(student);
-    
-    // Clear messages
-    clearMessages();
-    
-    // Show modal
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
 }
 
 // Close all modals (ensure only one is open)
