@@ -7,26 +7,32 @@ let currentOrgId = null;
 
 // Initialize student details modal
 function initStudentDetailsModal() {
+    console.log('[Student Modal Debug] ========== initStudentDetailsModal() called ==========');
+    
     // Verify function exists before calling
     if (typeof createModalHTML !== 'function') {
-        console.error('CRITICAL ERROR: createModalHTML is not a function!');
+        console.error('[Student Modal Debug] CRITICAL ERROR: createModalHTML is not a function!');
         return false;
     }
     
     let created;
     try {
+        console.log('[Student Modal Debug] Calling createModalHTML()...');
         created = createModalHTML();
+        console.log('[Student Modal Debug] createModalHTML() returned:', created);
     } catch (callError) {
-        console.error('Error calling createModalHTML():', callError);
+        console.error('[Student Modal Debug] Error calling createModalHTML():', callError);
         return false;
     }
     
     if (!created) {
-        console.error('Failed to create modal HTML structure');
+        console.error('[Student Modal Debug] Failed to create modal HTML structure');
         return false;
     }
     
+    console.log('[Student Modal Debug] Modal created successfully, setting up event listeners...');
     setupEventListeners();
+    console.log('[Student Modal Debug] ========== initStudentDetailsModal() completed ==========');
     return true;
 }
 
@@ -238,22 +244,78 @@ const createModalHTML = (function() {
 
 // Setup event listeners
 function setupEventListeners() {
+    console.log('[Student Modal Debug] ========== setupEventListeners() called ==========');
+    
     const modal = document.getElementById('studentDetailsModal');
     const closeBtn = document.getElementById('studentDetailsModalClose');
     const cancelBtn = document.getElementById('studentDetailsCancel');
     const saveBtn = document.getElementById('studentDetailsSave');
 
+    console.log('[Student Modal Debug] Elements found:', {
+        modal: !!modal,
+        closeBtn: !!closeBtn,
+        cancelBtn: !!cancelBtn,
+        saveBtn: !!saveBtn
+    });
+
     if (closeBtn) {
-        closeBtn.addEventListener('click', () => handleCloseModal());
+        console.log('[Student Modal Debug] Adding close button listener');
+        try {
+            closeBtn.addEventListener('click', () => {
+                console.log('[Student Modal Debug] Close button clicked!');
+                try {
+                    handleCloseModal();
+                } catch (error) {
+                    console.error('[Student Modal Debug] Error in handleCloseModal():', error);
+                }
+            });
+            console.log('[Student Modal Debug] Close button listener added successfully');
+        } catch (error) {
+            console.error('[Student Modal Debug] Error adding close button listener:', error);
+        }
+    } else {
+        console.error('[Student Modal Debug] Close button not found!');
     }
 
     if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => handleCloseModal());
+        console.log('[Student Modal Debug] Adding cancel button listener');
+        try {
+            cancelBtn.addEventListener('click', () => {
+                console.log('[Student Modal Debug] Cancel button clicked!');
+                try {
+                    handleCloseModal();
+                } catch (error) {
+                    console.error('[Student Modal Debug] Error in handleCloseModal():', error);
+                }
+            });
+            console.log('[Student Modal Debug] Cancel button listener added successfully');
+        } catch (error) {
+            console.error('[Student Modal Debug] Error adding cancel button listener:', error);
+        }
+    } else {
+        console.error('[Student Modal Debug] Cancel button not found!');
     }
 
     if (saveBtn) {
-        saveBtn.addEventListener('click', () => handleSave());
+        console.log('[Student Modal Debug] Adding save button listener');
+        try {
+            saveBtn.addEventListener('click', () => {
+                console.log('[Student Modal Debug] Save button clicked!');
+                try {
+                    handleSave();
+                } catch (error) {
+                    console.error('[Student Modal Debug] Error in handleSave():', error);
+                }
+            });
+            console.log('[Student Modal Debug] Save button listener added successfully');
+        } catch (error) {
+            console.error('[Student Modal Debug] Error adding save button listener:', error);
+        }
+    } else {
+        console.error('[Student Modal Debug] Save button not found!');
     }
+    
+    console.log('[Student Modal Debug] ========== setupEventListeners() completed ==========');
 }
 
 // Open modal with student data
@@ -345,16 +407,36 @@ async function openStudentDetailsModal(student, organizationId) {
         }
         
         // Populate form with student data
+        console.log('[Student Modal Debug] Populating form with student data...');
         populateForm(student);
         
         // Clear messages
         clearMessages();
         
+        // Verify event listeners are set up
+        console.log('[Student Modal Debug] Verifying event listeners before showing modal...');
+        const closeBtnCheck = document.getElementById('studentDetailsModalClose');
+        const cancelBtnCheck = document.getElementById('studentDetailsCancel');
+        const saveBtnCheck = document.getElementById('studentDetailsSave');
+        console.log('[Student Modal Debug] Buttons check:', {
+            closeBtn: !!closeBtnCheck,
+            cancelBtn: !!cancelBtnCheck,
+            saveBtn: !!saveBtnCheck
+        });
+        
+        // Re-setup event listeners if buttons exist but listeners might not be set
+        if (closeBtnCheck || cancelBtnCheck || saveBtnCheck) {
+            console.log('[Student Modal Debug] Re-setting up event listeners to ensure they are bound...');
+            setupEventListeners();
+        }
+        
         // Show modal
+        console.log('[Student Modal Debug] Showing modal...');
         modal.style.display = 'block';
         if (document.body) {
             document.body.style.overflow = 'hidden';
         }
+        console.log('[Student Modal Debug] Modal displayed');
     } catch (error) {
         console.error('Error opening student details modal:', error);
         alert('打開學生詳情視窗時發生錯誤，請刷新頁面後重試。\nAn error occurred while opening the student details modal, please refresh the page and try again.');
@@ -431,27 +513,71 @@ function hasFormChanges() {
 
 // Handle close modal
 function handleCloseModal() {
-    if (hasFormChanges()) {
-        if (confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+    console.log('[Student Modal Debug] ========== handleCloseModal() called ==========');
+    try {
+        console.log('[Student Modal Debug] Checking for form changes...');
+        const hasChanges = hasFormChanges();
+        console.log('[Student Modal Debug] Form has changes:', hasChanges);
+        
+        if (hasChanges) {
+            console.log('[Student Modal Debug] Showing confirmation dialog...');
+            if (confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+                console.log('[Student Modal Debug] User confirmed, closing modal...');
+                closeModal();
+            } else {
+                console.log('[Student Modal Debug] User cancelled close');
+            }
+        } else {
+            console.log('[Student Modal Debug] No changes, closing modal directly...');
             closeModal();
         }
-    } else {
-        closeModal();
+    } catch (error) {
+        console.error('[Student Modal Debug] ERROR in handleCloseModal():', error);
+        console.error('[Student Modal Debug] Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
     }
+    console.log('[Student Modal Debug] ========== handleCloseModal() completed ==========');
 }
 
 // Close modal
 function closeModal() {
-    const modal = document.getElementById('studentDetailsModal');
-    if (modal) {
-        modal.style.display = 'none';
-        document.body.style.overflow = '';
-        currentStudent = null;
-        originalStudentData = null;
-        currentOrgId = null;
-        clearMessages();
-        clearFieldErrors();
+    console.log('[Student Modal Debug] ========== closeModal() called ==========');
+    try {
+        const modal = document.getElementById('studentDetailsModal');
+        console.log('[Student Modal Debug] Modal element:', modal);
+        
+        if (modal) {
+            console.log('[Student Modal Debug] Hiding modal...');
+            modal.style.display = 'none';
+            
+            if (document.body) {
+                document.body.style.overflow = '';
+                console.log('[Student Modal Debug] Body overflow reset');
+            }
+            
+            currentStudent = null;
+            originalStudentData = null;
+            currentOrgId = null;
+            console.log('[Student Modal Debug] State cleared');
+            
+            clearMessages();
+            clearFieldErrors();
+            console.log('[Student Modal Debug] Messages and errors cleared');
+        } else {
+            console.error('[Student Modal Debug] Modal element not found!');
+        }
+    } catch (error) {
+        console.error('[Student Modal Debug] ERROR in closeModal():', error);
+        console.error('[Student Modal Debug] Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
     }
+    console.log('[Student Modal Debug] ========== closeModal() completed ==========');
 }
 
 // Clear messages
@@ -658,68 +784,123 @@ async function validateForm() {
 
 // Handle save
 async function handleSave() {
-    clearMessages();
-    
-    // Validate form
-    const isValid = await validateForm();
-    if (!isValid) {
-        showError('Please fix the errors in the form');
-        return;
-    }
-    
-    const saveBtn = document.getElementById('studentDetailsSave');
-    const originalText = saveBtn.textContent;
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving...';
-    
+    console.log('[Student Modal Debug] ========== handleSave() called ==========');
     try {
-        const formData = getFormData();
+        console.log('[Student Modal Debug] Current student:', currentStudent);
+        console.log('[Student Modal Debug] Current org ID:', currentOrgId);
         
-        // Only send fields that have values
-        const updates = {};
-        Object.keys(formData).forEach(key => {
-            if (formData[key] !== null && formData[key] !== '') {
-                updates[key] = formData[key];
+        clearMessages();
+        console.log('[Student Modal Debug] Messages cleared');
+        
+        // Validate form
+        console.log('[Student Modal Debug] Validating form...');
+        const isValid = await validateForm();
+        console.log('[Student Modal Debug] Form validation result:', isValid);
+        
+        if (!isValid) {
+            console.log('[Student Modal Debug] Form validation failed, showing error');
+            showError('Please fix the errors in the form');
+            return;
+        }
+        
+        const saveBtn = document.getElementById('studentDetailsSave');
+        console.log('[Student Modal Debug] Save button element:', saveBtn);
+        
+        if (!saveBtn) {
+            console.error('[Student Modal Debug] Save button not found!');
+            showError('Save button not found. Please refresh the page.');
+            return;
+        }
+        
+        const originalText = saveBtn.textContent;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        console.log('[Student Modal Debug] Save button disabled and text changed');
+    
+        try {
+            console.log('[Student Modal Debug] Getting form data...');
+            const formData = getFormData();
+            console.log('[Student Modal Debug] Form data:', formData);
+            
+            // Only send fields that have values
+            const updates = {};
+            Object.keys(formData).forEach(key => {
+                if (formData[key] !== null && formData[key] !== '') {
+                    updates[key] = formData[key];
+                }
+            });
+            console.log('[Student Modal Debug] Updates to send:', updates);
+            
+            console.log('[Student Modal Debug] Sending PUT request to /students/' + currentStudent.id);
+            const response = await window.authUtils?.authenticatedFetch(`/students/${currentStudent.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+            
+            console.log('[Student Modal Debug] Response received:', {
+                exists: !!response,
+                ok: response?.ok,
+                status: response?.status,
+                statusText: response?.statusText
+            });
+            
+            if (!response || !response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to save student information' }));
+                console.error('[Student Modal Debug] Save failed:', errorData);
+                throw new Error(errorData.error || 'Failed to save student information');
             }
-        });
-        
-        const response = await window.authUtils?.authenticatedFetch(`/students/${currentStudent.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates)
-        });
-        
-        if (!response || !response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Failed to save student information' }));
-            throw new Error(errorData.error || 'Failed to save student information');
+            
+            const updatedStudent = await response.json();
+            console.log('[Student Modal Debug] Student updated successfully:', updatedStudent);
+            
+            // Update original data
+            originalStudentData = JSON.parse(JSON.stringify(updatedStudent));
+            currentStudent = updatedStudent;
+            console.log('[Student Modal Debug] State updated');
+            
+            // Show success message
+            showSuccess('Student information saved successfully!');
+            console.log('[Student Modal Debug] Success message shown');
+            
+            // Refresh student list (via WebSocket or single card update)
+            if (typeof refreshStudentList === 'function') {
+                console.log('[Student Modal Debug] Calling refreshStudentList()');
+                refreshStudentList();
+            } else if (typeof loadStudents === 'function') {
+                console.log('[Student Modal Debug] Calling loadStudents()');
+                loadStudents();
+            } else {
+                console.log('[Student Modal Debug] No refresh function available');
+            }
+            
+            // Dispatch custom event for other components
+            window.dispatchEvent(new CustomEvent('studentUpdated', { detail: updatedStudent }));
+            console.log('[Student Modal Debug] Custom event dispatched');
+            
+        } catch (error) {
+            console.error('[Student Modal Debug] ERROR in handleSave() try block:', error);
+            console.error('[Student Modal Debug] Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            showError(error.message || 'Failed to save student information. Please try again.');
+        } finally {
+            console.log('[Student Modal Debug] Restoring save button state');
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
         }
-        
-        const updatedStudent = await response.json();
-        
-        // Update original data
-        originalStudentData = JSON.parse(JSON.stringify(updatedStudent));
-        currentStudent = updatedStudent;
-        
-        // Show success message
-        showSuccess('Student information saved successfully!');
-        
-        // Refresh student list (via WebSocket or single card update)
-        if (typeof refreshStudentList === 'function') {
-            refreshStudentList();
-        } else if (typeof loadStudents === 'function') {
-            loadStudents();
-        }
-        
-        // Dispatch custom event for other components
-        window.dispatchEvent(new CustomEvent('studentUpdated', { detail: updatedStudent }));
-        
     } catch (error) {
-        console.error('Error saving student:', error);
-        showError(error.message || 'Failed to save student information. Please try again.');
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = originalText;
+        console.error('[Student Modal Debug] ERROR in handleSave() outer catch:', error);
+        console.error('[Student Modal Debug] Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        showError('An unexpected error occurred. Please try again.');
     }
+    console.log('[Student Modal Debug] ========== handleSave() completed ==========');
 }
 
 
