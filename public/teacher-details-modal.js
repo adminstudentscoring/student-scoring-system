@@ -1,47 +1,20 @@
 // Teacher Details Modal
 // Shared modal for viewing and editing teacher information in organization.html
 
-// ========== DIAGNOSTIC: Script Loading Check ==========
-console.log('[Teacher Modal Debug] ========== teacher-details-modal.js script loading ==========');
-console.log('[Teacher Modal Debug] Timestamp:', new Date().toISOString());
-console.log('[Teacher Modal Debug] Script location:', window.location.href);
-console.log('[Teacher Modal Debug] Document readyState:', document.readyState);
-
-// Check if createModalHTML already exists (from student-details-modal.js)
-console.log('[Teacher Modal Debug] Checking for existing createModalHTML...');
-console.log('[Teacher Modal Debug] typeof createModalHTML:', typeof createModalHTML);
-console.log('[Teacher Modal Debug] createModalHTML value:', createModalHTML);
-if (typeof createModalHTML !== 'undefined') {
-    console.error('[Teacher Modal Debug] WARNING: createModalHTML already exists!');
-    console.error('[Teacher Modal Debug] Existing createModalHTML type:', typeof createModalHTML);
-    console.error('[Teacher Modal Debug] Existing createModalHTML constructor:', createModalHTML?.constructor?.name);
-    console.error('[Teacher Modal Debug] Existing createModalHTML name:', createModalHTML?.name);
-    console.error('[Teacher Modal Debug] This will cause a SyntaxError when trying to declare function createModalHTML()');
-}
-
-// Check window object for createModalHTML
-console.log('[Teacher Modal Debug] window.createModalHTML:', window.createModalHTML);
-console.log('[Teacher Modal Debug] ================================================================');
-
 let currentTeacher = null;
 let originalTeacherData = null;
 let currentTeacherOrgId = null;
 
 // Initialize teacher details modal
 function initTeacherDetailsModal() {
-    console.log('[Teacher Modal Debug] initTeacherDetailsModal() called');
-    console.log('[Teacher Modal Debug] typeof createModalHTML:', typeof createModalHTML);
-    
-    if (typeof createModalHTML !== 'function') {
-        console.error('[Teacher Modal Debug] ERROR: createModalHTML is not a function!');
-        console.error('[Teacher Modal Debug] createModalHTML type:', typeof createModalHTML);
-        console.error('[Teacher Modal Debug] createModalHTML value:', createModalHTML);
+    if (typeof createTeacherModalHTML !== 'function') {
+        console.error('CRITICAL ERROR: createTeacherModalHTML is not a function!');
         return false;
     }
     
-    const created = createModalHTML();
+    const created = createTeacherModalHTML();
     if (!created) {
-        console.error('[Teacher Modal Debug] Failed to create teacher modal HTML structure');
+        console.error('Failed to create teacher modal HTML structure');
         return false;
     }
     setupEventListeners();
@@ -49,38 +22,8 @@ function initTeacherDetailsModal() {
 }
 
 // Create modal HTML structure
-// DIAGNOSTIC: Check if this declaration will cause a conflict
-console.log('[Teacher Modal Debug] ========== About to declare function createModalHTML() ==========');
-console.log('[Teacher Modal Debug] Current createModalHTML before declaration:', typeof createModalHTML);
-console.log('[Teacher Modal Debug] createModalHTML in window:', window.createModalHTML);
-console.log('[Teacher Modal Debug] createModalHTML descriptor:', Object.getOwnPropertyDescriptor(window, 'createModalHTML'));
-console.log('[Teacher Modal Debug] Checking if createModalHTML is const/let/var...');
-
-// Try to check if createModalHTML is a const (which would cause conflict)
-try {
-    // If createModalHTML is const, this will throw
-    createModalHTML = 'test';
-    console.log('[Teacher Modal Debug] createModalHTML can be reassigned (not const)');
-} catch (e) {
-    console.error('[Teacher Modal Debug] ERROR: Cannot reassign createModalHTML (it is const/let):', e);
-    console.error('[Teacher Modal Debug] This means function declaration will FAIL!');
-}
-
-// Check all global variables
-console.log('[Teacher Modal Debug] All global variables with "Modal" in name:');
-for (let key in window) {
-    if (key.includes('Modal') || key.includes('modal')) {
-        console.log(`[Teacher Modal Debug]   - ${key}: ${typeof window[key]}`);
-    }
-}
-
-console.log('[Teacher Modal Debug] ================================================================');
-console.log('[Teacher Modal Debug] ATTEMPTING TO DECLARE function createModalHTML()...');
-console.log('[Teacher Modal Debug] If you see a SyntaxError after this, the declaration failed!');
-
-// CRITICAL: This function declaration will fail if createModalHTML already exists as const/let
-function createModalHTML() {
-    console.log('[Teacher Modal Debug] createModalHTML() function body executing');
+// Use different function name to avoid conflict with student-details-modal.js
+function createTeacherModalHTML() {
     try {
         // Check if modal already exists
         if (document.getElementById('teacherDetailsModal')) {
@@ -580,41 +523,13 @@ async function handleSave() {
     }
 }
 
-// ========== DIAGNOSTIC: Function Exposure Check ==========
-console.log('[Teacher Modal Debug] ========== Checking function exposure ==========');
-console.log('[Teacher Modal Debug] typeof openTeacherDetailsModal:', typeof openTeacherDetailsModal);
-console.log('[Teacher Modal Debug] openTeacherDetailsModal name:', openTeacherDetailsModal?.name);
-console.log('[Teacher Modal Debug] openTeacherDetailsModal type:', typeof openTeacherDetailsModal);
-
-// Make function globally available immediately (before any other code execution)
-// This ensures the function is available even if script execution is interrupted
-try {
-    window.openTeacherDetailsModal = openTeacherDetailsModal;
-    console.log('[Teacher Modal Debug] Successfully assigned openTeacherDetailsModal to window');
-    console.log('[Teacher Modal Debug] window.openTeacherDetailsModal type:', typeof window.openTeacherDetailsModal);
-    console.log('[Teacher Modal Debug] window.openTeacherDetailsModal === openTeacherDetailsModal:', window.openTeacherDetailsModal === openTeacherDetailsModal);
-} catch (exposureError) {
-    console.error('[Teacher Modal Debug] ERROR assigning openTeacherDetailsModal to window:', exposureError);
-    console.error('[Teacher Modal Debug] Exposure error details:', {
-        name: exposureError.name,
-        message: exposureError.message,
-        stack: exposureError.stack
-    });
-}
-
-// Final verification
-console.log('[Teacher Modal Debug] Final check - window.openTeacherDetailsModal:', typeof window.openTeacherDetailsModal);
-console.log('[Teacher Modal Debug] ================================================================');
+// Make function globally available
+window.openTeacherDetailsModal = openTeacherDetailsModal;
 
 // Initialize on DOM ready
 if (document.readyState === 'loading') {
-    console.log('[Teacher Modal Debug] Document is loading, waiting for DOMContentLoaded');
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log('[Teacher Modal Debug] DOMContentLoaded fired, initializing modal');
-        initTeacherDetailsModal();
-    });
+    document.addEventListener('DOMContentLoaded', initTeacherDetailsModal);
 } else {
-    console.log('[Teacher Modal Debug] Document already ready, initializing modal immediately');
     initTeacherDetailsModal();
 }
 

@@ -1,16 +1,6 @@
 // Student Details Modal
 // Shared modal for viewing and editing student information in organization.html and admin.html
 
-// ========== DIAGNOSTIC: Script Loading Check ==========
-console.log('[Student Modal Debug] ========== student-details-modal.js script loading ==========');
-console.log('[Student Modal Debug] Timestamp:', new Date().toISOString());
-console.log('[Student Modal Debug] Script location:', window.location.href);
-console.log('[Student Modal Debug] Document readyState:', document.readyState);
-console.log('[Student Modal Debug] Checking for existing createModalHTML before definition...');
-console.log('[Student Modal Debug] typeof createModalHTML:', typeof createModalHTML);
-console.log('[Student Modal Debug] window.createModalHTML:', window.createModalHTML);
-console.log('[Student Modal Debug] ================================================================');
-
 let currentStudent = null;
 let originalStudentData = null;
 let currentOrgId = null;
@@ -42,17 +32,11 @@ function initStudentDetailsModal() {
 
 // Create modal HTML structure
 // Use function expression wrapped in IIFE to ensure proper definition and isolation
-console.log('[Student Modal Debug] About to define const createModalHTML...');
-console.log('[Student Modal Debug] Current createModalHTML before definition:', typeof createModalHTML);
-
 const createModalHTML = (function() {
     'use strict';
     
-    console.log('[Student Modal Debug] IIFE executing, creating createModalHTML function...');
-    
     // Return the actual function
     return function createModalHTML() {
-        console.log('[Student Modal Debug] createModalHTML() function body executing (student modal)');
         try {
         // Check if modal already exists
         const existingModal = document.getElementById('studentDetailsModal');
