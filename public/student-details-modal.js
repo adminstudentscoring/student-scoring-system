@@ -14,7 +14,7 @@ function initStudentDetailsModal() {
 // Create modal HTML structure
 function createModalHTML() {
     if (document.getElementById('studentDetailsModal')) {
-        return; // Modal already exists
+        return true; // Modal already exists
     }
 
     const modalHTML = `
@@ -171,6 +171,9 @@ function createModalHTML() {
         }
     `;
     document.head.appendChild(style);
+    
+    // Verify modal was created
+    return document.getElementById('studentDetailsModal') !== null;
 }
 
 // Setup event listeners
@@ -206,7 +209,15 @@ async function openStudentDetailsModal(student, organizationId) {
     let modal = document.getElementById('studentDetailsModal');
     if (!modal) {
         initStudentDetailsModal();
-        // Re-get modal after initialization
+        // Wait for DOM to update and verify modal was created
+        await new Promise(resolve => {
+            // Use requestAnimationFrame to ensure DOM is updated
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    resolve();
+                });
+            });
+        });
         modal = document.getElementById('studentDetailsModal');
     }
     

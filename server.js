@@ -602,11 +602,42 @@ function initializeStudentFields(student) {
   return student;
 }
 
-// Read data from txt file
+// File operation queue to prevent concurrent read/write conflicts
+let dataFileQueue = Promise.resolve();
+let isWriting = false;
+
+// Read data from txt file with queue protection
 async function readData() {
+  // Wait for any pending write operations to complete
+  await dataFileQueue;
+  
   try {
     const content = await fs.readFile(DATA_FILE, 'utf8');
-    const data = JSON.parse(content);
+    
+    // Handle empty or whitespace-only files
+    if (!content || content.trim() === '') {
+      console.warn('Data file is empty, returning default data');
+      return { students: [], battles: [], lastUpdate: new Date().toISOString() };
+    }
+    
+    let data;
+    try {
+      data = JSON.parse(content);
+    } catch (parseError) {
+      // If JSON is incomplete, try to recover or return default
+      console.error('JSON parse error - file may be corrupted or incomplete:', parseError.message);
+      console.error('File content length:', content.length);
+      console.error('File content preview:', content.substring(0, 200));
+      
+      // Try to read backup or return safe default
+      return { students: [], battles: [], lastUpdate: new Date().toISOString() };
+    }
+    
+    // Validate data structure
+    if (!data || typeof data !== 'object') {
+      console.error('Invalid data structure, returning default');
+      return { students: [], battles: [], lastUpdate: new Date().toISOString() };
+    }
     
     // Initialize new fields for all students
     if (data.students && Array.isArray(data.students)) {
@@ -618,26 +649,48 @@ async function readData() {
     return data;
   } catch (error) {
     console.error('Error reading data:', error);
+    // Return safe default instead of throwing
     return { students: [], battles: [], lastUpdate: new Date().toISOString() };
   }
 }
 
-// Write data to txt file
+// Write data to txt file with queue protection
 async function writeData(data) {
-  try {
-    // Ensure all students have new fields initialized before writing
-    if (data.students && Array.isArray(data.students)) {
-      data.students.forEach(student => {
-        initializeStudentFields(student);
-      });
+  // Add write operation to queue
+  dataFileQueue = dataFileQueue.then(async () => {
+    isWriting = true;
+    try {
+      // Ensure all students have new fields initialized before writing
+      if (data.students && Array.isArray(data.students)) {
+        data.students.forEach(student => {
+          initializeStudentFields(student);
+        });
+      }
+      
+      // Write to temporary file first, then rename (atomic operation)
+      const tempFile = DATA_FILE + '.tmp';
+      const jsonContent = JSON.stringify(data, null, 2);
+      
+      await fs.writeFile(tempFile, jsonContent, 'utf8');
+      await fs.rename(tempFile, DATA_FILE);
+      
+      return true;
+    } catch (error) {
+      console.error('Error writing data:', error);
+      // Try to clean up temp file if it exists
+      try {
+        await fs.unlink(DATA_FILE + '.tmp').catch(() => {});
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
+      return false;
+    } finally {
+      isWriting = false;
     }
-    
-    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing data:', error);
-    return false;
-  }
+  });
+  
+  // Wait for this write operation to complete
+  return await dataFileQueue;
 }
 
 async function readRunningQueenLeaderboard() {
