@@ -236,17 +236,6 @@ const createModalHTML = (function() {
     };
 })(); // Immediately invoke to create the function
 
-// ========== DIAGNOSTIC: After createModalHTML Definition ==========
-console.log('[Student Modal Debug] ========== After createModalHTML definition ==========');
-console.log('[Student Modal Debug] typeof createModalHTML:', typeof createModalHTML);
-console.log('[Student Modal Debug] createModalHTML is function:', typeof createModalHTML === 'function');
-if (typeof createModalHTML === 'function') {
-    console.log('[Student Modal Debug] createModalHTML name:', createModalHTML.name);
-    console.log('[Student Modal Debug] createModalHTML.length (params):', createModalHTML.length);
-}
-console.log('[Student Modal Debug] window.createModalHTML:', window.createModalHTML);
-console.log('[Student Modal Debug] ================================================================');
-
 // Setup event listeners
 function setupEventListeners() {
     const modal = document.getElementById('studentDetailsModal');

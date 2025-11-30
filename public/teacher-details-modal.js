@@ -71,8 +71,8 @@ function createTeacherModalHTML() {
                             </div>
                             <div class="form-row" style="display: grid; grid-template-columns: 1fr; gap: 15px;">
                                 <div class="form-group">
-                                    <label for="gender" style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Gender</label>
-                                    <select id="gender" name="gender" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                                    <label for="teacherGender" style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Gender</label>
+                                    <select id="teacherGender" name="gender" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                                         <option value="">Select...</option>
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
@@ -92,15 +92,15 @@ function createTeacherModalHTML() {
                                     <div class="field-error" style="color: red; font-size: 12px; margin-top: 5px;"></div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="contactPhone" style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Contact Phone</label>
-                                    <input type="text" id="contactPhone" name="contactPhone" maxlength="20" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                                    <label for="teacherContactPhone" style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Contact Phone</label>
+                                    <input type="text" id="teacherContactPhone" name="contactPhone" maxlength="20" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                                     <div class="field-error" style="color: red; font-size: 12px; margin-top: 5px;"></div>
                                 </div>
                             </div>
                             <div class="form-row" style="display: grid; grid-template-columns: 1fr; gap: 15px;">
                                 <div class="form-group">
-                                    <label for="remark" style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Remark</label>
-                                    <textarea id="remark" name="remark" rows="4" maxlength="1000" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;"></textarea>
+                                    <label for="teacherRemark" style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Remark</label>
+                                    <textarea id="teacherRemark" name="remark" rows="4" maxlength="1000" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;"></textarea>
                                     <div class="field-error" style="color: red; font-size: 12px; margin-top: 5px;"></div>
                                 </div>
                             </div>
@@ -281,10 +281,10 @@ function populateForm(teacher) {
     
     document.getElementById('teacherName').value = teacher.name || '';
     document.getElementById('teacherId').value = teacher.teacherId || '';
-    document.getElementById('gender').value = teacher.gender || '';
+    document.getElementById('teacherGender').value = teacher.gender || '';
     document.getElementById('email').value = teacher.email || '';
-    document.getElementById('contactPhone').value = teacher.contactPhone || '';
-    document.getElementById('remark').value = teacher.remark || '';
+    document.getElementById('teacherContactPhone').value = teacher.contactPhone || '';
+    document.getElementById('teacherRemark').value = teacher.remark || '';
 }
 
 // Get form data
@@ -292,10 +292,10 @@ function getFormData() {
     return {
         name: document.getElementById('teacherName').value.trim(),
         teacherId: document.getElementById('teacherId').value.trim(),
-        gender: document.getElementById('gender').value || null,
+        gender: document.getElementById('teacherGender').value || null,
         email: document.getElementById('email').value.trim() || null,
-        contactPhone: document.getElementById('contactPhone').value.trim() || null,
-        remark: document.getElementById('remark').value.trim() || null
+        contactPhone: document.getElementById('teacherContactPhone').value.trim() || null,
+        remark: document.getElementById('teacherRemark').value.trim() || null
     };
 }
 
