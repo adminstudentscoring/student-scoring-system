@@ -10,8 +10,29 @@ function initStudentDetailsModal() {
     console.log('[Modal Debug] ========== initStudentDetailsModal() called ==========');
     console.log('[Modal Debug] Call stack:', new Error().stack);
     
-    const created = createModalHTML();
-    console.log('[Modal Debug] createModalHTML() returned:', created);
+    // Verify function exists before calling
+    if (typeof createModalHTML !== 'function') {
+        console.error('[Modal Debug] CRITICAL ERROR: createModalHTML is not a function!');
+        console.error('[Modal Debug] createModalHTML type:', typeof createModalHTML);
+        console.error('[Modal Debug] createModalHTML value:', createModalHTML);
+        return false;
+    }
+    
+    console.log('[Modal Debug] Calling createModalHTML()...');
+    let created;
+    try {
+        created = createModalHTML();
+        console.log('[Modal Debug] createModalHTML() returned:', created);
+        console.log('[Modal Debug] Return value type:', typeof created);
+    } catch (callError) {
+        console.error('[Modal Debug] ERROR calling createModalHTML():', callError);
+        console.error('[Modal Debug] Call error details:', {
+            name: callError.name,
+            message: callError.message,
+            stack: callError.stack
+        });
+        return false;
+    }
     
     if (!created) {
         console.error('[Modal Debug] ERROR: Failed to create modal HTML structure');
@@ -33,8 +54,17 @@ function initStudentDetailsModal() {
 
 // Create modal HTML structure
 function createModalHTML() {
-    console.log('[Modal Debug] Starting createModalHTML()');
-    console.log('[Modal Debug] Timestamp:', new Date().toISOString());
+    // Immediate validation - ensure function is actually executing
+    try {
+        console.log('[Modal Debug] ========== createModalHTML() EXECUTION START ==========');
+        console.log('[Modal Debug] Function type:', typeof createModalHTML);
+        console.log('[Modal Debug] Function name:', createModalHTML.name);
+        console.log('[Modal Debug] Timestamp:', new Date().toISOString());
+        console.log('[Modal Debug] Call stack:', new Error().stack);
+    } catch (earlyError) {
+        console.error('[Modal Debug] CRITICAL: Error in early logging:', earlyError);
+        return false;
+    }
     
     try {
         // Check if modal already exists
@@ -365,6 +395,8 @@ function createModalHTML() {
         
         console.error('[Modal Debug] ====================================');
         return false;
+    } finally {
+        console.log('[Modal Debug] ========== createModalHTML() EXECUTION END ==========');
     }
 }
 
