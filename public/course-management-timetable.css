@@ -64,10 +64,12 @@
 /* Week View Styles */
 .timetable-week-view {
   width: 100%;
-  overflow: auto;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 300px);
 }
 
 .timetable-week-header {
@@ -78,6 +80,7 @@
   top: 0;
   z-index: 10;
   border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
 }
 
 .timetable-week-header-cell {
@@ -100,9 +103,36 @@
   border-right: 2px solid rgba(255, 255, 255, 0.2);
 }
 
+.timetable-week-body-scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  max-height: calc(100vh - 350px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+
+.timetable-week-body-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.timetable-week-body-scrollable::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.timetable-week-body-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.timetable-week-body-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
 .timetable-week-body {
   display: grid;
   grid-template-columns: 80px repeat(7, 1fr);
+  position: relative;
 }
 
 .timetable-week-time-cell {

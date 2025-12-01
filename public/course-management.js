@@ -52,8 +52,10 @@ function renderCourseManagement() {
         <button class="course-sub-tab" data-subtab="sales">📊 Sales</button>
       </div>
       
-      <!-- Courses Sub-tab Content -->
-      <div id="coursesSubTabContent" class="course-sub-tab-content active">
+      <!-- Content Area -->
+      <div class="course-management-content">
+        <!-- Courses Sub-tab Content -->
+        <div id="coursesSubTabContent" class="course-sub-tab-content active">
         <div class="courses-header">
           <div class="courses-controls">
             <div class="search-filter-group">
@@ -98,6 +100,7 @@ function renderCourseManagement() {
       </div>
       <div id="salesSubTabContent" class="course-sub-tab-content">
         <p>Sales feature coming soon...</p>
+      </div>
       </div>
     </div>
   `;
@@ -778,29 +781,35 @@ function showToast(message, type = 'success') {
 const style = document.createElement('style');
 style.textContent = `
   .course-management {
-    padding: 20px;
+    display: flex;
+    gap: 0;
+    min-height: 500px;
   }
   
   .course-sub-tabs {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    flex-direction: column;
+    width: 200px;
+    min-width: 200px;
+    gap: 5px;
+    padding: 10px;
     background: rgba(255, 255, 255, 0.1);
-    padding: 5px;
-    border-radius: 8px;
+    border-right: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px 0 0 8px;
   }
   
   .course-sub-tab {
-    padding: 10px 20px;
+    padding: 12px 16px;
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 15px;
     color: rgba(255, 255, 255, 0.8);
-    border-bottom: 2px solid transparent;
+    border-left: 3px solid transparent;
     transition: all 0.3s;
     border-radius: 6px;
+    text-align: left;
+    width: 100%;
   }
   
   .course-sub-tab:hover {
@@ -811,16 +820,49 @@ style.textContent = `
   .course-sub-tab.active {
     color: #fff;
     background: rgba(255, 255, 255, 0.2);
-    border-bottom-color: #fff;
+    border-left-color: #fff;
     font-weight: bold;
   }
   
   .course-sub-tab-content {
     display: none;
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
   }
   
   .course-sub-tab-content.active {
     display: block;
+  }
+  
+  @media (max-width: 768px) {
+    .course-management {
+      flex-direction: column;
+    }
+    
+    .course-sub-tabs {
+      width: 100%;
+      flex-direction: row;
+      border-right: none;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px 8px 0 0;
+      overflow-x: auto;
+    }
+    
+    .course-sub-tab {
+      white-space: nowrap;
+      border-left: none;
+      border-bottom: 3px solid transparent;
+    }
+    
+    .course-sub-tab.active {
+      border-left: none;
+      border-bottom-color: #fff;
+    }
+    
+    .course-sub-tab-content {
+      padding: 15px;
+    }
   }
   
   .courses-header {

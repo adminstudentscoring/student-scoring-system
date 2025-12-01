@@ -130,7 +130,10 @@ window.switchTimetableView = function(view) {
 // Render week view
 function renderWeekView() {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const timeSlots = generateTimeSlots();
+  const allTimeSlots = generateTimeSlots();
+  
+  // Only show first 18 time slots (08:00 to 12:30)
+  const visibleTimeSlots = allTimeSlots.slice(0, 18);
   
   // Get current week dates
   const weekDates = getWeekDates(currentDate);
@@ -146,10 +149,11 @@ function renderWeekView() {
   });
   html += '</div>';
   
-  // Body
+  // Body with scrollable content
+  html += '<div class="timetable-week-body-scrollable">';
   html += '<div class="timetable-week-body">';
   
-  timeSlots.forEach(timeSlot => {
+  allTimeSlots.forEach(timeSlot => {
     // Time column
     html += `<div class="timetable-week-time-cell timetable-week-time-col">${timeSlot}</div>`;
     
@@ -162,13 +166,54 @@ function renderWeekView() {
   
   html += '</div>';
   html += '</div>';
+  html += '</div>';
   
   // Render entries
   setTimeout(() => {
     renderWeekEntries();
+    scrollToCurrentTime();
   }, 10);
   
   return html;
+}
+
+// Scroll to current time
+function scrollToCurrentTime() {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMin = now.getMinutes();
+  const currentTimeMinutes = currentHour * 60 + currentMin;
+  
+  // Calculate target time
+  let targetTimeMinutes = currentTimeMinutes;
+  
+  // If current time is before 08:00, scroll to start
+  if (currentTimeMinutes < 8 * 60) {
+    targetTimeMinutes = 8 * 60;
+  }
+  // If current time is after 20:00, scroll to end
+  else if (currentTimeMinutes > 20 * 60) {
+    targetTimeMinutes = 20 * 60;
+  }
+  
+  // Round to nearest 15 minutes
+  const roundedMinutes = Math.floor(targetTimeMinutes / 15) * 15;
+  const targetHour = Math.floor(roundedMinutes / 60);
+  const targetMin = roundedMinutes % 60;
+  
+  // Find the time slot index
+  const allTimeSlots = generateTimeSlots();
+  const targetTime = `${String(targetHour).padStart(2, '0')}:${String(targetMin).padStart(2, '0')}`;
+  const slotIndex = allTimeSlots.indexOf(targetTime);
+  
+  if (slotIndex !== -1) {
+    const scrollableContainer = document.querySelector('.timetable-week-body-scrollable');
+    if (scrollableContainer) {
+      const slotHeight = 30; // 30px per 15 minutes
+      const scrollPosition = Math.max(0, slotIndex * slotHeight - 100); // Offset by 100px to show some context
+      scrollableContainer.scrollTop = scrollPosition;
+    }
+  }
 }
 
 // Render week entries
