@@ -5,6 +5,10 @@ let currentStudent = null;
 let originalStudentData = null;
 let currentOrgId = null;
 
+// Track if event listeners have been set up to prevent duplicate listeners
+let eventListenersSetup = false;
+let eventDelegationSetup = false;
+
 // Initialize student details modal
 function initStudentDetailsModal() {
     console.log('[Student Modal Debug] ========== initStudentDetailsModal() called ==========');
@@ -264,6 +268,13 @@ function setupEventListeners() {
     console.log('[Student Modal Debug] Function type:', typeof setupEventListeners);
     console.log('[Student Modal Debug] Function name:', setupEventListeners.name);
     console.log('[Student Modal Debug] Timestamp:', new Date().toISOString());
+    console.log('[Student Modal Debug] Event listeners already setup:', eventListenersSetup);
+    
+    // Prevent duplicate event listeners
+    if (eventListenersSetup) {
+        console.log('[Student Modal Debug] Event listeners already set up, skipping...');
+        return;
+    }
     
     try {
         const modal = document.getElementById('studentDetailsModal');
@@ -357,6 +368,9 @@ function setupEventListeners() {
             console.error('[Student Modal Debug] Save button not found!');
         }
         
+        // Mark as set up only if all listeners were added successfully
+        eventListenersSetup = true;
+        console.log('[Student Modal Debug] Event listeners setup flag set to true');
         console.log('[Student Modal Debug] ========== setupEventListeners() completed ==========');
     } catch (error) {
         console.error('[Student Modal Debug] ========== ERROR in setupEventListeners() ==========');
@@ -477,79 +491,24 @@ async function openStudentDetailsModal(student, organizationId) {
         });
         
         // Re-setup event listeners if buttons exist but listeners might not be set
-        if (closeBtnCheck || cancelBtnCheck || saveBtnCheck) {
-            console.log('[Student Modal Debug] Re-setting up event listeners to ensure they are bound...');
+        // Only if not already set up
+        if (!eventListenersSetup && (closeBtnCheck || cancelBtnCheck || saveBtnCheck)) {
+            console.log('[Student Modal Debug] Setting up event listeners for the first time...');
             console.log('[Student Modal Debug] setupEventListeners type before call:', typeof setupEventListeners);
             try {
                 setupEventListeners();
-                console.log('[Student Modal Debug] Re-setup completed');
+                console.log('[Student Modal Debug] Setup completed');
             } catch (reSetupError) {
-                console.error('[Student Modal Debug] ERROR in re-setup:', reSetupError);
+                console.error('[Student Modal Debug] ERROR in setup:', reSetupError);
             }
+        } else {
+            console.log('[Student Modal Debug] Event listeners already set up, skipping re-setup');
         }
         
-        // Also use event delegation on modal as a backup
-        console.log('[Student Modal Debug] Setting up event delegation on modal...');
-        try {
-            modal.addEventListener('click', (e) => {
-                console.log('[Student Modal Debug] Modal click event:', {
-                    target: e.target,
-                    targetId: e.target.id,
-                    targetTagName: e.target.tagName,
-                    targetClassName: e.target.className,
-                    currentTarget: e.currentTarget
-                });
-                
-                // Handle close button (X)
-                if (e.target.id === 'studentDetailsModalClose' || e.target.classList.contains('modal-close')) {
-                    console.log('[Student Modal Debug] Close button clicked via delegation!');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleCloseModal();
-                    return;
-                }
-                
-                // Handle cancel button
-                if (e.target.id === 'studentDetailsCancel') {
-                    console.log('[Student Modal Debug] Cancel button clicked via delegation!');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleCloseModal();
-                    return;
-                }
-                
-                // Handle save button
-                if (e.target.id === 'studentDetailsSave') {
-                    console.log('[Student Modal Debug] Save button clicked via delegation!');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('[Student Modal Debug] About to call handleSave() from delegation...');
-                    console.log('[Student Modal Debug] handleSave type:', typeof handleSave);
-                    console.log('[Student Modal Debug] handleSave value:', handleSave);
-                    try {
-                        // handleSave is async, but we don't await it here to avoid blocking
-                        // The function will handle its own errors
-                        const savePromise = handleSave();
-                        console.log('[Student Modal Debug] handleSave() called, promise:', savePromise);
-                        // Catch any immediate errors
-                        savePromise.catch(err => {
-                            console.error('[Student Modal Debug] Unhandled error in handleSave() promise:', err);
-                        });
-                    } catch (error) {
-                        console.error('[Student Modal Debug] ERROR calling handleSave() from delegation:', error);
-                        console.error('[Student Modal Debug] Error details:', {
-                            name: error.name,
-                            message: error.message,
-                            stack: error.stack
-                        });
-                    }
-                    return;
-                }
-            });
-            console.log('[Student Modal Debug] Event delegation set up successfully');
-        } catch (delegationError) {
-            console.error('[Student Modal Debug] ERROR setting up event delegation:', delegationError);
-        }
+        // Event delegation is no longer needed since direct listeners are working
+        // Keeping this section commented out to avoid conflicts
+        // Direct event listeners should handle all button clicks
+        console.log('[Student Modal Debug] Skipping event delegation setup - using direct listeners only');
         
         // Show modal
         console.log('[Student Modal Debug] Showing modal...');
@@ -684,6 +643,11 @@ function closeModal() {
             currentOrgId = null;
             console.log('[Student Modal Debug] State cleared');
             
+            // Reset event listener flags so they can be set up again next time
+            eventListenersSetup = false;
+            eventDelegationSetup = false;
+            console.log('[Student Modal Debug] Event listener flags reset');
+            
             clearMessages();
             clearFieldErrors();
             console.log('[Student Modal Debug] Messages and errors cleared');
@@ -802,88 +766,132 @@ function compareDates(date1, date2) {
 
 // Validate form
 async function validateForm() {
+    console.log('[Student Modal Debug] ========== validateForm() called ==========');
     clearFieldErrors();
     let isValid = true;
     const formData = getFormData();
+    console.log('[Student Modal Debug] Form data to validate:', formData);
     
     // Validate student name (required)
+    console.log('[Student Modal Debug] Validating student name...');
     if (!formData.name || formData.name.trim() === '') {
+        console.log('[Student Modal Debug] Validation FAILED: Student name is required');
         setFieldError('name', 'Student name is required');
         isValid = false;
     } else if (formData.name.length > 100) {
+        console.log('[Student Modal Debug] Validation FAILED: Student name too long (' + formData.name.length + ' characters)');
         setFieldError('name', 'Student name must be 100 characters or less');
         isValid = false;
+    } else {
+        console.log('[Student Modal Debug] Student name validation PASSED');
     }
     
     // Validate student ID length
+    console.log('[Student Modal Debug] Validating student ID...');
     if (formData.studentId && formData.studentId.length > 50) {
+        console.log('[Student Modal Debug] Validation FAILED: Student ID too long (' + formData.studentId.length + ' characters)');
         setFieldError('studentId', 'Student ID must be 50 characters or less');
         isValid = false;
+    } else {
+        console.log('[Student Modal Debug] Student ID validation PASSED');
     }
     
     // Check student ID uniqueness (if changed)
     if (formData.studentId && formData.studentId !== (originalStudentData?.studentId || '')) {
+        console.log('[Student Modal Debug] Checking student ID uniqueness...');
         try {
             const checkUrl = `/api/organizations/${currentOrgId}/students/check-id/${encodeURIComponent(formData.studentId)}?excludeId=${currentStudent.id}`;
+            console.log('[Student Modal Debug] Checking ID uniqueness URL:', checkUrl);
             const response = await window.authUtils?.authenticatedFetch(checkUrl) || fetch(checkUrl);
             if (response && response.ok) {
                 const result = await response.json();
+                console.log('[Student Modal Debug] ID uniqueness check result:', result);
                 if (!result.available) {
+                    console.log('[Student Modal Debug] Validation FAILED: Student ID already exists');
                     setFieldError('studentId', 'Student ID already exists in this organization');
                     isValid = false;
+                } else {
+                    console.log('[Student Modal Debug] Student ID uniqueness check PASSED');
                 }
+            } else {
+                console.log('[Student Modal Debug] ID uniqueness check failed (response not ok)');
             }
         } catch (error) {
-            console.error('Error checking student ID:', error);
+            console.error('[Student Modal Debug] Error checking student ID:', error);
         }
+    } else {
+        console.log('[Student Modal Debug] Student ID unchanged, skipping uniqueness check');
     }
     
     // Validate date of birth
     if (formData.dateOfBirth) {
+        console.log('[Student Modal Debug] Validating date of birth:', formData.dateOfBirth);
         if (!isValidDateFormat(formData.dateOfBirth)) {
+            console.log('[Student Modal Debug] Validation FAILED: Date format invalid');
             setFieldError('dateOfBirth', 'Date must be in DD/MM/YYYY format');
             isValid = false;
         } else if (!isValidDate(formData.dateOfBirth)) {
+            console.log('[Student Modal Debug] Validation FAILED: Invalid date value');
             setFieldError('dateOfBirth', 'Invalid date');
             isValid = false;
         } else if (isFutureDate(formData.dateOfBirth)) {
+            console.log('[Student Modal Debug] Validation FAILED: Date is in the future');
             setFieldError('dateOfBirth', 'Date of birth cannot be in the future');
             isValid = false;
+        } else {
+            console.log('[Student Modal Debug] Date of birth validation PASSED');
         }
+    } else {
+        console.log('[Student Modal Debug] Date of birth is empty, skipping validation');
     }
     
     // Validate membership start date
     if (formData.membershipStartDate) {
+        console.log('[Student Modal Debug] Validating membership start date:', formData.membershipStartDate);
         if (!isValidDateFormat(formData.membershipStartDate)) {
+            console.log('[Student Modal Debug] Validation FAILED: Membership start date format invalid');
             setFieldError('membershipStartDate', 'Date must be in DD/MM/YYYY format');
             isValid = false;
         } else if (!isValidDate(formData.membershipStartDate)) {
+            console.log('[Student Modal Debug] Validation FAILED: Invalid membership start date value');
             setFieldError('membershipStartDate', 'Invalid date');
             isValid = false;
+        } else {
+            console.log('[Student Modal Debug] Membership start date validation PASSED');
         }
     }
     
     // Validate membership end date
     if (formData.membershipEndDate) {
+        console.log('[Student Modal Debug] Validating membership end date:', formData.membershipEndDate);
         if (!isValidDateFormat(formData.membershipEndDate)) {
+            console.log('[Student Modal Debug] Validation FAILED: Membership end date format invalid');
             setFieldError('membershipEndDate', 'Date must be in DD/MM/YYYY format');
             isValid = false;
         } else if (!isValidDate(formData.membershipEndDate)) {
+            console.log('[Student Modal Debug] Validation FAILED: Invalid membership end date value');
             setFieldError('membershipEndDate', 'Invalid date');
             isValid = false;
         } else {
             // Check if end date is after start date
             const startDate = formData.membershipStartDate || originalStudentData?.membershipStartDate;
+            console.log('[Student Modal Debug] Comparing end date with start date:', startDate);
             if (startDate && startDate.trim() !== '') {
                 if (compareDates(formData.membershipEndDate, startDate) < 0) {
+                    console.log('[Student Modal Debug] Validation FAILED: End date is before start date');
                     setFieldError('membershipEndDate', 'Membership end date must be after start date');
                     isValid = false;
+                } else {
+                    console.log('[Student Modal Debug] Membership end date validation PASSED');
                 }
+            } else {
+                console.log('[Student Modal Debug] Membership end date validation PASSED (no start date to compare)');
             }
         }
     }
     
     // Validate field lengths
+    console.log('[Student Modal Debug] Validating field lengths...');
     const fieldLengths = {
         contactPhone: 20,
         contactEmail: 100,
@@ -895,11 +903,27 @@ async function validateForm() {
     
     for (const [field, maxLength] of Object.entries(fieldLengths)) {
         if (formData[field] && formData[field].length > maxLength) {
+            console.log(`[Student Modal Debug] Validation FAILED: ${field} too long (${formData[field].length} > ${maxLength})`);
             setFieldError(field, `Must be ${maxLength} characters or less`);
             isValid = false;
         }
     }
     
+    console.log('[Student Modal Debug] Final validation result:', isValid);
+    if (!isValid) {
+        console.log('[Student Modal Debug] Form validation FAILED - errors should be displayed');
+        // Log all field errors
+        const errorFields = document.querySelectorAll('#studentDetailsModal .field-error');
+        console.log('[Student Modal Debug] Number of error fields found:', errorFields.length);
+        errorFields.forEach((errorField, index) => {
+            if (errorField.textContent.trim()) {
+                console.log(`[Student Modal Debug] Error field ${index + 1}:`, errorField.textContent);
+            }
+        });
+    } else {
+        console.log('[Student Modal Debug] Form validation PASSED');
+    }
+    console.log('[Student Modal Debug] ========== validateForm() completed ==========');
     return isValid;
 }
 
