@@ -6,7 +6,6 @@
     <title>Organization Management - Student Scoring System</title>
     <link rel="stylesheet" href="styles.css">
     <script src="auth.js"></script>
-    <script src="teacher-details-modal.js"></script>
     <script src="course-management.js"></script>
     <style>
         .org-header {
@@ -1288,26 +1287,8 @@
 
         // Edit teacher function
         function editTeacher(teacherId) {
-            if (!window.teachersData) {
-                console.error('Teachers data not available');
-                return;
-            }
-            
-            const teacher = window.teachersData.find(t => t.id === teacherId);
-            if (!teacher) {
-                console.error('Teacher not found');
-                return;
-            }
-            
-            // Get organization ID from current user
-            const currentUser = window.authUtils?.getCurrentUser();
-            const organizationId = currentUser?.organizationId || teacher.organizationId || null;
-            
-            if (window.openTeacherDetailsModal) {
-                window.openTeacherDetailsModal(teacher, organizationId);
-            } else {
-                console.error('openTeacherDetailsModal function not available');
-            }
+            // Teacher edit functionality removed
+            alert('Teacher edit functionality is not available');
         }
 
         // Initialize
