@@ -31,7 +31,22 @@ function initStudentDetailsModal() {
     }
     
     console.log('[Student Modal Debug] Modal created successfully, setting up event listeners...');
-    setupEventListeners();
+    console.log('[Student Modal Debug] About to call setupEventListeners()...');
+    console.log('[Student Modal Debug] setupEventListeners type:', typeof setupEventListeners);
+    console.log('[Student Modal Debug] setupEventListeners value:', setupEventListeners);
+    
+    try {
+        setupEventListeners();
+        console.log('[Student Modal Debug] setupEventListeners() call completed');
+    } catch (setupError) {
+        console.error('[Student Modal Debug] ERROR calling setupEventListeners():', setupError);
+        console.error('[Student Modal Debug] Setup error details:', {
+            name: setupError.name,
+            message: setupError.message,
+            stack: setupError.stack
+        });
+    }
+    
     console.log('[Student Modal Debug] ========== initStudentDetailsModal() completed ==========');
     return true;
 }
@@ -244,78 +259,100 @@ const createModalHTML = (function() {
 
 // Setup event listeners
 function setupEventListeners() {
-    console.log('[Student Modal Debug] ========== setupEventListeners() called ==========');
+    // CRITICAL: First line must execute immediately
+    console.log('[Student Modal Debug] ========== setupEventListeners() EXECUTION START ==========');
+    console.log('[Student Modal Debug] Function type:', typeof setupEventListeners);
+    console.log('[Student Modal Debug] Function name:', setupEventListeners.name);
+    console.log('[Student Modal Debug] Timestamp:', new Date().toISOString());
     
-    const modal = document.getElementById('studentDetailsModal');
-    const closeBtn = document.getElementById('studentDetailsModalClose');
-    const cancelBtn = document.getElementById('studentDetailsCancel');
-    const saveBtn = document.getElementById('studentDetailsSave');
+    try {
+        const modal = document.getElementById('studentDetailsModal');
+        const closeBtn = document.getElementById('studentDetailsModalClose');
+        const cancelBtn = document.getElementById('studentDetailsCancel');
+        const saveBtn = document.getElementById('studentDetailsSave');
 
-    console.log('[Student Modal Debug] Elements found:', {
-        modal: !!modal,
-        closeBtn: !!closeBtn,
-        cancelBtn: !!cancelBtn,
-        saveBtn: !!saveBtn
-    });
+        console.log('[Student Modal Debug] Elements found:', {
+            modal: !!modal,
+            closeBtn: !!closeBtn,
+            cancelBtn: !!cancelBtn,
+            saveBtn: !!saveBtn
+        });
+        
+        console.log('[Student Modal Debug] Element details:', {
+            modal: modal ? { id: modal.id, tagName: modal.tagName } : null,
+            closeBtn: closeBtn ? { id: closeBtn.id, tagName: closeBtn.tagName, className: closeBtn.className } : null,
+            cancelBtn: cancelBtn ? { id: cancelBtn.id, tagName: cancelBtn.tagName, className: cancelBtn.className } : null,
+            saveBtn: saveBtn ? { id: saveBtn.id, tagName: saveBtn.tagName, className: saveBtn.className } : null
+        });
 
-    if (closeBtn) {
-        console.log('[Student Modal Debug] Adding close button listener');
-        try {
-            closeBtn.addEventListener('click', () => {
-                console.log('[Student Modal Debug] Close button clicked!');
-                try {
-                    handleCloseModal();
-                } catch (error) {
-                    console.error('[Student Modal Debug] Error in handleCloseModal():', error);
-                }
-            });
-            console.log('[Student Modal Debug] Close button listener added successfully');
-        } catch (error) {
-            console.error('[Student Modal Debug] Error adding close button listener:', error);
+        if (closeBtn) {
+            console.log('[Student Modal Debug] Adding close button listener');
+            try {
+                closeBtn.addEventListener('click', () => {
+                    console.log('[Student Modal Debug] Close button clicked!');
+                    try {
+                        handleCloseModal();
+                    } catch (error) {
+                        console.error('[Student Modal Debug] Error in handleCloseModal():', error);
+                    }
+                });
+                console.log('[Student Modal Debug] Close button listener added successfully');
+            } catch (error) {
+                console.error('[Student Modal Debug] Error adding close button listener:', error);
+            }
+        } else {
+            console.error('[Student Modal Debug] Close button not found!');
         }
-    } else {
-        console.error('[Student Modal Debug] Close button not found!');
-    }
 
-    if (cancelBtn) {
-        console.log('[Student Modal Debug] Adding cancel button listener');
-        try {
-            cancelBtn.addEventListener('click', () => {
-                console.log('[Student Modal Debug] Cancel button clicked!');
-                try {
-                    handleCloseModal();
-                } catch (error) {
-                    console.error('[Student Modal Debug] Error in handleCloseModal():', error);
-                }
-            });
-            console.log('[Student Modal Debug] Cancel button listener added successfully');
-        } catch (error) {
-            console.error('[Student Modal Debug] Error adding cancel button listener:', error);
+        if (cancelBtn) {
+            console.log('[Student Modal Debug] Adding cancel button listener');
+            try {
+                cancelBtn.addEventListener('click', () => {
+                    console.log('[Student Modal Debug] Cancel button clicked!');
+                    try {
+                        handleCloseModal();
+                    } catch (error) {
+                        console.error('[Student Modal Debug] Error in handleCloseModal():', error);
+                    }
+                });
+                console.log('[Student Modal Debug] Cancel button listener added successfully');
+            } catch (error) {
+                console.error('[Student Modal Debug] Error adding cancel button listener:', error);
+            }
+        } else {
+            console.error('[Student Modal Debug] Cancel button not found!');
         }
-    } else {
-        console.error('[Student Modal Debug] Cancel button not found!');
-    }
 
-    if (saveBtn) {
-        console.log('[Student Modal Debug] Adding save button listener');
-        try {
-            saveBtn.addEventListener('click', () => {
-                console.log('[Student Modal Debug] Save button clicked!');
-                try {
-                    handleSave();
-                } catch (error) {
-                    console.error('[Student Modal Debug] Error in handleSave():', error);
-                }
-            });
-            console.log('[Student Modal Debug] Save button listener added successfully');
-        } catch (error) {
-            console.error('[Student Modal Debug] Error adding save button listener:', error);
+        if (saveBtn) {
+            console.log('[Student Modal Debug] Adding save button listener');
+            try {
+                saveBtn.addEventListener('click', () => {
+                    console.log('[Student Modal Debug] Save button clicked!');
+                    try {
+                        handleSave();
+                    } catch (error) {
+                        console.error('[Student Modal Debug] Error in handleSave():', error);
+                    }
+                });
+                console.log('[Student Modal Debug] Save button listener added successfully');
+            } catch (error) {
+                console.error('[Student Modal Debug] Error adding save button listener:', error);
+            }
+        } else {
+            console.error('[Student Modal Debug] Save button not found!');
         }
-    } else {
-        console.error('[Student Modal Debug] Save button not found!');
+        
+        console.log('[Student Modal Debug] ========== setupEventListeners() completed ==========');
+    } catch (error) {
+        console.error('[Student Modal Debug] ========== ERROR in setupEventListeners() ==========');
+        console.error('[Student Modal Debug] Error:', error);
+        console.error('[Student Modal Debug] Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        console.error('[Student Modal Debug] ====================================================');
     }
-    
-    console.log('[Student Modal Debug] ========== setupEventListeners() completed ==========');
 }
 
 // Open modal with student data
@@ -427,7 +464,57 @@ async function openStudentDetailsModal(student, organizationId) {
         // Re-setup event listeners if buttons exist but listeners might not be set
         if (closeBtnCheck || cancelBtnCheck || saveBtnCheck) {
             console.log('[Student Modal Debug] Re-setting up event listeners to ensure they are bound...');
-            setupEventListeners();
+            console.log('[Student Modal Debug] setupEventListeners type before call:', typeof setupEventListeners);
+            try {
+                setupEventListeners();
+                console.log('[Student Modal Debug] Re-setup completed');
+            } catch (reSetupError) {
+                console.error('[Student Modal Debug] ERROR in re-setup:', reSetupError);
+            }
+        }
+        
+        // Also use event delegation on modal as a backup
+        console.log('[Student Modal Debug] Setting up event delegation on modal...');
+        try {
+            modal.addEventListener('click', (e) => {
+                console.log('[Student Modal Debug] Modal click event:', {
+                    target: e.target,
+                    targetId: e.target.id,
+                    targetTagName: e.target.tagName,
+                    targetClassName: e.target.className,
+                    currentTarget: e.currentTarget
+                });
+                
+                // Handle close button (X)
+                if (e.target.id === 'studentDetailsModalClose' || e.target.classList.contains('modal-close')) {
+                    console.log('[Student Modal Debug] Close button clicked via delegation!');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCloseModal();
+                    return;
+                }
+                
+                // Handle cancel button
+                if (e.target.id === 'studentDetailsCancel') {
+                    console.log('[Student Modal Debug] Cancel button clicked via delegation!');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCloseModal();
+                    return;
+                }
+                
+                // Handle save button
+                if (e.target.id === 'studentDetailsSave') {
+                    console.log('[Student Modal Debug] Save button clicked via delegation!');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSave();
+                    return;
+                }
+            });
+            console.log('[Student Modal Debug] Event delegation set up successfully');
+        } catch (delegationError) {
+            console.error('[Student Modal Debug] ERROR setting up event delegation:', delegationError);
         }
         
         // Show modal
