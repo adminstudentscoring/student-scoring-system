@@ -827,12 +827,17 @@ style.textContent = `
   .course-sub-tab-content {
     display: none;
     flex: 1;
-    padding: 20px;
+    padding: 25px;
     overflow-y: auto;
   }
   
   .course-sub-tab-content.active {
     display: block;
+  }
+  
+  .course-management-content {
+    flex: 1;
+    min-width: 0;
   }
   
   @media (max-width: 768px) {
