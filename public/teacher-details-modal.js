@@ -17,7 +17,7 @@ function initTeacherDetailsModal() {
         console.error('Failed to create teacher modal HTML structure');
         return false;
     }
-    setupEventListeners();
+    setupTeacherEventListeners();
     return true;
 }
 
@@ -161,8 +161,9 @@ function createTeacherModalHTML() {
     }
 }
 
-// Setup event listeners
-function setupEventListeners() {
+// Setup event listeners for teacher modal
+// Use different function name to avoid conflict with student-details-modal.js
+function setupTeacherEventListeners() {
     const modal = document.getElementById('teacherDetailsModal');
     const closeBtn = document.getElementById('teacherDetailsModalClose');
     const cancelBtn = document.getElementById('teacherDetailsCancel');
