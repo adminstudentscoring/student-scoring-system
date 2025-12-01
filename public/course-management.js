@@ -16,7 +16,7 @@ const PREDEFINED_COLORS = [
 ];
 
 // State
-let courses = [];
+window.courses = window.courses || [];
 let currentSort = { field: 'createdAt', direction: 'desc' };
 let currentSearch = '';
 let currentPriceRange = { min: 0, max: 1000 };
@@ -150,7 +150,7 @@ async function loadCourses() {
       throw new Error(errorData.error || 'Failed to load courses');
     }
     
-    courses = await response.json();
+    window.courses = await response.json();
     
     // Update price filter max
     updatePriceFilterMax();
@@ -166,7 +166,7 @@ async function loadCourses() {
 
 // Update price filter max based on courses
 function updatePriceFilterMax() {
-  if (courses.length === 0) {
+  if (!window.courses || window.courses.length === 0) {
     currentPriceRange.max = 1000;
     document.getElementById('priceMax').max = 1000;
     document.getElementById('priceMax').value = 1000;
@@ -174,7 +174,7 @@ function updatePriceFilterMax() {
     return;
   }
   
-  const maxPrice = Math.max(...courses.map(c => c.price));
+  const maxPrice = Math.max(...window.courses.map(c => c.price));
   const roundedMax = Math.ceil(maxPrice / 100) * 100; // Round up to nearest 100
   const finalMax = Math.max(roundedMax, 1000); // At least 1000
   
@@ -255,7 +255,7 @@ function renderCourses() {
   if (!container) return;
   
   // Filter courses
-  let filteredCourses = courses.filter(course => {
+  let filteredCourses = (window.courses || []).filter(course => {
     // Search filter
     if (currentSearch && !course.name.toLowerCase().includes(currentSearch)) {
       return false;
@@ -478,7 +478,7 @@ window.openCreateCourseModal = function() {
 
 // Open edit course modal
 window.openEditCourseModal = function(courseId) {
-  const course = courses.find(c => c.id === courseId);
+  const course = (window.courses || []).find(c => c.id === courseId);
   if (!course) {
     showToast('Course not found', 'error');
     return;
@@ -681,7 +681,7 @@ window.saveCourse = async function(event, courseId) {
   if (hasError) return;
   
   // Check name uniqueness (frontend check)
-  const existingCourse = courses.find(c => 
+  const existingCourse = (window.courses || []).find(c => 
     c.id !== courseId &&
     c.name.toLowerCase().trim() === name.toLowerCase().trim()
   );

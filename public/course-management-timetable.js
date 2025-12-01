@@ -4,7 +4,7 @@
 // State
 let timetableEntries = [];
 let timetableMetadata = { classNames: [], classrooms: [] };
-let courses = [];
+// Note: courses variable is shared from course-management.js
 let teachers = [];
 let currentView = 'week'; // 'day', 'week', 'month'
 let currentDate = new Date();
@@ -14,7 +14,7 @@ let isReadOnly = false; // For teacher view
 window.loadTimetableManagement = function(userRole = 'organization') {
   isReadOnly = userRole === 'teacher';
   loadTimetableData();
-  loadCourses();
+  loadTimetableCourses();
   loadTeachers();
 };
 
@@ -41,9 +41,15 @@ async function loadTimetableData() {
   }
 }
 
-// Load courses
-async function loadCourses() {
+// Load courses - use shared courses from course-management.js if available
+async function loadTimetableCourses() {
   try {
+    // Check if courses are already loaded from course-management.js
+    if (window.courses && Array.isArray(window.courses) && window.courses.length > 0) {
+      return; // Courses already loaded
+    }
+    
+    // Otherwise load courses
     const response = await window.authUtils.authenticatedFetch('/organizations/courses');
     if (!response) return;
     
@@ -51,7 +57,8 @@ async function loadCourses() {
       throw new Error('Failed to load courses');
     }
     
-    courses = await response.json();
+    // Assign to global courses variable
+    window.courses = await response.json();
   } catch (error) {
     console.error('Error loading courses:', error);
   }
@@ -297,7 +304,9 @@ function isSameDate(date1, date2) {
 }
 
 function getCourseColor(courseId) {
-  const course = courses.find(c => c.id === courseId);
+  // Use courses from course-management.js (shared via window.courses)
+  const coursesList = window.courses || [];
+  const course = coursesList.find(c => c.id === courseId);
   return course && course.color ? course.color : '#667eea';
 }
 
