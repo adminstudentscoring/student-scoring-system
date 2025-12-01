@@ -6,6 +6,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*;">
     <title>Teacher Dashboard - Student Scoring System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="course-management-timetable.css">
 </head>
 <body>
     <div class="container">
@@ -22,36 +23,53 @@
             </div>
         </header>
 
-        <div class="content-wrapper">
-            <div class="main-content">
-            <!-- Students List -->
-            <section class="card">
-                <h2>Students List</h2>
-                <div class="search-bar">
-                    <input type="text" id="searchInput" placeholder="Search students...">
-                </div>
-                <div id="studentsList" class="students-grid">
-                    <!-- Students will be loaded here -->
-                </div>
-            </section>
+        <!-- Tabs -->
+        <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.1); padding: 5px; border-radius: 8px;">
+            <button class="tab active" onclick="switchTeacherTab('students', this)" style="padding: 10px 20px; background: rgba(255, 255, 255, 0.2); border: none; cursor: pointer; font-size: 16px; color: #fff; border-bottom: 2px solid #fff; font-weight: bold; border-radius: 6px;">👥 Student Management</button>
+            <button class="tab" onclick="switchTeacherTab('courses', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">📚 Course Management</button>
+        </div>
 
-            <!-- Select Students for Class -->
-            <section class="card">
-                <h2>Select Students for Class View</h2>
-                <div class="search-bar">
-                    <input type="text" id="classSearchInput" placeholder="Search students for class...">
+        <div class="content-wrapper">
+            <!-- Student Management Tab -->
+            <div id="studentsTab" class="tab-content active" style="display: block;">
+                <div class="main-content">
+                <!-- Students List -->
+                <section class="card">
+                    <h2>Students List</h2>
+                    <div class="search-bar">
+                        <input type="text" id="searchInput" placeholder="Search students...">
+                    </div>
+                    <div id="studentsList" class="students-grid">
+                        <!-- Students will be loaded here -->
+                    </div>
+                </section>
+
+                <!-- Select Students for Class -->
+                <section class="card">
+                    <h2>Select Students for Class View</h2>
+                    <div class="search-bar">
+                        <input type="text" id="classSearchInput" placeholder="Search students for class...">
+                    </div>
+                    <div id="classStudentsList" class="class-students-list">
+                        <!-- Students with checkboxes will be loaded here -->
+                    </div>
+                    <div class="class-actions">
+                        <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
+                        <button id="saveClassViewBtn" class="btn btn-primary">Save Selection</button>
+                        <button id="openClassViewBtn" class="btn btn-info">Open Class View</button>
+                        <span id="selectedCount" class="selected-count">0 selected</span>
+                    </div>
+                </section>
                 </div>
-                <div id="classStudentsList" class="class-students-list">
-                    <!-- Students with checkboxes will be loaded here -->
-                </div>
-                <div class="class-actions">
-                    <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
-                    <button id="saveClassViewBtn" class="btn btn-primary">Save Selection</button>
-                    <button id="openClassViewBtn" class="btn btn-info">Open Class View</button>
-                    <span id="selectedCount" class="selected-count">0 selected</span>
-                </div>
-            </section>
             </div>
+
+            <!-- Course Management Tab -->
+            <div id="coursesTab" class="tab-content" style="display: none;">
+                <div id="teacherCourseManagementContainer">
+                    <p>Loading course management...</p>
+                </div>
+            </div>
+        </div>
 
             <!-- Right Sidebar -->
             <div class="right-sidebar" id="rightSidebar">
@@ -237,6 +255,8 @@
     </div>
 
     <script src="auth.js"></script>
+    <script src="course-management.js"></script>
+    <script src="course-management-timetable.js"></script>
     <script>
         // Check authentication
         if (!window.authUtils.requireRole('teacher')) {
@@ -245,6 +265,88 @@
     </script>
     <script src="teacher.js"></script>
     <script>
+        // Switch teacher tab
+        function switchTeacherTab(tab, element) {
+            document.querySelectorAll('.tab').forEach(t => {
+                t.classList.remove('active');
+                t.style.background = 'none';
+                t.style.color = 'rgba(255, 255, 255, 0.8)';
+                t.style.borderBottom = '2px solid transparent';
+                t.style.fontWeight = 'normal';
+            });
+            document.querySelectorAll('.tab-content').forEach(c => {
+                c.classList.remove('active');
+                c.style.display = 'none';
+            });
+            
+            // Activate the clicked tab button
+            if (element) {
+                element.classList.add('active');
+                element.style.background = 'rgba(255, 255, 255, 0.2)';
+                element.style.color = '#fff';
+                element.style.borderBottom = '2px solid #fff';
+                element.style.fontWeight = 'bold';
+            }
+            
+            const tabContent = document.getElementById(`${tab}Tab`);
+            if (tabContent) {
+                tabContent.classList.add('active');
+                tabContent.style.display = 'block';
+            }
+            
+            // Load course management when switching to courses tab
+            if (tab === 'courses') {
+                loadTeacherCourseManagement();
+            }
+        }
+
+        // Load teacher course management
+        function loadTeacherCourseManagement() {
+            const container = document.getElementById('teacherCourseManagementContainer');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="course-management">
+                    <!-- Sub-tabs -->
+                    <div class="course-sub-tabs">
+                        <button class="course-sub-tab active" data-subtab="timetable" onclick="switchTeacherSubTab('timetable', this)">📅 Timetable</button>
+                    </div>
+                    
+                    <!-- Timetable Sub-tab Content -->
+                    <div id="timetableSubTabContent" class="course-sub-tab-content active">
+                        <p>Loading timetable...</p>
+                    </div>
+                </div>
+            `;
+            
+            // Load timetable management (read-only for teachers)
+            if (window.loadTimetableManagement) {
+                window.loadTimetableManagement('teacher');
+            }
+        }
+
+        // Switch teacher sub-tab
+        function switchTeacherSubTab(subTab, element) {
+            document.querySelectorAll('.course-sub-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.course-sub-tab-content').forEach(c => c.classList.remove('active'));
+            
+            if (element) {
+                element.classList.add('active');
+            }
+            
+            const content = document.getElementById(`${subTab}SubTabContent`);
+            if (content) {
+                content.classList.add('active');
+            }
+            
+            // Load timetable when switching to timetable tab
+            if (subTab === 'timetable') {
+                if (window.loadTimetableManagement) {
+                    window.loadTimetableManagement('teacher');
+                }
+            }
+        }
+
         // Detect if running in Electron
         if (window.navigator.userAgent.indexOf('Electron') !== -1) {
             document.body.classList.add('electron');
