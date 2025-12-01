@@ -260,11 +260,7 @@ function renderOrgManagementTools() {
     if (students.length > 0) {
         document.querySelectorAll('.student-card[data-student-id]').forEach(card => {
             card.addEventListener('click', async (e) => {
-                const studentId = card.getAttribute('data-student-id');
-                const student = students.find(s => s.id === studentId);
-                if (student && typeof openStudentDetailsModal === 'function') {
-                    await openStudentDetailsModal(student, orgManagementData.id);
-                }
+                // Student details modal functionality removed
             });
         });
     }

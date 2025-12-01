@@ -22,7 +22,6 @@ function initTeacherDetailsModal() {
 }
 
 // Create modal HTML structure
-// Use different function name to avoid conflict with student-details-modal.js
 function createTeacherModalHTML() {
     try {
         // Check if modal already exists
@@ -162,7 +161,6 @@ function createTeacherModalHTML() {
 }
 
 // Setup event listeners for teacher modal
-// Use different function name to avoid conflict with student-details-modal.js
 function setupTeacherEventListeners() {
     const modal = document.getElementById('teacherDetailsModal');
     const closeBtn = document.getElementById('teacherDetailsModalClose');
@@ -443,7 +441,6 @@ async function validateForm() {
 }
 
 // Handle save for teacher modal
-// Use different function name to avoid conflict with student-details-modal.js
 async function handleTeacherSave() {
     clearMessages();
     clearFieldErrors();
