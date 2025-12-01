@@ -1,0 +1,600 @@
+/* Timetable Management Styles */
+
+.timetable-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.timetable-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.timetable-view-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.timetable-view-btn {
+  padding: 8px 16px;
+  border: 2px solid #667eea;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+}
+
+.timetable-view-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.timetable-view-btn.active {
+  background: #667eea;
+  color: #fff;
+  border-color: #667eea;
+}
+
+.create-class-btn {
+  padding: 10px 20px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.create-class-btn:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Week View Styles */
+.timetable-week-view {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-week-header {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+  background: rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.timetable-week-header-cell {
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+  color: #fff;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timetable-week-header-cell:last-child {
+  border-right: none;
+}
+
+.timetable-week-time-col {
+  position: sticky;
+  left: 0;
+  background: rgba(255, 255, 255, 0.1);
+  z-index: 5;
+  border-right: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.timetable-week-body {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+}
+
+.timetable-week-time-cell {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 30px;
+  position: relative;
+}
+
+.timetable-week-day-cell {
+  padding: 2px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 30px;
+  position: relative;
+}
+
+.timetable-week-day-cell:last-child {
+  border-right: none;
+}
+
+.timetable-entry {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #fff;
+  overflow: hidden;
+  transition: all 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.timetable-entry:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+.timetable-entry-small {
+  font-size: 10px;
+  padding: 2px 4px;
+}
+
+.timetable-entry-class-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timetable-entry-time {
+  font-size: 10px;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+
+.timetable-entry-teacher {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timetable-entry-classroom {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.timetable-entry-students {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+/* Day View Styles */
+.timetable-day-view {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-day-header {
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.timetable-day-body {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+}
+
+.timetable-day-time-cell {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  border-right: 2px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 30px;
+  position: sticky;
+  left: 0;
+  background: rgba(255, 255, 255, 0.1);
+  z-index: 5;
+}
+
+.timetable-day-schedule-cell {
+  padding: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 30px;
+  position: relative;
+}
+
+/* Month View Styles */
+.timetable-month-view {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-month-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.timetable-month-header-cell {
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+  color: #fff;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timetable-month-header-cell:last-child {
+  border-right: none;
+}
+
+.timetable-month-body {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.timetable-month-day-cell {
+  min-height: 120px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.timetable-month-day-cell:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-month-day-cell:last-child {
+  border-right: none;
+}
+
+.timetable-month-day-number {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.timetable-month-day-entries {
+  max-height: 90px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timetable-month-entry {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: #fff;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.2s;
+}
+
+.timetable-month-entry:hover {
+  transform: scale(1.05);
+  z-index: 20;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .timetable-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .timetable-view-buttons {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .create-class-btn {
+    width: 100%;
+  }
+  
+  .timetable-week-header,
+  .timetable-week-body {
+    grid-template-columns: 60px repeat(7, 1fr);
+  }
+  
+  .timetable-week-time-col {
+    width: 60px;
+  }
+  
+  .timetable-entry {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  
+  .timetable-month-day-cell {
+    min-height: 80px;
+  }
+  
+  .timetable-month-day-entries {
+    max-height: 50px;
+  }
+}
+
+/* Edit Class Modal Styles - Reusing Edit Student Modal styles */
+.edit-class-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-class-modal.show {
+  display: flex;
+  animation: fadeInModal 0.3s;
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.edit-class-modal-content {
+  background: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  width: 95%;
+  max-width: 900px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideDownModal 0.3s;
+  color: #333;
+}
+
+@keyframes slideDownModal {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.edit-class-modal-header {
+  padding: 20px 25px;
+  border-bottom: 2px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.edit-class-modal-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.edit-class-modal-body {
+  padding: 25px;
+}
+
+.edit-class-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.edit-class-form-group {
+  margin-bottom: 15px;
+}
+
+.edit-class-form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+  font-weight: 600;
+}
+
+.edit-class-form-group input[type="text"],
+.edit-class-form-group input[type="date"],
+.edit-class-form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #333;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+.edit-class-form-group input:focus,
+.edit-class-form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.edit-class-form-group .error-message {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: 5px;
+  display: none;
+}
+
+.edit-class-form-group.has-error input,
+.edit-class-form-group.has-error select {
+  border-color: #ef4444;
+}
+
+.edit-class-form-group.has-error .error-message {
+  display: block;
+}
+
+/* Tag Selector Styles */
+.tag-selector-container {
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+}
+
+.tag-selector-search {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.tag-selector-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-height: 40px;
+}
+
+.tag-selector-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: #667eea;
+  color: white;
+  border-radius: 20px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.tag-selector-tag-remove {
+  cursor: pointer;
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+.tag-selector-tag-remove:hover {
+  opacity: 1;
+}
+
+.tag-selector-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tag-selector-option {
+  padding: 8px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 20px;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tag-selector-option:hover {
+  background: #e0e0e0;
+  border-color: #667eea;
+}
+
+.tag-selector-option.selected {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* Day of Week Selector */
+.day-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.day-selector-tag {
+  padding: 8px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.day-selector-tag:hover {
+  background: #e0e0e0;
+  border-color: #667eea;
+}
+
+.day-selector-tag.selected {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+@media (max-width: 768px) {
+  .edit-class-modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .tag-selector-options {
+    max-height: 150px;
+  }
+  
+  .day-selector {
+    justify-content: center;
+  }
+}
+

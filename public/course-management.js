@@ -130,6 +130,13 @@ function switchSubTab(subTab) {
   if (subTab === 'courses') {
     loadCourses();
   }
+  
+  // Load timetable when switching to timetable tab
+  if (subTab === 'timetable') {
+    if (window.loadTimetableManagement) {
+      window.loadTimetableManagement('organization');
+    }
+  }
 }
 
 // Load courses from API
