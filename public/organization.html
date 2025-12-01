@@ -403,6 +403,102 @@
                 grid-template-columns: 1fr !important;
             }
         }
+        /* Edit Teacher Modal Styles - Reusing Edit Student Modal styles */
+        .edit-teacher-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .edit-teacher-modal.show {
+            display: flex;
+            animation: fadeInModal 0.3s;
+        }
+        .edit-teacher-modal-content {
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            width: 95%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideDownModal 0.3s;
+            color: #333;
+        }
+        .edit-teacher-modal-header {
+            padding: 20px 25px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .edit-teacher-modal-header h2 {
+            margin: 0;
+            color: #333;
+            font-size: 1.5rem;
+        }
+        .edit-teacher-modal-body {
+            padding: 25px;
+        }
+        .edit-teacher-modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .edit-teacher-form-group {
+            margin-bottom: 15px;
+        }
+        .edit-teacher-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+        }
+        .edit-teacher-form-group input[type="text"],
+        .edit-teacher-form-group input[type="email"],
+        .edit-teacher-form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background-color: #fff;
+            box-sizing: border-box;
+        }
+        .edit-teacher-form-group input:focus,
+        .edit-teacher-form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .edit-teacher-form-group .error-message {
+            color: #ef4444;
+            font-size: 0.85rem;
+            margin-top: 5px;
+            display: none;
+        }
+        .edit-teacher-form-group.has-error input,
+        .edit-teacher-form-group.has-error select {
+            border-color: #ef4444;
+        }
+        .edit-teacher-form-group.has-error .error-message {
+            display: block;
+        }
+        @media (max-width: 768px) {
+            .edit-teacher-modal-content {
+                width: 95%;
+                max-height: 90vh;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1285,10 +1381,206 @@
             loadTeachers();
         };
 
+        // Open Edit Teacher Modal
+        function openEditTeacherModal(teacher) {
+            // Remove existing modal if any
+            const existingModal = document.getElementById('editTeacherModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Create modal
+            const modal = document.createElement('div');
+            modal.id = 'editTeacherModal';
+            modal.className = 'edit-teacher-modal';
+            modal.innerHTML = `
+                <div class="edit-teacher-modal-content">
+                    <div class="edit-teacher-modal-header">
+                        <h2>Edit Teacher</h2>
+                    </div>
+                    <div class="edit-teacher-modal-body">
+                        <form id="editTeacherForm" onsubmit="saveTeacherEdit(event, '${teacher.id}')">
+                            <div class="form-row">
+                                <div class="edit-teacher-form-group">
+                                    <label for="editTeacherName">Teacher Name <span style="color: #ef4444;">*</span></label>
+                                    <input type="text" id="editTeacherName" value="${escapeHtml(teacher.name || '')}" required>
+                                    <div class="error-message" id="errorTeacherName"></div>
+                                </div>
+                                <div class="edit-teacher-form-group">
+                                    <label for="editTeacherId">Teacher ID <span style="color: #ef4444;">*</span></label>
+                                    <input type="text" id="editTeacherId" value="${escapeHtml(teacher.teacherId || '')}" required>
+                                    <div class="error-message" id="errorTeacherId"></div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="edit-teacher-form-group">
+                                    <label for="editTeacherGender">Gender</label>
+                                    <select id="editTeacherGender">
+                                        <option value="">Please select</option>
+                                        <option value="male" ${teacher.gender === 'male' ? 'selected' : ''}>Male</option>
+                                        <option value="female" ${teacher.gender === 'female' ? 'selected' : ''}>Female</option>
+                                    </select>
+                                    <div class="error-message" id="errorTeacherGender"></div>
+                                </div>
+                                <div class="edit-teacher-form-group">
+                                    <label for="editTeacherContactPhone">Contact No.</label>
+                                    <input type="text" id="editTeacherContactPhone" value="${escapeHtml(teacher.contactPhone || '')}">
+                                    <div class="error-message" id="errorTeacherContactPhone"></div>
+                                </div>
+                            </div>
+                            <div class="edit-teacher-form-group">
+                                <label for="editTeacherEmail">Email Address</label>
+                                <input type="email" id="editTeacherEmail" value="${escapeHtml(teacher.email || '')}">
+                                <div class="error-message" id="errorTeacherEmail"></div>
+                            </div>
+                            <div class="edit-teacher-modal-actions">
+                                <button type="button" class="btn btn-secondary" onclick="closeEditTeacherModal()">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Show modal
+            setTimeout(() => {
+                modal.classList.add('show');
+            }, 10);
+        }
+
+        // Close Edit Teacher Modal
+        function closeEditTeacherModal() {
+            const modal = document.getElementById('editTeacherModal');
+            if (modal) {
+                modal.classList.remove('show');
+                setTimeout(() => {
+                    modal.remove();
+                }, 300);
+            }
+        }
+
+        // Save Teacher Edit
+        async function saveTeacherEdit(event, teacherId) {
+            event.preventDefault();
+            
+            // Clear previous errors
+            document.querySelectorAll('.edit-teacher-form-group').forEach(group => {
+                group.classList.remove('has-error');
+            });
+            document.querySelectorAll('.edit-teacher-form-group .error-message').forEach(msg => {
+                msg.textContent = '';
+            });
+
+            // Get form values
+            const name = document.getElementById('editTeacherName').value.trim();
+            const teacherIdValue = document.getElementById('editTeacherId').value.trim();
+            const gender = document.getElementById('editTeacherGender').value || null;
+            const contactPhone = document.getElementById('editTeacherContactPhone').value.trim() || null;
+            const email = document.getElementById('editTeacherEmail').value.trim() || null;
+
+            // Validation
+            let hasError = false;
+
+            // Validate required fields
+            if (!name) {
+                showTeacherFieldError('editTeacherName', 'Teacher name is required');
+                hasError = true;
+            }
+
+            if (!teacherIdValue) {
+                showTeacherFieldError('editTeacherId', 'Teacher ID is required');
+                hasError = true;
+            }
+
+            // Validate email format
+            if (email) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    showTeacherFieldError('editTeacherEmail', 'Invalid email format');
+                    hasError = true;
+                }
+            }
+
+            if (hasError) {
+                showToast('Please fix the errors in the form', 'error');
+                return;
+            }
+
+            // Prepare update data
+            const updateData = {
+                name,
+                teacherId: teacherIdValue,
+                gender,
+                contactPhone,
+                email
+            };
+
+            try {
+                const response = await window.authUtils.authenticatedFetch(`/organizations/teachers/${teacherId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(updateData)
+                });
+
+                if (!response) return;
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    
+                    // Handle Teacher ID uniqueness error
+                    if (errorData.error && errorData.error.includes('already exists')) {
+                        showTeacherFieldError('editTeacherId', errorData.error);
+                        showToast(errorData.error, 'error');
+                        return;
+                    }
+                    
+                    // Handle other validation errors
+                    if (errorData.error) {
+                        showToast(errorData.error, 'error');
+                        return;
+                    }
+                    
+                    throw new Error(errorData.error || 'Failed to update teacher');
+                }
+
+                showToast('Teacher updated successfully!', 'success');
+                closeEditTeacherModal();
+                loadTeachers();
+            } catch (error) {
+                console.error('Error updating teacher:', error);
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Show teacher field error
+        function showTeacherFieldError(fieldId, message) {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                const formGroup = field.closest('.edit-teacher-form-group');
+                if (formGroup) {
+                    formGroup.classList.add('has-error');
+                    const errorElement = formGroup.querySelector('.error-message');
+                    if (errorElement) {
+                        errorElement.textContent = message;
+                    }
+                }
+            }
+        }
+
         // Edit teacher function
         function editTeacher(teacherId) {
-            // Teacher edit functionality removed
-            alert('Teacher edit functionality is not available');
+            if (!window.teachersData) {
+                console.error('Teachers data not available');
+                return;
+            }
+            
+            const teacher = window.teachersData.find(t => t.id === teacherId);
+            if (!teacher) {
+                console.error('Teacher not found');
+                return;
+            }
+            
+            openEditTeacherModal(teacher);
         }
 
         // Initialize
