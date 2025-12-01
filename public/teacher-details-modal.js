@@ -178,7 +178,7 @@ function setupTeacherEventListeners() {
     }
 
     if (saveBtn) {
-        saveBtn.addEventListener('click', () => handleSave());
+        saveBtn.addEventListener('click', () => handleTeacherSave());
     }
 }
 
@@ -442,8 +442,9 @@ async function validateForm() {
     return isValid;
 }
 
-// Handle save
-async function handleSave() {
+// Handle save for teacher modal
+// Use different function name to avoid conflict with student-details-modal.js
+async function handleTeacherSave() {
     clearMessages();
     clearFieldErrors();
     

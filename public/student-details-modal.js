@@ -328,10 +328,25 @@ function setupEventListeners() {
             try {
                 saveBtn.addEventListener('click', () => {
                     console.log('[Student Modal Debug] Save button clicked!');
+                    console.log('[Student Modal Debug] About to call handleSave() from direct listener...');
+                    console.log('[Student Modal Debug] handleSave type:', typeof handleSave);
+                    console.log('[Student Modal Debug] handleSave value:', handleSave);
                     try {
-                        handleSave();
+                        // handleSave is async, but we don't await it here to avoid blocking
+                        // The function will handle its own errors
+                        const savePromise = handleSave();
+                        console.log('[Student Modal Debug] handleSave() called, promise:', savePromise);
+                        // Catch any immediate errors
+                        savePromise.catch(err => {
+                            console.error('[Student Modal Debug] Unhandled error in handleSave() promise:', err);
+                        });
                     } catch (error) {
-                        console.error('[Student Modal Debug] Error in handleSave():', error);
+                        console.error('[Student Modal Debug] Error calling handleSave() from direct listener:', error);
+                        console.error('[Student Modal Debug] Error details:', {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        });
                     }
                 });
                 console.log('[Student Modal Debug] Save button listener added successfully');
@@ -508,7 +523,26 @@ async function openStudentDetailsModal(student, organizationId) {
                     console.log('[Student Modal Debug] Save button clicked via delegation!');
                     e.preventDefault();
                     e.stopPropagation();
-                    handleSave();
+                    console.log('[Student Modal Debug] About to call handleSave() from delegation...');
+                    console.log('[Student Modal Debug] handleSave type:', typeof handleSave);
+                    console.log('[Student Modal Debug] handleSave value:', handleSave);
+                    try {
+                        // handleSave is async, but we don't await it here to avoid blocking
+                        // The function will handle its own errors
+                        const savePromise = handleSave();
+                        console.log('[Student Modal Debug] handleSave() called, promise:', savePromise);
+                        // Catch any immediate errors
+                        savePromise.catch(err => {
+                            console.error('[Student Modal Debug] Unhandled error in handleSave() promise:', err);
+                        });
+                    } catch (error) {
+                        console.error('[Student Modal Debug] ERROR calling handleSave() from delegation:', error);
+                        console.error('[Student Modal Debug] Error details:', {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        });
+                    }
                     return;
                 }
             });
@@ -871,7 +905,14 @@ async function validateForm() {
 
 // Handle save
 async function handleSave() {
-    console.log('[Student Modal Debug] ========== handleSave() called ==========');
+    // CRITICAL: First line must execute immediately
+    console.log('[Student Modal Debug] ========== handleSave() EXECUTION START ==========');
+    console.log('[Student Modal Debug] Function type:', typeof handleSave);
+    console.log('[Student Modal Debug] Function name:', handleSave.name);
+    console.log('[Student Modal Debug] Timestamp:', new Date().toISOString());
+    console.log('[Student Modal Debug] Current student exists:', !!currentStudent);
+    console.log('[Student Modal Debug] Current student ID:', currentStudent?.id);
+    
     try {
         console.log('[Student Modal Debug] Current student:', currentStudent);
         console.log('[Student Modal Debug] Current org ID:', currentOrgId);
