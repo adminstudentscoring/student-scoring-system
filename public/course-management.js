@@ -831,8 +831,8 @@ style.textContent = `
     min-width: 200px;
     gap: 5px;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border-right: 2px solid rgba(255, 255, 255, 0.3);
+    background: #f8f9fa;
+    border-right: 2px solid #e0e0e0;
     border-radius: 8px 0 0 8px;
   }
   
@@ -842,7 +842,7 @@ style.textContent = `
     border: none;
     cursor: pointer;
     font-size: 15px;
-    color: rgba(255, 255, 255, 0.8);
+    color: #666;
     border-left: 3px solid transparent;
     transition: all 0.3s;
     border-radius: 6px;
@@ -851,14 +851,14 @@ style.textContent = `
   }
   
   .course-sub-tab:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 1);
+    background: #e9ecef;
+    color: #333;
   }
   
   .course-sub-tab.active {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.2);
-    border-left-color: #fff;
+    color: #667eea;
+    background: #e0f2fe;
+    border-left-color: #667eea;
     font-weight: bold;
   }
   
@@ -867,6 +867,8 @@ style.textContent = `
     flex: 1;
     padding: 25px;
     overflow-y: auto;
+    background: #fff;
+    color: #333;
   }
   
   .course-sub-tab-content.active {
@@ -876,6 +878,7 @@ style.textContent = `
   .course-management-content {
     flex: 1;
     min-width: 0;
+    background: #fff;
   }
   
   @media (max-width: 768px) {
@@ -887,20 +890,23 @@ style.textContent = `
       width: 100%;
       flex-direction: row;
       border-right: none;
-      border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+      border-bottom: 2px solid #e0e0e0;
       border-radius: 8px 8px 0 0;
       overflow-x: auto;
+      background: #f8f9fa;
     }
     
     .course-sub-tab {
       white-space: nowrap;
       border-left: none;
       border-bottom: 3px solid transparent;
+      color: #333;
     }
     
     .course-sub-tab.active {
       border-left: none;
-      border-bottom-color: #fff;
+      border-bottom-color: #667eea;
+      color: #667eea;
     }
     
     .course-sub-tab-content {
@@ -929,10 +935,10 @@ style.textContent = `
     flex: 1;
     min-width: 200px;
     padding: 8px 12px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid #e0e0e0;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background: #fff;
+    color: #333;
   }
   
   .price-filter {
@@ -944,7 +950,7 @@ style.textContent = `
   
   .price-filter label {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.9);
+    color: #333;
   }
   
   .range-slider-container {
@@ -959,10 +965,10 @@ style.textContent = `
   
   .sort-select {
     padding: 8px 12px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid #e0e0e0;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background: #fff;
+    color: #333;
   }
   
   .courses-actions {
@@ -974,30 +980,36 @@ style.textContent = `
   .courses-table {
     width: 100%;
     border-collapse: collapse;
-    background: rgba(255, 255, 255, 0.1);
+    background: #fff;
     border-radius: 8px;
     overflow: hidden;
+    border: 1px solid #e0e0e0;
   }
   
   .courses-table thead {
-    background: rgba(255, 255, 255, 0.2);
+    background: #f8f9fa;
   }
   
   .courses-table th {
     padding: 12px;
     text-align: left;
     font-weight: bold;
-    color: #fff;
+    color: #333;
+    border-bottom: 2px solid #e0e0e0;
   }
   
   .courses-table td {
     padding: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    border-top: 1px solid #e0e0e0;
+    color: #333;
   }
   
   .courses-table tbody tr.selected {
-    background: rgba(255, 255, 255, 0.15);
+    background: #f0f4ff;
+  }
+  
+  .courses-table tbody tr:hover {
+    background: #f8f9fa;
   }
   
   .pagination {
@@ -1006,12 +1018,13 @@ style.textContent = `
     align-items: center;
     margin-top: 20px;
     padding: 15px;
-    background: rgba(255, 255, 255, 0.1);
+    background: #fff;
     border-radius: 8px;
+    border: 1px solid #e0e0e0;
   }
   
   .pagination-info {
-    color: rgba(255, 255, 255, 0.9);
+    color: #333;
   }
   
   .pagination-controls {
@@ -1080,7 +1093,7 @@ style.textContent = `
   .form-group label {
     display: block;
     margin-bottom: 8px;
-    color: rgba(255, 255, 255, 0.9);
+    color: #333;
     font-weight: 500;
   }
   
@@ -1091,10 +1104,10 @@ style.textContent = `
   .form-group input[type="text"] {
     width: 100%;
     padding: 8px 12px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid #e0e0e0;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background: #fff;
+    color: #333;
     box-sizing: border-box;
   }
   
@@ -1102,7 +1115,7 @@ style.textContent = `
     display: block;
     margin-top: 5px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: #666;
   }
   
   .error-message {
@@ -1214,25 +1227,26 @@ style.textContent = `
   }
   
   .package-courses-summary {
-    color: rgba(255, 255, 255, 0.9);
+    color: #667eea;
     text-decoration: underline;
+    cursor: pointer;
   }
   
   .package-courses-summary:hover {
-    color: #fff;
+    color: #5568d3;
   }
   
   .package-courses-details {
     margin-top: 10px;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.05);
+    background: #f8f9fa;
     border-radius: 4px;
-    border-left: 3px solid rgba(255, 255, 255, 0.3);
+    border-left: 3px solid #667eea;
   }
   
   .package-course-detail {
     padding: 5px 0;
-    color: rgba(255, 255, 255, 0.8);
+    color: #333;
     font-size: 14px;
   }
   
@@ -1244,9 +1258,9 @@ style.textContent = `
   .package-total {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-top: 1px solid #e0e0e0;
     font-weight: bold;
-    color: #fff;
+    color: #333;
   }
   
   .package-status {
@@ -1278,48 +1292,51 @@ style.textContent = `
   .package-courses-table {
     width: 100%;
     border-collapse: collapse;
-    background: rgba(255, 255, 255, 0.05);
+    background: #fff;
     border-radius: 4px;
     overflow: hidden;
+    border: 1px solid #e0e0e0;
   }
   
   .package-courses-table thead {
-    background: rgba(255, 255, 255, 0.1);
+    background: #f8f9fa;
   }
   
   .package-courses-table th {
     padding: 8px;
     text-align: left;
     font-weight: bold;
-    color: rgba(255, 255, 255, 0.9);
+    color: #333;
     font-size: 13px;
+    border-bottom: 2px solid #e0e0e0;
   }
   
   .package-courses-table td {
     padding: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid #e0e0e0;
+    color: #333;
   }
   
   .package-courses-table select,
   .package-courses-table input[type="number"] {
     width: 100%;
     padding: 6px 8px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid #e0e0e0;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background: #fff;
+    color: #333;
     box-sizing: border-box;
   }
   
   .package-courses-table select option {
-    background: #2c3e50;
-    color: #fff;
+    background: #fff;
+    color: #333;
   }
   
   .package-price-preview {
     margin: 20px 0;
     padding: 15px;
-    background: rgba(255, 255, 255, 0.1);
+    background: #f8f9fa;
     border-radius: 4px;
     border-left: 4px solid #3b82f6;
   }
@@ -1334,16 +1351,16 @@ style.textContent = `
   .price-preview-item:last-child {
     margin-bottom: 0;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-top: 1px solid #e0e0e0;
   }
   
   .price-label {
-    color: rgba(255, 255, 255, 0.8);
+    color: #333;
     font-weight: 500;
   }
   
   .price-value {
-    color: #fff;
+    color: #333;
     font-weight: bold;
   }
   
