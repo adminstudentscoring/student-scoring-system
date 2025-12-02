@@ -59,6 +59,43 @@
   font-weight: 500;
 }
 
+.timetable-date-picker-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 10px;
+}
+
+.timetable-date-label {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #333;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-width: 140px;
+  text-align: center;
+}
+
+.timetable-date-picker-container:hover .timetable-date-label {
+  background: #f0f4ff;
+  color: #667eea;
+}
+
+.timetable-date-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 10;
+}
+
 .timetable-view-btn {
   padding: 8px 16px;
   border: 2px solid #667eea;

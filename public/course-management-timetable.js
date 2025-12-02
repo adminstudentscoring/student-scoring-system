@@ -96,6 +96,10 @@ function renderTimetable() {
           </div>
           <div class="timetable-nav-buttons">
             <button class="timetable-nav-btn" onclick="navigateTimetable(-1)">&lt;</button>
+            <div class="timetable-date-picker-container">
+              <span id="timetableDateLabel" class="timetable-date-label" onclick="openDatePicker()"></span>
+              <input type="date" id="timetableDatePicker" class="timetable-date-input" onchange="onDatePickerChange(this.value)">
+            </div>
             <button class="timetable-nav-btn" onclick="navigateTimetable(1)">&gt;</button>
             <button class="timetable-nav-btn today-btn" onclick="navigateToToday()">Today</button>
           </div>
@@ -107,7 +111,43 @@ function renderTimetable() {
       </div>
     </div>
   `;
+  
+  // Initialize date label
+  updateDateLabel();
 }
+
+// Update date label
+function updateDateLabel() {
+  const label = document.getElementById('timetableDateLabel');
+  const picker = document.getElementById('timetableDatePicker');
+  if (!label || !picker) return;
+  
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthName = months[currentDate.getMonth()];
+  const year = currentDate.getFullYear();
+  
+  label.textContent = `${monthName} ${year}`;
+  picker.value = formatDateISO(currentDate);
+}
+
+// Open date picker
+window.openDatePicker = function() {
+  const picker = document.getElementById('timetableDatePicker');
+  if (picker) {
+    if (picker.showPicker) {
+      picker.showPicker();
+    } else {
+      picker.click();
+    }
+  }
+};
+
+// On date picker change
+window.onDatePickerChange = function(dateString) {
+  if (!dateString) return;
+  currentDate = new Date(dateString);
+  switchTimetableView(currentView);
+};
 
 // Navigate timetable
 window.navigateTimetable = function(direction) {
@@ -149,7 +189,15 @@ window.switchTimetableView = function(view) {
   document.querySelectorAll('.timetable-view-btn').forEach(btn => {
     btn.classList.remove('active');
   });
-  event.target.classList.add('active');
+  // Find the button with correct onclick attribute text
+  const buttons = document.querySelectorAll('.timetable-view-btn');
+  buttons.forEach(btn => {
+    if (btn.getAttribute('onclick').includes(`'${view}'`)) {
+      btn.classList.add('active');
+    }
+  });
+  
+  updateDateLabel();
 };
 
 // Render week view
