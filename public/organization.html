@@ -832,6 +832,14 @@
             }
         }
 
+        // Initialize student search functionality
+        function initStudentSearch() {
+            const searchInput = document.getElementById('orgStudentSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', renderStudentsList);
+            }
+        }
+
         function renderStudentsList() {
             const container = document.getElementById('studentsList');
             if (!container) return;
