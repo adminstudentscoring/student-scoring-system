@@ -1766,12 +1766,12 @@ function openPackageModal(pkg) {
               <span class="price-value" id="packageOriginalPrice">$0.00</span>
             </div>
             <div class="price-preview-item">
-              <span class="price-label">Package Price:</span>
-              <span class="price-value" id="packageFinalPrice">$0.00</span>
+              <span class="price-label">Discounted Price:</span>
+              <span class="price-value" id="packageDiscountedPrice">$0.00</span>
             </div>
             <div class="price-preview-item">
-              <span class="price-label">You Save:</span>
-              <span class="price-value save" id="packageSaveAmount">$0.00</span>
+              <span class="price-label">Package Price:</span>
+              <span class="price-value save" id="packageFinalPrice">$0.00</span>
             </div>
           </div>
           
@@ -1980,11 +1980,11 @@ function updatePackagePricePreview() {
     finalPrice = parseFloat(priceInput.replace(/,/g, '')) || 0;
   }
   
-  const saveAmount = originalPrice - finalPrice;
+  const discountedAmount = originalPrice - finalPrice;
   
   document.getElementById('packageOriginalPrice').textContent = `$${formatNumber(originalPrice)}`;
+  document.getElementById('packageDiscountedPrice').textContent = `$${formatNumber(discountedAmount)}`;
   document.getElementById('packageFinalPrice').textContent = `$${formatNumber(finalPrice)}`;
-  document.getElementById('packageSaveAmount').textContent = `$${formatNumber(saveAmount)}`;
 }
 
 function calculatePackageOriginalPriceFromForm() {
@@ -2135,8 +2135,8 @@ async function savePackage(event, packageId) {
   
   try {
     const url = packageId 
-      ? `/api/organizations/packages/${packageId}`
-      : '/api/organizations/packages';
+      ? `/organizations/packages/${packageId}`
+      : '/organizations/packages';
     
     const method = packageId ? 'PUT' : 'POST';
     
@@ -2171,7 +2171,7 @@ async function deletePackage(packageId, packageName) {
   }
   
   try {
-    const response = await window.authUtils.authenticatedFetch(`/api/organizations/packages/${packageId}`, {
+    const response = await window.authUtils.authenticatedFetch(`/organizations/packages/${packageId}`, {
       method: 'DELETE'
     });
     
