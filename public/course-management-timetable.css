@@ -81,6 +81,10 @@
   z-index: 10;
   border-bottom: 2px solid rgba(255, 255, 255, 0.2);
   flex-shrink: 0;
+  scrollbar-gutter: stable;
+  /* Add padding-right to compensate for scrollbar width */
+  padding-right: 8px;
+  box-sizing: border-box;
 }
 
 .timetable-week-header-cell {
@@ -110,6 +114,7 @@
   max-height: calc(100vh - 350px);
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+  scrollbar-gutter: stable;
 }
 
 .timetable-week-body-scrollable::-webkit-scrollbar {
@@ -133,6 +138,9 @@
   display: grid;
   grid-template-columns: 80px repeat(7, 1fr);
   position: relative;
+  /* Ensure body matches header width accounting for scrollbar */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .timetable-week-time-cell {
