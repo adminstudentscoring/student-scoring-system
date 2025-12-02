@@ -64,11 +64,13 @@ header h1 {
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     padding: 20px;
-    position: sticky;
+    position: fixed;
     top: 20px;
+    right: 20px;
     height: fit-content;
     max-height: calc(100vh - 40px);
     transition: all 0.3s ease;
+    z-index: 100;
 }
 
 .right-sidebar.collapsed {

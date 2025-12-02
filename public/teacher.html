@@ -7,6 +7,26 @@
     <title>Teacher Dashboard - Student Scoring System</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="course-management-timetable.css">
+    <style>
+        /* Teacher-specific styles for right sidebar layout */
+        .container {
+            position: relative;
+        }
+        .tab-content {
+            margin-right: 280px; /* Space for right sidebar (250px + 20px gap + 10px margin) */
+        }
+        @media (max-width: 1200px) {
+            .tab-content {
+                margin-right: 0;
+            }
+            .right-sidebar {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-top: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -29,62 +49,57 @@
             <button class="tab" onclick="switchTeacherTab('courses', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">📚 Course Management</button>
         </div>
 
-        <div class="content-wrapper">
-            <!-- Student Management Tab -->
-            <div id="studentsTab" class="tab-content active" style="display: block;">
-                <div class="main-content">
-                <!-- Students List -->
-                <section class="card">
-                    <h2>Students List</h2>
-                    <div class="search-bar">
-                        <input type="text" id="searchInput" placeholder="Search students...">
-                    </div>
-                    <div id="studentsList" class="students-grid">
-                        <!-- Students will be loaded here -->
-                    </div>
-                </section>
-
-                <!-- Select Students for Class -->
-                <section class="card">
-                    <h2>Select Students for Class View</h2>
-                    <div class="search-bar">
-                        <input type="text" id="classSearchInput" placeholder="Search students for class...">
-                    </div>
-                    <div id="classStudentsList" class="class-students-list">
-                        <!-- Students with checkboxes will be loaded here -->
-                    </div>
-                    <div class="class-actions">
-                        <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
-                        <button id="saveClassViewBtn" class="btn btn-primary">Save Selection</button>
-                        <button id="openClassViewBtn" class="btn btn-info">Open Class View</button>
-                        <span id="selectedCount" class="selected-count">0 selected</span>
-                    </div>
-                </section>
+        <!-- Student Management Tab -->
+        <div id="studentsTab" class="tab-content active" style="display: block;">
+            <div class="main-content">
+            <!-- Students List -->
+            <section class="card">
+                <h2>Students List</h2>
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Search students...">
                 </div>
-            </div>
-
-            <!-- Course Management Tab -->
-            <div id="coursesTab" class="tab-content" style="display: none;">
-                <div class="main-content">
-                    <div id="teacherCourseManagementContainer">
-                        <p>Loading course management...</p>
-                    </div>
+                <div id="studentsList" class="students-grid">
+                    <!-- Students will be loaded here -->
                 </div>
+            </section>
+
+            <!-- Select Students for Class -->
+            <section class="card">
+                <h2>Select Students for Class View</h2>
+                <div class="search-bar">
+                    <input type="text" id="classSearchInput" placeholder="Search students for class...">
+                </div>
+                <div id="classStudentsList" class="class-students-list">
+                    <!-- Students with checkboxes will be loaded here -->
+                </div>
+                <div class="class-actions">
+                    <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
+                    <button id="saveClassViewBtn" class="btn btn-primary">Save Selection</button>
+                    <button id="openClassViewBtn" class="btn btn-info">Open Class View</button>
+                    <span id="selectedCount" class="selected-count">0 selected</span>
+                </div>
+            </section>
             </div>
         </div>
 
-            <!-- Right Sidebar -->
-            <div class="right-sidebar" id="rightSidebar">
-                <div class="sidebar-toggle" id="sidebarToggle">
-                    <span id="sidebarToggleIcon">◀</span>
-                </div>
-                <div class="sidebar-content">
-                    <h3>Quick Actions</h3>
-                    <button id="gameZoneBtn" class="sidebar-btn">
-                        <span class="sidebar-icon">🎮</span>
-                        <span class="sidebar-text">Game Zone</span>
-                    </button>
-                </div>
+        <!-- Course Management Tab -->
+        <div id="coursesTab" class="tab-content" style="display: none;">
+            <div id="teacherCourseManagementContainer">
+                <p>Loading course management...</p>
+            </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="right-sidebar" id="rightSidebar">
+            <div class="sidebar-toggle" id="sidebarToggle">
+                <span id="sidebarToggleIcon">◀</span>
+            </div>
+            <div class="sidebar-content">
+                <h3>Quick Actions</h3>
+                <button id="gameZoneBtn" class="sidebar-btn">
+                    <span class="sidebar-icon">🎮</span>
+                    <span class="sidebar-text">Game Zone</span>
+                </button>
             </div>
         </div>
     </div>
