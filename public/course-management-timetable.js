@@ -257,7 +257,20 @@ function renderEntryInCell(entry, day, date) {
   // Calculate position and height
   const timeSlots = generateTimeSlots();
   const slotHeight = 30; // 30px per 15 minutes
-  const startSlotIndex = timeSlots.indexOf(formatTimeSlot(entry.startTime));
+  
+  // Find the closest time slot index for start time
+  const formattedStartTime = formatTimeSlot(entry.startTime);
+  let startSlotIndex = timeSlots.indexOf(formattedStartTime);
+  
+  // If exact match not found, calculate the slot index based on minutes
+  if (startSlotIndex === -1) {
+    const [startHour, startMin] = entry.startTime.split(':').map(Number);
+    const totalMinutes = startHour * 60 + startMin;
+    const baseMinutes = 8 * 60; // 08:00 in minutes
+    const slotIndex = Math.floor((totalMinutes - baseMinutes) / 15);
+    startSlotIndex = Math.max(0, Math.min(slotIndex, timeSlots.length - 1));
+  }
+  
   const top = startSlotIndex * slotHeight - 1; // Move up 1px to cover top grid line
   const height = (duration / 15) * slotHeight + 2; // Add 2px (1px top + 1px bottom) to cover grid lines
   
@@ -438,7 +451,20 @@ function renderEntryInDayCell(entry, date) {
   
   // Calculate position and height
   const slotHeight = 30;
-  const startSlotIndex = timeSlots.indexOf(formatTimeSlot(entry.startTime));
+  
+  // Find the closest time slot index for start time
+  const formattedStartTime = formatTimeSlot(entry.startTime);
+  let startSlotIndex = timeSlots.indexOf(formattedStartTime);
+  
+  // If exact match not found, calculate the slot index based on minutes
+  if (startSlotIndex === -1) {
+    const [startHour, startMin] = entry.startTime.split(':').map(Number);
+    const totalMinutes = startHour * 60 + startMin;
+    const baseMinutes = 8 * 60; // 08:00 in minutes
+    const slotIndex = Math.floor((totalMinutes - baseMinutes) / 15);
+    startSlotIndex = Math.max(0, Math.min(slotIndex, timeSlots.length - 1));
+  }
+  
   const top = startSlotIndex * slotHeight - 1; // Move up 1px to cover top grid line
   const height = (duration / 15) * slotHeight + 2; // Add 2px (1px top + 1px bottom) to cover grid lines
   
