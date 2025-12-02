@@ -590,6 +590,9 @@
 
             <section class="card">
                 <h2>Student List</h2>
+                <div class="search-bar">
+                    <input type="text" id="orgStudentSearch" placeholder="Search students...">
+                </div>
                 <div id="studentsList">
                     <p>Loading...</p>
                 </div>
@@ -633,6 +636,8 @@
                 // Load data
                 loadTeachers();
                 loadStudents();
+                // Re-initialize search functionality when switching to students tab
+                setTimeout(initStudentSearch, 100);
             } catch (error) {
                 console.error('Error loading user info:', error);
             }
@@ -770,7 +775,8 @@
 
                 alert('Student created successfully!');
                 document.getElementById('createStudentForm').reset();
-                loadStudents();
+                loadStudents(); // This will reload all students and re-render with search
+                setTimeout(initStudentSearch, 100);
             } catch (error) {
                 alert('Error: ' + error.message);
             }
@@ -783,6 +789,9 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Store students globally for search functionality
+        let allStudents = [];
 
         async function loadStudents() {
             try {
@@ -797,13 +806,9 @@
                 const data = await response.json();
                 const students = Array.isArray(data) ? data : (data.students || []);
 
-                // Store students globally for modal access
+                // Store students globally for modal access and search
                 window.students = students;
-
-                if (students.length === 0) {
-                    document.getElementById('studentsList').innerHTML = '<p>No students yet</p>';
-                    return;
-                }
+                allStudents = students;
 
                 // Get organization ID from user
                 let orgId = null;
@@ -819,40 +824,70 @@
                 // Store orgId globally for modal access
                 window.currentOrgId = orgId;
 
-                const html = `
-                    <div class="students-grid">
-                        ${students.map(student => `
-                            <div class="student-card" style="cursor: pointer;" data-student-id="${student.id}">
-                                <h3>${escapeHtml(student.name)}</h3>
-                                <p>ID: ${escapeHtml(student.studentId || '')}</p>
-                                <p>Score: <span id="score-${student.id}">${student.score || 0}</span></p>
-                                <p>Level: ${student.level || 1}</p>
-                                <div class="student-card-actions" onclick="event.stopPropagation();">
-                                    <input type="number" id="score-input-${student.id}" value="${student.score || 0}" min="0">
-                                    <button class="btn btn-primary" onclick="updateStudentScore('${student.id}'); event.stopPropagation();">Update</button>
-                                    <button class="btn btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-                document.getElementById('studentsList').innerHTML = html;
-
-                // Add click handlers to student cards
-                document.querySelectorAll('.student-card[data-student-id]').forEach(card => {
-                    card.addEventListener('click', async (e) => {
-                        if (e.target.closest('.student-card-actions')) return;
-                        const studentId = card.getAttribute('data-student-id');
-                        const student = students.find(s => s.id === studentId);
-                        if (student) {
-                            openEditStudentModal(student);
-                        }
-                    });
-                });
+                // Render students list with search functionality
+                renderStudentsList();
             } catch (error) {
                 console.error('Error loading students:', error);
                 document.getElementById('studentsList').innerHTML = '<p>Failed to load</p>';
             }
+        }
+
+        function renderStudentsList() {
+            const container = document.getElementById('studentsList');
+            if (!container) return;
+
+            const searchInput = document.getElementById('orgStudentSearch');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+            const filteredStudents = allStudents.filter(student =>
+                (student.name && student.name.toLowerCase().includes(searchTerm)) ||
+                (student.studentId && student.studentId.toLowerCase().includes(searchTerm))
+            );
+
+            if (allStudents.length === 0) {
+                container.innerHTML = '<p>No students yet</p>';
+                return;
+            }
+
+            if (filteredStudents.length === 0) {
+                if (searchTerm) {
+                    container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 40px;">No students found matching your search.</p>';
+                } else {
+                    container.innerHTML = '<p>No students yet</p>';
+                }
+                return;
+            }
+
+            const html = `
+                <div class="students-grid">
+                    ${filteredStudents.map(student => `
+                        <div class="student-card" style="cursor: pointer;" data-student-id="${student.id}">
+                            <h3>${escapeHtml(student.name)}</h3>
+                            <p>ID: ${escapeHtml(student.studentId || '')}</p>
+                            <p>Score: <span id="score-${student.id}">${student.score || 0}</span></p>
+                            <p>Level: ${student.level || 1}</p>
+                            <div class="student-card-actions" onclick="event.stopPropagation();">
+                                <input type="number" id="score-input-${student.id}" value="${student.score || 0}" min="0">
+                                <button class="btn btn-primary" onclick="updateStudentScore('${student.id}'); event.stopPropagation();">Update</button>
+                                <button class="btn btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            container.innerHTML = html;
+
+            // Add click handlers to student cards
+            document.querySelectorAll('.student-card[data-student-id]').forEach(card => {
+                card.addEventListener('click', async (e) => {
+                    if (e.target.closest('.student-card-actions')) return;
+                    const studentId = card.getAttribute('data-student-id');
+                    const student = allStudents.find(s => s.id === studentId);
+                    if (student) {
+                        openEditStudentModal(student);
+                    }
+                });
+            });
         }
 
         async function deleteTeacher(teacherId, teacherName) {
@@ -897,7 +932,9 @@
                 }
 
                 alert('Student deleted successfully!');
-                loadStudents();
+                // Remove deleted student from allStudents array
+                allStudents = allStudents.filter(s => s.id !== studentId);
+                renderStudentsList(); // Re-render with search preserved
             } catch (error) {
                 alert('Error: ' + error.message);
             }
@@ -926,9 +963,15 @@
                 }
 
                 const updatedStudent = await response.json();
+                // Update the student in allStudents array
+                const studentIndex = allStudents.findIndex(s => s.id === studentId);
+                if (studentIndex !== -1) {
+                    allStudents[studentIndex].score = updatedStudent.score || 0;
+                    allStudents[studentIndex].level = updatedStudent.level || allStudents[studentIndex].level;
+                }
                 document.getElementById(`score-${studentId}`).textContent = updatedStudent.score || 0;
                 alert('Score updated successfully!');
-                loadStudents(); // Reload to update level and rank
+                renderStudentsList(); // Re-render with search preserved
             } catch (error) {
                 alert('Error: ' + error.message);
             }
@@ -1266,6 +1309,8 @@
                 showToast('Student updated successfully!', 'success');
                 closeEditStudentModal();
                 loadStudents();
+                // Re-initialize search functionality when switching to students tab
+                setTimeout(initStudentSearch, 100);
             } catch (error) {
                 console.error('Error updating student:', error);
                 showToast('Error: ' + error.message, 'error');
