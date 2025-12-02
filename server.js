@@ -23,6 +23,7 @@ const ROYAL_EXCHANGE_LEADERBOARD_FILE = path.join(__dirname, process.env.ROYAL_E
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
+const PACKAGES_FILE = path.join(__dirname, process.env.PACKAGES_FILE || path.join(DATA_DIR, 'packages.json'));
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
@@ -215,6 +216,88 @@ async function writeCourses(courses) {
     return true;
   } catch (error) {
     console.error('Error writing courses:', error);
+    return false;
+  }
+}
+
+// Read packages data
+async function readPackages() {
+  try {
+    const content = await fs.readFile(PACKAGES_FILE, 'utf8');
+    const data = JSON.parse(content);
+    return data.packages || [];
+  } catch (error) {
+    // If file doesn't exist, return empty array
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+    console.error('Error reading packages:', error);
+    return [];
+  }
+}
+
+// Write packages data
+async function writePackages(packages) {
+  try {
+    await fs.writeFile(PACKAGES_FILE, JSON.stringify({ packages, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing packages:', error);
+    return false;
+  }
+}
+
+// Check and update expired packages
+async function checkExpiredPackages() {
+  try {
+    const packages = await readPackages();
+    const now = new Date();
+    let updated = false;
+
+    for (const pkg of packages) {
+      if (pkg.status === 'active' && pkg.endDate) {
+        const endDate = new Date(pkg.endDate);
+        if (endDate < now) {
+          pkg.status = 'inactive';
+          pkg.updatedAt = new Date().toISOString();
+          updated = true;
+        }
+      }
+    }
+
+    if (updated) {
+      await writePackages(packages);
+    }
+
+    return packages;
+  } catch (error) {
+    console.error('Error checking expired packages:', error);
+    return [];
+  }
+}
+
+// Check if package contains deleted courses and update status
+async function updatePackagesForDeletedCourse(courseId) {
+  try {
+    const packages = await readPackages();
+    let updated = false;
+
+    for (const pkg of packages) {
+      const hasDeletedCourse = pkg.courses && pkg.courses.some(c => c.courseId === courseId);
+      if (hasDeletedCourse && pkg.status !== 'archived') {
+        pkg.status = 'inactive';
+        pkg.updatedAt = new Date().toISOString();
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      await writePackages(packages);
+    }
+
+    return updated;
+  } catch (error) {
+    console.error('Error updating packages for deleted course:', error);
     return false;
   }
 }
@@ -2787,6 +2870,9 @@ app.delete('/api/organizations/courses/:id', authenticateUser, requireOrganizati
     
     // TODO: Check if course is in use (when schedule feature is implemented)
     
+    // Update packages that contain this course
+    await updatePackagesForDeletedCourse(id);
+    
     courses.splice(courseIndex, 1);
     await writeCourses(courses);
     
@@ -2833,6 +2919,378 @@ app.delete('/api/organizations/courses', authenticateUser, requireOrganizationAc
   } catch (error) {
     console.error('Error deleting courses:', error);
     res.status(500).json({ error: 'Failed to delete courses' });
+  }
+});
+
+// ==================== Course Package Management API ====================
+
+// Get all packages for an organization (organization and admin)
+app.get('/api/organizations/packages', authenticateUser, requireOrganizationAccess, async (req, res) => {
+  try {
+    // Check and update expired packages
+    let packages = await checkExpiredPackages();
+    
+    // Filter by organization
+    if (req.organizationFilter) {
+      packages = packages.filter(p => p.organizationId === req.organizationFilter);
+    }
+    
+    // Sort by createdAt (newest first) by default
+    packages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    res.json(packages);
+  } catch (error) {
+    console.error('Error getting packages:', error);
+    res.status(500).json({ error: 'Failed to get packages' });
+  }
+});
+
+// Create a new package (organization and admin)
+app.post('/api/organizations/packages', authenticateUser, requireOrganizationAccess, async (req, res) => {
+  try {
+    const { name, courses, priceStrategy, fixedPrice, discountPercentage, customPrice, description, startDate, endDate, status } = req.body;
+    
+    // Validation
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Package name is required' });
+    }
+    
+    if (name.length > 50) {
+      return res.status(400).json({ error: 'Package name must be 50 characters or less' });
+    }
+    
+    if (!Array.isArray(courses) || courses.length === 0) {
+      return res.status(400).json({ error: 'At least one course is required' });
+    }
+    
+    // Validate courses array
+    for (const course of courses) {
+      if (!course.courseId || !course.quantity) {
+        return res.status(400).json({ error: 'Each course must have courseId and quantity' });
+      }
+      if (typeof course.quantity !== 'number' || course.quantity < 1 || course.quantity > 999 || !Number.isInteger(course.quantity)) {
+        return res.status(400).json({ error: 'Quantity must be an integer between 1 and 999' });
+      }
+    }
+    
+    // Validate price strategy
+    if (!priceStrategy || !['fixed', 'discount', 'custom'].includes(priceStrategy)) {
+      return res.status(400).json({ error: 'Price strategy must be fixed, discount, or custom' });
+    }
+    
+    // Validate price based on strategy
+    if (priceStrategy === 'fixed') {
+      if (fixedPrice === undefined || fixedPrice === null) {
+        return res.status(400).json({ error: 'Fixed price is required for fixed price strategy' });
+      }
+      const priceNum = parseFloat(fixedPrice);
+      if (isNaN(priceNum) || priceNum < 0) {
+        return res.status(400).json({ error: 'Fixed price must be a valid number greater than or equal to 0' });
+      }
+    } else if (priceStrategy === 'discount') {
+      if (discountPercentage === undefined || discountPercentage === null) {
+        return res.status(400).json({ error: 'Discount percentage is required for discount strategy' });
+      }
+      const discountNum = parseFloat(discountPercentage);
+      if (isNaN(discountNum) || discountNum < 0 || discountNum > 100) {
+        return res.status(400).json({ error: 'Discount percentage must be a number between 0 and 100' });
+      }
+    } else if (priceStrategy === 'custom') {
+      if (customPrice === undefined || customPrice === null) {
+        return res.status(400).json({ error: 'Custom price is required for custom price strategy' });
+      }
+      const priceNum = parseFloat(customPrice);
+      if (isNaN(priceNum) || priceNum < 0) {
+        return res.status(400).json({ error: 'Custom price must be a valid number greater than or equal to 0' });
+      }
+    }
+    
+    // Validate dates if provided
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      if (end <= start) {
+        return res.status(400).json({ error: 'End date must be after start date' });
+      }
+    }
+    
+    // Validate description length
+    if (description && description.length > 500) {
+      return res.status(400).json({ error: 'Description must be 500 characters or less' });
+    }
+    
+    // Get organization ID
+    let organizationId;
+    if (req.user.role === 'admin') {
+      organizationId = req.body.organizationId || req.organizationFilter;
+      if (!organizationId) {
+        return res.status(400).json({ error: 'organizationId is required for admin' });
+      }
+    } else {
+      organizationId = req.user.organizationId || req.organizationFilter;
+      if (!organizationId) {
+        return res.status(403).json({ error: 'Organization not found' });
+      }
+    }
+    
+    // Check if package name already exists in this organization
+    const packages = await readPackages();
+    const existingPackage = packages.find(p => 
+      p.organizationId === organizationId && 
+      p.name.toLowerCase().trim() === name.toLowerCase().trim()
+    );
+    
+    if (existingPackage) {
+      return res.status(400).json({ error: 'Package name already exists in this organization' });
+    }
+    
+    // Verify all courses exist and belong to the organization
+    const allCourses = await readCourses();
+    for (const courseItem of courses) {
+      const course = allCourses.find(c => c.id === courseItem.courseId);
+      if (!course) {
+        return res.status(400).json({ error: `Course with ID ${courseItem.courseId} not found` });
+      }
+      if (course.organizationId !== organizationId) {
+        return res.status(403).json({ error: `Course ${courseItem.courseId} does not belong to this organization` });
+      }
+    }
+    
+    // Create new package
+    const newPackage = {
+      id: `package_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      organizationId: organizationId,
+      name: name.trim(),
+      courses: courses,
+      priceStrategy: priceStrategy,
+      fixedPrice: priceStrategy === 'fixed' ? parseFloat(fixedPrice) : null,
+      discountPercentage: priceStrategy === 'discount' ? parseFloat(discountPercentage) : null,
+      customPrice: priceStrategy === 'custom' ? parseFloat(customPrice) : null,
+      description: description ? description.trim() : null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      status: status || 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    packages.push(newPackage);
+    await writePackages(packages);
+    
+    res.status(201).json(newPackage);
+  } catch (error) {
+    console.error('Error creating package:', error);
+    res.status(500).json({ error: 'Failed to create package' });
+  }
+});
+
+// Update a package (organization and admin)
+app.put('/api/organizations/packages/:id', authenticateUser, requireOrganizationAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, courses, priceStrategy, fixedPrice, discountPercentage, customPrice, description, startDate, endDate, status } = req.body;
+    
+    const packages = await readPackages();
+    const packageIndex = packages.findIndex(p => p.id === id);
+    
+    if (packageIndex === -1) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+    
+    const pkg = packages[packageIndex];
+    
+    // Check organization access
+    if (req.organizationFilter && pkg.organizationId !== req.organizationFilter) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Validation
+    if (name !== undefined) {
+      if (!name || name.trim().length === 0) {
+        return res.status(400).json({ error: 'Package name is required' });
+      }
+      if (name.length > 50) {
+        return res.status(400).json({ error: 'Package name must be 50 characters or less' });
+      }
+      
+      // Check if package name already exists in this organization (excluding current package)
+      const existingPackage = packages.find(p => 
+        p.id !== id &&
+        p.organizationId === pkg.organizationId && 
+        p.name.toLowerCase().trim() === name.toLowerCase().trim()
+      );
+      
+      if (existingPackage) {
+        return res.status(400).json({ error: 'Package name already exists in this organization' });
+      }
+      
+      pkg.name = name.trim();
+    }
+    
+    if (courses !== undefined) {
+      if (!Array.isArray(courses) || courses.length === 0) {
+        return res.status(400).json({ error: 'At least one course is required' });
+      }
+      
+      // Validate courses array
+      for (const course of courses) {
+        if (!course.courseId || !course.quantity) {
+          return res.status(400).json({ error: 'Each course must have courseId and quantity' });
+        }
+        if (typeof course.quantity !== 'number' || course.quantity < 1 || course.quantity > 999 || !Number.isInteger(course.quantity)) {
+          return res.status(400).json({ error: 'Quantity must be an integer between 1 and 999' });
+        }
+      }
+      
+      // Verify all courses exist and belong to the organization
+      const allCourses = await readCourses();
+      for (const courseItem of courses) {
+        const course = allCourses.find(c => c.id === courseItem.courseId);
+        if (!course) {
+          return res.status(400).json({ error: `Course with ID ${courseItem.courseId} not found` });
+        }
+        if (course.organizationId !== pkg.organizationId) {
+          return res.status(403).json({ error: `Course ${courseItem.courseId} does not belong to this organization` });
+        }
+      }
+      
+      pkg.courses = courses;
+    }
+    
+    if (priceStrategy !== undefined) {
+      if (!['fixed', 'discount', 'custom'].includes(priceStrategy)) {
+        return res.status(400).json({ error: 'Price strategy must be fixed, discount, or custom' });
+      }
+      pkg.priceStrategy = priceStrategy;
+    }
+    
+    if (priceStrategy === 'fixed' || fixedPrice !== undefined) {
+      if (priceStrategy === 'fixed') {
+        if (fixedPrice === undefined || fixedPrice === null) {
+          return res.status(400).json({ error: 'Fixed price is required for fixed price strategy' });
+        }
+        const priceNum = parseFloat(fixedPrice);
+        if (isNaN(priceNum) || priceNum < 0) {
+          return res.status(400).json({ error: 'Fixed price must be a valid number greater than or equal to 0' });
+        }
+        pkg.fixedPrice = priceNum;
+        pkg.discountPercentage = null;
+        pkg.customPrice = null;
+      }
+    }
+    
+    if (priceStrategy === 'discount' || discountPercentage !== undefined) {
+      if (priceStrategy === 'discount') {
+        if (discountPercentage === undefined || discountPercentage === null) {
+          return res.status(400).json({ error: 'Discount percentage is required for discount strategy' });
+        }
+        const discountNum = parseFloat(discountPercentage);
+        if (isNaN(discountNum) || discountNum < 0 || discountNum > 100) {
+          return res.status(400).json({ error: 'Discount percentage must be a number between 0 and 100' });
+        }
+        pkg.discountPercentage = discountNum;
+        pkg.fixedPrice = null;
+        pkg.customPrice = null;
+      }
+    }
+    
+    if (priceStrategy === 'custom' || customPrice !== undefined) {
+      if (priceStrategy === 'custom') {
+        if (customPrice === undefined || customPrice === null) {
+          return res.status(400).json({ error: 'Custom price is required for custom price strategy' });
+        }
+        const priceNum = parseFloat(customPrice);
+        if (isNaN(priceNum) || priceNum < 0) {
+          return res.status(400).json({ error: 'Custom price must be a valid number greater than or equal to 0' });
+        }
+        pkg.customPrice = priceNum;
+        pkg.fixedPrice = null;
+        pkg.discountPercentage = null;
+      }
+    }
+    
+    if (description !== undefined) {
+      if (description && description.length > 500) {
+        return res.status(400).json({ error: 'Description must be 500 characters or less' });
+      }
+      pkg.description = description ? description.trim() : null;
+    }
+    
+    if (startDate !== undefined || endDate !== undefined) {
+      const start = startDate ? new Date(startDate) : (pkg.startDate ? new Date(pkg.startDate) : null);
+      const end = endDate ? new Date(endDate) : (pkg.endDate ? new Date(pkg.endDate) : null);
+      
+      if (start && end) {
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return res.status(400).json({ error: 'Invalid date format' });
+        }
+        if (end <= start) {
+          return res.status(400).json({ error: 'End date must be after start date' });
+        }
+      }
+      
+      if (startDate !== undefined) {
+        pkg.startDate = startDate || null;
+      }
+      if (endDate !== undefined) {
+        pkg.endDate = endDate || null;
+      }
+    }
+    
+    if (status !== undefined) {
+      if (!['active', 'inactive', 'archived'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be active, inactive, or archived' });
+      }
+      pkg.status = status;
+    }
+    
+    pkg.updatedAt = new Date().toISOString();
+    
+    packages[packageIndex] = pkg;
+    await writePackages(packages);
+    
+    res.json(pkg);
+  } catch (error) {
+    console.error('Error updating package:', error);
+    res.status(500).json({ error: 'Failed to update package' });
+  }
+});
+
+// Delete a package (organization and admin)
+app.delete('/api/organizations/packages/:id', authenticateUser, requireOrganizationAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const packages = await readPackages();
+    const packageIndex = packages.findIndex(p => p.id === id);
+    
+    if (packageIndex === -1) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+    
+    const pkg = packages[packageIndex];
+    
+    // Check organization access
+    if (req.organizationFilter && pkg.organizationId !== req.organizationFilter) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // TODO: Check if package has purchase records (when accounting/sales feature is implemented)
+    // For now, we'll mark as archived if it has been used (status check)
+    // In the future, we'll check actual purchase records
+    
+    // For now, we'll allow deletion, but in the future we'll check purchase records
+    // and mark as archived instead of deleting
+    packages.splice(packageIndex, 1);
+    await writePackages(packages);
+    
+    res.json({ message: 'Package deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting package:', error);
+    res.status(500).json({ error: 'Failed to delete package' });
   }
 });
 
