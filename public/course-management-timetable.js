@@ -258,8 +258,8 @@ function renderEntryInCell(entry, day, date) {
   const timeSlots = generateTimeSlots();
   const slotHeight = 30; // 30px per 15 minutes
   const startSlotIndex = timeSlots.indexOf(formatTimeSlot(entry.startTime));
-  const top = startSlotIndex * slotHeight;
-  const height = (duration / 15) * slotHeight;
+  const top = startSlotIndex * slotHeight - 1; // Move up 1px to cover top grid line
+  const height = (duration / 15) * slotHeight + 2; // Add 2px (1px top + 1px bottom) to cover grid lines
   
   // Get course color
   const courseColor = entry.courseIds.length > 0 ? getCourseColor(entry.courseIds[0]) : '#667eea';
@@ -439,8 +439,8 @@ function renderEntryInDayCell(entry, date) {
   // Calculate position and height
   const slotHeight = 30;
   const startSlotIndex = timeSlots.indexOf(formatTimeSlot(entry.startTime));
-  const top = startSlotIndex * slotHeight;
-  const height = (duration / 15) * slotHeight;
+  const top = startSlotIndex * slotHeight - 1; // Move up 1px to cover top grid line
+  const height = (duration / 15) * slotHeight + 2; // Add 2px (1px top + 1px bottom) to cover grid lines
   
   // Get course color
   const courseColor = entry.courseIds.length > 0 ? getCourseColor(entry.courseIds[0]) : '#667eea';
