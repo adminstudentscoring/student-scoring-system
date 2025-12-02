@@ -88,10 +88,17 @@ function renderTimetable() {
   container.innerHTML = `
     <div class="timetable-container">
       <div class="timetable-header">
-        <div class="timetable-view-buttons">
-          <button class="timetable-view-btn ${currentView === 'day' ? 'active' : ''}" onclick="switchTimetableView('day')">Day</button>
-          <button class="timetable-view-btn ${currentView === 'week' ? 'active' : ''}" onclick="switchTimetableView('week')">Week</button>
-          <button class="timetable-view-btn ${currentView === 'month' ? 'active' : ''}" onclick="switchTimetableView('month')">Month</button>
+        <div class="timetable-header-left">
+          <div class="timetable-view-buttons">
+            <button class="timetable-view-btn ${currentView === 'day' ? 'active' : ''}" onclick="switchTimetableView('day')">Day</button>
+            <button class="timetable-view-btn ${currentView === 'week' ? 'active' : ''}" onclick="switchTimetableView('week')">Week</button>
+            <button class="timetable-view-btn ${currentView === 'month' ? 'active' : ''}" onclick="switchTimetableView('month')">Month</button>
+          </div>
+          <div class="timetable-nav-buttons">
+            <button class="timetable-nav-btn" onclick="navigateTimetable(-1)">&lt;</button>
+            <button class="timetable-nav-btn" onclick="navigateTimetable(1)">&gt;</button>
+            <button class="timetable-nav-btn today-btn" onclick="navigateToToday()">Today</button>
+          </div>
         </div>
         ${!isReadOnly ? '<button class="create-class-btn" onclick="openCreateClassModal()">Create New Class</button>' : ''}
       </div>
@@ -101,6 +108,24 @@ function renderTimetable() {
     </div>
   `;
 }
+
+// Navigate timetable
+window.navigateTimetable = function(direction) {
+  if (currentView === 'day') {
+    currentDate.setDate(currentDate.getDate() + direction);
+  } else if (currentView === 'week') {
+    currentDate.setDate(currentDate.getDate() + (direction * 7));
+  } else if (currentView === 'month') {
+    currentDate.setMonth(currentDate.getMonth() + direction);
+  }
+  switchTimetableView(currentView);
+};
+
+// Navigate to today
+window.navigateToToday = function() {
+  currentDate = new Date();
+  switchTimetableView(currentView);
+};
 
 // Switch timetable view
 window.switchTimetableView = function(view) {
