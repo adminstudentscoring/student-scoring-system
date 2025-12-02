@@ -96,9 +96,8 @@ function renderTimetable() {
           </div>
           <div class="timetable-nav-buttons">
             <button class="timetable-nav-btn" onclick="navigateTimetable(-1)">&lt;</button>
-            <div class="timetable-date-picker-container">
-              <span id="timetableDateLabel" class="timetable-date-label" onclick="openDatePicker()"></span>
-              <input type="date" id="timetableDatePicker" class="timetable-date-input" onchange="onDatePickerChange(this.value)">
+            <div class="timetable-date-picker-wrapper">
+              <input type="date" id="timetableDatePicker" class="timetable-date-native-input" onchange="onDatePickerChange(this.value)">
             </div>
             <button class="timetable-nav-btn" onclick="navigateTimetable(1)">&gt;</button>
             <button class="timetable-nav-btn today-btn" onclick="navigateToToday()">Today</button>
@@ -112,42 +111,20 @@ function renderTimetable() {
     </div>
   `;
   
-  // Initialize date label
-  updateDateLabel();
+  // Initialize date picker value
+  updateDatePickerValue();
 }
 
-// Update date label
-function updateDateLabel() {
-  const label = document.getElementById('timetableDateLabel');
+// Update date picker value
+function updateDatePickerValue() {
   const picker = document.getElementById('timetableDatePicker');
-  if (!label || !picker) return;
-  
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const monthName = months[currentDate.getMonth()];
-  const year = currentDate.getFullYear();
-  
-  label.textContent = `${monthName} ${year}`;
+  if (!picker) return;
   picker.value = formatDateISO(currentDate);
 }
 
-// Open date picker - fallback for older browsers
+// Open date picker - No longer needed for native input
 window.openDatePicker = function() {
-  const picker = document.getElementById('timetableDatePicker');
-  if (picker) {
-    // Try showPicker API first (modern browsers)
-    if (typeof picker.showPicker === 'function') {
-      try {
-        picker.showPicker();
-        return;
-      } catch (e) {
-        console.log('showPicker failed, falling back to click', e);
-      }
-    }
-    
-    // Fallback: focus and click
-    picker.focus();
-    picker.click();
-  }
+  // No-op
 };
 
 // On date picker change
@@ -205,7 +182,7 @@ window.switchTimetableView = function(view) {
     }
   });
   
-  updateDateLabel();
+  updateDatePickerValue();
 };
 
 // Render week view

@@ -59,50 +59,40 @@
   font-weight: 500;
 }
 
-.timetable-date-picker-container {
+.timetable-date-picker-wrapper {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 10px;
-  /* Ensure container has dimensions */
-  min-width: 140px;
-  height: 36px;
 }
 
-.timetable-date-label {
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: #333;
-  cursor: pointer;
+.timetable-date-native-input {
   padding: 6px 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #333;
   border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-family: inherit;
   transition: all 0.2s;
-  white-space: nowrap;
-  text-align: center;
-  /* Ensure label takes full space */
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none; /* Let clicks pass through to input */
+  outline: none;
 }
 
-.timetable-date-picker-container:hover .timetable-date-label {
+.timetable-date-native-input:hover {
   background: #f0f4ff;
   color: #667eea;
 }
 
-.timetable-date-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
+.timetable-date-native-input::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  z-index: 10;
-  font-size: 16px; /* Prevent zoom on mobile */
+  filter: invert(0.5); /* Adjust icon color if needed */
+}
+
+.timetable-date-native-input:hover::-webkit-calendar-picker-indicator {
+  filter: invert(35%) sepia(94%) saturate(1901%) hue-rotate(219deg) brightness(93%) contrast(90%); /* #667eea approximate */
 }
 
 .timetable-view-btn {
