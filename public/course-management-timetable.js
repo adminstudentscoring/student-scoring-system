@@ -130,15 +130,23 @@ function updateDateLabel() {
   picker.value = formatDateISO(currentDate);
 }
 
-// Open date picker
+// Open date picker - fallback for older browsers
 window.openDatePicker = function() {
   const picker = document.getElementById('timetableDatePicker');
   if (picker) {
-    if (picker.showPicker) {
-      picker.showPicker();
-    } else {
-      picker.click();
+    // Try showPicker API first (modern browsers)
+    if (typeof picker.showPicker === 'function') {
+      try {
+        picker.showPicker();
+        return;
+      } catch (e) {
+        console.log('showPicker failed, falling back to click', e);
+      }
     }
+    
+    // Fallback: focus and click
+    picker.focus();
+    picker.click();
   }
 };
 
