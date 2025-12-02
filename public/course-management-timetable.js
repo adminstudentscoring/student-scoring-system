@@ -248,31 +248,31 @@ function renderEntryInCell(entry, day, date) {
   const cell = document.querySelector(`.timetable-week-day-cell[data-day="${day}"][data-date="${formatDateISO(date)}"]`);
   if (!cell) return;
   
+  // Parse start and end times
   const [startHour, startMin] = entry.startTime.split(':').map(Number);
   const [endHour, endMin] = entry.endTime.split(':').map(Number);
-  const startMinutes = startHour * 60 + startMin;
-  const endMinutes = endHour * 60 + endMin;
-  const duration = endMinutes - startMinutes;
+  const startTotalMinutes = startHour * 60 + startMin;
+  const endTotalMinutes = endHour * 60 + endMin;
+  const duration = endTotalMinutes - startTotalMinutes;
   
-  // Calculate position and height
-  const timeSlots = generateTimeSlots();
+  // Calculate position and height directly from minutes
   const slotHeight = 30; // 30px per 15 minutes
+  const baseMinutes = 8 * 60; // 08:00 in minutes (480)
   
-  // Find the closest time slot index for start time
-  const formattedStartTime = formatTimeSlot(entry.startTime);
-  let startSlotIndex = timeSlots.indexOf(formattedStartTime);
+  // Calculate slot index: round to nearest 15-minute slot
+  const startSlotIndex = Math.round((startTotalMinutes - baseMinutes) / 15);
+  const endSlotIndex = Math.round((endTotalMinutes - baseMinutes) / 15);
   
-  // If exact match not found, calculate the slot index based on minutes
-  if (startSlotIndex === -1) {
-    const [startHour, startMin] = entry.startTime.split(':').map(Number);
-    const totalMinutes = startHour * 60 + startMin;
-    const baseMinutes = 8 * 60; // 08:00 in minutes
-    const slotIndex = Math.floor((totalMinutes - baseMinutes) / 15);
-    startSlotIndex = Math.max(0, Math.min(slotIndex, timeSlots.length - 1));
-  }
+  // Ensure indices are valid
+  const validStartIndex = Math.max(0, Math.min(startSlotIndex, 52)); // Max index for 20:45
+  const validEndIndex = Math.max(0, Math.min(endSlotIndex, 52));
   
-  const top = startSlotIndex * slotHeight - 1; // Move up 1px to cover top grid line
-  const height = (duration / 15) * slotHeight + 2; // Add 2px (1px top + 1px bottom) to cover grid lines
+  // Calculate top position: each slot is 30px, align to slot start
+  const top = validStartIndex * slotHeight;
+  
+  // Calculate height: number of slots * slot height
+  const slotCount = Math.max(1, validEndIndex - validStartIndex);
+  const height = slotCount * slotHeight;
   
   // Get course color
   const courseColor = entry.courseIds.length > 0 ? getCourseColor(entry.courseIds[0]) : '#667eea';
@@ -442,31 +442,34 @@ function renderDayEntries(date) {
 
 // Render entry in day cell
 function renderEntryInDayCell(entry, date) {
-  const timeSlots = generateTimeSlots();
+  const cell = document.querySelector(`.timetable-day-schedule-cell[data-date="${formatDateISO(date)}"]`);
+  if (!cell) return;
+  
+  // Parse start and end times
   const [startHour, startMin] = entry.startTime.split(':').map(Number);
   const [endHour, endMin] = entry.endTime.split(':').map(Number);
-  const startMinutes = startHour * 60 + startMin;
-  const endMinutes = endHour * 60 + endMin;
-  const duration = endMinutes - startMinutes;
+  const startTotalMinutes = startHour * 60 + startMin;
+  const endTotalMinutes = endHour * 60 + endMin;
+  const duration = endTotalMinutes - startTotalMinutes;
   
-  // Calculate position and height
-  const slotHeight = 30;
+  // Calculate position and height directly from minutes
+  const slotHeight = 30; // 30px per 15 minutes
+  const baseMinutes = 8 * 60; // 08:00 in minutes (480)
   
-  // Find the closest time slot index for start time
-  const formattedStartTime = formatTimeSlot(entry.startTime);
-  let startSlotIndex = timeSlots.indexOf(formattedStartTime);
+  // Calculate slot index: round to nearest 15-minute slot
+  const startSlotIndex = Math.round((startTotalMinutes - baseMinutes) / 15);
+  const endSlotIndex = Math.round((endTotalMinutes - baseMinutes) / 15);
   
-  // If exact match not found, calculate the slot index based on minutes
-  if (startSlotIndex === -1) {
-    const [startHour, startMin] = entry.startTime.split(':').map(Number);
-    const totalMinutes = startHour * 60 + startMin;
-    const baseMinutes = 8 * 60; // 08:00 in minutes
-    const slotIndex = Math.floor((totalMinutes - baseMinutes) / 15);
-    startSlotIndex = Math.max(0, Math.min(slotIndex, timeSlots.length - 1));
-  }
+  // Ensure indices are valid
+  const validStartIndex = Math.max(0, Math.min(startSlotIndex, 52)); // Max index for 20:45
+  const validEndIndex = Math.max(0, Math.min(endSlotIndex, 52));
   
-  const top = startSlotIndex * slotHeight - 1; // Move up 1px to cover top grid line
-  const height = (duration / 15) * slotHeight + 2; // Add 2px (1px top + 1px bottom) to cover grid lines
+  // Calculate top position: each slot is 30px, align to slot start
+  const top = validStartIndex * slotHeight;
+  
+  // Calculate height: number of slots * slot height
+  const slotCount = Math.max(1, validEndIndex - validStartIndex);
+  const height = slotCount * slotHeight;
   
   // Get course color
   const courseColor = entry.courseIds.length > 0 ? getCourseColor(entry.courseIds[0]) : '#667eea';
@@ -476,9 +479,6 @@ function renderEntryInDayCell(entry, date) {
     const teacher = teachers.find(t => t.id === id);
     return teacher ? teacher.name : '';
   }).filter(Boolean).join(', ');
-  
-  const cell = document.querySelector(`.timetable-day-schedule-cell[data-date="${formatDateISO(date)}"]`);
-  if (!cell) return;
   
   const entryEl = document.createElement('div');
   entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
