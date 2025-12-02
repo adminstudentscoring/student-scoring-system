@@ -15,15 +15,21 @@
         .tab-content {
             margin-right: 280px; /* Space for right sidebar (250px + 20px gap + 10px margin) */
         }
+        /* Adjust right-sidebar position to be below Tab Bar */
+        .right-sidebar {
+            top: 200px !important; /* Header (~80px) + margin-bottom (30px) + Tab Bar (~60px) + margin-bottom (20px) + spacing (10px) */
+            max-height: calc(100vh - 220px) !important; /* Adjust max-height for new position */
+        }
         @media (max-width: 1200px) {
             .tab-content {
                 margin-right: 0;
             }
             .right-sidebar {
                 position: relative;
-                top: auto;
+                top: auto !important;
                 right: auto;
                 margin-top: 20px;
+                max-height: none !important;
             }
         }
     </style>
