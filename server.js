@@ -3343,7 +3343,7 @@ app.get('/api/teachers/timetable', authenticateUser, authorizeRole('teacher'), a
 // Create timetable entry (organization only)
 app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
-    const { className, startTime, endTime, isRecurring, dayOfWeek, date, courseIds, teacherIds, classroom, studentIds } = req.body;
+    const { className, startTime, endTime, isRecurring, dayOfWeek, date, startDate, endDate, courseIds, teacherIds, classroom, studentIds } = req.body;
     
     // Validation
     if (!className || className.trim().length === 0) {
@@ -3388,6 +3388,15 @@ app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organi
       if (invalidDays.length > 0) {
         return res.status(400).json({ error: `Invalid day(s): ${invalidDays.join(', ')}` });
       }
+
+      // Validate startDate and endDate if present
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (start > end) {
+          return res.status(400).json({ error: 'Start date cannot be after end date' });
+        }
+      }
     } else {
       if (!date) {
         return res.status(400).json({ error: 'date is required for non-recurring classes' });
@@ -3418,6 +3427,8 @@ app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organi
       isRecurring,
       dayOfWeek: isRecurring ? dayOfWeek : null,
       date: isRecurring ? null : date,
+      startDate: isRecurring ? (startDate || null) : null,
+      endDate: isRecurring ? (endDate || null) : null,
       courseIds: Array.isArray(courseIds) ? courseIds : [],
       teacherIds: Array.isArray(teacherIds) ? teacherIds : [],
       classroom: classroom ? classroom.trim() : null,
@@ -3453,7 +3464,7 @@ app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organi
 app.put('/api/organizations/timetable/:id', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { className, startTime, endTime, isRecurring, dayOfWeek, date, courseIds, teacherIds, classroom, studentIds } = req.body;
+    const { className, startTime, endTime, isRecurring, dayOfWeek, date, startDate, endDate, courseIds, teacherIds, classroom, studentIds } = req.body;
     
     const timetableData = await readTimetable();
     const entryIndex = timetableData.entries.findIndex(e => e.id === id);
@@ -3510,6 +3521,21 @@ app.put('/api/organizations/timetable/:id', authenticateUser, authorizeRole('org
         if (invalidDays.length > 0) {
           return res.status(400).json({ error: `Invalid day(s): ${invalidDays.join(', ')}` });
         }
+
+        // Validate startDate and endDate if present
+        // Need to check against either the new values or existing ones if not provided, 
+        // but since the payload sends what is changing, if user only changes endDate, we should check against new endDate and (new or old) startDate.
+        // However, simpler logic: if dates are provided in update, validate them.
+        const newStart = startDate !== undefined ? startDate : entry.startDate;
+        const newEnd = endDate !== undefined ? endDate : entry.endDate;
+        
+        if (newStart && newEnd) {
+            const s = new Date(newStart);
+            const e = new Date(newEnd);
+            if (s > e) {
+                return res.status(400).json({ error: 'Start date cannot be after end date' });
+            }
+        }
       } else {
         if (!date) {
           return res.status(400).json({ error: 'date is required for non-recurring classes' });
@@ -3529,7 +3555,20 @@ app.put('/api/organizations/timetable/:id', authenticateUser, authorizeRole('org
       entry.isRecurring = isRecurring;
       entry.dayOfWeek = isRecurring ? dayOfWeek : null;
       entry.date = isRecurring ? null : date;
+      // If switching to recurring, set start/end dates. If staying recurring, update if provided.
+      if (isRecurring) {
+          if (startDate !== undefined) entry.startDate = startDate || null;
+          if (endDate !== undefined) entry.endDate = endDate || null;
+      } else {
+          entry.startDate = null;
+          entry.endDate = null;
+      }
+    } else if (entry.isRecurring) {
+        // If not changing isRecurring status but updating dates for a recurring event
+        if (startDate !== undefined) entry.startDate = startDate || null;
+        if (endDate !== undefined) entry.endDate = endDate || null;
     }
+
     if (courseIds !== undefined) entry.courseIds = Array.isArray(courseIds) ? courseIds : [];
     if (teacherIds !== undefined) entry.teacherIds = Array.isArray(teacherIds) ? teacherIds : [];
     if (classroom !== undefined) entry.classroom = classroom ? classroom.trim() : null;

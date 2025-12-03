@@ -287,6 +287,12 @@ function renderWeekEntries() {
         if (dayIndex === -1) return;
         
         const date = weekDates[dayIndex];
+        const dateISO = formatDateISO(date);
+        
+        // Check date range
+        if (entry.startDate && entry.startDate > dateISO) return;
+        if (entry.endDate && entry.endDate < dateISO) return;
+        
         renderEntryInCell(entry, day, date);
       });
     } else {
@@ -481,11 +487,16 @@ function renderDayView() {
 // Render day entries
 function renderDayEntries(date) {
   const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+  const dateISO = formatDateISO(date);
   
   timetableEntries.forEach(entry => {
     if (entry.isRecurring) {
       // Recurring entries - check if this day matches
       if (entry.dayOfWeek && entry.dayOfWeek.includes(dayName)) {
+        // Check date range
+        if (entry.startDate && entry.startDate > dateISO) return;
+        if (entry.endDate && entry.endDate < dateISO) return;
+        
         renderEntryInDayCell(entry, date);
       }
     } else {
@@ -640,11 +651,16 @@ function renderMonthView() {
 function getEntriesForDate(date) {
   const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
   const entries = [];
+  const dateISO = formatDateISO(date);
   
   timetableEntries.forEach(entry => {
     if (entry.isRecurring) {
       // Recurring entries
       if (entry.dayOfWeek && entry.dayOfWeek.includes(dayName)) {
+        // Check date range
+        if (entry.startDate && entry.startDate > dateISO) return;
+        if (entry.endDate && entry.endDate < dateISO) return;
+
         entries.push(entry);
       }
     } else {
@@ -697,6 +713,23 @@ window.openEditClassModal = function(entry) {
     const date = new Date(entryData.date);
     if (!isNaN(date.getTime())) {
       dateValue = date.toISOString().split('T')[0];
+    }
+  }
+
+  // Format start/end dates for recurring input
+  let startDateValue = '';
+  if (entryData.startDate) {
+    const sDate = new Date(entryData.startDate);
+    if (!isNaN(sDate.getTime())) {
+      startDateValue = sDate.toISOString().split('T')[0];
+    }
+  }
+  
+  let endDateValue = '';
+  if (entryData.endDate) {
+    const eDate = new Date(entryData.endDate);
+    if (!isNaN(eDate.getTime())) {
+      endDateValue = eDate.toISOString().split('T')[0];
     }
   }
 
@@ -768,6 +801,18 @@ window.openEditClassModal = function(entry) {
                 `).join('')}
               </div>
               <div class="error-message" id="errorDayOfWeek"></div>
+              
+              <div style="display: flex; gap: 15px; margin-top: 15px;">
+                <div style="flex: 1;">
+                  <label for="editClassStartDate" style="font-size: 14px; margin-bottom: 5px; display: block;">Start Date (Optional)</label>
+                  <input type="date" id="editClassStartDate" value="${startDateValue}" style="width: 100%; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                </div>
+                <div style="flex: 1;">
+                  <label for="editClassEndDate" style="font-size: 14px; margin-bottom: 5px; display: block;">End Date (Optional)</label>
+                  <input type="date" id="editClassEndDate" value="${endDateValue}" style="width: 100%; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                </div>
+              </div>
+              <div class="error-message" id="errorDateRange"></div>
             </div>
             <div class="edit-class-form-group" id="dateOptionsGroup" style="display: ${!entryData.isRecurring ? 'block' : 'none'};">
               <label for="editClassDate">Date</label>
@@ -1041,6 +1086,15 @@ window.saveClassEntry = async function(event, entryId) {
   const isRecurring = document.getElementById('editClassIsRecurring').value === 'true';
   const date = isRecurring ? null : document.getElementById('editClassDate').value;
   const dayOfWeek = isRecurring ? Array.from(window.selectedDays || []) : null;
+  
+  // Get recurring date range
+  let startDate = null;
+  let endDate = null;
+  if (isRecurring) {
+    startDate = document.getElementById('editClassStartDate').value || null;
+    endDate = document.getElementById('editClassEndDate').value || null;
+  }
+
   const courseIds = Array.from(window.selectedCourseIds || []);
   const teacherIds = Array.from(window.selectedTeacherIds || []);
   const studentIds = []; // Coming soon
@@ -1079,6 +1133,13 @@ window.saveClassEntry = async function(event, entryId) {
       showClassFieldError('errorDayOfWeek', 'Please select at least one day of week');
       hasError = true;
     }
+    
+    if (startDate && endDate) {
+      if (new Date(startDate) > new Date(endDate)) {
+        showClassFieldError('errorDateRange', 'Start date cannot be after end date');
+        hasError = true;
+      }
+    }
   } else {
     if (!date) {
       showClassFieldError('editClassDate', 'Date is required for non-recurring classes');
@@ -1103,6 +1164,8 @@ window.saveClassEntry = async function(event, entryId) {
     isRecurring,
     dayOfWeek,
     date,
+    startDate,
+    endDate,
     courseIds,
     teacherIds,
     classroom,
