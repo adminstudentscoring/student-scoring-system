@@ -132,7 +132,68 @@ function renderCourseManagement() {
         <p>Accounting feature coming soon...</p>
       </div>
       <div id="salesSubTabContent" class="course-sub-tab-content">
-        <p>Sales feature coming soon...</p>
+        <div class="sales-container">
+          <!-- Left Panel: Course/Package Selection -->
+          <div class="sales-left-panel">
+            <div class="sales-product-search">
+              <input type="text" id="salesProductSearch" class="search-input" placeholder="Search courses, fees, or products..." oninput="handleSalesProductSearch()">
+            </div>
+            
+            <div class="sales-product-categories">
+              <button class="category-btn active" onclick="filterSalesCategory('all')">All</button>
+              <button class="category-btn" onclick="filterSalesCategory('packages')">Packages</button>
+              <button class="category-btn" onclick="filterSalesCategory('courses')">Courses</button>
+            </div>
+            
+            <div id="salesProductList" class="sales-product-list">
+              <!-- Products will be loaded here -->
+              <div class="loading-placeholder">Loading products...</div>
+            </div>
+          </div>
+          
+          <!-- Right Panel: Student & Enrollment -->
+          <div class="sales-right-panel">
+            <!-- Student Search Section -->
+            <div class="sales-student-section">
+              <div class="student-search-wrapper">
+                <div class="search-icon">👤</div>
+                <input type="text" id="salesStudentSearch" placeholder="Search a student to enroll*" onfocus="showStudentDropdown()" oninput="handleSalesStudentSearch()">
+                <div class="dropdown-arrow">▼</div>
+              </div>
+              
+              <div id="salesStudentDropdown" class="student-dropdown-list" style="display: none;">
+                <!-- Student search results will appear here -->
+              </div>
+              
+              <div id="selectedStudentCard" class="selected-student-card" style="display: none;">
+                <!-- Selected student info will appear here -->
+              </div>
+              
+              <div id="emptyStudentState" class="empty-student-state">
+                <div class="empty-icon">🎓</div>
+                <div class="empty-text">Walk-In</div>
+                <button class="btn btn-sm btn-outline">Orders</button>
+              </div>
+            </div>
+            
+            <!-- Enrollment/Cart Section -->
+            <div class="sales-cart-section">
+              <div class="cart-empty-state">
+                You will see student's orders here once you have selected a student above.
+              </div>
+              <div id="salesCartContent" style="display: none;">
+                <!-- Cart items will go here -->
+              </div>
+            </div>
+            
+            <!-- Footer Actions -->
+            <div class="sales-footer-actions">
+              <button class="btn btn-secondary" onclick="resetSales()">Reset</button>
+              <button class="btn btn-secondary" onclick="saveSalesOrder()">Save</button>
+              <button class="btn btn-primary" onclick="processSalesPayment()">Pay $0</button>
+            </div>
+          </div>
+        </div>
       </div>
       </div>
     </div>
@@ -178,7 +239,268 @@ function switchSubTab(subTab) {
   if (subTab === 'package') {
     loadPackages();
   }
+
+  // Initialize Sales if active
+  if (subTab === 'sales') {
+    loadSalesModule();
+  }
 }
+
+// ==================== Sales Management ====================
+
+let salesState = {
+  selectedStudent: null,
+  cart: [],
+  products: [] // Combined list of courses and packages
+};
+
+// Load Sales Module
+function loadSalesModule() {
+  loadSalesProducts();
+  // Initialize student search is handled by event listeners in HTML
+}
+
+// Load Sales Products (Courses and Packages)
+async function loadSalesProducts() {
+  const container = document.getElementById('salesProductList');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loading-placeholder">Loading products...</div>';
+  
+  try {
+    // Ensure data is loaded
+    if (!window.courses || window.courses.length === 0) {
+      await loadCourses();
+    }
+    if (!packages || packages.length === 0) {
+      await loadPackages();
+    }
+    
+    renderSalesProducts();
+  } catch (error) {
+    console.error('Error loading sales products:', error);
+    container.innerHTML = '<div class="error-message">Failed to load products</div>';
+  }
+}
+
+// Render Sales Products
+function renderSalesProducts(category = 'all', searchTerm = '') {
+  const container = document.getElementById('salesProductList');
+  if (!container) return;
+  
+  const term = searchTerm.toLowerCase();
+  let items = [];
+  
+  // Add Packages
+  if (category === 'all' || category === 'packages') {
+    const activePackages = packages.filter(p => p.status === 'active');
+    items = items.concat(activePackages.map(p => ({
+      type: 'package',
+      data: p,
+      name: p.name,
+      price: calculatePackagePrice(p),
+      info: `${p.courses.reduce((sum, c) => sum + c.quantity, 0)} lessons`
+    })));
+  }
+  
+  // Add Courses (Single Lessons)
+  if (category === 'all' || category === 'courses') {
+    items = items.concat((window.courses || []).map(c => ({
+      type: 'course',
+      data: c,
+      name: c.name,
+      price: parseFloat(c.price),
+      info: 'Single lesson'
+    })));
+  }
+  
+  // Filter by search
+  items = items.filter(item => item.name.toLowerCase().includes(term));
+  
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state">No products found</div>';
+    return;
+  }
+  
+  container.innerHTML = items.map(item => `
+    <div class="sales-product-card ${item.type}" onclick="addToSalesCart('${item.type}', '${item.data.id}')">
+      <div class="product-type-badge ${item.type}">${item.type === 'package' ? 'Multiple courses' : 'Single Lesson'}</div>
+      <div class="product-name">${escapeHtml(item.name)}</div>
+      <div class="product-footer">
+        <div class="product-info">${item.info}</div>
+        <div class="product-price">$${item.price.toFixed(0)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Calculate package price
+function calculatePackagePrice(pkg) {
+  if (pkg.priceStrategy === 'fixed') return parseFloat(pkg.fixedPrice);
+  
+  // Calculate sum of course prices
+  const sum = pkg.courses.reduce((total, item) => {
+    const course = (window.courses || []).find(c => c.id === item.courseId);
+    const price = course ? parseFloat(course.price) : 0;
+    return total + (price * item.quantity);
+  }, 0);
+  
+  if (pkg.priceStrategy === 'discount') {
+    return sum * (1 - (parseFloat(pkg.discountPercentage) / 100));
+  }
+  
+  return sum; // Custom strategy or fallback
+}
+
+// Handle Product Search
+window.handleSalesProductSearch = function() {
+  const term = document.getElementById('salesProductSearch').value;
+  const activeCategory = document.querySelector('.category-btn.active').textContent.toLowerCase();
+  // Map button text to category key
+  const categoryMap = { 'all': 'all', 'packages': 'packages', 'courses': 'courses' };
+  renderSalesProducts(categoryMap[activeCategory] || 'all', term);
+};
+
+// Filter Sales Category
+window.filterSalesCategory = function(category) {
+  // Update buttons
+  document.querySelectorAll('.category-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.textContent.toLowerCase() === category || (category === 'all' && btn.textContent === 'All')) {
+      btn.classList.add('active');
+    }
+  });
+  
+  const term = document.getElementById('salesProductSearch').value;
+  renderSalesProducts(category, term);
+};
+
+// ==================== Student Search in Sales ====================
+
+// Show Student Dropdown
+window.showStudentDropdown = function() {
+  const dropdown = document.getElementById('salesStudentDropdown');
+  if (dropdown) dropdown.style.display = 'block';
+  handleSalesStudentSearch(); // Load initial list
+};
+
+// Hide Student Dropdown
+function hideStudentDropdown() {
+  const dropdown = document.getElementById('salesStudentDropdown');
+  if (dropdown) {
+    // Small delay to allow click events on items to fire
+    setTimeout(() => {
+      dropdown.style.display = 'none';
+    }, 200);
+  }
+}
+
+// Handle Student Search
+window.handleSalesStudentSearch = async function() {
+  const term = document.getElementById('salesStudentSearch').value.toLowerCase();
+  const dropdown = document.getElementById('salesStudentDropdown');
+  
+  if (!dropdown) return;
+  
+  // Reuse global students list or fetch if needed
+  let studentsList = window.students || [];
+  if (studentsList.length === 0) {
+    // Try to load students if not available
+    try {
+      const response = await window.authUtils.authenticatedFetch('/students');
+      if (response && response.ok) {
+        const data = await response.json();
+        studentsList = Array.isArray(data) ? data : (data.students || []);
+        window.students = studentsList;
+      }
+    } catch (e) {
+      console.error('Failed to load students for search', e);
+    }
+  }
+  
+  const filtered = studentsList.filter(s => 
+    (s.name && s.name.toLowerCase().includes(term)) || 
+    (s.studentId && s.studentId.toLowerCase().includes(term))
+  );
+  
+  if (filtered.length === 0) {
+    dropdown.innerHTML = '<div class="dropdown-item empty">No students found</div>';
+    return;
+  }
+  
+  dropdown.innerHTML = filtered.map(s => `
+    <div class="dropdown-item" onclick="selectSalesStudent('${s.id}')">
+      <div class="student-avatar-small">${s.name.charAt(0).toUpperCase()}</div>
+      <div class="student-info">
+        <div class="student-name">${escapeHtml(s.name)}</div>
+        <div class="student-id">${escapeHtml(s.studentId)}</div>
+      </div>
+    </div>
+  `).join('');
+};
+
+// Select Student
+window.selectSalesStudent = function(studentId) {
+  const student = (window.students || []).find(s => s.id === studentId);
+  if (!student) return;
+  
+  salesState.selectedStudent = student;
+  
+  // Update UI
+  document.getElementById('salesStudentSearch').value = ''; // Clear search
+  hideStudentDropdown();
+  
+  // Hide empty state, show card
+  document.getElementById('emptyStudentState').style.display = 'none';
+  const card = document.getElementById('selectedStudentCard');
+  card.style.display = 'flex';
+  
+  card.innerHTML = `
+    <div class="selected-student-avatar">${student.name.charAt(0).toUpperCase()}</div>
+    <div class="selected-student-info">
+      <h3>${escapeHtml(student.name)} <span class="student-id-badge">${escapeHtml(student.studentId)}</span></h3>
+      <div class="student-balance">Balance: $0.00 (Coming soon)</div>
+    </div>
+    <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
+  `;
+  
+  // Show cart placeholder text
+  document.querySelector('.cart-empty-state').innerHTML = 'Select products from the left to create an order.';
+};
+
+// Deselect Student
+window.deselectSalesStudent = function() {
+  salesState.selectedStudent = null;
+  document.getElementById('selectedStudentCard').style.display = 'none';
+  document.getElementById('emptyStudentState').style.display = 'flex';
+  document.querySelector('.cart-empty-state').innerHTML = 'You will see student\'s orders here once you have selected a student above.';
+};
+
+// Add to Cart (Placeholder)
+window.addToSalesCart = function(type, id) {
+  console.log('Add to cart:', type, id);
+  // Will implement next step
+  if (!salesState.selectedStudent) {
+    alert('Please select a student first');
+    // Highlight student search
+    document.getElementById('salesStudentSearch').focus();
+  }
+};
+
+window.resetSales = function() {
+  salesState.cart = [];
+  deselectSalesStudent();
+  renderSalesProducts();
+};
+
+// Click outside to close dropdown
+document.addEventListener('click', function(event) {
+  const searchWrapper = document.querySelector('.student-search-wrapper');
+  const dropdown = document.getElementById('salesStudentDropdown');
+  if (searchWrapper && !searchWrapper.contains(event.target) && dropdown && !dropdown.contains(event.target)) {
+    dropdown.style.display = 'none';
+  }
+});
 
 // Load courses from API
 async function loadCourses() {
@@ -1047,12 +1369,13 @@ style.textContent = `
   }
   
   .modal-content {
-    background: #2c3e50;
+    background: #fff;
     border-radius: 8px;
     width: 90%;
     max-width: 500px;
     max-height: 90vh;
     overflow-y: auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
   
   .modal-header {
@@ -1060,18 +1383,18 @@ style.textContent = `
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid #e0e0e0;
   }
   
   .modal-header h2 {
     margin: 0;
-    color: #fff;
+    color: #333;
   }
   
   .modal-close {
     background: none;
     border: none;
-    color: #fff;
+    color: #666;
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -1080,6 +1403,11 @@ style.textContent = `
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: color 0.2s;
+  }
+
+  .modal-close:hover {
+    color: #333;
   }
   
   .modal-body {
@@ -1331,6 +1659,379 @@ style.textContent = `
   .package-courses-table select option {
     background: #fff;
     color: #333;
+  }
+  
+  /* Sales Module Styles */
+  .sales-container {
+    display: flex;
+    height: 100%;
+    min-height: 600px;
+    gap: 20px;
+  }
+  
+  .sales-left-panel {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .sales-right-panel {
+    width: 350px;
+    min-width: 350px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .sales-product-search {
+    padding: 15px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .sales-product-categories {
+    display: flex;
+    padding: 10px 15px;
+    gap: 10px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f8f9fa;
+  }
+  
+  .category-btn {
+    padding: 6px 12px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666;
+    transition: all 0.2s;
+  }
+  
+  .category-btn.active {
+    background: #667eea;
+    color: #fff;
+    border-color: #667eea;
+  }
+  
+  .sales-product-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    align-content: start;
+  }
+  
+  .sales-product-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .sales-product-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+  }
+  
+  .product-type-badge {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+  }
+  
+  .product-type-badge.package {
+    background-color: #10b981;
+  }
+  
+  .product-type-badge.course {
+    background-color: #8b5cf6;
+  }
+  
+  .product-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 15px;
+    padding-left: 10px;
+  }
+  
+  .product-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 10px;
+    padding-left: 10px;
+  }
+  
+  .product-info {
+    font-size: 12px;
+    color: #666;
+  }
+  
+  .product-price {
+    font-weight: bold;
+    color: #333;
+    font-size: 16px;
+  }
+  
+  /* Sales Right Panel Styles */
+  .sales-student-section {
+    padding: 15px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f8f9fa;
+    position: relative;
+  }
+  
+  .student-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 0 10px;
+  }
+  
+  .student-search-wrapper:focus-within {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  }
+  
+  .search-icon {
+    color: #999;
+    margin-right: 8px;
+  }
+  
+  .student-search-wrapper input {
+    flex: 1;
+    border: none;
+    padding: 10px 0;
+    outline: none;
+    font-size: 14px;
+  }
+  
+  .dropdown-arrow {
+    color: #999;
+    font-size: 12px;
+    margin-left: 8px;
+  }
+  
+  .student-dropdown-list {
+    position: absolute;
+    top: 100%;
+    left: 15px;
+    right: 15px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 2px;
+  }
+  
+  .dropdown-item {
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .dropdown-item:last-child {
+    border-bottom: none;
+  }
+  
+  .dropdown-item:hover {
+    background: #f0f4ff;
+  }
+  
+  .dropdown-item.empty {
+    padding: 20px;
+    justify-content: center;
+    color: #999;
+    font-style: italic;
+    cursor: default;
+  }
+  
+  .student-avatar-small {
+    width: 32px;
+    height: 32px;
+    background: #e0f2fe;
+    color: #0284c7;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  
+  .student-info {
+    flex: 1;
+  }
+  
+  .student-name {
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+  }
+  
+  .student-id {
+    font-size: 12px;
+    color: #666;
+  }
+  
+  .empty-student-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 0;
+    color: #666;
+  }
+  
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+    opacity: 0.3;
+  }
+  
+  .empty-text {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 15px;
+  }
+  
+  .btn-outline {
+    background: transparent;
+    border: 1px solid #e0e0e0;
+    color: #666;
+  }
+  
+  .btn-outline:hover {
+    background: #f8f9fa;
+    color: #333;
+  }
+  
+  .selected-student-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 0;
+    position: relative;
+  }
+  
+  .selected-student-avatar {
+    width: 50px;
+    height: 50px;
+    background: #e0f2fe;
+    color: #0284c7;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 20px;
+  }
+  
+  .selected-student-info h3 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .student-id-badge {
+    background: #f3f4f6;
+    color: #666;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: normal;
+  }
+  
+  .student-balance {
+    font-size: 13px;
+    color: #666;
+  }
+  
+  .btn-close-student {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+  }
+  
+  .btn-close-student:hover {
+    color: #ef4444;
+  }
+  
+  .sales-cart-section {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background: #fff;
+  }
+  
+  .cart-empty-state {
+    text-align: center;
+    color: #999;
+    padding: 40px 20px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  
+  .sales-footer-actions {
+    padding: 15px;
+    border-top: 1px solid #e0e0e0;
+    background: #f8f9fa;
+    display: flex;
+    gap: 10px;
+  }
+  
+  .sales-footer-actions .btn {
+    flex: 1;
+  }
+  
+  @media (max-width: 1024px) {
+    .sales-container {
+      flex-direction: column;
+    }
+    
+    .sales-right-panel {
+      width: 100%;
+      min-width: 0;
+      min-height: 300px;
+    }
   }
   
   .package-price-preview {
