@@ -1133,8 +1133,15 @@ function renderSalesCart() {
   const html = salesState.cart.map((item, index) => {
     total += item.price;
     const dateCount = item.enrolledClasses.length;
-    const firstDate = item.enrolledClasses[0]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const lastDate = item.enrolledClasses[dateCount-1]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    const getFormattedDate = (d) => {
+        if (!d) return '';
+        const dateObj = new Date(d);
+        return !isNaN(dateObj) ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    };
+
+    const firstDate = getFormattedDate(item.enrolledClasses[0]?.date);
+    const lastDate = getFormattedDate(item.enrolledClasses[dateCount-1]?.date);
     const dateRange = dateCount > 1 ? `${firstDate} - ${lastDate}` : firstDate;
     
     return `

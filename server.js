@@ -7462,13 +7462,17 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
   try {
     const { studentId, mode, enrollmentId, timetableEntryId, date, courseId } = req.body;
     
+    console.log(`[DEBUG] Drop Request: studentId=${studentId}, mode=${mode}`);
+
     if (!studentId || !mode) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const users = await readUsers();
     const studentIndex = users.findIndex(u => u.id === studentId);
+    
     if (studentIndex === -1) {
+      console.log(`[DEBUG] Student NOT FOUND. ID: ${studentId}. Available User IDs: ${users.map(u=>u.id).slice(0,5).join(', ')}...`);
       return res.status(404).json({ error: 'Student not found' });
     }
 
