@@ -897,17 +897,31 @@ window.openEditClassModal = function(entry) {
             </div>
           </div>
           <div class="edit-class-form-group">
-            <label>Enrolled Students (${(entryData.studentIds || []).length})</label>
-            <div class="enrolled-students-list" style="border: 1px solid #e0e0e0; border-radius: 6px; max-height: 150px; overflow-y: auto;">
-              ${(entryData.studentIds || []).map(studentId => {
-                const student = (window.students || []).find(s => s.id === studentId);
-                const name = student ? escapeHtml(student.name) : 'Unknown Student';
-                const dispId = student ? escapeHtml(student.studentId) : studentId;
-                return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px;">
-                  <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
-                </div>`;
-              }).join('') || '<div style="padding: 15px; text-align: center; color: #999; font-style: italic;">No enrolled students</div>'}
-            </div>
+            ${(() => {
+              const linkedEnrollments = (timetableEnrollments || []).filter(e => e.timetableEntryId === entryData.id);
+              const linkedStudentIds = [...new Set(linkedEnrollments.map(e => e.studentId))];
+              const seriesStudentIds = entryData.studentIds || [];
+              const allStudentIds = [...new Set([...seriesStudentIds, ...linkedStudentIds])];
+              
+              return `
+              <label>Enrolled Students (${allStudentIds.length})</label>
+              <div class="enrolled-students-list" style="border: 1px solid #e0e0e0; border-radius: 6px; max-height: 150px; overflow-y: auto;">
+                ${allStudentIds.map(studentId => {
+                  const student = (window.students || []).find(s => s.id === studentId);
+                  const name = student ? escapeHtml(student.name) : 'Unknown Student';
+                  const dispId = student ? escapeHtml(student.studentId) : studentId;
+                  const isSeries = seriesStudentIds.includes(studentId);
+                  
+                  return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
+                      ${!isSeries ? '<span style="font-size:11px; color:#999; margin-left:5px; background:#f3f4f6; padding:2px 6px; border-radius:4px;">Session</span>' : ''}
+                    </div>
+                    ${isSeries ? `<span style="cursor:pointer; color:#ef4444; font-weight:bold;" onclick="removeStudentTag('${studentId}')">×</span>` : ''}
+                  </div>`;
+                }).join('') || '<div style="padding: 15px; text-align: center; color: #999; font-style: italic;">No enrolled students</div>'}
+              </div>`;
+            })()}
           </div>
           <div class="edit-class-modal-actions">
             ${isEdit ? `<button type="button" class="btn btn-danger" onclick="deleteClassEntry('${entry.id}')">Delete</button>` : ''}
