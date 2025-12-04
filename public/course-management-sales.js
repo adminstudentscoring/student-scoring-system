@@ -337,77 +337,78 @@ function generateFutureClasses(entries, weeks = 8) {
   endDate.setDate(endDate.getDate() + (weeks * 7));
   
   entries.forEach(entry => {
-    if (entry.isRecurring) {
-      // Generate dates for recurring entry
-      // entry.dayOfWeek: "1" (Mon) - "7" (Sun) or "0" (Sun)? usually 1-7 in our app based on previous context (Mon=1)
-      // Actually let's check timetable.json format or assume standard ISO 1-7 (Mon-Sun) or 0-6 (Sun-Sat)
-      // In course-management-timetable.js, we see buttons data-day="1" (Mon). So 1=Mon.
-      
-      let current = new Date(now);
-      // Align to next occurrence of dayOfWeek
-      const targetDay = parseInt(entry.dayOfWeek); // 1-7
-      const currentDay = current.getDay() || 7; // Convert Sun(0) to 7 for easier calc
-      
-      let daysUntil = targetDay - currentDay;
-      if (daysUntil < 0) daysUntil += 7;
-      
-      current.setDate(current.getDate() + daysUntil);
-      
-      // If today is the day, check time. If passed, move to next week
-      if (daysUntil === 0) {
-        const [hours, mins] = entry.startTime.split(':');
-        const classTime = new Date(current);
-        classTime.setHours(parseInt(hours), parseInt(mins), 0);
-        if (classTime < now) {
+    if (entry.isRecurring && entry.dayOfWeek && Array.isArray(entry.dayOfWeek)) {
+      // Handle recurring entries for EACH day of week specified
+      entry.dayOfWeek.forEach(dayStr => {
+        let current = new Date(now);
+        const targetDay = parseInt(dayStr); // 1-7
+        const currentDay = current.getDay() || 7; // Convert Sun(0) to 7
+        
+        let daysUntil = targetDay - currentDay;
+        if (daysUntil < 0) daysUntil += 7;
+        
+        current.setDate(current.getDate() + daysUntil);
+        
+        // If today is the day, check time
+        if (daysUntil === 0) {
+          const [hours, mins] = entry.startTime.split(':');
+          const classTime = new Date(current);
+          classTime.setHours(parseInt(hours), parseInt(mins), 0);
+          if (classTime < now) {
+            current.setDate(current.getDate() + 7);
+          }
+        }
+        
+        while (current <= endDate) {
+          // Check start/end date constraints
+          const currentStr = formatDateForCompare(current);
+          let isValid = true;
+          
+          if (entry.startDate) {
+            const startStr = entry.startDate.split('T')[0];
+            if (currentStr < startStr) isValid = false;
+          }
+          if (entry.endDate) {
+            const endStr = entry.endDate.split('T')[0];
+            if (currentStr > endStr) isValid = false;
+          }
+          
+          if (isValid) {
+            classes.push({
+              date: new Date(current),
+              entry: entry,
+              id: `${entry.id}_${current.getTime()}`
+            });
+          }
+          
           current.setDate(current.getDate() + 7);
         }
-      }
+      });
+    } else if (!entry.isRecurring && entry.date) {
+      // Single entry
+      const entryDate = new Date(entry.date);
+      const [hours, mins] = entry.startTime.split(':');
+      entryDate.setHours(parseInt(hours), parseInt(mins), 0);
       
-      while (current <= endDate) {
-        // Check start/end date constraints of the recurring entry itself
-        const entryStart = entry.startDate ? new Date(entry.startDate) : null;
-        const entryEnd = entry.endDate ? new Date(entry.endDate) : null;
-        
-        // Reset time part of current for date comparison
-        const dateCheck = new Date(current);
-        dateCheck.setHours(0,0,0,0);
-        
-        let isValid = true;
-        if (entryStart) {
-          entryStart.setHours(0,0,0,0);
-          if (dateCheck < entryStart) isValid = false;
-        }
-        if (entryEnd) {
-          entryEnd.setHours(0,0,0,0);
-          if (dateCheck > entryEnd) isValid = false;
-        }
-        
-        if (isValid) {
-          classes.push({
-            date: new Date(current),
-            entry: entry,
-            id: `${entry.id}_${current.getTime()}` // Virtual ID
-          });
-        }
-        
-        current.setDate(current.getDate() + 7);
+      if (entryDate >= now) {
+         classes.push({
+           date: entryDate,
+           entry: entry,
+           id: entry.id
+         });
       }
-    } else {
-      // Single entry - check if in future
-      // Single entry usually has a specific date? 
-      // The current data structure for single entry might not have a date field if it was just "weekly repeat=false"
-      // If it's a one-off, it should have a date. 
-      // Based on previous turn: "startDate" and "endDate" were added. 
-      // If not recurring, it effectively happens once? Or is it just a template?
-      // If timetable entry doesn't have a date for single class, it's ambiguous. 
-      // Let's assume non-recurring entries are ignored here unless they have a specific date (which we haven't fully implemented for single-slot overrides yet).
-      // Or maybe we treat them as templates available every day? Unlikely.
-      // Let's stick to recurring for now as that's the main use case.
     }
   });
   
   // Sort by date
   return classes.sort((a, b) => a.date - b.date);
+}
+
+function formatDateForCompare(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function renderAvailableClasses(classes) {
