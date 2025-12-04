@@ -302,7 +302,8 @@ async function loadAvailableClasses(courseId) {
       throw new Error('Failed to load timetable');
     }
     
-    const allEntries = await response.json();
+    const data = await response.json();
+    const allEntries = data.entries || [];
     
     // Filter for this course
     const courseEntries = allEntries.filter(e => e.courseId === courseId);
