@@ -7339,8 +7339,10 @@ async function writeEnrollments(enrollments) {
 
 // Create Sales Order
 app.post('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  console.log('[DEBUG] POST /orders called');
   try {
     const { studentId, items, paymentStatus } = req.body;
+    console.log('[DEBUG] Order Payload:', { studentId, itemCount: items?.length, paymentStatus });
 
     if (!studentId || !items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'Invalid order data' });
@@ -7381,18 +7383,25 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
           const isRecurringInstance = cls.id.includes('_');
           const entryId = isRecurringInstance ? cls.id.split('_')[0] : cls.id;
           
+          console.log(`[DEBUG] Processing Item Class ID: ${cls.id}, EntryID: ${entryId}, isRecurring: ${isRecurringInstance}`);
+
           // Find Timetable Entry
           const entry = timetableData.entries.find(e => e.id === entryId);
           if (entry) {
+             console.log(`[DEBUG] Entry Found: ${entry.className}, isRecurring: ${entry.isRecurring}`);
              // If non-recurring, add to entry directly
              if (!entry.isRecurring) {
                if (!entry.studentIds.includes(studentId)) {
+                 console.log(`[DEBUG] Adding student ${studentId} to non-recurring entry ${entry.id}`);
                  entry.studentIds.push(studentId);
                  timetableModified = true;
+               } else {
+                 console.log(`[DEBUG] Student ${studentId} already in non-recurring entry ${entry.id}`);
                }
              } else {
                // Recurring Class - Add specific enrollment
                const dateStr = new Date(cls.date).toISOString().split('T')[0];
+               console.log(`[DEBUG] Processing recurring enrollment for date ${dateStr}`);
                
                const exists = enrollments.find(e => 
                  e.studentId === studentId && 
@@ -7401,6 +7410,7 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
                );
                
                if (!exists) {
+                 console.log(`[DEBUG] Adding new enrollment for recurring entry ${entry.id} on ${dateStr}`);
                  enrollments.push({
                    id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                    organizationId: orgUser.organizationId,
@@ -7410,8 +7420,12 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
                    type: 'single', 
                    orderId: newOrder.id
                  });
+               } else {
+                 console.log(`[DEBUG] Enrollment already exists for recurring entry ${entry.id} on ${dateStr}`);
                }
              }
+          } else {
+             console.log(`[DEBUG] Timetable Entry NOT FOUND for ID: ${entryId}`);
           }
         }
       }
@@ -7419,7 +7433,10 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
     
     await writeEnrollments(enrollments);
     if (timetableModified) {
+      console.log('[DEBUG] Writing updated timetable data');
       await writeTimetable(timetableData);
+    } else {
+      console.log('[DEBUG] No changes to timetable entries');
     }
     
     res.status(201).json(newOrder);
