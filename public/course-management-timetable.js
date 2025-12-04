@@ -893,9 +893,16 @@ window.openEditClassModal = function(entry) {
             </div>
           </div>
           <div class="edit-class-form-group">
-            <label>Enrolled Students</label>
-            <div style="padding: 20px; text-align: center; color: #999; border: 1px dashed #ddd; border-radius: 6px;">
-              Coming soon
+            <label>Enrolled Students (${(entryData.studentIds || []).length})</label>
+            <div class="enrolled-students-list" style="border: 1px solid #e0e0e0; border-radius: 6px; max-height: 150px; overflow-y: auto;">
+              ${(entryData.studentIds || []).map(studentId => {
+                const student = (window.students || []).find(s => s.id === studentId);
+                const name = student ? escapeHtml(student.name) : 'Unknown Student';
+                const dispId = student ? escapeHtml(student.studentId) : studentId;
+                return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px;">
+                  <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
+                </div>`;
+              }).join('') || '<div style="padding: 15px; text-align: center; color: #999; font-style: italic;">No enrolled students</div>'}
             </div>
           </div>
           <div class="edit-class-modal-actions">
@@ -918,6 +925,7 @@ window.openEditClassModal = function(entry) {
   window.selectedCourseIds = new Set(entryData.courseIds || []);
   window.selectedTeacherIds = new Set(entryData.teacherIds || []);
   window.selectedDays = new Set(entryData.dayOfWeek || []);
+  window.currentClassStudentIds = entryData.studentIds || []; // Store current students
 };
 
 // Generate time options
@@ -1088,6 +1096,31 @@ window.closeEditClassModal = function() {
   window.selectedDays = new Set();
 };
 
+// Remove student tag
+window.removeStudentTag = function(studentId) {
+  if (!window.currentClassStudentIds) return;
+  
+  window.currentClassStudentIds = window.currentClassStudentIds.filter(id => id !== studentId);
+  
+  // Remove from DOM
+  const tags = document.querySelectorAll('#selectedStudents .tag-selector-tag');
+  tags.forEach(tag => {
+    if (tag.innerHTML.includes(`removeStudentTag('${studentId}')`)) {
+      tag.remove();
+    }
+  });
+  
+  // Update label count
+  const label = document.querySelector('.edit-class-form-group label[for="Enrolled Students"]'); // No for attribute on label
+  // Find the label by text content or structure
+  const labels = document.querySelectorAll('.edit-class-form-group label');
+  labels.forEach(l => {
+    if (l.textContent.includes('Enrolled Students')) {
+      l.textContent = `Enrolled Students (${window.currentClassStudentIds.length})`;
+    }
+  });
+};
+
 // Save class entry
 window.saveClassEntry = async function(event, entryId) {
   event.preventDefault();
@@ -1119,7 +1152,7 @@ window.saveClassEntry = async function(event, entryId) {
 
   const courseIds = Array.from(window.selectedCourseIds || []);
   const teacherIds = Array.from(window.selectedTeacherIds || []);
-  const studentIds = []; // Coming soon
+  const studentIds = window.currentClassStudentIds || [];
 
   // Validation
   let hasError = false;
