@@ -7379,14 +7379,27 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
     for (const item of items) {
       if (item.enrolledClasses && Array.isArray(item.enrolledClasses)) {
         for (const cls of item.enrolledClasses) {
-          // cls.id format: "entryId" (single) or "entryId_timestamp" (recurring instance)
-          const isRecurringInstance = cls.id.includes('_');
-          const entryId = isRecurringInstance ? cls.id.split('_')[0] : cls.id;
+          let entryId = cls.id;
           
-          console.log(`[DEBUG] Processing Item Class ID: ${cls.id}, EntryID: ${entryId}, isRecurring: ${isRecurringInstance}`);
+          // Try to find exact match first (for Single classes or raw IDs)
+          let entry = timetableData.entries.find(e => e.id === entryId);
+          
+          // If not found, check if it's a recurring instance (ID_Timestamp)
+          if (!entry && cls.id.includes('_')) {
+             // Try removing the last segment (timestamp)
+             const lastUnderscoreIndex = cls.id.lastIndexOf('_');
+             if (lastUnderscoreIndex > -1) {
+                 const potentialId = cls.id.substring(0, lastUnderscoreIndex);
+                 const potentialEntry = timetableData.entries.find(e => e.id === potentialId);
+                 if (potentialEntry) {
+                     entry = potentialEntry;
+                     entryId = potentialId;
+                 }
+             }
+          }
+          
+          console.log(`[DEBUG] Processing Item Class ID: ${cls.id}, Resolved EntryID: ${entryId}, Entry Found: ${!!entry}`);
 
-          // Find Timetable Entry
-          const entry = timetableData.entries.find(e => e.id === entryId);
           if (entry) {
              console.log(`[DEBUG] Entry Found: ${entry.className}, isRecurring: ${entry.isRecurring}`);
              // If non-recurring, add to entry directly
@@ -7400,6 +7413,12 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
                }
              } else {
                // Recurring Class - Add specific enrollment
+               // Logic: For recurring classes, the cart item ID should ideally be the composite ID.
+               // But if we matched exact ID above, it implies we passed the RAW ID for a recurring class? 
+               // That shouldn't happen via generateFutureClasses, but if it does, we treat it as 'All'?
+               // No, generateFutureClasses appends timestamp.
+               
+               // Re-derive date from cls.date (safest)
                const dateStr = new Date(cls.date).toISOString().split('T')[0];
                console.log(`[DEBUG] Processing recurring enrollment for date ${dateStr}`);
                
@@ -7425,7 +7444,7 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
                }
              }
           } else {
-             console.log(`[DEBUG] Timetable Entry NOT FOUND for ID: ${entryId}`);
+             console.log(`[DEBUG] Timetable Entry NOT FOUND for ID: ${entryId} (Original: ${cls.id})`);
           }
         }
       }
