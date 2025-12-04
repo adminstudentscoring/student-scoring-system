@@ -1499,11 +1499,14 @@ style.textContent = `
   }
   
   .product-type-badge {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
+    display: inline-block;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    width: fit-content;
+    color: #fff;
+    font-weight: 500;
   }
   
   .product-type-badge.package {
@@ -1519,7 +1522,7 @@ style.textContent = `
     color: #333;
     margin-bottom: 10px;
     font-size: 15px;
-    padding-left: 10px;
+    padding-left: 0;
   }
   
   .product-footer {
@@ -1527,7 +1530,7 @@ style.textContent = `
     justify-content: space-between;
     align-items: flex-end;
     margin-top: 10px;
-    padding-left: 10px;
+    padding-left: 0;
   }
   
   .product-info {
@@ -1832,6 +1835,187 @@ style.textContent = `
     .form-row {
       grid-template-columns: 1fr;
     }
+  }
+
+  /* Sales Class Selection Styles */
+  .class-selection-header {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f8f9fa;
+  }
+  
+  .btn-back {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 14px;
+    cursor: pointer;
+    margin-right: 15px;
+    padding: 5px;
+    font-weight: 500;
+  }
+  
+  .btn-back:hover {
+    text-decoration: underline;
+  }
+  
+  .selection-title h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #333;
+  }
+  
+  .selection-subtitle {
+    font-size: 12px;
+    color: #666;
+  }
+  
+  .class-selection-controls {
+    padding: 15px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+  }
+  
+  .selection-mode {
+    display: flex;
+    gap: 15px;
+  }
+  
+  .selection-mode label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+  }
+  
+  .lessons-count {
+    font-size: 14px;
+    color: #666;
+  }
+  
+  .available-classes-list {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  
+  .class-selection-item {
+    margin-bottom: 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  
+  .class-selection-item:hover {
+    border-color: #667eea;
+    background: #f8f9fa;
+  }
+  
+  .class-checkbox-label {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    width: 100%;
+  }
+  
+  .class-select-cb {
+    margin-right: 15px;
+    width: 18px;
+    height: 18px;
+  }
+  
+  .class-info {
+    flex: 1;
+  }
+  
+  .class-date {
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .class-time {
+    color: #666;
+    font-size: 13px;
+  }
+  
+  .class-teacher {
+    color: #888;
+    font-size: 12px;
+  }
+  
+  .class-selection-actions {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+  }
+  
+  .btn-block {
+    display: block;
+    width: 100%;
+  }
+  
+  /* Cart Item Styles */
+  .cart-item {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  
+  .cart-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+  
+  .cart-item-title {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+  }
+  
+  .cart-item-price {
+    font-weight: bold;
+    color: #333;
+  }
+  
+  .cart-item-details {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+  }
+  
+  .btn-remove-item {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+  }
+  
+  .btn-remove-item:hover {
+    text-decoration: underline;
+  }
+  
+  .cart-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 0;
+    border-top: 2px solid #e0e0e0;
+    margin-top: 15px;
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
   }
 `;
 
