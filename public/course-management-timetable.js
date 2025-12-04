@@ -709,6 +709,10 @@ window.openCreateClassModal = function() {
 };
 
 window.openEditClassModal = function(entry) {
+  console.log('[Debug] Opening Edit Class Modal');
+  console.log('[Debug] Entry Data:', entry);
+  console.log('[Debug] Window Students:', window.students);
+
   // Remove existing modal if any
   const existingModal = document.getElementById('editClassModal');
   if (existingModal) {
