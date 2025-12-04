@@ -18,9 +18,22 @@ let salesState = {
 };
 
 // Initialize Sales Module
-window.loadSalesModule = function() {
+window.loadSalesModule = async function() {
   loadSalesProducts();
-  // Initialize student search is handled by event listeners in HTML
+  
+  // Preload Timetable Data for Enrollments History
+  try {
+    if (window.authUtils) {
+      const response = await window.authUtils.authenticatedFetch('/organizations/timetable');
+      if (response && response.ok) {
+        const data = await response.json();
+        window.timetableEntries = data.entries || [];
+        window.timetableEnrollments = data.enrollments || [];
+      }
+    }
+  } catch (e) {
+    console.error('Failed to preload timetable for sales:', e);
+  }
   
   // Setup event listeners if not already set
   setupSalesEventListeners();
@@ -309,6 +322,10 @@ async function loadAvailableClasses(courseId) {
     
     const data = await response.json();
     const allEntries = data.entries || [];
+    
+    // Sync global data for Sales module
+    window.timetableEntries = allEntries;
+    window.timetableEnrollments = data.enrollments || [];
     
     // Filter for this course
     const courseEntries = allEntries.filter(e => {
