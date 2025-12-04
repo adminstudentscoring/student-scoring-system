@@ -3314,7 +3314,7 @@ app.get('/api/organizations/timetable', authenticateUser, requireOrganizationAcc
     if (req.organizationFilter) {
       filteredEnrollments = enrollmentsData.filter(e => e.organizationId === req.organizationFilter);
     }
-
+    
     res.json({
       entries: filteredEntries,
       metadata: timetableData.metadata,

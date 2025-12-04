@@ -1,0 +1,56 @@
+[
+  {
+    "id": "order_1764824636828_zinzjquyy",
+    "organizationId": "1764824535502",
+    "studentId": "1764824560014",
+    "date": "2025-12-04T05:03:56.828Z",
+    "status": "unpaid",
+    "items": [
+      {
+        "id": "1764824635372",
+        "productType": "course",
+        "productData": {
+          "id": "course_1764824607927",
+          "organizationId": "1764824535502",
+          "name": "Testing 1 Course",
+          "price": 250,
+          "color": "#3b82f6",
+          "category": null,
+          "level": null,
+          "description": null,
+          "createdAt": "2025-12-04T05:03:27.927Z",
+          "updatedAt": "2025-12-04T05:03:27.927Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2025-12-05T00:00:00.000Z",
+            "entry": {
+              "id": "timetable_1764824588220_p8u5fxomy",
+              "organizationId": "1764824535502",
+              "className": "Testing Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": false,
+              "dayOfWeek": null,
+              "date": "2025-12-05",
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1764824607927"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "createdAt": "2025-12-04T05:03:08.220Z",
+              "updatedAt": "2025-12-04T05:03:45.710Z"
+            },
+            "id": "timetable_1764824588220_p8u5fxomy"
+          }
+        ],
+        "price": 250
+      }
+    ],
+    "totalAmount": 250,
+    "createdBy": "1764824535504"
+  }
+]

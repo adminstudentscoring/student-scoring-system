@@ -1,0 +1,31 @@
+{
+  "entries": [
+    {
+      "id": "timetable_1764824588220_p8u5fxomy",
+      "organizationId": "1764824535502",
+      "className": "Testing Class",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "isRecurring": false,
+      "dayOfWeek": null,
+      "date": "2025-12-05",
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [
+        "course_1764824607927"
+      ],
+      "teacherIds": [],
+      "classroom": null,
+      "studentIds": [],
+      "createdAt": "2025-12-04T05:03:08.220Z",
+      "updatedAt": "2025-12-04T05:03:45.710Z"
+    }
+  ],
+  "metadata": {
+    "classNames": [
+      "Testing Class"
+    ],
+    "classrooms": [],
+    "lastUpdate": "2025-12-04T05:03:45.710Z"
+  }
+}

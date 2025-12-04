@@ -365,6 +365,7 @@ function generateFutureClasses(entries, weeks = 8) {
   entries.forEach(entry => {
     if (entry.isRecurring && entry.dayOfWeek && Array.isArray(entry.dayOfWeek)) {
       entry.dayOfWeek.forEach(dayStr => {
+        console.log(`[DEBUG] Processing Recurring Entry: ${entry.className}, Day: ${dayStr}`);
         let current = new Date(startCheck);
         
         // Map day name to 0-6 (Sun-Sat)
@@ -374,35 +375,34 @@ function generateFutureClasses(entries, weeks = 8) {
         };
         
         let targetDay;
-        // Handle both "1" (string number) and "Monday" (name)
-        if (!isNaN(parseInt(dayStr))) {
+        const dayKey = String(dayStr).trim().toLowerCase();
+        
+        if (!isNaN(parseInt(dayStr)) && parseInt(dayStr) >= 0 && parseInt(dayStr) <= 6) {
+           // Assume 0=Sun..6=Sat if integer provided (JS standard)
            targetDay = parseInt(dayStr); 
-           // Adjust if backend uses 1=Mon...7=Sun to JS 0=Sun...6=Sat?
-           // Assuming backend 1=Mon is standard ISO but JS is 0=Sun.
-           // If backend sends "1", usually it implies Mon?
-           // Let's rely on day names primarily as that's what timetable.js saves.
         } else {
-           targetDay = dayMap[dayStr.toLowerCase()];
+           targetDay = dayMap[dayKey];
         }
         
-        if (targetDay === undefined) return;
+        console.log(`[DEBUG] Generating Future: DayStr='${dayStr}', Target=${targetDay}`);
+        
+        if (targetDay === undefined) {
+            console.warn(`[DEBUG] Invalid day string: ${dayStr}`);
+            return;
+        }
 
         const currentDay = current.getDay(); // 0=Sun...6=Sat
         
         let daysUntil = targetDay - currentDay;
         if (daysUntil < 0) daysUntil += 7;
         
+        // Important: If today is the target day, daysUntil is 0. 
+        // But if the time has passed? The logic below handles startCheck.
+        // If we want to include today, keep 0.
+        
         current.setDate(current.getDate() + daysUntil);
         
-        // If today is the day, check time
-        if (daysUntil === 0) {
-          const [hours, mins] = entry.startTime.split(':');
-          const classTime = new Date(current);
-          classTime.setHours(parseInt(hours), parseInt(mins), 0);
-          // If class passed today, it's still "today's class" historically, 
-          // but for booking future classes we might want to skip.
-          // Let's keep it for now, logic can filter later if needed.
-        }
+        console.log(`[DEBUG] Start Date adjusted to first instance: ${current.toDateString()}`);
         
         while (current <= endDate) {
           const currentStr = formatDateForCompare(current);
@@ -641,6 +641,15 @@ function updateDaySchedule() {
       buttonsHtml += `
         <div class="enroll-option">
           <span class="option-label">All lessons (${lessonCount} lessons from this date)</span>
+          <button class="btn btn-sm btn-primary" onclick="enrollConsecutive('${cls.id}', ${lessonCount})">Enroll</button>
+        </div>
+      `;
+    } else if (productType === 'course' && salesState.selectedProduct) {
+      // Enable "Enroll Next 4" for single courses too, as requested
+      const lessonCount = 4;
+      buttonsHtml += `
+        <div class="enroll-option">
+          <span class="option-label">Next 4 lessons</span>
           <button class="btn btn-sm btn-primary" onclick="enrollConsecutive('${cls.id}', ${lessonCount})">Enroll</button>
         </div>
       `;

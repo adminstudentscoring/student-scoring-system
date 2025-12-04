@@ -1,0 +1,17 @@
+{
+  "courses": [
+    {
+      "id": "course_1764824607927",
+      "organizationId": "1764824535502",
+      "name": "Testing 1 Course",
+      "price": 250,
+      "color": "#3b82f6",
+      "category": null,
+      "level": null,
+      "description": null,
+      "createdAt": "2025-12-04T05:03:27.927Z",
+      "updatedAt": "2025-12-04T05:03:27.927Z"
+    }
+  ],
+  "lastUpdate": "2025-12-04T05:03:27.927Z"
+}

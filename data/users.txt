@@ -1,4 +1,28 @@
 {
-  "users": [],
-  "lastUpdate": ""
+  "users": [
+    {
+      "id": "1764824535504",
+      "email": "1234567@gmail.com",
+      "password": "$2b$10$D7ooNT/qH1oiGHJUy/4ryuqHHqG4aRwx1UYabDDdR6LHDU82g3GwS",
+      "name": "1234567",
+      "role": "organization",
+      "organizationId": "1764824535502",
+      "createdAt": "2025-12-04T05:02:15.504Z"
+    },
+    {
+      "id": "1764824550708",
+      "email": "vctesting",
+      "username": "vctesting",
+      "password": "$2b$10$TMwDY/QZG.UjSmr6bTpvcemtZtRqL9r/cCMjmKZYTrUScUf2/nYe6",
+      "name": "Testing",
+      "teacherId": "vctesting",
+      "gender": "male",
+      "role": "teacher",
+      "organizationId": "1764824535502",
+      "createdAt": "2025-12-04T05:02:30.708Z",
+      "classViewStudents": [],
+      "assignedStudents": []
+    }
+  ],
+  "lastUpdate": "2025-12-04T05:02:30.708Z"
 }
