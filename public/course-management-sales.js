@@ -418,8 +418,15 @@ function generateFutureClasses(entries, weeks = 8) {
           }
           
           if (isValid) {
+            // Local date string YYYY-MM-DD
+            const yyyy = current.getFullYear();
+            const mm = String(current.getMonth() + 1).padStart(2, '0');
+            const dd = String(current.getDate()).padStart(2, '0');
+            const dateString = `${yyyy}-${mm}-${dd}`;
+
             classes.push({
               date: new Date(current),
+              dateString: dateString,
               entry: entry,
               id: `${entry.id}_${current.getTime()}`
             });
@@ -434,8 +441,14 @@ function generateFutureClasses(entries, weeks = 8) {
       entryDate.setHours(parseInt(hours), parseInt(mins), 0);
       
       if (entryDate >= startCheck) {
+         const yyyy = entryDate.getFullYear();
+         const mm = String(entryDate.getMonth() + 1).padStart(2, '0');
+         const dd = String(entryDate.getDate()).padStart(2, '0');
+         const dateString = `${yyyy}-${mm}-${dd}`;
+
          classes.push({
            date: entryDate,
+           dateString: dateString,
            entry: entry,
            id: entry.id
          });
@@ -790,12 +803,18 @@ function findClassInstance(id) {
 function addToCart(selectedClasses) {
   if (selectedClasses.length === 0) return;
   
+  // Format classes for order (Ensure Date is YYYY-MM-DD string to prevent timezone shifts)
+  const formattedClasses = selectedClasses.map(cls => ({
+      ...cls,
+      date: formatDateForCompare(cls.date) // e.g. "2025-12-08"
+  }));
+  
   // Create Order Item
   const orderItem = {
     id: Date.now().toString(),
     productType: salesState.selectedProduct.type,
     productData: salesState.selectedProduct.data,
-    enrolledClasses: selectedClasses,
+    enrolledClasses: formattedClasses,
     price: salesState.selectedProduct.type === 'package' 
       ? calculateSalesPackagePrice(salesState.selectedProduct.data)
       : parseFloat(salesState.selectedProduct.data.price) * selectedClasses.length

@@ -7402,46 +7402,38 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
 
           if (entry) {
              console.log(`[DEBUG] Entry Found: ${entry.className}, isRecurring: ${entry.isRecurring}`);
-             // If non-recurring, add to entry directly
-             if (!entry.isRecurring) {
-               if (!entry.studentIds.includes(studentId)) {
-                 console.log(`[DEBUG] Adding student ${studentId} to non-recurring entry ${entry.id}`);
-                 entry.studentIds.push(studentId);
-                 timetableModified = true;
-               } else {
-                 console.log(`[DEBUG] Student ${studentId} already in non-recurring entry ${entry.id}`);
-               }
+             
+             // Unified Logic: Always add to enrollments (single instance record)
+             // Use dateString from frontend if available (safe local date), otherwise fallback
+             let dateStr;
+             if (cls.dateString) {
+                 dateStr = cls.dateString;
              } else {
-               // Recurring Class - Add specific enrollment
-               // Logic: For recurring classes, the cart item ID should ideally be the composite ID.
-               // But if we matched exact ID above, it implies we passed the RAW ID for a recurring class? 
-               // That shouldn't happen via generateFutureClasses, but if it does, we treat it as 'All'?
-               // No, generateFutureClasses appends timestamp.
-               
-               // Re-derive date from cls.date (safest)
-               const dateStr = new Date(cls.date).toISOString().split('T')[0];
-               console.log(`[DEBUG] Processing recurring enrollment for date ${dateStr}`);
-               
-               const exists = enrollments.find(e => 
-                 e.studentId === studentId && 
-                 e.timetableEntryId === entryId && 
-                 e.date === dateStr
-               );
-               
-               if (!exists) {
-                 console.log(`[DEBUG] Adding new enrollment for recurring entry ${entry.id} on ${dateStr}`);
-                 enrollments.push({
-                   id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                   organizationId: orgUser.organizationId,
-                   studentId,
-                   timetableEntryId: entryId,
-                   date: dateStr,
-                   type: 'single', 
-                   orderId: newOrder.id
-                 });
-               } else {
-                 console.log(`[DEBUG] Enrollment already exists for recurring entry ${entry.id} on ${dateStr}`);
-               }
+                 dateStr = new Date(cls.date).toISOString().split('T')[0];
+             }
+             
+             console.log(`[DEBUG] Processing enrollment for date ${dateStr}`);
+             
+             // Check duplicates
+             const exists = enrollments.find(e => 
+               e.studentId === studentId && 
+               e.timetableEntryId === entry.id && 
+               e.date === dateStr
+             );
+             
+             if (!exists) {
+               console.log(`[DEBUG] Adding new enrollment for entry ${entry.id} on ${dateStr}`);
+               enrollments.push({
+                 id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                 organizationId: orgUser.organizationId,
+                 studentId,
+                 timetableEntryId: entry.id,
+                 date: dateStr,
+                 type: 'single', 
+                 orderId: newOrder.id
+               });
+             } else {
+               console.log(`[DEBUG] Enrollment already exists for entry ${entry.id} on ${dateStr}`);
              }
           } else {
              console.log(`[DEBUG] Timetable Entry NOT FOUND for ID: ${entryId} (Original: ${cls.id})`);
@@ -7501,7 +7493,13 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
              // Check if this enrollment corresponds to one of these classes
              // We match by Date and Entry ID (fuzzy match for Entry ID due to recurrence suffix)
              const match = item.enrolledClasses.some(cls => {
-                 const clsDate = new Date(cls.date).toISOString().split('T')[0];
+                 let clsDate;
+                 if (cls.dateString) {
+                     clsDate = cls.dateString;
+                 } else {
+                     clsDate = new Date(cls.date).toISOString().split('T')[0];
+                 }
+                 
                  if (clsDate !== enrollment.date) return false;
                  
                  // Check ID
