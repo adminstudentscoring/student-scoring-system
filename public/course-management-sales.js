@@ -106,7 +106,8 @@ function renderSalesProducts(category = 'all', searchTerm = '', packages = []) {
   
   container.innerHTML = items.map(item => `
     <div class="sales-product-card ${item.type}" onclick="handleProductSelect('${item.type}', '${item.data.id}')">
-      <div class="product-type-badge ${item.type}">${item.type === 'package' ? 'Multiple courses' : 'Single Lesson'}</div>
+      <div class="product-type-badge ${item.type}"></div>
+      <div class="product-type-label">${item.type === 'package' ? 'Multiple courses' : 'Single Lesson'}</div>
       <div class="product-name">${escapeHtml(item.name)}</div>
       <div class="product-footer">
         <div class="product-info">${item.info}</div>
@@ -756,13 +757,82 @@ window.resetSales = function() {
   showProductList();
 };
 
-window.saveSalesOrder = function() {
-  alert('Save functionality coming soon');
+window.saveSalesOrder = async function() {
+  await submitSalesOrder('unpaid');
 };
 
-window.processSalesPayment = function() {
-  alert('Payment functionality coming soon');
+window.processSalesPayment = async function() {
+  await submitSalesOrder('paid');
 };
+
+async function submitSalesOrder(status) {
+  if (salesState.cart.length === 0) {
+    if (window.showToast) window.showToast('Cart is empty', 'error');
+    else alert('Cart is empty');
+    return;
+  }
+  
+  if (!salesState.selectedStudent) {
+    if (window.showToast) window.showToast('No student selected', 'error');
+    else alert('No student selected');
+    return;
+  }
+  
+  // Use button reference
+  const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
+  const saveBtn = document.querySelector('.sales-footer-actions .btn-secondary'); // Assuming Save is the secondary button
+  const activeBtn = status === 'paid' ? payBtn : saveBtn;
+  const originalText = activeBtn ? activeBtn.textContent : '';
+  
+  if (activeBtn) {
+    activeBtn.textContent = 'Processing...';
+    activeBtn.disabled = true;
+  }
+  
+  const payload = {
+    studentId: salesState.selectedStudent.id,
+    items: salesState.cart,
+    paymentStatus: status
+  };
+  
+  try {
+     const response = await window.authUtils.authenticatedFetch('/organizations/orders', {
+       method: 'POST',
+       body: JSON.stringify(payload)
+     });
+     
+     if (response && response.ok) {
+       const order = await response.json();
+       if (window.showToast) window.showToast(status === 'paid' ? 'Payment successful!' : 'Order saved!', 'success');
+       else alert(status === 'paid' ? 'Payment successful!' : 'Order saved!');
+       
+       resetSales();
+       
+       // Refresh Timetable if function exists
+       if (typeof window.loadTimetableData === 'function') {
+         window.loadTimetableData();
+       }
+     } else {
+       let errorMsg = 'Failed to save order';
+       try {
+         const err = await response.json();
+         errorMsg = err.error || errorMsg;
+       } catch(e) {}
+       
+       if (window.showToast) window.showToast(errorMsg, 'error');
+       else alert(errorMsg);
+     }
+  } catch (e) {
+    console.error('Order Error:', e);
+    if (window.showToast) window.showToast('Error processing order', 'error');
+    else alert('Error processing order');
+  } finally {
+    if (activeBtn) {
+       activeBtn.textContent = originalText;
+       activeBtn.disabled = false;
+     }
+  }
+}
 
 function renderSalesCart() {
   const container = document.getElementById('salesCartContent');
@@ -1062,6 +1132,15 @@ salesStyles.textContent = `
   .option-label {
     font-size: 12px;
     color: #555;
+  }
+  
+  .product-type-label {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    padding-left: 10px;
+    font-weight: 600;
   }
   
   .empty-day-state {

@@ -25,6 +25,8 @@ const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE |
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
 const PACKAGES_FILE = path.join(__dirname, process.env.PACKAGES_FILE || path.join(DATA_DIR, 'packages.json'));
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
+const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
+const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Import authentication utilities
@@ -3307,9 +3309,16 @@ app.get('/api/organizations/timetable', authenticateUser, requireOrganizationAcc
       filteredEntries = timetableData.entries.filter(e => e.organizationId === req.organizationFilter);
     }
     
+    const enrollmentsData = await readEnrollments();
+    let filteredEnrollments = enrollmentsData;
+    if (req.organizationFilter) {
+      filteredEnrollments = enrollmentsData.filter(e => e.organizationId === req.organizationFilter);
+    }
+
     res.json({
       entries: filteredEntries,
-      metadata: timetableData.metadata
+      metadata: timetableData.metadata,
+      enrollments: filteredEnrollments
     });
   } catch (error) {
     console.error('Error getting timetable:', error);
@@ -7281,6 +7290,142 @@ app.post('/api/reset', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reset scores' });
+  }
+});
+
+// Read orders data
+async function readOrders() {
+  try {
+    const content = await fs.readFile(ORDERS_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Error reading orders:', error);
+    return [];
+  }
+}
+
+// Write orders data
+async function writeOrders(orders) {
+  try {
+    await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing orders:', error);
+    return false;
+  }
+}
+
+// Read enrollments data
+async function readEnrollments() {
+  try {
+    const content = await fs.readFile(ENROLLMENTS_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Error reading enrollments:', error);
+    return [];
+  }
+}
+
+// Write enrollments data
+async function writeEnrollments(enrollments) {
+  try {
+    await fs.writeFile(ENROLLMENTS_FILE, JSON.stringify(enrollments, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing enrollments:', error);
+    return false;
+  }
+}
+
+// Create Sales Order
+app.post('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { studentId, items, paymentStatus } = req.body;
+
+    if (!studentId || !items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Invalid order data' });
+    }
+    
+    // Check organization access
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    if (!orgUser || !orgUser.organizationId) {
+      return res.status(403).json({ error: 'Organization not found' });
+    }
+
+    // 1. Save Order
+    const orders = await readOrders();
+    const newOrder = {
+      id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      organizationId: orgUser.organizationId,
+      studentId,
+      date: new Date().toISOString(),
+      status: paymentStatus || 'unpaid', // unpaid, paid
+      items: items, // Store full structure
+      totalAmount: items.reduce((sum, item) => sum + (item.price || 0), 0),
+      createdBy: req.user.id
+    };
+    
+    orders.push(newOrder);
+    await writeOrders(orders);
+    
+    // 2. Process Enrollments
+    const enrollments = await readEnrollments();
+    const timetableData = await readTimetable();
+    let timetableModified = false;
+    
+    for (const item of items) {
+      if (item.enrolledClasses && Array.isArray(item.enrolledClasses)) {
+        for (const cls of item.enrolledClasses) {
+          // cls.id format: "entryId" (single) or "entryId_timestamp" (recurring instance)
+          const isRecurringInstance = cls.id.includes('_');
+          const entryId = isRecurringInstance ? cls.id.split('_')[0] : cls.id;
+          
+          // Find Timetable Entry
+          const entry = timetableData.entries.find(e => e.id === entryId);
+          if (entry) {
+             // If non-recurring, add to entry directly
+             if (!entry.isRecurring) {
+               if (!entry.studentIds.includes(studentId)) {
+                 entry.studentIds.push(studentId);
+                 timetableModified = true;
+               }
+             } else {
+               // Recurring Class - Add specific enrollment
+               const dateStr = new Date(cls.date).toISOString().split('T')[0];
+               
+               const exists = enrollments.find(e => 
+                 e.studentId === studentId && 
+                 e.timetableEntryId === entryId && 
+                 e.date === dateStr
+               );
+               
+               if (!exists) {
+                 enrollments.push({
+                   id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                   organizationId: orgUser.organizationId,
+                   studentId,
+                   timetableEntryId: entryId,
+                   date: dateStr,
+                   type: 'single', 
+                   orderId: newOrder.id
+                 });
+               }
+             }
+          }
+        }
+      }
+    }
+    
+    await writeEnrollments(enrollments);
+    if (timetableModified) {
+      await writeTimetable(timetableData);
+    }
+    
+    res.status(201).json(newOrder);
+  } catch (error) {
+    console.error('Error creating order:', error);
+    res.status(500).json({ error: 'Failed to create order' });
   }
 });
 

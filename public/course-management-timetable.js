@@ -3,6 +3,7 @@
 
 // State
 let timetableEntries = [];
+let timetableEnrollments = [];
 let timetableMetadata = { classNames: [], classrooms: [] };
 // Note: courses variable is shared from course-management.js
 let teachers = [];
@@ -32,6 +33,7 @@ async function loadTimetableData() {
     
     const data = await response.json();
     timetableEntries = data.entries || [];
+    timetableEnrollments = data.enrollments || [];
     timetableMetadata = data.metadata || { classNames: [], classrooms: [] };
     
     renderTimetable();
@@ -347,6 +349,16 @@ function renderEntryInCell(entry, day, date) {
     return teacher ? teacher.name : '';
   }).filter(Boolean).join(', ');
   
+  // Calculate student count
+  const baseStudents = entry.studentIds ? entry.studentIds.length : 0;
+  const dateStr = formatDateISO(date);
+  const extraStudents = (timetableEnrollments || []).filter(e => 
+    e.timetableEntryId === entry.id && 
+    e.date === dateStr && 
+    e.type === 'single'
+  ).length;
+  const totalStudents = baseStudents + extraStudents;
+  
   const entryEl = document.createElement('div');
   entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
   entryEl.style.cssText = `
@@ -376,8 +388,8 @@ function renderEntryInCell(entry, day, date) {
     content += `<div class="timetable-entry-classroom">${escapeHtml(entry.classroom)}</div>`;
   }
   
-  if (height >= 75 && entry.studentIds.length > 0) {
-    content += `<div class="timetable-entry-students">${entry.studentIds.length} student(s)</div>`;
+  if (height >= 75 && totalStudents > 0) {
+    content += `<div class="timetable-entry-students">${totalStudents} student(s)</div>`;
   }
   
   entryEl.innerHTML = content;
@@ -549,6 +561,16 @@ function renderEntryInDayCell(entry, date) {
     return teacher ? teacher.name : '';
   }).filter(Boolean).join(', ');
   
+  // Calculate student count
+  const baseStudents = entry.studentIds ? entry.studentIds.length : 0;
+  const dateStr = formatDateISO(date);
+  const extraStudents = (timetableEnrollments || []).filter(e => 
+    e.timetableEntryId === entry.id && 
+    e.date === dateStr && 
+    e.type === 'single'
+  ).length;
+  const totalStudents = baseStudents + extraStudents;
+  
   const entryEl = document.createElement('div');
   entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
   entryEl.style.cssText = `
@@ -578,8 +600,8 @@ function renderEntryInDayCell(entry, date) {
     content += `<div class="timetable-entry-classroom">${escapeHtml(entry.classroom)}</div>`;
   }
   
-  if (height >= 75 && entry.studentIds.length > 0) {
-    content += `<div class="timetable-entry-students">${entry.studentIds.length} student(s)</div>`;
+  if (height >= 75 && totalStudents > 0) {
+    content += `<div class="timetable-entry-students">${totalStudents} student(s)</div>`;
   }
   
   entryEl.innerHTML = content;
