@@ -34,6 +34,10 @@ async function loadTimetableData() {
     const data = await response.json();
     timetableEntries = data.entries || [];
     timetableEnrollments = data.enrollments || [];
+    // Expose globally for Sales module
+    window.timetableEntries = timetableEntries;
+    window.timetableEnrollments = timetableEnrollments;
+
     timetableMetadata = data.metadata || { classNames: [], classrooms: [] };
     
     renderTimetable();

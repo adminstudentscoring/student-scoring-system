@@ -7465,6 +7465,127 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
   }
 });
 
+// Drop Enrollment / Refund
+app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { studentId, mode, enrollmentId, timetableEntryId, date, courseId } = req.body;
+    
+    if (!studentId || !mode) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const users = await readUsers();
+    const studentIndex = users.findIndex(u => u.id === studentId);
+    if (studentIndex === -1) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    let enrollments = await readEnrollments();
+    const orders = await readOrders();
+    const timetableData = await readTimetable();
+    
+    let refundAmount = 0;
+    let droppedCount = 0;
+    
+    // Helper to calculate refund value for a single enrollment
+    const getRefundValue = (enrollment) => {
+       if (!enrollment.orderId) return 0;
+       const order = orders.find(o => o.id === enrollment.orderId);
+       
+       // Only refund if Paid
+       if (!order || order.status !== 'paid') return 0;
+
+       // Find the item in the order
+       for (const item of order.items) {
+          if (item.enrolledClasses && Array.isArray(item.enrolledClasses)) {
+             // Check if this enrollment corresponds to one of these classes
+             // We match by Date and Entry ID (fuzzy match for Entry ID due to recurrence suffix)
+             const match = item.enrolledClasses.some(cls => {
+                 const clsDate = new Date(cls.date).toISOString().split('T')[0];
+                 if (clsDate !== enrollment.date) return false;
+                 
+                 // Check ID
+                 if (cls.id === enrollment.timetableEntryId) return true;
+                 if (cls.id.startsWith(enrollment.timetableEntryId + '_')) return true;
+                 if (enrollment.timetableEntryId.startsWith(cls.id + '_')) return true; // Unlikely
+                 
+                 // Also try robust ID resolution logic from POST /orders if needed
+                 // But generally, enrollment.timetableEntryId is the Resolved ID.
+                 // And cls.id is likely the Resolved ID or Recurring ID.
+                 return cls.id.includes(enrollment.timetableEntryId);
+             });
+             
+             if (match) {
+                 const count = item.enrolledClasses.length || 1;
+                 return (item.price || 0) / count;
+             }
+          }
+       }
+       return 0;
+    };
+
+    if (mode === 'single') {
+        let targetIndex = -1;
+        if (enrollmentId) {
+            targetIndex = enrollments.findIndex(e => e.id === enrollmentId);
+        } else if (timetableEntryId && date) {
+            targetIndex = enrollments.findIndex(e => e.studentId === studentId && e.timetableEntryId === timetableEntryId && e.date === date);
+        }
+        
+        if (targetIndex !== -1) {
+            const enrollment = enrollments[targetIndex];
+            refundAmount += getRefundValue(enrollment);
+            enrollments.splice(targetIndex, 1);
+            droppedCount++;
+        }
+    } else if (mode === 'all') {
+        if (!courseId) return res.status(400).json({ error: 'Course ID required for Drop All' });
+        
+        const today = new Date().toISOString().split('T')[0];
+        const newEnrollments = [];
+        
+        for (const e of enrollments) {
+            let shouldDrop = false;
+            if (e.studentId === studentId && e.date >= today) {
+                // Check if enrollment belongs to the course
+                // e.timetableEntryId
+                const entry = timetableData.entries.find(ent => ent.id === e.timetableEntryId);
+                if (entry && entry.courseIds && entry.courseIds.includes(courseId)) {
+                    shouldDrop = true;
+                }
+            }
+            
+            if (shouldDrop) {
+                refundAmount += getRefundValue(e);
+                droppedCount++;
+            } else {
+                newEnrollments.push(e);
+            }
+        }
+        enrollments = newEnrollments;
+    }
+
+    // Update Student Balance if refund applicable
+    if (refundAmount > 0) {
+        users[studentIndex].balance = (users[studentIndex].balance || 0) + refundAmount;
+        await writeUsers(users);
+    }
+    
+    await writeEnrollments(enrollments);
+    
+    res.json({ 
+        success: true, 
+        droppedCount, 
+        refundAmount, 
+        newBalance: users[studentIndex].balance || 0 
+    });
+
+  } catch (error) {
+    console.error('Error dropping enrollment:', error);
+    res.status(500).json({ error: 'Failed to drop enrollment' });
+  }
+});
+
 // Initialize server
 async function startServer() {
   await ensureDataDir();

@@ -518,27 +518,86 @@ function updateDaySchedule() {
   
   header.innerHTML = `<h3>${selectedDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>`;
   
-  // Filter classes for this day
+  // Inject styles for Enrolled/Drop if not present
+  if (!document.getElementById('salesDropStyles')) {
+      const style = document.createElement('style');
+      style.id = 'salesDropStyles';
+      style.textContent = `
+        .schedule-card.enrolled { border: 2px solid #10b981; background: #f0fdf4; }
+        .card-header-badge { background: #10b981; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px; }
+        .enrolled-status { font-size: 12px; color: #059669; margin-top: 4px; font-weight: 500; }
+        .drop-actions { display: flex; gap: 10px; margin-top: 8px; font-size: 12px; }
+        .drop-link { color: #ef4444; cursor: pointer; text-decoration: underline; }
+        .drop-link:hover { color: #dc2626; }
+      `;
+      document.head.appendChild(style);
+  }
+  
+  // 1. Get Student Enrollments for this day
+  const studentId = salesState.selectedStudent?.id;
+  let enrolledClasses = [];
+  if (studentId) {
+      enrolledClasses = (window.timetableEnrollments || []).filter(e => 
+          e.studentId === studentId && e.date === selectedStr
+      );
+  }
+  
+  // 2. Get Available Classes
   const dayClasses = salesState.classSelection.availableClasses.filter(c => 
     formatDateForCompare(c.date) === selectedStr
   );
   
-  if (dayClasses.length === 0) {
+  if (dayClasses.length === 0 && enrolledClasses.length === 0) {
     container.innerHTML = '<div class="empty-day-state">No classes scheduled for this day.</div>';
     return;
   }
   
-  // Render list
-  const productType = salesState.selectedProduct.type;
+  let html = '';
   
-  container.innerHTML = dayClasses.map(cls => {
+  // Render Enrolled Classes FIRST
+  enrolledClasses.forEach(enrollment => {
+      const entry = (window.timetableEntries || []).find(e => e.id === enrollment.timetableEntryId);
+      if (!entry) return;
+      
+      const timeStr = `${entry.startTime} - ${entry.endTime}`;
+      const courseId = (entry.courseIds && entry.courseIds.length > 0) ? entry.courseIds[0] : '';
+      
+      html += `
+      <div class="schedule-card enrolled">
+        <div class="card-header-badge">Current order</div>
+        <div class="card-time">
+          <div class="time-text">${timeStr}</div>
+          <div class="cal-icon">📅</div>
+        </div>
+        <div class="card-details">
+          <div class="card-title">${escapeHtml(entry.className)}</div>
+          <div class="card-teacher">${escapeHtml(entry.teacherName || 'Unknown Teacher')}</div>
+          <div class="enrolled-status">✅ Enrolled</div>
+        </div>
+        <div class="card-actions">
+             <div class="drop-actions">
+                 <span class="drop-link" onclick="dropSalesLesson('${enrollment.id}')">Drop Lesson</span>
+                 ${courseId ? `<span class="drop-link" onclick="dropSalesAllFuture('${courseId}')">Drop All Future</span>` : ''}
+             </div>
+        </div>
+      </div>`;
+  });
+  
+  // Render Available Classes
+  const productType = salesState.selectedProduct ? salesState.selectedProduct.type : 'course';
+  
+  html += dayClasses.map(cls => {
     const timeStr = `${cls.entry.startTime} - ${cls.entry.endTime}`;
-    const dayOfWeek = cls.date.toLocaleDateString('en-US', { weekday: 'short' });
     
-    // Determine buttons based on product type and class type
+    // Skip if already enrolled?
+    // Usually yes, unless they can enroll twice.
+    // Check if this cls.entry.id is in enrolledClasses (timetableEntryId)
+    // But cls.id might be recurring ID. cls.entry.id is base ID.
+    const isEnrolled = enrolledClasses.some(e => e.timetableEntryId === cls.entry.id);
+    if (isEnrolled) return ''; // Don't show available if enrolled
+    
     let buttonsHtml = '';
     
-    // Option 1: Enroll Single
     buttonsHtml += `
       <div class="enroll-option">
         <span class="option-label">Single lesson (${cls.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
@@ -546,8 +605,7 @@ function updateDaySchedule() {
       </div>
     `;
     
-    // Option 2: Enroll Consecutive (Only if Package)
-    if (productType === 'package') {
+    if (productType === 'package' && salesState.selectedProduct) {
       const pkg = salesState.selectedProduct.data;
       const lessonCount = getPackageLessonCount(pkg);
       buttonsHtml += `
@@ -556,9 +614,6 @@ function updateDaySchedule() {
           <button class="btn btn-sm btn-primary" onclick="enrollConsecutive('${cls.id}', ${lessonCount})">Enroll</button>
         </div>
       `;
-    } else {
-        // For single course product, "All" is same as "Single" effectively, or just hide it.
-        // Maybe user wants to enroll multiple weeks? For now just single.
     }
     
     return `
@@ -577,7 +632,103 @@ function updateDaySchedule() {
       </div>
     `;
   }).join('');
+  
+  container.innerHTML = html;
 }
+
+// Drop Lesson Logic
+window.dropSalesLesson = async function(enrollmentId) {
+  if (!confirm('Are you sure you want to drop this lesson? Credit will be refunded if applicable.')) return;
+  
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/enrollments/drop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId: salesState.selectedStudent.id,
+        mode: 'single',
+        enrollmentId: enrollmentId
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      if (window.showToast) window.showToast('Lesson dropped successfully', 'success');
+      else alert('Lesson dropped successfully');
+      
+      // Refresh Timetable (Enrollments)
+      if (window.loadTimetableData) await window.loadTimetableData();
+      
+      // Refresh Student (Balance update)
+      if (result.newBalance !== undefined) {
+        // We need to refresh the student object in window.students list too?
+        const s = (window.students || []).find(stu => stu.id === salesState.selectedStudent.id);
+        if (s) s.balance = result.newBalance;
+        
+        // Trigger UI update via re-selection
+        selectSalesStudent(salesState.selectedStudent.id); 
+      }
+      
+      // Refresh Calendar
+      // If a course is selected, reload available classes
+      if (salesState.classSelection.courseId) {
+          loadAvailableClasses(salesState.classSelection.courseId);
+      } else {
+          // Or just update view
+          updateDaySchedule();
+      }
+      
+    } else {
+      const err = await response.json();
+      alert(err.error || 'Failed to drop lesson');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Error processing request');
+  }
+};
+
+window.dropSalesAllFuture = async function(courseId) {
+   if (!confirm('Are you sure you want to drop ALL future lessons for this course? This action cannot be undone.')) return;
+   
+   try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/enrollments/drop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId: salesState.selectedStudent.id,
+        mode: 'all',
+        courseId: courseId
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      if (window.showToast) window.showToast(`Dropped ${result.droppedCount} lessons. Refund: $${result.refundAmount}`, 'success');
+      else alert(`Dropped ${result.droppedCount} lessons. Refund: $${result.refundAmount}`);
+      
+      if (window.loadTimetableData) await window.loadTimetableData();
+      
+      if (result.newBalance !== undefined) {
+        const s = (window.students || []).find(stu => stu.id === salesState.selectedStudent.id);
+        if (s) s.balance = result.newBalance;
+        selectSalesStudent(salesState.selectedStudent.id); 
+      }
+      
+      if (salesState.classSelection.courseId) {
+          loadAvailableClasses(salesState.classSelection.courseId);
+      } else {
+          updateDaySchedule();
+      }
+    } else {
+      const err = await response.json();
+      alert(err.error || 'Failed to drop lessons');
+    }
+   } catch (e) {
+       console.error(e);
+       alert('Error processing request');
+   }
+};
 
 window.enrollSingle = function(classInstanceId) {
   const cls = findClassInstance(classInstanceId);
@@ -723,30 +874,114 @@ window.selectSalesStudent = function(studentId) {
   const card = document.getElementById('selectedStudentCard');
   card.style.display = 'flex';
   
+  const balance = typeof student.balance === 'number' ? student.balance : 0;
+  
   card.innerHTML = `
     <div class="selected-student-avatar">${student.name.charAt(0).toUpperCase()}</div>
     <div class="selected-student-info">
       <h3>${escapeHtml(student.name)} <span class="student-id-badge">${escapeHtml(student.studentId)}</span></h3>
-      <div class="student-balance">Balance: $0.00 (Coming soon)</div>
+      <div class="student-balance">Balance: $${balance.toFixed(2)}</div>
     </div>
     <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
   `;
+
+  // Create/Update History Container
+  let historyContainer = document.getElementById('salesStudentHistory');
+  if (!historyContainer) {
+      historyContainer = document.createElement('div');
+      historyContainer.id = 'salesStudentHistory';
+      historyContainer.className = 'sales-student-history';
+      // Insert after student card
+      if (card.parentNode) card.parentNode.insertBefore(historyContainer, card.nextSibling);
+  }
+  
+  if (window.renderStudentEnrollments) window.renderStudentEnrollments();
   
   // Show cart placeholder text
   document.querySelector('.cart-empty-state').innerHTML = 'Select products from the left to create an order.';
   
   // Render cart if any
   renderSalesCart();
+  
+  // Refresh Calendar
+  if (typeof updateDaySchedule === 'function') updateDaySchedule();
+  if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
 
 // Deselect Student
 window.deselectSalesStudent = function() {
   salesState.selectedStudent = null;
   document.getElementById('selectedStudentCard').style.display = 'none';
+  
+  const historyContainer = document.getElementById('salesStudentHistory');
+  if (historyContainer) historyContainer.innerHTML = '';
+  
   document.getElementById('emptyStudentState').style.display = 'flex';
   document.querySelector('.cart-empty-state').innerHTML = 'You will see student\'s orders here once you have selected a student above.';
   // Hide cart content
   document.getElementById('salesCartContent').style.display = 'none';
+  
+  // Refresh Calendar
+  if (typeof updateDaySchedule === 'function') updateDaySchedule();
+  if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+};
+
+// Render Student Enrollments List
+window.renderStudentEnrollments = function() {
+    const container = document.getElementById('salesStudentHistory');
+    if (!container) return;
+    
+    const studentId = salesState.selectedStudent?.id;
+    if (!studentId) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    // Get enrollments
+    const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
+    
+    // Sort by date (Latest at bottom -> Oldest First? No, usually lists go Top=Old, Bottom=New? 
+    // Or Top=New? User said "Latest at bottom". So Old -> New.)
+    // Yes, standard chronological order.
+    enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    if (enrollments.length === 0) {
+        container.innerHTML = ''; // No history to show
+        return;
+    }
+    
+    // Inject CSS for history
+    if (!document.getElementById('salesHistoryStyles')) {
+        const style = document.createElement('style');
+        style.id = 'salesHistoryStyles';
+        style.textContent = `
+            .sales-student-history { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto; }
+            .history-header { font-weight: bold; font-size: 12px; color: #666; margin-bottom: 5px; }
+            .history-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #eee; }
+            .history-date { color: #667eea; font-weight: 500; margin-right: 10px; }
+            .history-info { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    container.innerHTML = `
+        <div class="history-header">Enrolled Dates (${enrollments.length})</div>
+        <div class="history-list">
+            ${enrollments.map(e => {
+                const entry = (window.timetableEntries || []).find(ent => ent.id === e.timetableEntryId);
+                const className = entry ? entry.className : 'Unknown Class';
+                return `
+                    <div class="history-item">
+                        <div class="history-date">${e.date}</div>
+                        <div class="history-info">${escapeHtml(className)}</div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    // Scroll to bottom
+    const list = container.querySelector('.sales-student-history');
+    if (list) list.scrollTop = list.scrollHeight;
 };
 
 window.resetSales = function() {
