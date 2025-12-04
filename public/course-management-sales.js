@@ -306,7 +306,12 @@ async function loadAvailableClasses(courseId) {
     const allEntries = data.entries || [];
     
     // Filter for this course
-    const courseEntries = allEntries.filter(e => e.courseId === courseId);
+    const courseEntries = allEntries.filter(e => {
+      if (e.courseIds && Array.isArray(e.courseIds) && e.courseIds.includes(courseId)) {
+        return true;
+      }
+      return e.courseId === courseId;
+    });
     
     if (courseEntries.length === 0) {
       container.innerHTML = '<div class="empty-state">No classes scheduled for this course. Please add classes in Timetable first.</div>';
