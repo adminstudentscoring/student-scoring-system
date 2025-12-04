@@ -11,7 +11,9 @@ let salesState = {
   selectedProduct: null, // The product being configured
   classSelection: {
     courseId: null,
-    selectedDates: new Set()
+    viewDate: new Date(), // For calendar navigation (Year/Month)
+    selectedDate: new Date(), // Currently selected day
+    availableClasses: [] // All future classes cache
   }
 };
 
@@ -164,7 +166,7 @@ window.filterSalesCategory = function(category) {
   }
 };
 
-// ==================== Step 2: Class/Date Selection ====================
+// ==================== Step 2: Class/Date Selection (Calendar View) ====================
 
 // Handle Product Select (Step 1 -> Step 2)
 window.handleProductSelect = function(type, id) {
@@ -199,60 +201,70 @@ window.handleProductSelect = function(type, id) {
   
   salesState.classSelection = {
     courseId: courseId,
-    selectedDates: new Set()
+    viewDate: new Date(), // Start with current month
+    selectedDate: new Date(), // Select today by default
+    availableClasses: []
   };
   
-  renderClassSelectionUI();
-  loadAvailableClasses(courseId);
+  renderClassSelectionUI(); // Render skeleton
+  loadAvailableClasses(courseId); // Load data and refresh UI
 };
 
-// Render Class Selection UI (Replaces Product List)
+// Render Class Selection UI (Split View: Calendar + List)
 function renderClassSelectionUI() {
   const leftPanel = document.querySelector('.sales-left-panel');
   if (!leftPanel) return;
-  
-  // Save original content (or just rebuild it when going back)
-  // For simplicity, we replace the innerHTML of specific containers
   
   // Hide Search and Categories
   document.querySelector('.sales-product-search').style.display = 'none';
   document.querySelector('.sales-product-categories').style.display = 'none';
   
   const container = document.getElementById('salesProductList');
-  container.className = 'sales-class-selection'; // Change class for styling
+  container.className = 'sales-class-selection-container'; 
   
   const product = salesState.selectedProduct.data;
   const productName = escapeHtml(product.name);
   const productType = salesState.selectedProduct.type === 'package' ? 'Package' : 'Course';
   
   container.innerHTML = `
-    <div class="class-selection-header">
+    <div class="selection-header-bar">
       <button class="btn-back" onclick="backToProductList()">← Back</button>
-      <div class="selection-title">
-        <h3>${productName}</h3>
-        <span class="selection-subtitle">Select dates for this ${productType}</span>
+      <div class="header-product-info">
+        <strong>${productName}</strong>
+        <span class="badge">${productType}</span>
       </div>
     </div>
     
-    <div class="class-selection-controls">
-      <div class="selection-mode">
-        <label><input type="radio" name="enrollMode" value="consecutive" checked onchange="handleEnrollModeChange(this)"> Consecutive</label>
-        <label><input type="radio" name="enrollMode" value="manual" onchange="handleEnrollModeChange(this)"> Manual Pick</label>
+    <div class="calendar-layout">
+      <!-- Left Column: Calendar -->
+      <div class="calendar-sidebar">
+        <div class="calendar-nav">
+          <button onclick="changeCalendarMonth(-1)">‹</button>
+          <span id="calendarTitle">Month Year</span>
+          <button onclick="changeCalendarMonth(1)">›</button>
+        </div>
+        <div class="calendar-grid-header">
+          <div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div><div>S</div>
+        </div>
+        <div id="miniCalendarGrid" class="calendar-grid">
+          <!-- Calendar days generated here -->
+        </div>
+        <div class="calendar-legend">
+          <span class="dot-legend"></span> Available
+        </div>
       </div>
-      <div class="lessons-count" id="lessonsCountDisplay">
-        Lessons to enroll: <strong>${productType === 'package' ? getPackageLessonCount(product) : 1}</strong>
+      
+      <!-- Right Column: Schedule -->
+      <div class="schedule-main">
+        <div id="scheduleHeader" class="schedule-header">
+          <!-- e.g. "Monday 1, December" -->
+        </div>
+        <div id="dayScheduleList" class="day-schedule-list">
+          <div class="loading-placeholder">Loading schedule...</div>
+        </div>
       </div>
-    </div>
-    
-    <div id="availableClassesList" class="available-classes-list">
-      <div class="loading-placeholder">Loading available classes...</div>
     </div>
   `;
-}
-
-function getPackageLessonCount(pkg) {
-  if (!pkg.courses) return 0;
-  return pkg.courses.reduce((sum, c) => sum + c.quantity, 0);
 }
 
 window.backToProductList = function() {
@@ -267,7 +279,7 @@ function showProductList() {
   document.querySelector('.sales-product-categories').style.display = 'flex';
   
   const container = document.getElementById('salesProductList');
-  container.className = 'sales-product-list';
+  container.className = 'sales-product-list'; // Restore original class
   
   // Reload products
   const term = document.getElementById('salesProductSearch').value;
@@ -283,20 +295,12 @@ function showProductList() {
 
 // Load Available Classes
 async function loadAvailableClasses(courseId) {
-  const container = document.getElementById('availableClassesList');
-  if (!container) return;
-  
   if (!courseId) {
-    container.innerHTML = '<div class="empty-state">No linked course found for this package.</div>';
+    updateDaySchedule();
     return;
   }
 
   try {
-    // Fetch timetable entries for this course
-    // We need a backend endpoint that returns future instances of a recurring class or single classes
-    // Since we don't have a dedicated endpoint for "future instances", we might need to fetch timetable and calculate locally
-    // Or reuse GET /organizations/timetable
-    
     const response = await window.authUtils.authenticatedFetch('/organizations/timetable');
     if (!response || !response.ok) {
       throw new Error('Failed to load timetable');
@@ -313,19 +317,19 @@ async function loadAvailableClasses(courseId) {
       return e.courseId === courseId;
     });
     
-    if (courseEntries.length === 0) {
-      container.innerHTML = '<div class="empty-state">No classes scheduled for this course. Please add classes in Timetable first.</div>';
-      return;
-    }
+    // Generate next 6 months of classes for the calendar
+    const futureClasses = generateFutureClasses(courseEntries, 26); // 26 weeks ~ 6 months
     
-    // Generate next 8 weeks of classes
-    const futureClasses = generateFutureClasses(courseEntries, 8);
+    salesState.classSelection.availableClasses = futureClasses;
     
-    renderAvailableClasses(futureClasses);
+    // Refresh Calendar and Schedule
+    renderMiniCalendar();
+    updateDaySchedule();
     
   } catch (error) {
     console.error('Error loading classes:', error);
-    container.innerHTML = '<div class="error-message">Failed to load classes</div>';
+    const scheduleList = document.getElementById('dayScheduleList');
+    if (scheduleList) scheduleList.innerHTML = '<div class="error-message">Failed to load classes</div>';
   }
 }
 
@@ -333,16 +337,19 @@ async function loadAvailableClasses(courseId) {
 function generateFutureClasses(entries, weeks = 8) {
   const classes = [];
   const now = new Date();
+  // Start from today 00:00 for display purposes
+  const startCheck = new Date(now);
+  startCheck.setHours(0,0,0,0);
+  
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + (weeks * 7));
   
   entries.forEach(entry => {
     if (entry.isRecurring && entry.dayOfWeek && Array.isArray(entry.dayOfWeek)) {
-      // Handle recurring entries for EACH day of week specified
       entry.dayOfWeek.forEach(dayStr => {
-        let current = new Date(now);
-        const targetDay = parseInt(dayStr); // 1-7
-        const currentDay = current.getDay() || 7; // Convert Sun(0) to 7
+        let current = new Date(startCheck);
+        const targetDay = parseInt(dayStr); 
+        const currentDay = current.getDay() || 7;
         
         let daysUntil = targetDay - currentDay;
         if (daysUntil < 0) daysUntil += 7;
@@ -354,13 +361,12 @@ function generateFutureClasses(entries, weeks = 8) {
           const [hours, mins] = entry.startTime.split(':');
           const classTime = new Date(current);
           classTime.setHours(parseInt(hours), parseInt(mins), 0);
-          if (classTime < now) {
-            current.setDate(current.getDate() + 7);
-          }
+          // If class passed today, it's still "today's class" historically, 
+          // but for booking future classes we might want to skip.
+          // Let's keep it for now, logic can filter later if needed.
         }
         
         while (current <= endDate) {
-          // Check start/end date constraints
           const currentStr = formatDateForCompare(current);
           let isValid = true;
           
@@ -385,12 +391,11 @@ function generateFutureClasses(entries, weeks = 8) {
         }
       });
     } else if (!entry.isRecurring && entry.date) {
-      // Single entry
       const entryDate = new Date(entry.date);
       const [hours, mins] = entry.startTime.split(':');
       entryDate.setHours(parseInt(hours), parseInt(mins), 0);
       
-      if (entryDate >= now) {
+      if (entryDate >= startCheck) {
          classes.push({
            date: entryDate,
            entry: entry,
@@ -400,7 +405,6 @@ function generateFutureClasses(entries, weeks = 8) {
     }
   });
   
-  // Sort by date
   return classes.sort((a, b) => a.date - b.date);
 }
 
@@ -411,179 +415,214 @@ function formatDateForCompare(date) {
   return `${year}-${month}-${day}`;
 }
 
-function renderAvailableClasses(classes) {
-  const container = document.getElementById('availableClassesList');
-  if (!container) return;
+// --- Calendar UI Logic ---
+
+window.changeCalendarMonth = function(delta) {
+  const currentDate = salesState.classSelection.viewDate;
+  currentDate.setMonth(currentDate.getMonth() + delta);
+  renderMiniCalendar();
+};
+
+window.selectCalendarDate = function(year, month, day) {
+  const newDate = new Date(year, month, day);
+  salesState.classSelection.selectedDate = newDate;
+  renderMiniCalendar(); // Refresh to update selected state
+  updateDaySchedule();
+};
+
+function renderMiniCalendar() {
+  const grid = document.getElementById('miniCalendarGrid');
+  const title = document.getElementById('calendarTitle');
+  if (!grid || !title) return;
   
-  if (classes.length === 0) {
-    container.innerHTML = '<div class="empty-state">No upcoming classes found.</div>';
+  const viewDate = salesState.classSelection.viewDate;
+  const selectedDate = salesState.classSelection.selectedDate;
+  const today = new Date();
+  
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  
+  title.textContent = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  
+  grid.innerHTML = '';
+  
+  // First day of month (0-6, Sun=0) -> Convert to Mon=0
+  const firstDay = new Date(year, month, 1).getDay();
+  const startOffset = (firstDay === 0 ? 6 : firstDay - 1); // Mon=0, ... Sun=6
+  
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Empty slots
+  for (let i = 0; i < startOffset; i++) {
+    grid.innerHTML += `<div class="calendar-day empty"></div>`;
+  }
+  
+  // Days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const currentDayDate = new Date(year, month, d);
+    const currentStr = formatDateForCompare(currentDayDate);
+    const isToday = formatDateForCompare(today) === currentStr;
+    const isSelected = formatDateForCompare(selectedDate) === currentStr;
+    
+    // Check if has classes
+    const hasClass = salesState.classSelection.availableClasses.some(c => 
+      formatDateForCompare(c.date) === currentStr
+    );
+    
+    const classes = [
+      'calendar-day',
+      isToday ? 'today' : '',
+      isSelected ? 'selected' : '',
+      hasClass ? 'has-class' : ''
+    ].join(' ');
+    
+    grid.innerHTML += `
+      <div class="${classes}" onclick="selectCalendarDate(${year}, ${month}, ${d})">
+        ${d}
+        ${hasClass ? '<div class="day-dot"></div>' : ''}
+      </div>
+    `;
+  }
+}
+
+// --- Schedule List UI Logic ---
+
+function updateDaySchedule() {
+  const header = document.getElementById('scheduleHeader');
+  const container = document.getElementById('dayScheduleList');
+  if (!header || !container) return;
+  
+  const selectedDate = salesState.classSelection.selectedDate;
+  const selectedStr = formatDateForCompare(selectedDate);
+  
+  header.innerHTML = `<h3>${selectedDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>`;
+  
+  // Filter classes for this day
+  const dayClasses = salesState.classSelection.availableClasses.filter(c => 
+    formatDateForCompare(c.date) === selectedStr
+  );
+  
+  if (dayClasses.length === 0) {
+    container.innerHTML = '<div class="empty-day-state">No classes scheduled for this day.</div>';
     return;
   }
   
-  window.currentAvailableClasses = classes; // Store for selection logic
+  // Render list
+  const productType = salesState.selectedProduct.type;
   
-  const html = classes.map((cls, index) => {
-    const dateStr = cls.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  container.innerHTML = dayClasses.map(cls => {
     const timeStr = `${cls.entry.startTime} - ${cls.entry.endTime}`;
+    const dayOfWeek = cls.date.toLocaleDateString('en-US', { weekday: 'short' });
+    
+    // Determine buttons based on product type and class type
+    let buttonsHtml = '';
+    
+    // Option 1: Enroll Single
+    buttonsHtml += `
+      <div class="enroll-option">
+        <span class="option-label">Single lesson (${cls.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
+        <button class="btn btn-sm btn-outline" onclick="enrollSingle('${cls.id}')">Enroll</button>
+      </div>
+    `;
+    
+    // Option 2: Enroll Consecutive (Only if Package)
+    if (productType === 'package') {
+      const pkg = salesState.selectedProduct.data;
+      const lessonCount = getPackageLessonCount(pkg);
+      buttonsHtml += `
+        <div class="enroll-option">
+          <span class="option-label">All lessons (${lessonCount} lessons from this date)</span>
+          <button class="btn btn-sm btn-primary" onclick="enrollConsecutive('${cls.id}', ${lessonCount})">Enroll</button>
+        </div>
+      `;
+    } else {
+        // For single course product, "All" is same as "Single" effectively, or just hide it.
+        // Maybe user wants to enroll multiple weeks? For now just single.
+    }
     
     return `
-      <div class="class-selection-item">
-        <label class="class-checkbox-label">
-          <input type="checkbox" class="class-select-cb" value="${index}" onchange="handleClassSelect(${index})">
-          <div class="class-info">
-            <div class="class-date">${dateStr}</div>
-            <div class="class-time">${timeStr}</div>
-            <div class="class-teacher">Teacher: ${cls.entry.teacherName || 'Unknown'}</div>
-          </div>
-        </label>
+      <div class="schedule-card">
+        <div class="card-time">
+          <div class="time-text">${timeStr}</div>
+          <div class="cal-icon">📅</div>
+        </div>
+        <div class="card-details">
+          <div class="card-title">${escapeHtml(cls.entry.className)}</div>
+          <div class="card-teacher">${escapeHtml(cls.entry.teacherName || 'Unknown Teacher')}</div>
+        </div>
+        <div class="card-actions">
+          ${buttonsHtml}
+        </div>
       </div>
     `;
   }).join('');
-  
-  // Add "Confirm Enrollment" button at the bottom
-  const actionsHtml = `
-    <div class="class-selection-actions">
-      <button class="btn btn-primary btn-block" onclick="confirmEnrollment()">Confirm Enrollment</button>
-    </div>
-  `;
-  
-  container.innerHTML = html + actionsHtml;
-  
-  // Auto-select based on mode
-  applyEnrollMode();
 }
 
-window.handleEnrollModeChange = function(radio) {
-  applyEnrollMode();
+window.enrollSingle = function(classInstanceId) {
+  const cls = findClassInstance(classInstanceId);
+  if (!cls) return;
+  addToCart([cls]);
 };
 
-function applyEnrollMode() {
-  const mode = document.querySelector('input[name="enrollMode"]:checked').value;
-  const checkboxes = document.querySelectorAll('.class-select-cb');
-  const limit = salesState.selectedProduct.type === 'package' ? getPackageLessonCount(salesState.selectedProduct.data) : 1;
+window.enrollConsecutive = function(startClassInstanceId, count) {
+  // Find start index
+  const allFuture = salesState.classSelection.availableClasses;
+  const startIndex = allFuture.findIndex(c => c.id === startClassInstanceId);
   
-  // Reset
-  checkboxes.forEach(cb => cb.checked = false);
-  salesState.classSelection.selectedDates.clear();
+  if (startIndex === -1) return;
   
-  if (mode === 'consecutive') {
-    // Select first N
-    for (let i = 0; i < Math.min(checkboxes.length, limit); i++) {
-      checkboxes[i].checked = true;
-      handleClassSelect(i, true); // Force add
-    }
+  // Select consecutive classes matching the same time/day logic?
+  // Or just next N available classes for this course?
+  // Usually "Every Monday" means same day/time.
+  // Filter allFuture to match the dayOfWeek and Time of the start class
+  const startCls = allFuture[startIndex];
+  const startDayStr = startCls.date.toDateString().split(' ')[0]; // "Mon"
+  const startTime = startCls.entry.startTime;
+  
+  const matchingClasses = allFuture.filter((c, idx) => 
+    idx >= startIndex && 
+    c.entry.startTime === startTime &&
+    c.date.getDay() === startCls.date.getDay() // Strict same day of week
+  );
+  
+  const selected = matchingClasses.slice(0, count);
+  
+  if (selected.length < count) {
+    if(!confirm(`Only ${selected.length} future classes found. Enroll anyway?`)) return;
   }
+  
+  addToCart(selected);
+};
+
+function findClassInstance(id) {
+  return salesState.classSelection.availableClasses.find(c => c.id === id);
 }
 
-window.handleClassSelect = function(index, forceState) {
-  const checkbox = document.querySelector(`.class-select-cb[value="${index}"]`);
-  if (!checkbox) return;
-  
-  const isChecked = forceState !== undefined ? forceState : checkbox.checked;
-  const cls = window.currentAvailableClasses[index];
-  
-  if (isChecked) {
-    salesState.classSelection.selectedDates.add(cls);
-  } else {
-    // If consecutive mode, maybe we shouldn't allow unchecking middle ones? 
-    // For now allow flexibility.
-    salesState.classSelection.selectedDates.forEach(item => {
-        if (item.id === cls.id) salesState.classSelection.selectedDates.delete(item);
-    });
-  }
-  
-  // Update count in UI?
-};
-
-// Confirm Enrollment (Add to Cart)
-window.confirmEnrollment = function() {
-  const selected = Array.from(salesState.classSelection.selectedDates);
-  
-  if (selected.length === 0) {
-    alert('Please select at least one class date.');
-    return;
-  }
+function addToCart(selectedClasses) {
+  if (selectedClasses.length === 0) return;
   
   // Create Order Item
   const orderItem = {
-    id: Date.now().toString(), // Temp ID
+    id: Date.now().toString(),
     productType: salesState.selectedProduct.type,
     productData: salesState.selectedProduct.data,
-    enrolledClasses: selected,
+    enrolledClasses: selectedClasses,
     price: salesState.selectedProduct.type === 'package' 
       ? calculateSalesPackagePrice(salesState.selectedProduct.data)
-      : parseFloat(salesState.selectedProduct.data.price) * selected.length
+      : parseFloat(salesState.selectedProduct.data.price) * selectedClasses.length
   };
   
-  // Add to cart
   salesState.cart.push(orderItem);
   
   // Reset Step
   salesState.step = 1;
   salesState.selectedProduct = null;
   showProductList();
-  
-  // Render Cart
   renderSalesCart();
-};
-
-function renderSalesCart() {
-  const container = document.getElementById('salesCartContent');
-  const emptyState = document.querySelector('.cart-empty-state');
-  
-  if (salesState.cart.length === 0) {
-    container.style.display = 'none';
-    emptyState.style.display = 'block';
-    emptyState.innerHTML = 'You will see student\'s orders here once you have selected a student above.';
-    return;
-  }
-  
-  container.style.display = 'block';
-  emptyState.style.display = 'none';
-  
-  let total = 0;
-  
-  const html = salesState.cart.map((item, index) => {
-    total += item.price;
-    const dateCount = item.enrolledClasses.length;
-    const firstDate = item.enrolledClasses[0]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const lastDate = item.enrolledClasses[dateCount-1]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const dateRange = dateCount > 1 ? `${firstDate} - ${lastDate}` : firstDate;
-    
-    return `
-      <div class="cart-item">
-        <div class="cart-item-header">
-          <span class="cart-item-title">${escapeHtml(item.productData.name)}</span>
-          <span class="cart-item-price">$${item.price.toFixed(0)}</span>
-        </div>
-        <div class="cart-item-details">
-          ${dateCount} lesson${dateCount > 1 ? 's' : ''} • ${dateRange}
-        </div>
-        <button class="btn-remove-item" onclick="removeSalesCartItem(${index})">Remove</button>
-      </div>
-    `;
-  }).join('');
-  
-  const totalHtml = `
-    <div class="cart-total">
-      <span>Total</span>
-      <span>$${total.toFixed(0)}</span>
-    </div>
-  `;
-  
-  container.innerHTML = html + totalHtml;
-  
-  // Update Pay Button
-  const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
-  if (payBtn) payBtn.textContent = `Pay $${total.toFixed(0)}`;
 }
 
-window.removeSalesCartItem = function(index) {
-  salesState.cart.splice(index, 1);
-  renderSalesCart();
-};
-
 // ==================== Student Search in Sales ====================
+// (Keep existing student search code below...)
 
 // Show Student Dropdown
 window.showStudentDropdown = function() {
@@ -689,9 +728,6 @@ window.deselectSalesStudent = function() {
   document.getElementById('salesCartContent').style.display = 'none';
 };
 
-// Add to Cart (Placeholder)
-// Replaced by handleProductSelect
-
 window.resetSales = function() {
   salesState.cart = [];
   deselectSalesStudent();
@@ -706,6 +742,62 @@ window.saveSalesOrder = function() {
 
 window.processSalesPayment = function() {
   alert('Payment functionality coming soon');
+};
+
+function renderSalesCart() {
+  const container = document.getElementById('salesCartContent');
+  const emptyState = document.querySelector('.cart-empty-state');
+  
+  if (salesState.cart.length === 0) {
+    container.style.display = 'none';
+    emptyState.style.display = 'block';
+    emptyState.innerHTML = 'You will see student\'s orders here once you have selected a student above.';
+    return;
+  }
+  
+  container.style.display = 'block';
+  emptyState.style.display = 'none';
+  
+  let total = 0;
+  
+  const html = salesState.cart.map((item, index) => {
+    total += item.price;
+    const dateCount = item.enrolledClasses.length;
+    const firstDate = item.enrolledClasses[0]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const lastDate = item.enrolledClasses[dateCount-1]?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dateRange = dateCount > 1 ? `${firstDate} - ${lastDate}` : firstDate;
+    
+    return `
+      <div class="cart-item">
+        <div class="cart-item-header">
+          <span class="cart-item-title">${escapeHtml(item.productData.name)}</span>
+          <span class="cart-item-price">$${item.price.toFixed(0)}</span>
+        </div>
+        <div class="cart-item-details">
+          ${dateCount} lesson${dateCount > 1 ? 's' : ''} • ${dateRange}
+        </div>
+        <button class="btn-remove-item" onclick="removeSalesCartItem(${index})">Remove</button>
+      </div>
+    `;
+  }).join('');
+  
+  const totalHtml = `
+    <div class="cart-total">
+      <span>Total</span>
+      <span>$${total.toFixed(0)}</span>
+    </div>
+  `;
+  
+  container.innerHTML = html + totalHtml;
+  
+  // Update Pay Button
+  const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
+  if (payBtn) payBtn.textContent = `Pay $${total.toFixed(0)}`;
+}
+
+window.removeSalesCartItem = function(index) {
+  salesState.cart.splice(index, 1);
+  renderSalesCart();
 };
 
 // Click outside to close dropdown
@@ -724,3 +816,239 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+function getPackageLessonCount(pkg) {
+  if (!pkg.courses) return 0;
+  return pkg.courses.reduce((sum, c) => sum + c.quantity, 0);
+}
+
+// Add CSS styles dynamically for new layout
+const salesStyles = document.createElement('style');
+salesStyles.textContent = `
+  .sales-class-selection-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #fff;
+  }
+  
+  .selection-header-bar {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f8f9fa;
+  }
+  
+  .header-product-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .header-product-info .badge {
+    display: inline-block;
+    font-size: 10px;
+    background: #e0e0e0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    width: fit-content;
+    margin-top: 2px;
+  }
+  
+  .calendar-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  
+  .calendar-sidebar {
+    width: 280px;
+    border-right: 1px solid #e0e0e0;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+  
+  .schedule-main {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: #fcfcfc;
+  }
+  
+  .calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .calendar-nav button {
+    background: none;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 8px;
+  }
+  
+  .calendar-grid-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 5px;
+  }
+  
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+  }
+  
+  .calendar-day {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 13px;
+    position: relative;
+    transition: all 0.2s;
+  }
+  
+  .calendar-day:hover:not(.empty) {
+    background: #f0f4ff;
+  }
+  
+  .calendar-day.empty {
+    cursor: default;
+  }
+  
+  .calendar-day.selected {
+    background: #667eea;
+    color: #fff;
+  }
+  
+  .calendar-day.today {
+    border: 1px solid #667eea;
+  }
+  
+  .day-dot {
+    position: absolute;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    background: #10b981;
+    border-radius: 50%;
+  }
+  
+  .calendar-day.selected .day-dot {
+    background: #fff;
+  }
+  
+  .calendar-legend {
+    margin-top: 15px;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .dot-legend {
+    width: 6px;
+    height: 6px;
+    background: #10b981;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  
+  .schedule-header {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 10px;
+  }
+  
+  .schedule-header h3 {
+    margin: 0;
+    color: #333;
+  }
+  
+  .schedule-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .card-time {
+    min-width: 80px;
+    text-align: center;
+    border-right: 1px solid #eee;
+    padding-right: 15px;
+  }
+  
+  .time-text {
+    font-weight: bold;
+    color: #333;
+    font-size: 14px;
+  }
+  
+  .cal-icon {
+    font-size: 20px;
+    margin-top: 5px;
+  }
+  
+  .card-details {
+    flex: 1;
+  }
+  
+  .card-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+    margin-bottom: 4px;
+  }
+  
+  .card-teacher {
+    font-size: 13px;
+    color: #666;
+  }
+  
+  .card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 250px;
+  }
+  
+  .enroll-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+  }
+  
+  .option-label {
+    font-size: 12px;
+    color: #555;
+  }
+  
+  .empty-day-state {
+    text-align: center;
+    color: #999;
+    padding: 40px;
+    font-style: italic;
+  }
+`;
+document.head.appendChild(salesStyles);
