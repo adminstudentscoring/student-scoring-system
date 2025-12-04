@@ -348,8 +348,28 @@ function generateFutureClasses(entries, weeks = 8) {
     if (entry.isRecurring && entry.dayOfWeek && Array.isArray(entry.dayOfWeek)) {
       entry.dayOfWeek.forEach(dayStr => {
         let current = new Date(startCheck);
-        const targetDay = parseInt(dayStr); 
-        const currentDay = current.getDay() || 7;
+        
+        // Map day name to 0-6 (Sun-Sat)
+        const dayMap = {
+          'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+          'thursday': 4, 'friday': 5, 'saturday': 6
+        };
+        
+        let targetDay;
+        // Handle both "1" (string number) and "Monday" (name)
+        if (!isNaN(parseInt(dayStr))) {
+           targetDay = parseInt(dayStr); 
+           // Adjust if backend uses 1=Mon...7=Sun to JS 0=Sun...6=Sat?
+           // Assuming backend 1=Mon is standard ISO but JS is 0=Sun.
+           // If backend sends "1", usually it implies Mon?
+           // Let's rely on day names primarily as that's what timetable.js saves.
+        } else {
+           targetDay = dayMap[dayStr.toLowerCase()];
+        }
+        
+        if (targetDay === undefined) return;
+
+        const currentDay = current.getDay(); // 0=Sun...6=Sat
         
         let daysUntil = targetDay - currentDay;
         if (daysUntil < 0) daysUntil += 7;
