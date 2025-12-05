@@ -10,6 +10,7 @@
     <script src="course-management.js"></script>
     <script src="course-management-timetable.js"></script>
     <script src="course-management-sales.js"></script>
+    <script src="course-management-statistics.js"></script>
     <style>
         .org-header {
             display: flex;
@@ -523,6 +524,7 @@
             <button class="tab active" onclick="switchTab('teachers', this)">👨‍🏫 Teacher Management</button>
             <button class="tab" onclick="switchTab('students', this)">👥 Student Management</button>
             <button class="tab" onclick="switchTab('courses', this)">📚 Course Management</button>
+            <button class="tab" onclick="switchTab('statistics', this)">📊 Statistics</button>
             <button class="tab" onclick="switchTab('settings', this)">⚙️ Settings</button>
         </div>
 
@@ -608,6 +610,11 @@
             </div>
         </div>
 
+        <!-- Statistics Tab -->
+        <div id="statisticsTab" class="tab-content">
+            <p>Loading statistics...</p>
+        </div>
+
         <!-- Settings Tab -->
         <div id="settingsTab" class="tab-content">
             <div id="settingsContainer">
@@ -665,6 +672,13 @@
             if (tab === 'courses') {
                 if (window.loadCourseManagement) {
                     window.loadCourseManagement();
+                }
+            }
+
+            // Load statistics when switching to statistics tab
+            if (tab === 'statistics') {
+                if (window.loadStatisticsModule) {
+                    window.loadStatisticsModule();
                 }
             }
         }

@@ -984,13 +984,20 @@ function getMonthKey(date = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function getYearKey(date = new Date()) {
+  // Returns YYYY format
+  const d = new Date(date);
+  return d.getFullYear().toString();
+}
+
 function updateStudentStats(student, points) {
   // Initialize stats if not exists
   if (!student.stats) {
     student.stats = {
       daily: {},
       weekly: {},
-      monthly: {}
+      monthly: {},
+      yearly: {}
     };
   }
   
@@ -998,6 +1005,7 @@ function updateStudentStats(student, points) {
   const dateKey = getDateKey(now);
   const weekKey = getWeekKey(now);
   const monthKey = getMonthKey(now);
+  const yearKey = getYearKey(now);
   
   // Update daily stats
   if (!student.stats.daily[dateKey]) {
@@ -1019,6 +1027,14 @@ function updateStudentStats(student, points) {
   }
   student.stats.monthly[monthKey].answerCount += 1;
   student.stats.monthly[monthKey].totalPoints += points;
+
+  // Update yearly stats
+  if (!student.stats.yearly) student.stats.yearly = {};
+  if (!student.stats.yearly[yearKey]) {
+    student.stats.yearly[yearKey] = { answerCount: 0, totalPoints: 0 };
+  }
+  student.stats.yearly[yearKey].answerCount += 1;
+  student.stats.yearly[yearKey].totalPoints += points;
 }
 
 function addRewardPointsToStats(student, points) {
@@ -1026,7 +1042,8 @@ function addRewardPointsToStats(student, points) {
     student.stats = {
       daily: {},
       weekly: {},
-      monthly: {}
+      monthly: {},
+      yearly: {}
     };
   }
 
@@ -1034,6 +1051,7 @@ function addRewardPointsToStats(student, points) {
   const dateKey = getDateKey(now);
   const weekKey = getWeekKey(now);
   const monthKey = getMonthKey(now);
+  const yearKey = getYearKey(now);
 
   if (!student.stats.daily[dateKey]) {
     student.stats.daily[dateKey] = { answerCount: 0, totalPoints: 0 };
@@ -1049,6 +1067,12 @@ function addRewardPointsToStats(student, points) {
     student.stats.monthly[monthKey] = { answerCount: 0, totalPoints: 0 };
   }
   student.stats.monthly[monthKey].totalPoints += points;
+
+  if (!student.stats.yearly) student.stats.yearly = {};
+  if (!student.stats.yearly[yearKey]) {
+    student.stats.yearly[yearKey] = { answerCount: 0, totalPoints: 0 };
+  }
+  student.stats.yearly[yearKey].totalPoints += points;
 }
 
 // Get rank information based on score
@@ -1397,7 +1421,8 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
       stats: {
         daily: {},
         weekly: {},
-        monthly: {}
+        monthly: {},
+        yearly: {}
       }
     };
     
@@ -1719,7 +1744,8 @@ app.post('/api/admin/organizations/:id/students', authenticateUser, authorizeRol
       stats: {
         daily: {},
         weekly: {},
-        monthly: {}
+        monthly: {},
+        yearly: {}
       }
     };
 
@@ -3819,7 +3845,8 @@ app.post('/api/students', authenticateUser, requireOrganizationAccess, async (re
       stats: {
         daily: {},
         weekly: {},
-        monthly: {}
+        monthly: {},
+        yearly: {}
       }
     };
 
