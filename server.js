@@ -4524,6 +4524,8 @@ app.delete('/api/students/:id', async (req, res) => {
 // Get challenge/level information
 app.get('/api/challenge', authenticateUser, async (req, res) => {
   try {
+    console.log(`[DEBUG] GET /api/challenge for user ${req.user.id} (Role: ${req.user.role})`);
+    
     const data = await readData();
     const challenge = data.challenge || {
       currentLevel: 1,
@@ -4542,9 +4544,23 @@ app.get('/api/challenge', authenticateUser, async (req, res) => {
     if (req.user && req.user.organizationId) {
         const organizations = await readOrganizations();
         const org = organizations.find(o => o.id === req.user.organizationId);
-        if (org && org.gameConfig && org.gameConfig.classicLevels && org.gameConfig.classicLevels.length > 0) {
-            levels = org.gameConfig.classicLevels;
+        
+        if (org) {
+            console.log(`[DEBUG] Found Org: ${org.id}`);
+            if (org.settings && org.settings.challengeLevels && org.settings.challengeLevels.levels && org.settings.challengeLevels.levels.length > 0) {
+                console.log(`[DEBUG] Using org.settings.challengeLevels (${org.settings.challengeLevels.levels.length} levels)`);
+                levels = org.settings.challengeLevels.levels;
+            } else if (org.gameConfig && org.gameConfig.classicLevels && org.gameConfig.classicLevels.length > 0) {
+                console.log(`[DEBUG] Using org.gameConfig.classicLevels`);
+                levels = org.gameConfig.classicLevels;
+            } else {
+                console.log('[DEBUG] No custom levels found, using default');
+            }
+        } else {
+            console.log('[DEBUG] Org not found in database');
         }
+    } else {
+        console.log('[DEBUG] No organizationId in request user');
     }
 
     const currentLevelIndex = challenge.currentLevel - 1;
