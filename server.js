@@ -1372,11 +1372,11 @@ app.post('/api/organizations/teachers', authenticateUser, authorizeRole('organiz
 // Organization creates a student (requires organization authentication)
 app.post('/api/organizations/students', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
-    const { name, studentId } = req.body;
+    const { name, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
     
     // Validation
-    if (!name || !studentId) {
-      return res.status(400).json({ error: 'Name and Student ID are required' });
+    if (!name) {
+      return res.status(400).json({ error: 'Student Name is required' });
     }
     
     // Get organization
@@ -1392,14 +1392,16 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
       return res.status(404).json({ error: 'Organization not found' });
     }
     
-    // Check if student already exists in this organization
+    // Check if student already exists in this organization (only if studentId provided)
     const data = await readData();
-    const existingStudent = data.students.find(s => 
-      s.organizationId === orgUser.organizationId && 
-      s.studentId === studentId
-    );
-    if (existingStudent) {
-      return res.status(400).json({ error: 'Student ID already exists in this organization' });
+    if (studentId) {
+        const existingStudent = data.students.find(s => 
+          s.organizationId === orgUser.organizationId && 
+          s.studentId === studentId
+        );
+        if (existingStudent) {
+          return res.status(400).json({ error: 'Student ID already exists in this organization' });
+        }
     }
     
     // Create student record
@@ -1407,7 +1409,14 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
     const newStudent = {
       id: Date.now().toString(),
       name,
-      studentId,
+      studentId: studentId || '', // Allow empty
+      gender: gender || '',
+      dateOfBirth: dateOfBirth || '',
+      contactPhone: contactPhone || '',
+      contactEmail: contactEmail || '',
+      emergencyContactName: emergencyContactName || '',
+      emergencyContactRelation: emergencyContactRelation || '',
+      emergencyContactNumber: emergencyContactNumber || '',
       organizationId: orgUser.organizationId,
       answerCount: 0,
       totalAnswers: 0,
@@ -1439,6 +1448,163 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
   } catch (error) {
     console.error('Error creating student:', error);
     res.status(500).json({ error: 'Failed to create student' });
+  }
+});
+
+// Bulk create students
+app.post('/api/organizations/students/bulk', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const studentsList = req.body;
+    if (!Array.isArray(studentsList)) {
+        return res.status(400).json({ error: 'Expected array of students' });
+    }
+    
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    if (!orgUser || !orgUser.organizationId) return res.status(403).json({ error: 'Organization not found' });
+    
+    const data = await readData();
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === orgUser.organizationId);
+    
+    let createdCount = 0;
+    let errors = [];
+    
+    for (const s of studentsList) {
+        if (!s.name) {
+            errors.push({ student: s, error: 'Name missing' });
+            continue;
+        }
+        
+        if (s.studentId && s.studentId.trim() !== '') {
+            const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && ex.studentId === s.studentId);
+            if (exists) {
+                errors.push({ student: s, error: `ID ${s.studentId} already exists` });
+                continue;
+            }
+        }
+        
+        const newStudent = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            name: s.name,
+            studentId: s.studentId || '',
+            gender: s.gender || '',
+            dateOfBirth: s.dateOfBirth || '',
+            contactPhone: s.contactPhone || '',
+            contactEmail: s.contactEmail || '',
+            emergencyContactName: s.emergencyContactName || '',
+            emergencyContactRelation: s.emergencyContactRelation || '',
+            emergencyContactNumber: s.emergencyContactNumber || '',
+            organizationId: orgUser.organizationId,
+            answerCount: 0,
+            totalAnswers: 0,
+            correctAnswers: 0,
+            level: 1,
+            rank: 'Wood',
+            rankIndex: 0,
+            experience: 0,
+            score: 0,
+            createdAt: new Date().toISOString(),
+            stats: { daily: {}, weekly: {}, monthly: {}, yearly: {} }
+        };
+        
+        data.students.push(newStudent);
+        organization.students.push(newStudent.id);
+        createdCount++;
+    }
+    
+    if (createdCount > 0) {
+        data.lastUpdate = new Date().toISOString();
+        await writeData(data);
+        await writeOrganizations(organizations);
+    }
+    
+    res.json({ createdCount, errors });
+    
+  } catch (error) {
+      console.error('Bulk import error:', error);
+      res.status(500).json({ error: 'Bulk import failed' });
+  }
+});
+
+// Bulk create students
+app.post('/api/organizations/students/bulk', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const studentsData = req.body; // Array of students
+    if (!Array.isArray(studentsData)) {
+        return res.status(400).json({ error: 'Expected an array of students' });
+    }
+    
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    if (!orgUser || !orgUser.organizationId) return res.status(403).json({ error: 'Organization not found' });
+    
+    const organizations = await readOrganizations();
+    const organization = organizations.find(o => o.id === orgUser.organizationId);
+    if (!organization) return res.status(404).json({ error: 'Organization not found' });
+    
+    const data = await readData();
+    let createdCount = 0;
+    let errors = [];
+    
+    for (const s of studentsData) {
+        // Validate Name
+        if (!s.name) {
+            errors.push({ student: s, error: 'Name missing' });
+            continue;
+        }
+        
+        // Check ID uniqueness (if provided)
+        if (s.studentId) {
+            const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && ex.studentId === s.studentId);
+            if (exists) {
+                errors.push({ student: s, error: `ID ${s.studentId} already exists` });
+                continue;
+            }
+        }
+        
+        // Create
+        const newStudent = {
+          id: `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: s.name,
+          studentId: s.studentId || '',
+          gender: s.gender || '',
+          dateOfBirth: s.dateOfBirth || '',
+          contactPhone: s.contactPhone || '',
+          contactEmail: s.contactEmail || '',
+          emergencyContactName: s.emergencyContactName || '',
+          emergencyContactRelation: s.emergencyContactRelation || '',
+          emergencyContactNumber: s.emergencyContactNumber || '',
+          organizationId: orgUser.organizationId,
+          answerCount: 0,
+          totalAnswers: 0,
+          correctAnswers: 0,
+          level: 1,
+          rank: 'Wood',
+          rankIndex: 0,
+          experience: 0,
+          score: 0,
+          createdAt: new Date().toISOString(),
+          stats: { daily: {}, weekly: {}, monthly: {}, yearly: {} }
+        };
+        
+        data.students.push(newStudent);
+        organization.students.push(newStudent.id);
+        createdCount++;
+    }
+    
+    if (createdCount > 0) {
+        data.lastUpdate = new Date().toISOString();
+        await writeData(data);
+        await writeOrganizations(organizations);
+        broadcast({ type: 'studentsBulkAdded', count: createdCount });
+    }
+    
+    res.json({ createdCount, errors });
+    
+  } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Bulk import failed' });
   }
 });
 

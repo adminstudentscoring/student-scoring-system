@@ -597,6 +597,12 @@
                 <div class="search-bar">
                     <input type="text" id="orgStudentSearch" placeholder="Search students...">
                 </div>
+                <div class="csv-actions" style="margin-bottom: 15px; display: flex; gap: 10px;">
+                    <button class="btn btn-info btn-small" onclick="document.getElementById('csvUploadInput').click()">📤 Upload CSV</button>
+                    <input type="file" id="csvUploadInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(this)">
+                    <button class="btn btn-secondary btn-small" onclick="downloadCSV()">📥 Download CSV</button>
+                    <button class="btn btn-secondary btn-small" onclick="downloadTemplate()">📄 Template</button>
+                </div>
                 <div id="studentsList">
                     <p>Loading...</p>
                 </div>
@@ -920,8 +926,15 @@
 
             const html = `
                 <div class="students-grid">
-                    ${filteredStudents.map(student => `
-                        <div class="student-card" style="cursor: pointer;" data-student-id="${student.id}">
+                    ${filteredStudents.map(student => {
+                        // Check for incomplete data (Red Dot Logic)
+                        // Customize this list based on what is considered "Necessary"
+                        const necessaryFields = ['gender', 'dateOfBirth', 'contactPhone'];
+                        const isIncomplete = necessaryFields.some(field => !student[field]);
+                        
+                        return `
+                        <div class="student-card" style="cursor: pointer; position: relative;" data-student-id="${student.id}">
+                            ${isIncomplete ? '<div style="position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: red; border-radius: 50%; border: 2px solid white;" title="Incomplete Data"></div>' : ''}
                             <h3>${escapeHtml(student.name)}</h3>
                             <p>ID: ${escapeHtml(student.studentId || '')}</p>
                             <p>Score: <span id="score-${student.id}">${student.score || 0}</span></p>
@@ -933,7 +946,7 @@
                                 <button class="btn btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
                             </div>
                         </div>
-                    `).join('')}
+                    `;}).join('')}
                 </div>
             `;
             container.innerHTML = html;
@@ -1785,6 +1798,167 @@
         }
 
         document.getElementById('shareModalClose')?.addEventListener('click', closeShareModal);
+
+        // CSV Functions
+        function downloadTemplate() {
+            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const csvContent = "data:text/csv;charset=utf-8," + headers.join(",");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "student_template.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadCSV() {
+            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const rows = allStudents.map(s => [
+                s.name,
+                s.studentId || '',
+                s.gender || '',
+                s.dateOfBirth || '',
+                s.contactPhone || '',
+                s.contactEmail || '',
+                s.emergencyContactName || '',
+                s.emergencyContactRelation || '',
+                s.emergencyContactNumber || ''
+            ]);
+            
+            let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" 
+                + rows.map(e => e.map(field => `"${field}"`).join(",")).join("\n");
+                
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "students_export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function handleCSVUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const text = e.target.result;
+                // Simple CSV parsing (handles basic quotes)
+                const rows = text.split("\n").map(row => {
+                    const result = [];
+                    let cell = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < row.length; i++) {
+                        const char = row[i];
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(cell);
+                            cell = '';
+                        } else {
+                            cell += char;
+                        }
+                    }
+                    result.push(cell);
+                    return result;
+                });
+                
+                const students = [];
+                // Start from 1 to skip header
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (row.length < 2) continue; 
+                    const clean = (val) => val ? val.trim().replace(/^"|"$/g, '') : '';
+                    
+                    const name = clean(row[0]);
+                    if (!name) continue; 
+                    
+                    students.push({
+                        name: name,
+                        studentId: clean(row[1]),
+                        gender: clean(row[2]),
+                        dateOfBirth: clean(row[3]),
+                        contactPhone: clean(row[4]),
+                        contactEmail: clean(row[5]),
+                        emergencyContactName: clean(row[6]),
+                        emergencyContactRelation: clean(row[7]),
+                        emergencyContactNumber: clean(row[8])
+                    });
+                }
+                
+                if (students.length === 0) {
+                    alert('No valid students found in CSV');
+                    return;
+                }
+                
+                try {
+                    const response = await window.authUtils.authenticatedFetch('/organizations/students/bulk', {
+                        method: 'POST',
+                        body: JSON.stringify(students)
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        alert(`Successfully imported ${result.createdCount} students.`);
+                        if (result.errors && result.errors.length > 0) {
+                            console.warn('Import errors:', result.errors);
+                            alert(`Some students failed to import. Check console.`);
+                        }
+                        loadStudents();
+                    } else {
+                        const err = await response.json();
+                        alert('Import failed: ' + (err.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Import error');
+                }
+                
+                input.value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        // CSV Functions
+        function downloadTemplate() {
+            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const csvContent = '\uFEFF' + headers.join(',') + '\n' + 'John Doe,S12345,M,2010-01-01,12345678,john@example.com,Jane Doe,Parent,87654321';
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'student_import_template.csv';
+            link.click();
+        }
+
+        function downloadCSV() {
+            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            let csvContent = '\uFEFF' + headers.join(',') + '\n';
+            
+            allStudents.forEach(s => {
+                const row = [
+                    s.name || '',
+                    s.studentId || '',
+                    s.gender || '',
+                    s.dateOfBirth || '',
+                    s.contactPhone || '',
+                    s.contactEmail || '',
+                    s.emergencyContactName || '',
+                    s.emergencyContactRelation || '',
+                    s.emergencyContactNumber || ''
+                ].map(field => `"${(field || '').toString().replace(/"/g, '""')}"`);
+                csvContent += row.join(',') + '\n';
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'all_students.csv';
+            link.click();
+        }
+        
+        function exportStudentsCSV() { downloadCSV(); }
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
