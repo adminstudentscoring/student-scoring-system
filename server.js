@@ -2161,6 +2161,8 @@ app.get('/api/organizations/teachers', authenticateUser, requireOrganizationAcce
       u.role === 'teacher'
     );
     
+    console.log(`[DEBUG] GET /teachers: Found ${teachers.length} teachers for Org ${orgUser.organizationId}`);
+    
     // Initialize teacher fields and remove passwords
     const teachersWithoutPasswords = teachers.map(t => {
       initializeTeacherFields(t);

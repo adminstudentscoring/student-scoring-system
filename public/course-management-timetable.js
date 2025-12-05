@@ -73,14 +73,19 @@ async function loadTimetableCourses() {
 // Load teachers
 async function loadTeachers() {
   try {
+    console.log('[DEBUG] Fetching teachers...');
     const response = await window.authUtils.authenticatedFetch('/organizations/teachers');
-    if (!response) return;
+    if (!response) {
+        console.error('[DEBUG] No response from fetch teachers');
+        return;
+    }
     
     if (!response.ok) {
       throw new Error('Failed to load teachers');
     }
     
     teachers = await response.json();
+    console.log('[DEBUG] Teachers loaded:', teachers);
   } catch (error) {
     console.error('Error loading teachers:', error);
   }
