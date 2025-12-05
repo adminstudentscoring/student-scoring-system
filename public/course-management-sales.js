@@ -86,6 +86,17 @@ function renderSalesProducts(category = 'all', searchTerm = '', packages = []) {
   const term = searchTerm.toLowerCase();
   let items = [];
   
+  // Add Courses (Single Lessons)
+  if (category === 'all' || category === 'courses') {
+    items = items.concat((window.courses || []).map(c => ({
+      type: 'course',
+      data: c,
+      name: c.name,
+      price: parseFloat(c.price),
+      info: 'Single lesson'
+    })));
+  }
+
   // Add Packages
   if (category === 'all' || category === 'packages') {
     const activePackages = packages.filter(p => p.status === 'active');
@@ -95,17 +106,6 @@ function renderSalesProducts(category = 'all', searchTerm = '', packages = []) {
       name: p.name,
       price: calculateSalesPackagePrice(p),
       info: `${p.courses.reduce((sum, c) => sum + c.quantity, 0)} lessons`
-    })));
-  }
-  
-  // Add Courses (Single Lessons)
-  if (category === 'all' || category === 'courses') {
-    items = items.concat((window.courses || []).map(c => ({
-      type: 'course',
-      data: c,
-      name: c.name,
-      price: parseFloat(c.price),
-      info: 'Single lesson'
     })));
   }
   
