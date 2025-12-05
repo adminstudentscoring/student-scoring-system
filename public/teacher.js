@@ -1509,11 +1509,10 @@ async function checkCurrentClass() {
     const currentDay = days[now.getDay()];
     const currentDateStr = now.toISOString().split('T')[0];
     
+    // Find Active Entry
     const activeEntry = (window.timetableEntries || []).find(entry => {
-        // 1. Must include current teacher
         if (!entry.teacherIds || !entry.teacherIds.includes(currentUser.id)) return false;
         
-        // 2. Check Day/Date
         if (entry.isRecurring) {
             if (!entry.dayOfWeek.includes(currentDay)) return false;
             if (entry.startDate && entry.startDate > currentDateStr) return false;
@@ -1522,7 +1521,6 @@ async function checkCurrentClass() {
             if (entry.date !== currentDateStr) return false;
         }
         
-        // 3. Check Time (Start - 15m <= Now < End)
         const [sh, sm] = entry.startTime.split(':').map(Number);
         const [eh, em] = entry.endTime.split(':').map(Number);
         const startMins = sh * 60 + sm;
@@ -1532,45 +1530,89 @@ async function checkCurrentClass() {
         return nowMins >= (startMins - 15) && nowMins < endMins;
     });
     
+    // Update Current Class Widget UI
+    const title = document.getElementById('currentClassTitle');
+    const info = document.getElementById('currentClassInfo');
+    const time = document.getElementById('currentClassTime');
+    const count = document.getElementById('currentClassStudentCount');
+    const btn = document.getElementById('startCurrentClassBtn');
+    const list = document.getElementById('currentClassStudents');
+    
     if (activeEntry) {
+        // Active State
+        section.style.borderLeft = '5px solid #10b981';
+        section.style.background = '#f0fdf4';
+        
+        title.textContent = '🟢 Current Class';
+        title.style.color = '#059669';
+        
+        info.textContent = activeEntry.className;
+        info.style.color = '#065f46';
+        
+        time.textContent = `${activeEntry.startTime} - ${activeEntry.endTime}`;
+        time.style.color = '#047857';
+        
+        const students = getStudentsForEntry(activeEntry, currentDateStr);
+        
+        count.style.display = 'block';
+        count.textContent = `${students.length} Students`;
+        count.style.color = '#065f46';
+        
+        btn.style.display = 'inline-block';
+        btn.onclick = () => startClassFromEntry(activeEntry);
+        
+        list.style.display = 'block';
+        list.textContent = students.map(s => s.name).join(', ') || 'No students enrolled';
+        list.style.color = '#065f46';
+        
         currentClassEntry = activeEntry;
-        
-        // Find Students
-        const seriesIds = activeEntry.studentIds || [];
-        const enrollments = (window.timetableEnrollments || []).filter(e => 
-            e.timetableEntryId === activeEntry.id && 
-            e.date === currentDateStr
-        );
-        const singleIds = enrollments.map(e => e.studentId);
-        const allIds = [...new Set([...seriesIds, ...singleIds])];
-        
-        currentClassStudents = students.filter(s => allIds.includes(s.id));
-        
-        // Render
-        section.style.display = 'block';
-        document.getElementById('currentClassInfo').textContent = activeEntry.className;
-        document.getElementById('currentClassTime').textContent = `${activeEntry.startTime} - ${activeEntry.endTime}`;
-        document.getElementById('currentClassStudentCount').textContent = `${currentClassStudents.length} Students`;
-        
-        const studentNames = currentClassStudents.map(s => s.name).join(', ');
-        document.getElementById('currentClassStudents').textContent = studentNames || 'No students enrolled';
-        
-        document.getElementById('startCurrentClassBtn').onclick = startCurrentClass;
-        
     } else {
-        section.style.display = 'none';
+        // No Active Class State
+        section.style.borderLeft = '5px solid #ccc';
+        section.style.background = '#f9fafb';
+        
+        title.textContent = '⚪ Current Class';
+        title.style.color = '#666';
+        
+        info.textContent = 'No active class';
+        info.style.color = '#333';
+        
+        time.textContent = '';
+        
+        count.style.display = 'none';
+        btn.style.display = 'none';
+        list.style.display = 'none';
+        
         currentClassEntry = null;
     }
+    
+    // Render All Classes Today
+    renderTodaysClasses(currentDateStr, currentDay);
 }
 
-function startCurrentClass() {
-    if (!currentClassEntry) return;
+function getStudentsForEntry(entry, dateStr) {
+    const seriesIds = entry.studentIds || [];
+    const enrollments = (window.timetableEnrollments || []).filter(e => 
+        e.timetableEntryId === entry.id && 
+        e.date === dateStr
+    );
+    const singleIds = enrollments.map(e => e.studentId);
+    const allIds = [...new Set([...seriesIds, ...singleIds])];
+    return students.filter(s => allIds.includes(s.id));
+}
+
+function startClassFromEntry(entry) {
+    if (!entry) return;
+    
+    const now = new Date();
+    const currentDateStr = now.toISOString().split('T')[0];
+    const classStudents = getStudentsForEntry(entry, currentDateStr);
     
     // 1. Deselect All
     selectedClassStudentIds.clear();
     
     // 2. Select Class Students
-    currentClassStudents.forEach(s => selectedClassStudentIds.add(s.id));
+    classStudents.forEach(s => selectedClassStudentIds.add(s.id));
     
     // 3. Save Selection
     saveClassViewSelection();
@@ -1581,4 +1623,80 @@ function startCurrentClass() {
     updateSelectedCount();
     renderClassStudentsList();
 }
+
+function renderTodaysClasses(dateStr, dayName) {
+    const container = document.getElementById('todaysClassesList');
+    if (!container || !currentUser) return;
+    
+    // Filter entries for today
+    const todaysEntries = (window.timetableEntries || []).filter(entry => {
+        if (!entry.teacherIds || !entry.teacherIds.includes(currentUser.id)) return false;
+        
+        if (entry.isRecurring) {
+            if (!entry.dayOfWeek.includes(dayName)) return false;
+            if (entry.startDate && entry.startDate > dateStr) return false;
+            if (entry.endDate && entry.endDate < dateStr) return false;
+        } else {
+            if (entry.date !== dateStr) return false;
+        }
+        return true;
+    });
+    
+    // Sort by Start Time
+    todaysEntries.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    
+    if (todaysEntries.length === 0) {
+        container.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">No classes today.</p>';
+        return;
+    }
+    
+    // Find next/active class index
+    const now = new Date();
+    const nowTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    
+    // Find the first class that ends AFTER now (so active or future)
+    let nextClassIndex = todaysEntries.findIndex(e => e.endTime > nowTime);
+    // If all ended, stay at last? Or -1
+    if (nextClassIndex === -1 && todaysEntries.length > 0 && todaysEntries[todaysEntries.length-1].endTime < nowTime) {
+        // All finished
+        nextClassIndex = todaysEntries.length - 1; 
+    }
+    if (nextClassIndex === -1) nextClassIndex = 0;
+    
+    container.innerHTML = todaysEntries.map((entry, index) => {
+        const isNext = index === nextClassIndex;
+        const students = getStudentsForEntry(entry, dateStr);
+        
+        return `
+            <div class="todays-class-item ${isNext ? 'next-class' : ''}" id="class-item-${index}" style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: ${isNext ? '#f0fdf4' : 'white'}; border-left: ${isNext ? '4px solid #10b981' : 'none'};">
+                <div>
+                    <div style="font-weight: bold; font-size: 1.05rem; color: ${isNext ? '#059669' : '#333'};">
+                        ${escapeHtml(entry.className)} 
+                        ${isNext ? '<span style="font-size: 0.8rem; background: #10b981; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 5px;">Target</span>' : ''}
+                    </div>
+                    <div style="color: #666; font-size: 0.9rem;">${entry.startTime} - ${entry.endTime}</div>
+                    <div style="color: #888; font-size: 0.85rem;">${students.length} Students</div>
+                </div>
+                <button class="btn btn-sm btn-primary" onclick="startClassFromEntryWithId('${entry.id}')">Start Class</button>
+            </div>
+        `;
+    }).join('');
+    
+    // Scroll to next class if container is scrollable
+    // Using setTimeout to ensure render
+    if (window.hasScrolledToClass !== dateStr) { // Simple debounce
+        setTimeout(() => {
+            const nextEl = document.getElementById(`class-item-${nextClassIndex}`);
+            if (nextEl) {
+                nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }, 500);
+        window.hasScrolledToClass = dateStr;
+    }
+}
+
+window.startClassFromEntryWithId = function(entryId) {
+    const entry = (window.timetableEntries || []).find(e => e.id === entryId);
+    if (entry) startClassFromEntry(entry);
+};
 
