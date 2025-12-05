@@ -623,6 +623,42 @@
         </div>
     </div>
 
+    <!-- Share Access Modal -->
+    <div id="shareAccessModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔗 Share Student Access</h2>
+                <span class="modal-close" id="shareModalClose">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Public Link:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="shareLinkInput" readonly style="background: #f3f4f6; flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button class="btn btn-secondary" onclick="copyShareLink()">Copy</button>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 20px; display: flex; align-items: center; gap: 10px;">
+                    <label for="enablePasswordToggle" style="margin:0; cursor:pointer; font-weight: bold;">Enable Password Protection:</label>
+                    <input type="checkbox" id="enablePasswordToggle" style="width: 20px; height: 20px; cursor: pointer;" onchange="togglePasswordInput()">
+                </div>
+                <div class="form-group" id="passwordGroup" style="display: none;">
+                    <label for="accessPassword">Access Password:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="accessPassword" placeholder="Enter password" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button class="btn btn-success" onclick="saveAccessPassword()">Save Password</button>
+                    </div>
+                    <small style="color: #666;">Click save to update the password.</small>
+                </div>
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+                <div class="modal-actions" style="justify-content: space-between;">
+                    <button class="btn btn-info" onclick="copyShareInfo()">📋 Copy Link & Password</button>
+                    <button class="btn btn-secondary" onclick="closeShareModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="organization-settings.js"></script>
     <script>
         // Check authentication
@@ -893,6 +929,7 @@
                             <div class="student-card-actions" onclick="event.stopPropagation();">
                                 <input type="number" id="score-input-${student.id}" value="${student.score || 0}" min="0">
                                 <button class="btn btn-primary" onclick="updateStudentScore('${student.id}'); event.stopPropagation();">Update</button>
+                                <button class="btn btn-info" onclick="openShareModal('${student.id}'); event.stopPropagation();">Share</button>
                                 <button class="btn btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
                             </div>
                         </div>
@@ -1653,6 +1690,101 @@
             
             openEditTeacherModal(teacher);
         }
+
+        // Share Access Functions
+        let currentShareStudentId = null;
+
+        function openShareModal(studentId) {
+            currentShareStudentId = studentId;
+            const student = allStudents.find(s => s.id === studentId);
+            if (!student) return;
+            
+            const modal = document.getElementById('shareAccessModal');
+            if (modal) {
+                modal.classList.add('show');
+                
+                // Set Link
+                const link = `${window.location.origin}/student.html?id=${student.id}`;
+                document.getElementById('shareLinkInput').value = link;
+                
+                // Set Password State
+                const hasPassword = !!student.accessPassword;
+                document.getElementById('enablePasswordToggle').checked = hasPassword;
+                document.getElementById('accessPassword').value = student.accessPassword || '';
+                togglePasswordInput();
+            }
+        }
+
+        function closeShareModal() {
+            const modal = document.getElementById('shareAccessModal');
+            if (modal) modal.classList.remove('show');
+            currentShareStudentId = null;
+        }
+
+        function togglePasswordInput() {
+            const enabled = document.getElementById('enablePasswordToggle').checked;
+            document.getElementById('passwordGroup').style.display = enabled ? 'block' : 'none';
+        }
+
+        async function saveAccessPassword() {
+            if (!currentShareStudentId) return;
+            const enabled = document.getElementById('enablePasswordToggle').checked;
+            const password = document.getElementById('accessPassword').value.trim();
+            
+            if (enabled && !password) {
+                showToast('Please enter a password', 'error');
+                return;
+            }
+            
+            try {
+                const updateData = {
+                    accessPassword: enabled ? password : '' 
+                };
+                
+                const response = await window.authUtils.authenticatedFetch(`/students/${currentShareStudentId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(updateData)
+                });
+                
+                if (response.ok) {
+                    showToast('Access settings saved!', 'success');
+                    // Update local data
+                    const student = allStudents.find(s => s.id === currentShareStudentId);
+                    if (student) student.accessPassword = updateData.accessPassword;
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (error) {
+                showToast('Error saving password', 'error');
+            }
+        }
+
+        function copyShareLink() {
+            const input = document.getElementById('shareLinkInput');
+            input.select();
+            document.execCommand('copy');
+            showToast('Link copied!', 'success');
+        }
+
+        function copyShareInfo() {
+            const link = document.getElementById('shareLinkInput').value;
+            const enabled = document.getElementById('enablePasswordToggle').checked;
+            const password = document.getElementById('accessPassword').value;
+            
+            let text = `Student Link: ${link}`;
+            if (enabled && password) {
+                text += `\nStudent Password: ${password}`;
+            }
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Link & Password copied!', 'success');
+            }).catch(err => {
+                console.error('Copy failed', err);
+                showToast('Copy failed', 'error');
+            });
+        }
+
+        document.getElementById('shareModalClose')?.addEventListener('click', closeShareModal);
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
