@@ -1017,6 +1017,41 @@ window.deselectSalesStudent = function() {
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
 
+// Jump to Date from History
+window.jumpToDate = function(dateString) {
+    if (!dateString) return;
+    // Parse simple date string YYYY-MM-DD to ensure local date matches visual
+    const parts = dateString.split('-');
+    if (parts.length !== 3) return;
+    
+    const targetDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    
+    // Check if Sales module is in Step 2 (Calendar View). If not, maybe we should switch?
+    // But we need a product context. If no product selected, we can't show available classes.
+    // However, "Enrolled" classes (Saved) are product-independent in updateDaySchedule logic (mostly).
+    // But updateDaySchedule relies on salesState.classSelection.availableClasses.
+    // If we jump without selecting a product, availableClasses is empty.
+    // We can still show Enrolled classes.
+    
+    // If not in Step 2, switch to Step 2 but without a selected product?
+    // UI might break.
+    // Let's assume user is in Step 2 or we force a view.
+    // For now, just update state.
+    
+    // Update View Date (Month) if different
+    const currentView = salesState.classSelection.viewDate;
+    if (targetDate.getMonth() !== currentView.getMonth() || targetDate.getFullYear() !== currentView.getFullYear()) {
+        salesState.classSelection.viewDate = new Date(targetDate);
+    }
+    
+    // Select Date
+    salesState.classSelection.selectedDate = targetDate;
+    
+    // Refresh UI
+    if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+    if (typeof updateDaySchedule === 'function') updateDaySchedule();
+};
+
 // Render Student Enrollments List
 window.renderStudentEnrollments = function() {
     const container = document.getElementById('salesStudentHistory');
@@ -1031,9 +1066,7 @@ window.renderStudentEnrollments = function() {
     // Get enrollments
     const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
     
-    // Sort by date (Latest at bottom -> Oldest First? No, usually lists go Top=Old, Bottom=New? 
-    // Or Top=New? User said "Latest at bottom". So Old -> New.)
-    // Yes, standard chronological order.
+    // Sort by date (Oldest -> Newest)
     enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
     
     if (enrollments.length === 0) {
@@ -1048,7 +1081,8 @@ window.renderStudentEnrollments = function() {
         style.textContent = `
             .sales-student-history { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto; }
             .history-header { font-weight: bold; font-size: 12px; color: #666; margin-bottom: 5px; }
-            .history-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #eee; }
+            .history-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+            .history-item:hover { background: #e5e7eb; }
             .history-date { color: #667eea; font-weight: 500; margin-right: 10px; }
             .history-info { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         `;
@@ -1062,7 +1096,7 @@ window.renderStudentEnrollments = function() {
                 const entry = (window.timetableEntries || []).find(ent => ent.id === e.timetableEntryId);
                 const className = entry ? entry.className : 'Unknown Class';
                 return `
-                    <div class="history-item">
+                    <div class="history-item" onclick="jumpToDate('${e.date}')" title="Jump to date">
                         <div class="history-date">${e.date}</div>
                         <div class="history-info">${escapeHtml(className)}</div>
                     </div>
