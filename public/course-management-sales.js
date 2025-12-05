@@ -571,26 +571,44 @@ function updateDaySchedule() {
           e.studentId === studentId && e.date === selectedStr
       );
   }
+
+  // 2. Get Cart Items (Pending)
+  let cartClasses = [];
+  salesState.cart.forEach((item, cartIndex) => {
+      if (item.enrolledClasses && Array.isArray(item.enrolledClasses)) {
+          item.enrolledClasses.forEach(cls => {
+              // cls.date might be Date object or string
+              const d = new Date(cls.date);
+              const dStr = formatDateForCompare(d);
+              if (dStr === selectedStr) {
+                  cartClasses.push({
+                      ...cls,
+                      cartIndex: cartIndex,
+                      productName: item.productData.name
+                  });
+              }
+          });
+      }
+  });
   
-  // 2. Get Available Classes
+  // 3. Get Available Classes
   const dayClasses = salesState.classSelection.availableClasses.filter(c => 
     formatDateForCompare(c.date) === selectedStr
   );
   
-  if (dayClasses.length === 0 && enrolledClasses.length === 0) {
+  if (dayClasses.length === 0 && enrolledClasses.length === 0 && cartClasses.length === 0) {
     container.innerHTML = '<div class="empty-day-state">No classes scheduled for this day.</div>';
     return;
   }
   
   let html = '';
   
-  // Render Enrolled Classes FIRST
+  // Render Saved Enrollments
   enrolledClasses.forEach(enrollment => {
       const entry = (window.timetableEntries || []).find(e => e.id === enrollment.timetableEntryId);
       if (!entry) return;
       
       const timeStr = `${entry.startTime} - ${entry.endTime}`;
-      const courseId = (entry.courseIds && entry.courseIds.length > 0) ? entry.courseIds[0] : '';
       
       html += `
       <div class="schedule-card enrolled">
@@ -612,20 +630,43 @@ function updateDaySchedule() {
         </div>
       </div>`;
   });
+
+  // Render Cart Classes
+  cartClasses.forEach(cls => {
+      const entry = cls.entry;
+      const timeStr = `${entry.startTime} - ${entry.endTime}`;
+      
+      html += `
+      <div class="schedule-card in-cart" style="border: 2px solid #3b82f6; background: #eff6ff;">
+        <div class="card-header-badge" style="background: #3b82f6;">In Cart</div>
+        <div class="card-time">
+          <div class="time-text">${timeStr}</div>
+          <div class="cal-icon">🛒</div>
+        </div>
+        <div class="card-details">
+          <div class="card-title">${escapeHtml(entry.className)}</div>
+          <div class="card-teacher">${escapeHtml(entry.teacherName || 'Unknown Teacher')}</div>
+          <div class="enrolled-status" style="color: #2563eb;">Pending Payment</div>
+        </div>
+        <div class="card-actions">
+             <div class="drop-actions">
+                 <span class="drop-link" onclick="removeSalesCartItem(${cls.cartIndex}); if(typeof updateDaySchedule === 'function') updateDaySchedule();" style="color:#ef4444;">Remove from Cart</span>
+             </div>
+        </div>
+      </div>`;
+  });
   
   // Render Available Classes
   const productType = salesState.selectedProduct ? salesState.selectedProduct.type : 'course';
   
   html += dayClasses.map(cls => {
-    const timeStr = `${cls.entry.startTime} - ${cls.entry.endTime}`;
-    
-    // Skip if already enrolled?
-    // Usually yes, unless they can enroll twice.
-    // Check if this cls.entry.id is in enrolledClasses (timetableEntryId)
-    // But cls.id might be recurring ID. cls.entry.id is base ID.
+    // Skip if already enrolled or in cart
     const isEnrolled = enrolledClasses.some(e => e.timetableEntryId === cls.entry.id);
-    if (isEnrolled) return ''; // Don't show available if enrolled
+    const isInCart = cartClasses.some(c => c.entry.id === cls.entry.id);
     
+    if (isEnrolled || isInCart) return ''; 
+    
+    const timeStr = `${cls.entry.startTime} - ${cls.entry.endTime}`;
     let buttonsHtml = '';
     
     buttonsHtml += `
@@ -831,11 +872,16 @@ function addToCart(selectedClasses) {
   
   salesState.cart.push(orderItem);
   
-  // Reset Step
-  salesState.step = 1;
-  salesState.selectedProduct = null;
-  showProductList();
+  // Stay on Calendar View (Step 2)
+  // salesState.step = 1;
+  // salesState.selectedProduct = null;
+  // showProductList();
+  
   renderSalesCart();
+  
+  // Refresh Schedule to show "In Cart" status
+  if (typeof updateDaySchedule === 'function') updateDaySchedule();
+  if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 }
 
 // ==================== Student Search in Sales ====================
