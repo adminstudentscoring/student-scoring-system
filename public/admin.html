@@ -349,7 +349,7 @@
                 const data = await response.json();
                 
                 // Store token and redirect
-                localStorage.setItem('token', data.token);
+                localStorage.setItem('authToken', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
                 
                 // Redirect to organization dashboard
