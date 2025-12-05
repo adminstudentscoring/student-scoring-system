@@ -58,6 +58,22 @@
         <!-- Student Management Tab -->
         <div id="studentsTab" class="tab-content active" style="display: block;">
             <div class="main-content">
+            <!-- Current Class Widget -->
+            <section class="card" id="currentClassSection" style="display: none; border-left: 5px solid #10b981; background: #f0fdf4;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 style="margin: 0; color: #059669;">🟢 Current Class</h2>
+                        <div id="currentClassInfo" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #065f46;">Loading...</div>
+                        <div id="currentClassTime" style="color: #047857;"></div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="currentClassStudentCount" style="font-size: 1.2rem; font-weight: bold; color: #065f46;">0 Students</div>
+                        <button id="startCurrentClassBtn" class="btn btn-success" style="margin-top: 5px; background-color: #059669; border: none;">🚀 Start Class</button>
+                    </div>
+                </div>
+                <div id="currentClassStudents" style="margin-top: 15px; font-size: 0.9rem; color: #065f46; max-height: 60px; overflow-y: auto;"></div>
+            </section>
+
             <!-- Students List -->
             <section class="card">
                 <h2>Students List</h2>

@@ -2,6 +2,9 @@
 let students = [];
 let ws = null;
 let selectedClassStudentIds = new Set();
+let currentUser = null;
+let currentClassEntry = null;
+let currentClassStudents = [];
 
 // Helper function for authenticated API requests
 async function apiFetch(url, options = {}) {
@@ -611,6 +614,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const response = await window.authUtils.authenticatedFetch('/auth/me');
             if (response && response.ok) {
                 const user = await response.json();
+                currentUser = user;
                 const teacherNameEl = document.getElementById('teacherName');
                 if (teacherNameEl) {
                     teacherNameEl.textContent = user.name || user.email || 'Teacher';
@@ -626,6 +630,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Load students
     await loadStudents();
+    
+    // Start checking for current class
+    checkCurrentClass();
+    setInterval(checkCurrentClass, 60000);
 });
 
 // Modal functions
@@ -1485,4 +1493,92 @@ window.createParticleEffect = createParticleEffect;
 initWebSocket();
 loadStudents();
 initRightSidebar();
+
+// Check for current class
+async function checkCurrentClass() {
+    const section = document.getElementById('currentClassSection');
+    if (!section || !currentUser) return;
+    
+    // Ensure timetable data is loaded
+    if ((!window.timetableEntries || window.timetableEntries.length === 0) && window.loadTimetableData) {
+        await window.loadTimetableData();
+    }
+    
+    const now = new Date();
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDay = days[now.getDay()];
+    const currentDateStr = now.toISOString().split('T')[0];
+    
+    const activeEntry = (window.timetableEntries || []).find(entry => {
+        // 1. Must include current teacher
+        if (!entry.teacherIds || !entry.teacherIds.includes(currentUser.id)) return false;
+        
+        // 2. Check Day/Date
+        if (entry.isRecurring) {
+            if (!entry.dayOfWeek.includes(currentDay)) return false;
+            if (entry.startDate && entry.startDate > currentDateStr) return false;
+            if (entry.endDate && entry.endDate < currentDateStr) return false;
+        } else {
+            if (entry.date !== currentDateStr) return false;
+        }
+        
+        // 3. Check Time (Start - 15m <= Now < End)
+        const [sh, sm] = entry.startTime.split(':').map(Number);
+        const [eh, em] = entry.endTime.split(':').map(Number);
+        const startMins = sh * 60 + sm;
+        const endMins = eh * 60 + em;
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        
+        return nowMins >= (startMins - 15) && nowMins < endMins;
+    });
+    
+    if (activeEntry) {
+        currentClassEntry = activeEntry;
+        
+        // Find Students
+        const seriesIds = activeEntry.studentIds || [];
+        const enrollments = (window.timetableEnrollments || []).filter(e => 
+            e.timetableEntryId === activeEntry.id && 
+            e.date === currentDateStr
+        );
+        const singleIds = enrollments.map(e => e.studentId);
+        const allIds = [...new Set([...seriesIds, ...singleIds])];
+        
+        currentClassStudents = students.filter(s => allIds.includes(s.id));
+        
+        // Render
+        section.style.display = 'block';
+        document.getElementById('currentClassInfo').textContent = activeEntry.className;
+        document.getElementById('currentClassTime').textContent = `${activeEntry.startTime} - ${activeEntry.endTime}`;
+        document.getElementById('currentClassStudentCount').textContent = `${currentClassStudents.length} Students`;
+        
+        const studentNames = currentClassStudents.map(s => s.name).join(', ');
+        document.getElementById('currentClassStudents').textContent = studentNames || 'No students enrolled';
+        
+        document.getElementById('startCurrentClassBtn').onclick = startCurrentClass;
+        
+    } else {
+        section.style.display = 'none';
+        currentClassEntry = null;
+    }
+}
+
+function startCurrentClass() {
+    if (!currentClassEntry) return;
+    
+    // 1. Deselect All
+    selectedClassStudentIds.clear();
+    
+    // 2. Select Class Students
+    currentClassStudents.forEach(s => selectedClassStudentIds.add(s.id));
+    
+    // 3. Save Selection
+    saveClassViewSelection();
+    
+    // 4. Open Class View
+    openClassView();
+    
+    updateSelectedCount();
+    renderClassStudentsList();
+}
 
