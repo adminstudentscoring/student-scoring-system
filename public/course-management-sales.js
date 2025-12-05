@@ -607,7 +607,7 @@ function updateDaySchedule() {
         <div class="card-actions">
              <div class="drop-actions">
                  <span class="drop-link" onclick="dropSalesLesson('${enrollment.id}')">Drop Lesson</span>
-                 ${courseId ? `<span class="drop-link" onclick="dropSalesAllFuture('${courseId}')">Drop All Future</span>` : ''}
+                 <span class="drop-link" onclick="dropSalesAllFuture('${entry.id}')">Drop All Future</span>
              </div>
         </div>
       </div>`;
@@ -727,8 +727,8 @@ window.dropSalesLesson = async function(enrollmentId) {
   }
 };
 
-window.dropSalesAllFuture = async function(courseId) {
-   if (!confirm('Are you sure you want to drop ALL future lessons for this course? This action cannot be undone.')) return;
+window.dropSalesAllFuture = async function(timetableEntryId) {
+   if (!confirm('Are you sure you want to drop ALL future lessons for this class series? This action cannot be undone.')) return;
    
    try {
     const response = await window.authUtils.authenticatedFetch('/organizations/enrollments/drop', {
@@ -737,7 +737,7 @@ window.dropSalesAllFuture = async function(courseId) {
       body: JSON.stringify({
         studentId: salesState.selectedStudent.id,
         mode: 'all',
-        courseId: courseId
+        timetableEntryId: timetableEntryId
       })
     });
     

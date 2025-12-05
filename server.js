@@ -7543,7 +7543,7 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
             droppedCount++;
         }
     } else if (mode === 'all') {
-        if (!courseId) return res.status(400).json({ error: 'Course ID required for Drop All' });
+        if (!timetableEntryId) return res.status(400).json({ error: 'Timetable Entry ID required for Drop All' });
         
         const today = new Date().toISOString().split('T')[0];
         const newEnrollments = [];
@@ -7551,10 +7551,9 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
         for (const e of enrollments) {
             let shouldDrop = false;
             if (e.studentId === studentId && e.date >= today) {
-                // Check if enrollment belongs to the course
-                // e.timetableEntryId
-                const entry = timetableData.entries.find(ent => ent.id === e.timetableEntryId);
-                if (entry && entry.courseIds && entry.courseIds.includes(courseId)) {
+                // Check if enrollment belongs to the specific Timetable Entry (Series)
+                // This ensures we only drop "Elite Class (Mon)" and not "Regular Class (Wed)"
+                if (e.timetableEntryId === timetableEntryId) {
                     shouldDrop = true;
                 }
             }
