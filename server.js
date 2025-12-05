@@ -7468,11 +7468,13 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const users = await readUsers();
-    const studentIndex = users.findIndex(u => u.id === studentId);
+    // Read Students from DATA_FILE (students.txt) via readData()
+    const data = await readData();
+    const students = data.students || [];
+    const studentIndex = students.findIndex(s => s.id === studentId);
     
     if (studentIndex === -1) {
-      console.log(`[DEBUG] Student NOT FOUND. ID: ${studentId}. Available User IDs: ${users.map(u=>u.id).slice(0,5).join(', ')}...`);
+      console.log(`[DEBUG] Student NOT FOUND in students.txt. ID: ${studentId}`);
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -7569,8 +7571,8 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
 
     // Update Student Balance if refund applicable
     if (refundAmount > 0) {
-        users[studentIndex].balance = (users[studentIndex].balance || 0) + refundAmount;
-        await writeUsers(users);
+        students[studentIndex].balance = (students[studentIndex].balance || 0) + refundAmount;
+        await writeData(data);
     }
     
     await writeEnrollments(enrollments);
@@ -7579,7 +7581,7 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
         success: true, 
         droppedCount, 
         refundAmount, 
-        newBalance: users[studentIndex].balance || 0 
+        newBalance: students[studentIndex].balance || 0 
     });
 
   } catch (error) {
