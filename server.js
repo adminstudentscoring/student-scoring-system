@@ -48,7 +48,8 @@ const corsOptions = {
   credentials: true
 };
 app.use(cors(corsOptions));
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // Redirect root domain to www subdomain
 // This handles the DNS limitation where @ (root domain) cannot have CNAME due to MX record conflict
