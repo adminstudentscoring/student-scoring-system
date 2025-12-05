@@ -310,9 +310,9 @@
                                 <p>Created: ${new Date(org.createdAt).toLocaleString('en-US')}</p>
                             </div>
                             <div class="org-actions">
+                                <button class="btn btn-success" onclick="loginAsOrganization('${org.id}')">Login as Org</button>
                                 <button class="btn btn-warning" onclick="openOrgSettings('${org.id}', 'manage')">Manage</button>
                                 <button class="btn btn-info" onclick="viewOrgDetails('${org.id}')">View Details</button>
-                                <button class="btn btn-secondary" onclick="openOrgSettings('${org.id}')">⚙️ Settings</button>
                                 <button class="btn btn-primary" onclick="editOrg('${org.id}')">Edit</button>
                                 <button class="btn btn-danger" onclick="deleteOrg('${org.id}', '${org.name.replace(/'/g, "\\'")}')">Delete</button>
                             </div>
@@ -332,6 +332,33 @@
 
         let currentOrgModalId = null;
         let currentOrgSettingsMode = 'settings';
+
+        async function loginAsOrganization(orgId) {
+            try {
+                const response = await window.authUtils.authenticatedFetch(`/admin/organizations/${orgId}/login-as`, {
+                    method: 'POST'
+                });
+                
+                if (!response) return;
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to login as organization');
+                }
+                
+                const data = await response.json();
+                
+                // Store token and redirect
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                
+                // Redirect to organization dashboard
+                window.location.href = 'organization.html';
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
 
         function viewOrgDetails(orgId) {
             // Load organization details and show in modal

@@ -1796,6 +1796,35 @@ app.delete('/api/admin/organizations/:id', authenticateUser, authorizeRole('admi
   }
 });
 
+// Admin login as organization
+app.post('/api/admin/organizations/:id/login-as', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const users = await readUsers();
+    
+    // Find the user with role 'organization' and organizationId matching the param
+    const targetUser = users.find(u => 
+      u.role === 'organization' && 
+      u.organizationId === id
+    );
+    
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Organization user not found' });
+    }
+    
+    const token = generateToken(targetUser);
+    const { password: _, ...userWithoutPassword } = targetUser;
+    
+    res.json({
+      token,
+      user: userWithoutPassword
+    });
+  } catch (error) {
+    console.error('Error logging in as organization:', error);
+    res.status(500).json({ error: 'Failed to login as organization' });
+  }
+});
+
 // Admin creates a teacher for an organization
 app.post('/api/admin/organizations/:id/teachers', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
