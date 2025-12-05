@@ -4210,7 +4210,8 @@ app.put('/api/students/:id', authenticateUser, authorizeRole('organization', 'te
     const allowedFields = [
       'name', 'studentId', 'dateOfBirth', 'gender', 'contactPhone', 'contactEmail',
       'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber',
-      'remark', 'membership', 'membershipStartDate', 'membershipEndDate', 'score'
+      'remark', 'membership', 'membershipStartDate', 'membershipEndDate', 'score',
+      'accessPassword'
     ];
     
     const cleanUpdates = {};
@@ -4230,6 +4231,59 @@ app.put('/api/students/:id', authenticateUser, authorizeRole('organization', 'te
   } catch (error) {
     console.error('Error updating student:', error);
     res.status(500).json({ error: 'Failed to update student' });
+  }
+});
+
+// Public Student Access (No Auth required, Password protected)
+app.get('/api/public/students/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.query;
+    
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    
+    // Check password protection
+    if (student.accessPassword) {
+        if (!password || password !== student.accessPassword) {
+            // Return protected status
+            return res.json({ 
+                protected: true, 
+                id: student.id, 
+                name: student.name // Basic info
+            });
+        }
+    }
+    
+    // Return student data (public view)
+    const rankInfo = getRankInfo(student.score || 0);
+    const publicData = {
+        id: student.id,
+        name: student.name,
+        studentId: student.studentId,
+        score: student.score,
+        level: rankInfo.rankIndex + 1,
+        rank: rankInfo.rank,
+        rankIndex: rankInfo.rankIndex,
+        nextRank: rankInfo.nextRank,
+        progress: rankInfo.progress,
+        answerCount: student.answerCount,
+        stats: student.stats,
+        protected: false,
+        // Add teacher info if needed? 
+        // Student object usually doesn't have teacher info directly.
+        // But stats are there.
+    };
+    
+    res.json(publicData);
+    
+  } catch (error) {
+    console.error('Error fetching public student:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

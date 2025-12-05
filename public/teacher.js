@@ -202,6 +202,9 @@ function renderStudents() {
                 <button class="btn btn-primary btn-small" onclick="updateStudentScore('${student.id}')" title="Modify Score">
                     Edit Score
                 </button>
+                <button class="btn btn-info btn-small" onclick="openShareModal('${student.id}')" title="Share Access">
+                    🔗 Share
+                </button>
                 <button class="btn btn-danger btn-small" onclick="deleteStudent('${student.id}')">
                     Delete
                 </button>
@@ -1488,6 +1491,102 @@ function createParticleEffect(buttonRect, points) {
 // Make functions globally available
 window.showPointsPopup = showPointsPopup;
 window.createParticleEffect = createParticleEffect;
+
+// Share Access Functions
+let currentShareStudentId = null;
+
+window.openShareModal = function(studentId) {
+    currentShareStudentId = studentId;
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    
+    const modal = document.getElementById('shareAccessModal');
+    if (modal) {
+        modal.classList.add('show');
+        
+        // Set Link
+        const link = `${window.location.origin}/student.html?id=${student.id}`;
+        document.getElementById('shareLinkInput').value = link;
+        
+        // Set Password State
+        const hasPassword = !!student.accessPassword;
+        document.getElementById('enablePasswordToggle').checked = hasPassword;
+        document.getElementById('accessPassword').value = student.accessPassword || '';
+        togglePasswordInput();
+    }
+};
+
+window.closeShareModal = function() {
+    const modal = document.getElementById('shareAccessModal');
+    if (modal) modal.classList.remove('show');
+    currentShareStudentId = null;
+};
+
+window.togglePasswordInput = function() {
+    const enabled = document.getElementById('enablePasswordToggle').checked;
+    document.getElementById('passwordGroup').style.display = enabled ? 'block' : 'none';
+};
+
+window.saveAccessPassword = async function() {
+    if (!currentShareStudentId) return;
+    const enabled = document.getElementById('enablePasswordToggle').checked;
+    const password = document.getElementById('accessPassword').value.trim();
+    
+    // If enabled but no password, error
+    if (enabled && !password) {
+        showNotification('Please enter a password', 'error');
+        return;
+    }
+    
+    try {
+        const updateData = {
+            accessPassword: enabled ? password : '' // Send empty string to clear
+        };
+        
+        const response = await apiFetch(`/students/${currentShareStudentId}`, {
+            method: 'PUT',
+            body: JSON.stringify(updateData)
+        });
+        
+        if (response.ok) {
+            showNotification('Access settings saved!', 'success');
+            // Update local student data
+            const student = students.find(s => s.id === currentShareStudentId);
+            if (student) student.accessPassword = updateData.accessPassword;
+        } else {
+            throw new Error('Failed to save');
+        }
+    } catch (error) {
+        showNotification('Error saving password', 'error');
+    }
+};
+
+window.copyShareLink = function() {
+    const input = document.getElementById('shareLinkInput');
+    input.select();
+    document.execCommand('copy');
+    showNotification('Link copied!', 'success');
+};
+
+window.copyShareInfo = function() {
+    const link = document.getElementById('shareLinkInput').value;
+    const enabled = document.getElementById('enablePasswordToggle').checked;
+    const password = document.getElementById('accessPassword').value;
+    
+    let text = `Student Link: ${link}`;
+    if (enabled && password) {
+        text += `\nStudent Password: ${password}`;
+    }
+    
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Link & Password copied!', 'success');
+    }).catch(err => {
+        console.error('Copy failed', err);
+        showNotification('Copy failed', 'error');
+    });
+};
+
+document.getElementById('shareModalClose')?.addEventListener('click', closeShareModal);
 
 // Initialize
 initWebSocket();

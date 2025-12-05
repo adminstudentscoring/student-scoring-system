@@ -3,45 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*;">
-    <title>Student Scoring System - Student View</title>
+    <title>Student Dashboard</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .auth-container {
+            max-width: 400px;
+            margin: auto;
+            padding: 40px;
+            text-align: center;
+        }
+        .student-header {
+            background: #f8f9fa;
+            padding: 30px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+        .student-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 15px;
+            font-weight: bold;
+        }
+        .student-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .student-id {
+            color: #666;
+            font-size: 14px;
+        }
+        .tabs {
+            display: flex;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: #f9fafb;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .rank-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: white;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container student-view">
-        <header>
-            <h1>🏆 Student Leaderboard</h1>
-            <div class="auto-refresh">
-                <span>Auto-refresh: <span id="refreshStatus">ON</span></span>
+    <!-- Password Gate -->
+    <div class="container auth-container" id="passwordGate" style="display: none;">
+        <h2>🔒 Protected Access</h2>
+        <p>This student profile is password protected.</p>
+        <div class="form-group" style="margin: 20px 0;">
+            <input type="password" id="accessPasswordInput" placeholder="Enter Password" style="width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px; box-sizing: border-box;">
+        </div>
+        <button class="btn btn-primary" onclick="checkPassword()" style="width: 100%;">Access Dashboard</button>
+        <div id="authError" style="color: red; margin-top: 10px; display: none;">Incorrect password</div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="container" id="studentDashboard" style="display: none;">
+        <div class="student-header">
+            <div class="student-avatar" id="sAvatar"></div>
+            <div class="student-name" id="sName"></div>
+            <div class="student-id" id="sId"></div>
+            <div id="sRankBadge"></div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('home')">🏠 Home Page</div>
+            <div class="tab" onclick="switchTab('stats')">📊 Statistics</div>
+        </div>
+
+        <div id="homeTab" class="tab-content active">
+            <h3>Overview</h3>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="sScore">0</div>
+                    <div class="stat-label">Total Score</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="sLevel">1</div>
+                    <div class="stat-label">Level</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="sAnswers">0</div>
+                    <div class="stat-label">Total Answers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="sBalance">$0.00</div>
+                    <div class="stat-label">Balance</div>
+                </div>
             </div>
-        </header>
-
-        <div class="main-content">
-            <!-- Leaderboard -->
-            <section class="card">
-                <h2>Top Students</h2>
-                <div id="leaderboard" class="leaderboard">
-                    <!-- Leaderboard will be loaded here -->
+            
+            <h3>Rank Progress</h3>
+            <div class="rank-progress" style="margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span id="sRank">Wood</span>
+                    <span id="sNextRank">Bronze</span>
                 </div>
-            </section>
-
-            <!-- All Students -->
-            <section class="card">
-                <h2>All Students</h2>
-                <div id="allStudentsList" class="students-list">
-                    <!-- All students will be loaded here -->
+                <div class="progress-bar" style="width: 100%; height: 15px; background: #eee; border-radius: 10px; overflow: hidden;">
+                    <div class="progress-fill" id="sProgress" style="height: 100%; width: 0%; background: linear-gradient(90deg, #667eea, #764ba2);"></div>
                 </div>
-            </section>
+                <div style="text-align: right; font-size: 0.8rem; margin-top: 5px; color: #666;">
+                    <span id="sScoreToNext"></span> points to next rank
+                </div>
+            </div>
+        </div>
+
+        <div id="statsTab" class="tab-content">
+            <h3>Ranking within Teacher</h3>
+            <p style="color:#666; margin-bottom: 20px;">Your position among students taught by your teachers.</p>
+            
+            <div id="rankingList">
+                <!-- Logic to fetch ranking needs to be handled in student.js -->
+                <!-- Note: Public API currently only returns single student data. 
+                     To show ranking, we need context. 
+                     Maybe the API should return "rankInClass" or similar?
+                     Or we need a public leaderboard API? -->
+                <div class="empty-state" style="padding: 20px; text-align: center; background: #f9fafb; border-radius: 8px;">
+                    Ranking data is loading...
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="floating-indicator">🔝 Always on Top</div>
     <script src="student.js"></script>
-    <script>
-        // Detect if running in Electron
-        if (window.navigator.userAgent.indexOf('Electron') !== -1) {
-            document.body.classList.add('electron');
-        }
-    </script>
 </body>
 </html>

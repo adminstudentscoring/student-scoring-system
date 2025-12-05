@@ -1,214 +1,119 @@
-const API_BASE = '/api';
-let students = [];
-let ws = null;
-let refreshInterval = null;
-
-// Initialize WebSocket connection
-function initWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}`);
-
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleWebSocketMessage(data);
-    };
-
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-        console.log('WebSocket closed, reconnecting...');
-        setTimeout(initWebSocket, 3000);
-    };
-
-    ws.onopen = () => {
-        loadStudents();
-    };
-}
-
-// Handle WebSocket messages
-function handleWebSocketMessage(data) {
-    switch (data.type) {
-        case 'studentAdded':
-        case 'studentUpdated':
-        case 'answerRecorded':
-        case 'studentDeleted':
-        case 'reset':
-            loadStudents();
-            break;
-    }
-}
-
-// Load all students
-async function loadStudents() {
-    try {
-        const response = await fetch(`${API_BASE}/students`);
-        students = await response.json();
-        renderLeaderboard();
-        renderAllStudents();
-    } catch (error) {
-        console.error('Error loading students:', error);
-    }
-}
-
-// Get rank info (matching server logic)
-function getRankInfo(score) {
-    const RANKS = [
-        { name: 'Wood', maxScore: 50 },
-        { name: 'Bronze', maxScore: 50 * 2 },
-        { name: 'Silver', maxScore: 50 * Math.pow(2, 2) },
-        { name: 'Gold', maxScore: 50 * Math.pow(2, 3) },
-        { name: 'Platinum', maxScore: 50 * Math.pow(2, 4) },
-        { name: 'Diamond', maxScore: 50 * Math.pow(2, 5) },
-        { name: 'Candidate Master', maxScore: 50 * Math.pow(2, 6) },
-        { name: 'Master', maxScore: 50 * Math.pow(2, 7) },
-        { name: 'International Master', maxScore: 50 * Math.pow(2, 8) },
-        { name: 'Grand Master', maxScore: Infinity }
-    ];
-
-    for (let i = 0; i < RANKS.length; i++) {
-        if (score <= RANKS[i].maxScore) {
-            const currentRank = RANKS[i];
-            const prevRank = i > 0 ? RANKS[i - 1] : { maxScore: 0 };
-            const progress = i === 0 
-                ? (score / currentRank.maxScore) * 100
-                : ((score - prevRank.maxScore) / (currentRank.maxScore - prevRank.maxScore)) * 100;
-            const nextRank = i < RANKS.length - 1 ? RANKS[i + 1] : null;
-            
-            return {
-                rank: currentRank.name,
-                rankIndex: i,
-                currentScore: score,
-                minScore: i === 0 ? 0 : prevRank.maxScore,
-                maxScore: currentRank.maxScore,
-                progress: Math.min(100, Math.max(0, progress)),
-                nextRank: nextRank ? nextRank.name : null,
-                scoreToNext: nextRank ? nextRank.maxScore - score : 0
-            };
-        }
-    }
-    return {
-        rank: 'Grand Master',
-        rankIndex: RANKS.length - 1,
-        currentScore: score,
-        minScore: RANKS[RANKS.length - 2].maxScore,
-        maxScore: Infinity,
-        progress: 100,
-        nextRank: null,
-        scoreToNext: 0
-    };
-}
-
-// Render top leaderboard
-function renderLeaderboard() {
-    const container = document.getElementById('leaderboard');
-    
-    if (students.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 40px;">No students yet.</p>';
-        return;
-    }
-
-    // Sort by score (descending)
-    const sortedStudents = [...students].sort((a, b) => (b.score || 0) - (a.score || 0));
-    const topStudents = sortedStudents.slice(0, 10); // Top 10
-
-    container.innerHTML = topStudents.map((student, index) => {
-        const rank = index + 1;
-        const rankClass = rank === 1 ? 'top-1' : rank === 2 ? 'top-2' : rank === 3 ? 'top-3' : '';
-        const rankInfo = getRankInfo(student.score || 0);
-        // Always use calculated rank to ensure accuracy
-        const currentRank = rankInfo.rank;
-        const currentRankIndex = rankInfo.rankIndex;
-        
-        return `
-            <div class="leaderboard-item ${rankClass}">
-                <div class="rank">${rank}</div>
-                <div class="leaderboard-info">
-                    <h3>${escapeHtml(student.name)}</h3>
-                    <div class="rank-badge rank-${currentRankIndex}" style="margin: 5px 0;">${currentRank}</div>
-                    <div class="rank-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${rankInfo.progress}%"></div>
-                        </div>
-                        <div class="progress-text">${Math.round(rankInfo.progress)}% to ${rankInfo.nextRank || 'Max'}</div>
-                    </div>
-                    <div class="leaderboard-stats">
-                        <span>${student.answerCount || 0} answers</span>
-                    </div>
-                </div>
-                <div class="score-badge">${student.score || 0} pts</div>
-            </div>
-        `;
-    }).join('');
-}
-
-// Render all students list
-function renderAllStudents() {
-    const container = document.getElementById('allStudentsList');
-    
-    if (students.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 40px;">No students yet.</p>';
-        return;
-    }
-
-    // Sort by score (descending)
-    const sortedStudents = [...students].sort((a, b) => (b.score || 0) - (a.score || 0));
-
-    container.innerHTML = sortedStudents.map(student => {
-        const rankInfo = getRankInfo(student.score || 0);
-        // Always use calculated rank to ensure accuracy
-        const currentRank = rankInfo.rank;
-        const currentRankIndex = rankInfo.rankIndex;
-        
-        return `
-        <div class="student-list-item" data-rank="${currentRankIndex}">
-            <div class="student-list-info">
-                <h3>${escapeHtml(student.name)}</h3>
-                <div class="student-id">ID: ${escapeHtml(student.studentId)}</div>
-                <div class="rank-badge rank-${currentRankIndex}" style="margin-top: 5px; display: inline-block;">${currentRank}</div>
-            </div>
-            <div class="student-list-stats">
-                <div>
-                    <span><strong>${student.score || 0}</strong> pts</span>
-                    <div class="rank-progress" style="margin-top: 5px; width: 200px;">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${rankInfo.progress}%"></div>
-                        </div>
-                    </div>
-                </div>
-                <span>Answers: ${student.answerCount || 0}</span>
-            </div>
-        </div>
-    `;
-    }).join('');
-}
-
-// Auto-refresh fallback (every 5 seconds if WebSocket fails)
-function startAutoRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-    }
-    
-    refreshInterval = setInterval(() => {
-        loadStudents();
-    }, 5000);
-}
-
-// Stop auto-refresh
-function stopAutoRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-    }
-}
-
-// Escape HTML to prevent XSS
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+const urlParams = new URLSearchParams(window.location.search);
+const studentId = urlParams.get('id');
+let studentData = null;
 
 // Initialize
-initWebSocket();
-startAutoRefresh(); // Fallback polling in case WebSocket has issues
+if (studentId) {
+    loadData();
+} else {
+    document.body.innerHTML = '<h2 style="text-align:center; margin-top:50px; color:white;">Invalid Link</h2>';
+}
+
+// Load Data
+async function loadData(password = '') {
+    try {
+        const url = `/api/public/students/${studentId}${password ? '?password=' + encodeURIComponent(password) : ''}`;
+        const response = await fetch(url);
+        
+        if (response.status === 404) {
+            document.body.innerHTML = '<h2 style="text-align:center; margin-top:50px; color:white;">Student Not Found</h2>';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.protected) {
+            document.getElementById('passwordGate').style.display = 'block';
+            document.getElementById('studentDashboard').style.display = 'none';
+            // Don't show name if protected? Or show "Protected Profile"?
+            // API returns basic name if protected.
+            return;
+        }
+        
+        if (data.error) {
+            document.getElementById('authError').textContent = data.error;
+            document.getElementById('authError').style.display = 'block';
+            return;
+        }
+        
+        studentData = data;
+        renderDashboard();
+        
+    } catch (e) {
+        console.error(e);
+        document.body.innerHTML = '<h2 style="text-align:center; margin-top:50px; color:white;">Error loading profile</h2>';
+    }
+}
+
+function checkPassword() {
+    const pwd = document.getElementById('accessPasswordInput').value;
+    loadData(pwd);
+}
+
+function renderDashboard() {
+    document.getElementById('passwordGate').style.display = 'none';
+    document.getElementById('studentDashboard').style.display = 'flex';
+    
+    const s = studentData;
+    document.getElementById('sName').textContent = s.name;
+    document.getElementById('sId').textContent = `ID: ${s.studentId}`;
+    document.getElementById('sAvatar').textContent = s.name.charAt(0).toUpperCase();
+    
+    document.getElementById('sScore').textContent = s.score || 0;
+    document.getElementById('sLevel').textContent = s.level || 1;
+    document.getElementById('sAnswers').textContent = s.answerCount || 0;
+    
+    // Balance might not be in public API unless I add it. 
+    // I didn't add it explicitly in server.js publicData object.
+    // Let's check if it defaults to 0 or undefined.
+    if (s.balance !== undefined) {
+        document.getElementById('sBalance').textContent = `$${parseFloat(s.balance).toFixed(2)}`;
+    } else {
+        // Hide balance card if not available
+        document.getElementById('sBalance').parentElement.style.display = 'none';
+    }
+    
+    // Rank Badge
+    const rankColors = {
+        'Wood': '#8B4513', 'Bronze': '#CD7F32', 'Silver': '#C0C0C0', 'Gold': '#FFD700',
+        'Platinum': '#E5E4E2', 'Diamond': '#00CED1', 'Candidate Master': '#9370DB',
+        'Master': '#FF1493', 'International Master': '#FF4500', 'Grand Master': '#FF0000'
+    };
+    
+    const badge = document.createElement('div');
+    badge.className = 'rank-badge';
+    badge.style.backgroundColor = rankColors[s.rank] || '#666';
+    badge.textContent = s.rank;
+    document.getElementById('sRankBadge').innerHTML = '';
+    document.getElementById('sRankBadge').appendChild(badge);
+
+    // Progress
+    document.getElementById('sRank').textContent = s.rank;
+    document.getElementById('sNextRank').textContent = s.nextRank || 'Max';
+    document.getElementById('sProgress').style.width = `${s.progress}%`;
+    
+    if (s.nextRank) {
+        document.getElementById('sScoreToNext').textContent = s.scoreToNext || 0;
+    } else {
+        document.getElementById('sScoreToNext').parentElement.style.display = 'none';
+    }
+}
+
+window.switchTab = function(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    // Find the button that was clicked
+    // event.target might be the button or child
+    // Simple way: assume 2 tabs, toggle logic
+    const buttons = document.querySelectorAll('.tab');
+    if (tab === 'home') buttons[0].classList.add('active');
+    if (tab === 'stats') buttons[1].classList.add('active');
+    
+    document.getElementById(`${tab}Tab`).classList.add('active');
+};
+
+// Allow Enter key for password
+document.getElementById('accessPasswordInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') checkPassword();
+});
