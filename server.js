@@ -4548,9 +4548,10 @@ app.get('/api/challenge', async (req, res) => {
     res.json({
       ...challenge,
       levelInfo: currentLevelInfo,
-      allLevels: LEVELS
+      allLevels: levels
     });
   } catch (error) {
+    console.error('Error getting challenge:', error);
     res.status(500).json({ error: 'Failed to get challenge info' });
   }
 });
@@ -7876,6 +7877,68 @@ app.post('/api/organizations/enrollments/drop', authenticateUser, authorizeRole(
   } catch (error) {
     console.error('Error dropping enrollment:', error);
     res.status(500).json({ error: 'Failed to drop enrollment' });
+  }
+});
+
+// Get Game Config
+app.get('/api/organizations/game-config', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
+  try {
+    let orgId = req.user.organizationId;
+    
+    const organizations = await readOrganizations();
+    const org = organizations.find(o => o.id === orgId);
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    
+    // Default Levels
+    const defaultLevels = [
+        { level: 1, name: 'Slime', maxHP: 200, reward: 10, image: '🟢' },
+        { level: 2, name: 'Goblin', maxHP: 400, reward: 20, image: '👺' },
+        { level: 3, name: 'Orc', maxHP: 600, reward: 30, image: '👹' },
+        { level: 4, name: 'Dragon', maxHP: 800, reward: 40, image: '🐉' },
+        { level: 5, name: 'Demon', maxHP: 1000, reward: 50, image: '😈' },
+        { level: 6, name: 'Boss Lv1', maxHP: 1200, reward: 60, image: '👑' },
+        { level: 7, name: 'Boss Lv2', maxHP: 1500, reward: 75, image: '👑' },
+        { level: 8, name: 'Boss Lv3', maxHP: 2000, reward: 100, image: '👑' },
+        { level: 9, name: 'Boss Lv4', maxHP: 2500, reward: 125, image: '👑' },
+        { level: 10, name: 'Final Boss', maxHP: 3000, reward: 150, image: '👑' }
+    ];
+
+    const config = org.gameConfig || {};
+    if (!config.classicLevels || config.classicLevels.length === 0) {
+        config.classicLevels = defaultLevels;
+    }
+    config.mode = config.mode || 'classic';
+    
+    res.json(config);
+  } catch (error) {
+    console.error('Error getting game config:', error);
+    res.status(500).json({ error: 'Failed to load config' });
+  }
+});
+
+// Update Game Config
+app.put('/api/organizations/game-config', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
+  try {
+    const { mode, classicLevels } = req.body;
+    let orgId = req.user.organizationId;
+    
+    const organizations = await readOrganizations();
+    const orgIndex = organizations.findIndex(o => o.id === orgId);
+    if (orgIndex === -1) return res.status(404).json({ error: 'Organization not found' });
+    
+    organizations[orgIndex].gameConfig = {
+        mode: mode || 'classic',
+        classicLevels: classicLevels || []
+    };
+    
+    await writeOrganizations(organizations);
+    
+    broadcast({ type: 'gameConfigUpdated', config: organizations[orgIndex].gameConfig });
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving game config:', error);
+    res.status(500).json({ error: 'Failed to save config' });
   }
 });
 

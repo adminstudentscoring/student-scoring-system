@@ -490,24 +490,41 @@ function renderScoringRules(settings) {
  * Render Challenge Mode Levels
  */
 function renderChallengeLevels(settings) {
-    // Handle nested structure with levels array
     const levels = settings.levels || [];
+    const mode = settings.mode || 'classic';
+    
     return `
         <div class="settings-category">
             <h3>⚔️ Challenge Mode Levels</h3>
             <div class="category-description">Configure parameters for each level in challenge mode</div>
+            
+            <div class="settings-group">
+                <label>Game Mode</label>
+                <select id="cm_mode" onchange="updateSetting('challengeLevels', 'mode', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white;">
+                    <option value="classic" ${mode === 'classic' ? 'selected' : ''}>Classic Mode (Monster Fight)</option>
+                    <option value="add_point" ${mode === 'add_point' ? 'selected' : ''}>Add Point Mode (Coming Soon)</option>
+                </select>
+            </div>
+
             <div id="challengeLevelsList">
                 ${levels.map((level, index) => `
                     <div class="settings-group" style="border: 1px solid rgba(255,255,255,0.2); padding: 10px; border-radius: 4px; margin-bottom: 10px;">
-                        <h4 style="margin-top: 0;">Level ${level.level}: ${level.name}</h4>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 style="margin: 0;">Level ${index + 1}: ${level.name}</h4>
+                            <button class="btn btn-danger" style="padding:2px 8px; font-size:12px;" onclick="removeChallengeLevel(${index})">Remove</button>
+                        </div>
                         <div class="form-row">
                             <div class="settings-group">
                                 <label>Level Name</label>
                                 <input type="text" value="${level.name}" onchange="updateChallengeLevel(${index}, 'name', this.value)">
                             </div>
                             <div class="settings-group">
-                                <label>Emoji</label>
-                                <input type="text" value="${level.emoji}" onchange="updateChallengeLevel(${index}, 'emoji', this.value)">
+                                <label>Image / Icon</label>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <input type="file" accept="image/*" onchange="handleLevelImageUpload(${index}, this)" style="width:auto;">
+                                    ${level.image ? `<img src="${level.image}" style="height:30px; width:30px; object-fit:contain; border:1px solid #666;">` : ''}
+                                    <input type="text" value="${level.emoji || ''}" placeholder="Emoji" onchange="updateChallengeLevel(${index}, 'emoji', this.value)" style="width:60px; text-align:center;">
+                                </div>
                             </div>
                         </div>
                         <div class="form-row">
@@ -524,6 +541,7 @@ function renderChallengeLevels(settings) {
                 `).join('')}
             </div>
             <div class="settings-actions">
+                <button class="btn btn-info" onclick="addChallengeLevel()">+ Add Level</button>
                 <button class="btn btn-secondary" onclick="resetCategorySettings('challengeLevels')">Reset to Default</button>
             </div>
         </div>
@@ -801,6 +819,52 @@ function previewSettings() {
         </html>
     `);
 }
+
+window.addChallengeLevel = function() {
+    if (!currentSettings.challengeLevels) currentSettings.challengeLevels = { levels: [], mode: 'classic' };
+    if (!currentSettings.challengeLevels.levels) currentSettings.challengeLevels.levels = [];
+    
+    const nextLevel = currentSettings.challengeLevels.levels.length + 1;
+    currentSettings.challengeLevels.levels.push({
+        level: nextLevel,
+        name: `Level ${nextLevel}`,
+        maxHP: 100 * nextLevel,
+        reward: 10 * nextLevel,
+        emoji: '❓'
+    });
+    renderSettings();
+};
+
+window.removeChallengeLevel = function(index) {
+    if (!confirm('Are you sure you want to remove this level?')) return;
+    
+    if (currentSettings.challengeLevels && currentSettings.challengeLevels.levels) {
+        currentSettings.challengeLevels.levels.splice(index, 1);
+        // Re-number levels
+        currentSettings.challengeLevels.levels.forEach((l, i) => l.level = i + 1);
+        renderSettings();
+    }
+};
+
+window.handleLevelImageUpload = function(index, input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Validate size (e.g. 1MB)
+    if (file.size > 1024 * 1024) {
+        alert('Image too large (max 1MB)');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        if (!currentSettings.challengeLevels.levels[index]) return;
+        currentSettings.challengeLevels.levels[index].image = base64;
+        renderSettings();
+    };
+    reader.readAsDataURL(file);
+};
 
 // Initialize default settings when script loads
 defaultSettings = getDefaultSettings();

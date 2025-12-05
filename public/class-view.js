@@ -398,9 +398,17 @@ window.addEventListener('storage', async (e) => {
 // Challenge Mode Functions
 async function loadChallenge() {
     try {
-        const response = await fetch('/api/challenge');
-        challengeData = await response.json();
-        updateChallengeDisplay();
+        let response;
+        if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
+             response = await window.authUtils.authenticatedFetch('/challenge');
+        } else {
+             response = await fetch('/api/challenge');
+        }
+        
+        if (response.ok) {
+            challengeData = await response.json();
+            updateChallengeDisplay();
+        }
     } catch (error) {
         console.error('Failed to load challenge:', error);
     }
@@ -421,10 +429,24 @@ function updateChallengeDisplay() {
     const maxHP = document.getElementById('maxHP');
     const hpFill = document.getElementById('hpFill');
     
-    if (levelEmoji) levelEmoji.textContent = levelInfo.emoji;
+    if (levelEmoji) {
+        if (levelInfo.image) {
+            levelEmoji.innerHTML = `<img src="${levelInfo.image}" style="height:40px; vertical-align:middle;">`;
+        } else {
+            levelEmoji.textContent = levelInfo.emoji;
+        }
+    }
     if (levelName) levelName.textContent = `Level ${challengeData.currentLevel}: ${levelInfo.name}`;
     if (levelReward) levelReward.textContent = levelInfo.reward;
-    if (monsterEmoji) monsterEmoji.textContent = levelInfo.emoji;
+    
+    if (monsterEmoji) {
+        if (levelInfo.image) {
+            monsterEmoji.innerHTML = `<img src="${levelInfo.image}" style="height:80px; vertical-align:middle;">`;
+            monsterEmoji.style.animation = 'float 3s ease-in-out infinite';
+        } else {
+            monsterEmoji.textContent = levelInfo.emoji;
+        }
+    }
     if (monsterName) monsterName.textContent = levelInfo.name;
     if (currentHP) currentHP.textContent = challengeData.currentHP;
     if (maxHP) maxHP.textContent = levelInfo.maxHP;
