@@ -4522,12 +4522,12 @@ app.delete('/api/students/:id', async (req, res) => {
 });
 
 // Get challenge/level information
-app.get('/api/challenge', async (req, res) => {
+app.get('/api/challenge', authenticateUser, async (req, res) => {
   try {
     const data = await readData();
     const challenge = data.challenge || {
       currentLevel: 1,
-      currentHP: LEVELS[0].maxHP,
+      currentHP: 200,
       completedLevels: [],
       totalDamage: 0,
       selectedStudentIds: []
@@ -4536,13 +4536,26 @@ app.get('/api/challenge', async (req, res) => {
     if (!challenge.selectedStudentIds) {
       challenge.selectedStudentIds = [];
     }
-    const currentLevelInfo = LEVELS[challenge.currentLevel - 1] || LEVELS[0];
+
+    // Load Game Config
+    let levels = LEVELS; // Default
+    if (req.user && req.user.organizationId) {
+        const organizations = await readOrganizations();
+        const org = organizations.find(o => o.id === req.user.organizationId);
+        if (org && org.gameConfig && org.gameConfig.classicLevels && org.gameConfig.classicLevels.length > 0) {
+            levels = org.gameConfig.classicLevels;
+        }
+    }
+
+    const currentLevelIndex = challenge.currentLevel - 1;
+    const currentLevelInfo = levels[currentLevelIndex] || levels[levels.length - 1] || LEVELS[0];
     
-    // Fix currentHP if it exceeds maxHP (due to config changes)
+    // Fix currentHP
+    if (!challenge.currentHP && challenge.currentHP !== 0) challenge.currentHP = currentLevelInfo.maxHP;
+    
     if (challenge.currentHP > currentLevelInfo.maxHP) {
       challenge.currentHP = currentLevelInfo.maxHP;
       data.challenge = challenge;
-      data.lastUpdate = new Date().toISOString();
       await writeData(data);
     }
     
