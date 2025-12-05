@@ -712,8 +712,16 @@ window.openCreateClassModal = function() {
   openEditClassModal(null);
 };
 
-window.openEditClassModal = function(entry) {
+window.openEditClassModal = async function(entry) {
   console.log('[Debug] Opening Edit Class Modal');
+  
+  // Ensure teachers are loaded
+  if (!teachers || teachers.length === 0) {
+      console.log('[Debug] Teachers list empty, reloading...');
+      await loadTeachers();
+      console.log('[Debug] Teachers loaded:', teachers.length);
+  }
+
   console.log('[Debug] Entry Data:', entry);
   console.log('[Debug] Window Students:', window.students);
 
