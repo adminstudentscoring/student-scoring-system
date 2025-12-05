@@ -1018,25 +1018,41 @@ window.deselectSalesStudent = function() {
 };
 
 // Jump to Date from History
-window.jumpToDate = function(dateString) {
+window.jumpToDate = function(dateString, courseId) {
     if (!dateString) return;
-    // Parse simple date string YYYY-MM-DD to ensure local date matches visual
+    
+    // Parse simple date string YYYY-MM-DD
     const parts = dateString.split('-');
     if (parts.length !== 3) return;
-    
     const targetDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     
-    // Check if Sales module is in Step 2 (Calendar View). If not, maybe we should switch?
-    // But we need a product context. If no product selected, we can't show available classes.
-    // However, "Enrolled" classes (Saved) are product-independent in updateDaySchedule logic (mostly).
-    // But updateDaySchedule relies on salesState.classSelection.availableClasses.
-    // If we jump without selecting a product, availableClasses is empty.
-    // We can still show Enrolled classes.
-    
-    // If not in Step 2, switch to Step 2 but without a selected product?
-    // UI might break.
-    // Let's assume user is in Step 2 or we force a view.
-    // For now, just update state.
+    // Check if we need to switch to Step 2 (Calendar View)
+    const calendarExists = document.getElementById('miniCalendarGrid');
+    if (!calendarExists) {
+        if (courseId) {
+            // Find product context to display calendar
+            // Try Course
+            let product = (window.courses || []).find(c => c.id === courseId);
+            let type = 'course';
+            
+            // If not found in courses, might be a package? 
+            // But entry.courseIds usually refers to Course definitions.
+            
+            if (product) {
+                // Simulate selecting the product to open calendar
+                handleProductSelect(type, product.id);
+                // Note: handleProductSelect resets salesState.classSelection
+                // We will override the date below.
+            } else {
+                console.warn('Product not found for jump:', courseId);
+                // Try to force render anyway if possible? 
+                // renderClassSelectionUI fails without selectedProduct.
+                return;
+            }
+        } else {
+            return; // No context
+        }
+    }
     
     // Update View Date (Month) if different
     const currentView = salesState.classSelection.viewDate;
@@ -1048,8 +1064,13 @@ window.jumpToDate = function(dateString) {
     salesState.classSelection.selectedDate = targetDate;
     
     // Refresh UI
-    if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
-    if (typeof updateDaySchedule === 'function') updateDaySchedule();
+    // If we just called handleProductSelect, loadAvailableClasses is running and will refresh UI.
+    // But we update state here, so when it renders, it should use our date.
+    // We also call render here for immediate feedback if UI exists.
+    if (document.getElementById('miniCalendarGrid')) {
+        if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+        if (typeof updateDaySchedule === 'function') updateDaySchedule();
+    }
 };
 
 // Render Student Enrollments List
@@ -1095,8 +1116,9 @@ window.renderStudentEnrollments = function() {
             ${enrollments.map(e => {
                 const entry = (window.timetableEntries || []).find(ent => ent.id === e.timetableEntryId);
                 const className = entry ? entry.className : 'Unknown Class';
+                const courseId = (entry && entry.courseIds && entry.courseIds.length > 0) ? entry.courseIds[0] : '';
                 return `
-                    <div class="history-item" onclick="jumpToDate('${e.date}')" title="Jump to date">
+                    <div class="history-item" onclick="jumpToDate('${e.date}', '${courseId}')" title="Jump to date">
                         <div class="history-date">${e.date}</div>
                         <div class="history-info">${escapeHtml(className)}</div>
                     </div>
