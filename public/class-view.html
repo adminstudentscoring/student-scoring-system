@@ -540,7 +540,11 @@
                             <div class="level-reward">Reward: <span id="levelReward">10</span> points</div>
                         </div>
                     </div>
-                    <button id="resetChallengeBtn" class="btn-reset-challenge" title="Reset Challenge">🔄</button>
+                    <div class="challenge-header-actions" style="display: flex; gap: 8px;">
+                        <button id="saveProgressBtn" class="btn-reset-challenge" title="Save Progress">💾</button>
+                        <button id="loadProgressBtn" class="btn-reset-challenge" title="Load Progress">📂</button>
+                        <button id="resetChallengeBtn" class="btn-reset-challenge" title="Reset Challenge">🔄</button>
+                    </div>
                 </div>
                 <div class="monster-hp-container">
                     <div class="monster-display" id="monsterDisplay">
@@ -563,6 +567,65 @@
             </div>
         </div>
     </div>
+
+    <!-- Save Progress Modal -->
+    <div id="saveModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>💾 Save Challenge Progress</h2>
+                <span class="modal-close" id="saveModalClose">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="saveDay">Day:</label>
+                    <select id="saveDay" required>
+                        <option value="">Select day...</option>
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                        <option value="Saturday">Saturday</option>
+                        <option value="Sunday">Sunday</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="saveTime">Time:</label>
+                    <select id="saveTime" required>
+                        <option value="">Select time...</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirmSaveBtn" class="btn btn-success">Save</button>
+                    <button id="cancelSaveBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Progress Modal -->
+    <div id="loadModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>📂 Load Challenge Progress</h2>
+                <span class="modal-close" id="loadModalClose">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-group">
+                    <input type="text" id="saveSearchInput" placeholder="🔍 Search saves by day or time...">
+                </div>
+                <div id="recentSaves" class="saves-section">
+                    <h3>Recent Saves</h3>
+                    <div id="recentSavesList" class="saves-list"></div>
+                </div>
+                <div id="allSaves" class="saves-section">
+                    <h3>All Saves</h3>
+                    <div id="allSavesList" class="saves-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="auth.js"></script>
     <script>
         // Check authentication - Class View is for teachers

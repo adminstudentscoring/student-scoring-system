@@ -576,18 +576,19 @@ function createParticleEffect(buttonRect, points) {
 window.showPointsPopup = showPointsPopup;
 window.createParticleEffect = createParticleEffect;
 
-// Reset challenge button
+// Save/Load Progress Buttons
+document.getElementById('saveProgressBtn')?.addEventListener('click', openSaveModal);
+document.getElementById('loadProgressBtn')?.addEventListener('click', openLoadModal);
+
+// Reset challenge button (No confirmation)
 document.getElementById('resetChallengeBtn')?.addEventListener('click', async () => {
-    if (!confirm('Are you sure you want to reset the challenge? This will start from Level 1.')) {
-        return;
-    }
-    
     try {
         const response = await fetch('/api/challenge/reset', {
             method: 'POST'
         });
         if (response.ok) {
             await loadChallenge();
+            // showNotification('Challenge reset', 'success'); // Need to implement showNotification first
         }
     } catch (error) {
         console.error('Failed to reset challenge:', error);
@@ -597,6 +598,193 @@ document.getElementById('resetChallengeBtn')?.addEventListener('click', async ()
 // Make recordPoints and loadChallenge available globally
 window.recordPoints = recordPoints;
 window.loadChallenge = loadChallenge;
+
+// Show notification
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Save/Load Logic
+function generateTimeOptions() {
+    const timeSelect = document.getElementById('saveTime');
+    if (!timeSelect) return;
+    timeSelect.innerHTML = '<option value="">Select time...</option>';
+    for (let hour = 8; hour <= 22; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+            if (hour === 22 && minute > 0) break;
+            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            const option = document.createElement('option');
+            option.value = timeStr;
+            option.textContent = timeStr;
+            timeSelect.appendChild(option);
+        }
+    }
+}
+
+function openSaveModal() {
+    generateTimeOptions();
+    const modal = document.getElementById('saveModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('saveDay').value = '';
+        document.getElementById('saveTime').value = '';
+    }
+}
+
+function closeSaveModal() {
+    const modal = document.getElementById('saveModal');
+    if (modal) modal.classList.remove('show');
+}
+
+function openLoadModal() {
+    const modal = document.getElementById('loadModal');
+    if (modal) {
+        modal.classList.add('show');
+        loadSavesList();
+    }
+}
+
+function closeLoadModal() {
+    const modal = document.getElementById('loadModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.getElementById('saveSearchInput').value = '';
+    }
+}
+
+async function saveProgress() {
+    const day = document.getElementById('saveDay').value;
+    const time = document.getElementById('saveTime').value;
+    
+    if (!day || !time) {
+        showNotification('Please select both day and time', 'error');
+        return;
+    }
+    
+    try {
+        let response;
+        const body = JSON.stringify({ day, time });
+        if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
+             response = await window.authUtils.authenticatedFetch('/challenge/save', { method: 'POST', body });
+        } else {
+             response = await fetch('/api/challenge/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body });
+        }
+        
+        if (!response.ok) throw new Error('Failed to save');
+        
+        showNotification('Progress saved successfully!', 'success');
+        closeSaveModal();
+    } catch (error) {
+        showNotification('Failed to save progress', 'error');
+    }
+}
+
+async function loadSavesList() {
+    try {
+        let response;
+        if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
+             response = await window.authUtils.authenticatedFetch('/challenge/saves');
+        } else {
+             response = await fetch('/api/challenge/saves');
+        }
+        
+        if (!response.ok) throw new Error('Failed to load saves');
+        const saves = await response.json();
+        renderSavesList(saves);
+    } catch (error) {
+        showNotification('Failed to load saves list', 'error');
+    }
+}
+
+function renderSavesList(saves) {
+    const recentSavesList = document.getElementById('recentSavesList');
+    const allSavesList = document.getElementById('allSavesList');
+    if (!recentSavesList || !allSavesList) return;
+    
+    const recentSaves = saves.slice(0, 5);
+    
+    recentSavesList.innerHTML = recentSaves.length ? recentSaves.map(s => createSaveItemHTML(s)).join('') : '<div class="no-saves">No recent saves</div>';
+    allSavesList.innerHTML = saves.length ? saves.map(s => createSaveItemHTML(s)).join('') : '<div class="no-saves">No saves found</div>';
+}
+
+function createSaveItemHTML(save) {
+    const savedDate = new Date(save.savedAt);
+    const dateStr = savedDate.toLocaleDateString() + ' ' + savedDate.toLocaleTimeString();
+    const levelName = `Level ${save.challenge.currentLevel}`; 
+    return `
+        <div class="save-item">
+            <div class="save-item-info">
+                <div class="save-item-header">
+                    <span class="save-item-day">${escapeHtml(save.day)}</span>
+                    <span class="save-item-time">${escapeHtml(save.time)}</span>
+                    <span class="save-item-level">${levelName}</span>
+                </div>
+                <div class="save-item-details">HP: ${save.challenge.currentHP} | Saved: ${dateStr}</div>
+            </div>
+            <div class="save-item-actions">
+                <button class="save-item-btn load" onclick="loadProgress('${escapeHtml(save.filename)}')">Load</button>
+                <button class="save-item-btn delete" onclick="deleteSave('${escapeHtml(save.filename)}')">Delete</button>
+            </div>
+        </div>
+    `;
+}
+
+async function loadProgress(filename) {
+    if (!confirm('Load this save? Current progress will be lost.')) return;
+    try {
+        let response;
+        const body = JSON.stringify({ filename });
+        if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
+             response = await window.authUtils.authenticatedFetch('/challenge/load', { method: 'POST', body });
+        } else {
+             response = await fetch('/api/challenge/load', { method: 'POST', headers: {'Content-Type': 'application/json'}, body });
+        }
+        if (!response.ok) throw new Error('Failed to load');
+        
+        showNotification('Progress loaded!', 'success');
+        closeLoadModal();
+        loadChallenge();
+    } catch (error) {
+        showNotification('Failed to load progress', 'error');
+    }
+}
+
+async function deleteSave(filename) {
+    if (!confirm('Delete this save?')) return;
+    try {
+        let response;
+        const url = `/challenge/saves/${encodeURIComponent(filename)}`;
+        if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
+             response = await window.authUtils.authenticatedFetch(url, { method: 'DELETE' });
+        } else {
+             response = await fetch('/api' + url, { method: 'DELETE' });
+        }
+        if (!response.ok) throw new Error('Failed to delete');
+        
+        showNotification('Save deleted', 'success');
+        loadSavesList();
+    } catch (error) {
+        showNotification('Failed to delete save', 'error');
+    }
+}
+
+// Make functions global
+window.loadProgress = loadProgress;
+window.deleteSave = deleteSave;
+
+// Listeners
+document.getElementById('saveModalClose')?.addEventListener('click', closeSaveModal);
+document.getElementById('loadModalClose')?.addEventListener('click', closeLoadModal);
+document.getElementById('confirmSaveBtn')?.addEventListener('click', saveProgress);
+document.getElementById('cancelSaveBtn')?.addEventListener('click', closeSaveModal);
 
 // Initialize
 initWebSocket();
