@@ -1395,12 +1395,12 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
     // Check if student already exists in this organization (only if studentId provided)
     const data = await readData();
     if (studentId) {
-        const existingStudent = data.students.find(s => 
-          s.organizationId === orgUser.organizationId && 
-          s.studentId === studentId
-        );
-        if (existingStudent) {
-          return res.status(400).json({ error: 'Student ID already exists in this organization' });
+    const existingStudent = data.students.find(s => 
+      s.organizationId === orgUser.organizationId && 
+      s.studentId === studentId
+    );
+    if (existingStudent) {
+      return res.status(400).json({ error: 'Student ID already exists in this organization' });
         }
     }
     
@@ -1800,6 +1800,8 @@ app.delete('/api/admin/organizations/:id', authenticateUser, authorizeRole('admi
 app.post('/api/admin/organizations/:id/login-as', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
+    console.log(`[DEBUG] Admin Login As OrgID: ${id}`);
+    
     const users = await readUsers();
     
     // Find the user with role 'organization' and organizationId matching the param
@@ -1809,10 +1811,15 @@ app.post('/api/admin/organizations/:id/login-as', authenticateUser, authorizeRol
     );
     
     if (!targetUser) {
+      console.log(`[DEBUG] No Org User found for OrgID: ${id}`);
       return res.status(404).json({ error: 'Organization user not found' });
     }
     
+    console.log(`[DEBUG] Found Org User: ${targetUser.name} (ID: ${targetUser.id})`);
+    
     const token = generateToken(targetUser);
+    console.log(`[DEBUG] Generated Token Payload ID: ${targetUser.id}`);
+    
     const { password: _, ...userWithoutPassword } = targetUser;
     
     res.json({
@@ -2370,10 +2377,18 @@ function initializeTeacherFields(teacher) {
 app.get('/api/organizations/teachers', authenticateUser, requireOrganizationAccess, async (req, res) => {
   try {
     const users = await readUsers();
+    console.log(`[DEBUG] GET /teachers. Req User ID: ${req.user.id}`);
+    
     const orgUser = users.find(u => u.id === req.user.id);
     
-    if (!orgUser || !orgUser.organizationId) {
-      return res.status(403).json({ error: 'Organization not found' });
+    if (!orgUser) {
+        console.log(`[DEBUG] Org User NOT FOUND in users list. ID: ${req.user.id}`);
+        return res.status(403).json({ error: 'Organization user not found in DB' });
+    }
+    
+    if (!orgUser.organizationId) {
+        console.log(`[DEBUG] Org User has NO organizationId. ID: ${req.user.id}`);
+        return res.status(403).json({ error: 'Organization not found' });
     }
     
     // Get all teachers in this organization
