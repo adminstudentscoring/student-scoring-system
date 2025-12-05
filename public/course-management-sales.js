@@ -84,40 +84,39 @@ function renderSalesProducts(category = 'all', searchTerm = '', packages = []) {
   if (!container) return;
   
   const term = searchTerm.toLowerCase();
-  let items = [];
+  let coursesList = [];
+  let packagesList = [];
   
-  // Add Courses (Single Lessons)
+  // 1. Gather Courses (Single Lessons)
   if (category === 'all' || category === 'courses') {
-    items = items.concat((window.courses || []).map(c => ({
+    coursesList = (window.courses || []).map(c => ({
       type: 'course',
       data: c,
       name: c.name,
       price: parseFloat(c.price),
       info: 'Single lesson'
-    })));
+    })).filter(item => item.name.toLowerCase().includes(term));
   }
 
-  // Add Packages
+  // 2. Gather Packages
   if (category === 'all' || category === 'packages') {
     const activePackages = packages.filter(p => p.status === 'active');
-    items = items.concat(activePackages.map(p => ({
+    packagesList = activePackages.map(p => ({
       type: 'package',
       data: p,
       name: p.name,
       price: calculateSalesPackagePrice(p),
       info: `${p.courses.reduce((sum, c) => sum + c.quantity, 0)} lessons`
-    })));
+    })).filter(item => item.name.toLowerCase().includes(term));
   }
   
-  // Filter by search
-  items = items.filter(item => item.name.toLowerCase().includes(term));
-  
-  if (items.length === 0) {
+  if (coursesList.length === 0 && packagesList.length === 0) {
     container.innerHTML = '<div class="empty-state">No products found</div>';
     return;
   }
   
-  container.innerHTML = items.map(item => `
+  // Helper to render cards
+  const renderCards = (items) => items.map(item => `
     <div class="sales-product-card ${item.type}" onclick="handleProductSelect('${item.type}', '${item.data.id}')">
       <div class="product-type-badge ${item.type}"></div>
       <div class="product-type-label">${item.type === 'package' ? 'Multiple courses' : 'Single Lesson'}</div>
@@ -128,6 +127,43 @@ function renderSalesProducts(category = 'all', searchTerm = '', packages = []) {
       </div>
     </div>
   `).join('');
+
+  // Inject Styles if not present
+  if (!document.getElementById('salesSectionStyles')) {
+      const style = document.createElement('style');
+      style.id = 'salesSectionStyles';
+      style.textContent = `
+        .sales-product-sections { display: flex; flex-direction: column; gap: 25px; padding: 5px; overflow-y: auto; }
+        .product-section-title { font-size: 15px; font-weight: 700; color: #6b7280; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.5px; }
+        .sales-product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+      `;
+      document.head.appendChild(style);
+  }
+
+  // Set Container Class to use Flex Column instead of Grid
+  container.className = 'sales-product-sections';
+
+  let html = '';
+  
+  if (coursesList.length > 0) {
+      html += `<div class="product-section">
+        <div class="product-section-title">Single Lessons</div>
+        <div class="sales-product-grid">
+            ${renderCards(coursesList)}
+        </div>
+      </div>`;
+  }
+  
+  if (packagesList.length > 0) {
+      html += `<div class="product-section">
+        <div class="product-section-title">Packages</div>
+        <div class="sales-product-grid">
+            ${renderCards(packagesList)}
+        </div>
+      </div>`;
+  }
+  
+  container.innerHTML = html;
 }
 
 // Calculate package price (duplicated helper for independence)
