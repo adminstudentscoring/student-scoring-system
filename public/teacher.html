@@ -53,6 +53,7 @@
         <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.1); padding: 5px; border-radius: 8px;">
             <button class="tab active" onclick="switchTeacherTab('students', this)" style="padding: 10px 20px; background: rgba(255, 255, 255, 0.2); border: none; cursor: pointer; font-size: 16px; color: #fff; border-bottom: 2px solid #fff; font-weight: bold; border-radius: 6px;">👥 Student Management</button>
             <button class="tab" onclick="switchTeacherTab('courses', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">📚 Course Management</button>
+            <button class="tab" onclick="switchTeacherTab('statistics', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">📊 Statistics</button>
         </div>
 
         <!-- Student Management Tab -->
@@ -117,6 +118,12 @@
             <div id="teacherCourseManagementContainer">
                 <p>Loading course management...</p>
             </div>
+        </div>
+
+        <!-- Statistics Tab -->
+        <div id="statisticsTab" class="tab-content" style="display: none;">
+            <!-- Content will be injected by statistics.js -->
+            <p>Loading statistics...</p>
         </div>
 
         <!-- Right Sidebar -->
@@ -304,6 +311,7 @@
     <script src="auth.js"></script>
     <script src="course-management.js"></script>
     <script src="course-management-timetable.js"></script>
+    <script src="course-management-statistics.js"></script>
     <script>
         // Check authentication
         if (!window.authUtils.requireRole('teacher')) {
@@ -344,6 +352,13 @@
             // Load course management when switching to courses tab
             if (tab === 'courses') {
                 loadTeacherCourseManagement();
+            }
+            
+            // Load statistics when switching to statistics tab
+            if (tab === 'statistics') {
+                if (window.loadStatisticsModule) {
+                    window.loadStatisticsModule();
+                }
             }
         }
 

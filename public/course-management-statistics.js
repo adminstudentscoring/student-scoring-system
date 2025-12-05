@@ -13,30 +13,50 @@ let statisticsState = {
 };
 
 // Initialize Statistics Module
-window.loadStatisticsModule = function() {
+window.loadStatisticsModule = async function() {
   const container = document.getElementById('statisticsTab');
   if (!container) return;
   
+  // Ensure user info is loaded
+  if (!window.currentUser) {
+      try {
+          const response = await window.authUtils.authenticatedFetch('/auth/me');
+          if (response.ok) window.currentUser = await response.json();
+      } catch(e) {
+          console.warn('Failed to load current user for statistics');
+      }
+  }
+  
   renderStatisticsLayout();
-  switchSubTab(statisticsState.currentSubTab);
+  switchStatisticsSubTab(statisticsState.currentSubTab);
 };
 
 // Render Main Layout (Sidebar + Content Area)
 function renderStatisticsLayout() {
   const container = document.getElementById('statisticsTab');
+  const isTeacher = window.currentUser && window.currentUser.role === 'teacher';
   
-  container.innerHTML = `
-    <div class="course-management">
-      <!-- Sub-tabs Sidebar -->
-      <div class="course-sub-tabs">
-        <button class="course-sub-tab ${statisticsState.currentSubTab === 'student-scores' ? 'active' : ''}" 
-                onclick="switchStatisticsSubTab('student-scores')">🏆 Student Scores</button>
+  let tabsHtml = `
+    <button class="course-sub-tab ${statisticsState.currentSubTab === 'student-scores' ? 'active' : ''}" 
+            onclick="switchStatisticsSubTab('student-scores')">🏆 Student Scores</button>
+  `;
+  
+  if (!isTeacher) {
+      tabsHtml += `
         <button class="course-sub-tab ${statisticsState.currentSubTab === 'org-overview' ? 'active' : ''}" 
                 onclick="switchStatisticsSubTab('org-overview')">🏢 Org Overview</button>
         <button class="course-sub-tab ${statisticsState.currentSubTab === 'teacher-analysis' ? 'active' : ''}" 
                 onclick="switchStatisticsSubTab('teacher-analysis')">👨‍🏫 Teacher Analysis</button>
         <button class="course-sub-tab ${statisticsState.currentSubTab === 'student-analysis' ? 'active' : ''}" 
                 onclick="switchStatisticsSubTab('student-analysis')">🎓 Student Analysis</button>
+      `;
+  }
+  
+  container.innerHTML = `
+    <div class="course-management">
+      <!-- Sub-tabs Sidebar -->
+      <div class="course-sub-tabs">
+        ${tabsHtml}
       </div>
       
       <!-- Content Area -->
@@ -50,7 +70,10 @@ function renderStatisticsLayout() {
 // Switch Sub-tab
 window.switchStatisticsSubTab = function(tabName) {
   statisticsState.currentSubTab = tabName;
-  renderStatisticsLayout(); // Re-render sidebar active state
+  
+  // Update Sidebar Active State manually to avoid full re-render if possible, 
+  // but renderStatisticsLayout is cheap.
+  renderStatisticsLayout(); 
   
   const contentContainer = document.getElementById('statisticsContent');
   
@@ -79,6 +102,36 @@ function formatTabName(name) {
 // ==================== Student Scores Logic ====================
 
 async function renderStudentScoresUI(container) {
+  const isTeacher = window.currentUser && window.currentUser.role === 'teacher';
+  
+  // If teacher, force 'all' or 'teacher' logic? 
+  // User said: "By teacher (only see that teacher's own students)"
+  // If viewMode is teacher, we should lock selectedTeacherId to currentUser.id
+  
+  let teacherSelectHtml = '';
+  if (isTeacher) {
+      // For teacher, if viewMode is teacher, we just show "My Students" label or a disabled select
+      teacherSelectHtml = `
+        <div class="control-group" id="statsTeacherGroup" style="display: ${statisticsState.studentScores.viewMode === 'teacher' ? 'block' : 'none'}">
+          <label>Teacher:</label>
+          <span style="font-weight:bold; padding: 5px 10px; background: #f3f4f6; border-radius: 4px;">${escapeHtml(window.currentUser.name)} (Me)</span>
+          <!-- Hidden value for logic -->
+          <input type="hidden" id="statsTeacherSelect" value="${window.currentUser.id}">
+        </div>
+      `;
+  } else {
+      // For Admin/Org
+      teacherSelectHtml = `
+        <div class="control-group" id="statsTeacherGroup" style="display: ${statisticsState.studentScores.viewMode === 'teacher' ? 'block' : 'none'}">
+          <label>Teacher:</label>
+          <select id="statsTeacherSelect" onchange="handleStatsFilterChange()">
+            <option value="all">Select Teacher...</option>
+            <!-- Teachers populated dynamically -->
+          </select>
+        </div>
+      `;
+  }
+
   container.innerHTML = `
     <div class="statistics-header">
       <h2>Student Scores Leaderboard</h2>
@@ -93,14 +146,8 @@ async function renderStudentScoresUI(container) {
           </select>
         </div>
 
-        <!-- Teacher Selector (Visible if View Mode is Teacher) -->
-        <div class="control-group" id="statsTeacherGroup" style="display: ${statisticsState.studentScores.viewMode === 'teacher' ? 'block' : 'none'}">
-          <label>Teacher:</label>
-          <select id="statsTeacherSelect" onchange="handleStatsFilterChange()">
-            <option value="all">Select Teacher...</option>
-            <!-- Teachers populated dynamically -->
-          </select>
-        </div>
+        <!-- Teacher Selector -->
+        ${teacherSelectHtml}
 
         <!-- Time Period -->
         <div class="control-group">
@@ -128,9 +175,14 @@ async function renderStudentScoresUI(container) {
     </div>
   `;
 
-  // Populate Teachers
-  if (statisticsState.studentScores.viewMode === 'teacher') {
+  // Populate Teachers (Only for Org)
+  if (!isTeacher && statisticsState.studentScores.viewMode === 'teacher') {
       await populateStatsTeachers();
+  }
+  
+  // Initialize Teacher ID if Teacher Role
+  if (isTeacher && statisticsState.studentScores.viewMode === 'teacher') {
+      statisticsState.studentScores.selectedTeacherId = window.currentUser.id;
   }
   
   // Inject CSS
@@ -197,12 +249,18 @@ async function populateStatsTeachers() {
 window.handleStatsFilterChange = function() {
     const viewMode = document.getElementById('statsViewMode').value;
     statisticsState.studentScores.viewMode = viewMode;
+    const isTeacher = window.currentUser && window.currentUser.role === 'teacher';
     
     if (viewMode === 'teacher') {
         document.getElementById('statsTeacherGroup').style.display = 'block';
-        statisticsState.studentScores.selectedTeacherId = document.getElementById('statsTeacherSelect').value;
-        if (document.getElementById('statsTeacherSelect').options.length <= 1) {
-            populateStatsTeachers();
+        
+        if (isTeacher) {
+            statisticsState.studentScores.selectedTeacherId = window.currentUser.id;
+        } else {
+            statisticsState.studentScores.selectedTeacherId = document.getElementById('statsTeacherSelect').value;
+            if (document.getElementById('statsTeacherSelect').options.length <= 1) {
+                populateStatsTeachers();
+            }
         }
     } else {
         document.getElementById('statsTeacherGroup').style.display = 'none';
@@ -279,16 +337,15 @@ async function loadStudentScoresData() {
         if (statisticsState.studentScores.viewMode === 'teacher') {
             const teacherId = statisticsState.studentScores.selectedTeacherId;
             if (teacherId && teacherId !== 'all') {
-                // This requires backend to support 'assignedStudents' or fetching students by teacher.
-                // GET /students logic (server.js) usually returns all students for Organization Admin.
-                // Does the student object contain teacher info?
-                // Currently students don't have 'teacherId' field directly?
-                // Teacher object has 'assignedStudents'.
-                // So we need to fetch Teacher -> get assignedStudents -> filter.
+                // Get Teacher's Assigned Students
+                // We need to fetch teachers to check assignments, or filter if student object has info
+                // Currently student object doesn't have teacher info directly.
+                // Fetch teachers to get assignment list.
                 
                 const tResponse = await window.authUtils.authenticatedFetch('/organizations/teachers');
                 const teachers = await tResponse.json();
                 const teacher = teachers.find(t => t.id === teacherId);
+                
                 if (teacher && teacher.assignedStudents) {
                     students = students.filter(s => teacher.assignedStudents.includes(s.id));
                 } else {
@@ -330,7 +387,6 @@ async function loadStudentScoresData() {
                 const daysDiff = Math.floor((mondayDate - firstMonday) / (24 * 60 * 60 * 1000));
                 let weekNum = Math.floor(daysDiff / 7) + 1;
                 if (weekNum < 1) weekNum = 1; 
-                // Adjust year if needed (not perfect ISO week but matches server simplified logic)
                 
                 const key = `${year}-W${String(weekNum).padStart(2, '0')}`;
                 if (stats.weekly && stats.weekly[key]) score = stats.weekly[key].totalPoints;
@@ -344,7 +400,7 @@ async function loadStudentScoresData() {
         
         // 4. Render Table
         renderLeaderboardTable(container, scoredStudents);
-        updateStatsDateLabel(); // Ensure label is correct
+        updateStatsDateLabel(); 
         
     } catch (e) {
         console.error(e);
@@ -391,4 +447,3 @@ function renderLeaderboardTable(container, students) {
     html += `</tbody></table>`;
     container.innerHTML = html;
 }
-

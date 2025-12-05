@@ -3753,13 +3753,10 @@ app.get('/api/students', optionalAuth, async (req, res) => {
       if (req.user.role === 'admin') {
         // Admin sees all students
       } else if (req.user.role === 'teacher') {
-        // Teachers only see students assigned to them
-        const users = await readUsers();
-        const teacher = users.find(u => u.id === req.user.id);
-        if (teacher && teacher.assignedStudents && teacher.assignedStudents.length > 0) {
-          students = students.filter(s => teacher.assignedStudents.includes(s.id));
+        // Teachers see all students in their organization (for Statistics leaderboard)
+        if (req.user.organizationId) {
+          students = filterStudentsByOrganization(students, req.user.organizationId);
         } else {
-          // No students assigned yet
           students = [];
         }
       } else if (req.user.organizationId) {
