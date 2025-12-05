@@ -493,6 +493,9 @@ function renderChallengeLevels(settings) {
     const levels = settings.levels || [];
     const mode = settings.mode || 'classic';
     
+    // Cleanup images to improve performance (User Request)
+    levels.forEach(l => delete l.image);
+    
     return `
         <div class="settings-category">
             <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -522,12 +525,8 @@ function renderChallengeLevels(settings) {
                                 <input type="text" value="${level.name}" onchange="updateChallengeLevel(${index}, 'name', this.value)">
                             </div>
                             <div class="settings-group">
-                                <label>Image / Icon</label>
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <input type="file" accept="image/*" onchange="handleLevelImageUpload(${index}, this)" style="width:auto;">
-                                    ${level.image ? `<img src="${level.image}" style="height:30px; width:30px; object-fit:contain; border:1px solid #666;">` : ''}
-                                    <input type="text" value="${level.emoji || ''}" placeholder="Emoji" onchange="updateChallengeLevel(${index}, 'emoji', this.value)" style="width:60px; text-align:center;">
-                                </div>
+                                <label>Emoji</label>
+                                <input type="text" value="${level.emoji || ''}" placeholder="Emoji" onchange="updateChallengeLevel(${index}, 'emoji', this.value)">
                             </div>
                         </div>
                         <div class="form-row">
