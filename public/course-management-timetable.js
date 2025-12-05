@@ -16,7 +16,7 @@ window.loadTimetableManagement = function(userRole = 'organization') {
   isReadOnly = userRole === 'teacher';
   loadTimetableData();
   loadTimetableCourses();
-  loadTeachers();
+  loadTimetableTeachers();
 };
 
 // Load timetable data
@@ -70,8 +70,8 @@ async function loadTimetableCourses() {
   }
 }
 
-// Load teachers
-async function loadTeachers() {
+// Load teachers for Timetable
+async function loadTimetableTeachers() {
   try {
     console.log('[DEBUG] Fetching teachers...');
     const response = await window.authUtils.authenticatedFetch('/organizations/teachers');
@@ -723,7 +723,7 @@ window.openEditClassModal = async function(entry) {
   // Ensure teachers are loaded
   if (!teachers || teachers.length === 0) {
       console.log('[Debug] Teachers list empty, reloading...');
-      await loadTeachers();
+      await loadTimetableTeachers();
       console.log('[Debug] Teachers loaded:', teachers.length);
   }
 
