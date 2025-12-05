@@ -1188,11 +1188,22 @@ async function submitSalesOrder(status) {
        if (window.showToast) window.showToast(status === 'paid' ? 'Payment successful!' : 'Order saved!', 'success');
        else alert(status === 'paid' ? 'Payment successful!' : 'Order saved!');
        
-       resetSales();
+       // resetSales();
        
-       // Refresh Timetable if function exists
+       // Keep State, Clear Cart
+       salesState.cart = [];
+       renderSalesCart();
+       
+       // Refresh Data
        if (typeof window.loadTimetableData === 'function') {
-         window.loadTimetableData();
+         await window.loadTimetableData();
+       }
+       
+       // Refresh UI (History & Calendar)
+       if (salesState.selectedStudent) {
+           if (typeof renderStudentEnrollments === 'function') renderStudentEnrollments();
+           if (typeof updateDaySchedule === 'function') updateDaySchedule();
+           if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
        }
      } else {
        let errorMsg = 'Failed to save order';
