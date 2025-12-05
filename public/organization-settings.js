@@ -495,7 +495,10 @@ function renderChallengeLevels(settings) {
     
     return `
         <div class="settings-category">
-            <h3>⚔️ Challenge Mode Levels</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>⚔️ Challenge Mode Levels</h3>
+                <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+            </div>
             <div class="category-description">Configure parameters for each level in challenge mode</div>
             
             <div class="settings-group">
