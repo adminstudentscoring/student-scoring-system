@@ -1864,9 +1864,12 @@ async function loadTeacherAttendanceData(entryId, dateStr, students) {
                 <strong>${escapeHtml(s.name)}</strong> <span style="color:#666; font-size:0.9rem;">(${s.studentId})</span>
             </div>
             <div class="attendance-options">
-                <label style="margin-right:10px; cursor:pointer;"><input type="radio" name="t_att_${s.id}" value="present" ${status==='present'?'checked':''}> Present</label>
-                <label style="margin-right:10px; cursor:pointer;"><input type="radio" name="t_att_${s.id}" value="late" ${status==='late'?'checked':''}> Late</label>
-                <label style="cursor:pointer;"><input type="radio" name="t_att_${s.id}" value="absent" ${status==='absent'?'checked':''}> Absent</label>
+                <select name="t_att_${s.id}" style="padding:5px; border-radius:4px; border:1px solid #ccc;">
+                    <option value="unmarked" ${!status || status==='unmarked'?'selected':''}>Select Status</option>
+                    <option value="present" ${status==='present'?'selected':''}>Present</option>
+                    <option value="absent" ${status==='absent'?'selected':''}>Absent</option>
+                    <option value="late" ${status==='late'?'selected':''}>Late</option>
+                </select>
             </div>
         </div>
         `;
@@ -1881,10 +1884,12 @@ async function saveTeacherAttendance() {
     const { entryId, dateStr } = window.currentAttContext;
     
     const attendanceRecords = [];
-    const radios = document.querySelectorAll('#attStudentList input[type="radio"]:checked');
-    radios.forEach(r => {
-        const studentId = r.name.replace('t_att_', '');
-        attendanceRecords.push({ studentId, status: r.value });
+    const selects = document.querySelectorAll('#attStudentList select[name^="t_att_"]');
+    selects.forEach(s => {
+        const studentId = s.name.replace('t_att_', '');
+        if (s.value !== 'unmarked') {
+            attendanceRecords.push({ studentId, status: s.value });
+        }
     });
     
     try {

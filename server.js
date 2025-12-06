@@ -3594,9 +3594,13 @@ app.get('/api/teachers/timetable', authenticateUser, authorizeRole('teacher'), a
     const timetableData = await readTimetable();
     const filteredEntries = timetableData.entries.filter(e => e.organizationId === teacher.organizationId);
     
+    const enrollmentsData = await readEnrollments();
+    const filteredEnrollments = enrollmentsData.filter(e => e.organizationId === teacher.organizationId);
+    
     res.json({
       entries: filteredEntries,
-      metadata: timetableData.metadata
+      metadata: timetableData.metadata,
+      enrollments: filteredEnrollments
     });
   } catch (error) {
     console.error('Error getting teacher timetable:', error);

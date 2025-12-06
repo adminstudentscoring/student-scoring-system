@@ -398,7 +398,21 @@ function renderEntryInCell(entry, day, date) {
   }
   
   if (height >= 75 && totalStudents > 0) {
-    content += `<div class="timetable-entry-students">${totalStudents} student(s)</div>`;
+      // Get student names
+      const s1 = entry.studentIds || [];
+      const s2 = (timetableEnrollments || []).filter(e => 
+        e.timetableEntryId === entry.id && 
+        e.date === dateStr && 
+        e.type === 'single'
+      ).map(e => e.studentId);
+      
+      const allIds = [...new Set([...s1, ...s2])];
+      const names = allIds.map(id => {
+          const s = (window.students || []).find(stu => stu.id === id);
+          return s ? s.name : 'Unknown';
+      });
+      
+      content += `<div class="timetable-entry-students" style="font-size:10px; white-space: normal; line-height: 1.1; margin-top:2px; overflow: hidden;">${escapeHtml(names.join(', '))}</div>`;
   }
   
   entryEl.innerHTML = content;
@@ -610,7 +624,21 @@ function renderEntryInDayCell(entry, date) {
   }
   
   if (height >= 75 && totalStudents > 0) {
-    content += `<div class="timetable-entry-students">${totalStudents} student(s)</div>`;
+      // Get student names
+      const s1 = entry.studentIds || [];
+      const s2 = (timetableEnrollments || []).filter(e => 
+        e.timetableEntryId === entry.id && 
+        e.date === dateStr && 
+        e.type === 'single'
+      ).map(e => e.studentId);
+      
+      const allIds = [...new Set([...s1, ...s2])];
+      const names = allIds.map(id => {
+          const s = (window.students || []).find(stu => stu.id === id);
+          return s ? s.name : 'Unknown';
+      });
+      
+      content += `<div class="timetable-entry-students" style="font-size:10px; white-space: normal; line-height: 1.1; margin-top:2px; overflow: hidden;">${escapeHtml(names.join(', '))}</div>`;
   }
   
   entryEl.innerHTML = content;
@@ -951,10 +979,13 @@ window.openEditClassModal = async function(entry, dateStr) {
                       const att = currentAttendance.find(r => r.studentId === studentId);
                       const status = att ? att.status : '';
                       attHtml = `
-                      <div class="attendance-controls" style="display:flex; gap:8px; margin-left:10px; font-size:12px;">
-                          <label style="font-weight:normal;"><input type="radio" name="att_${studentId}" value="present" ${status==='present'?'checked':''}> P</label>
-                          <label style="font-weight:normal;"><input type="radio" name="att_${studentId}" value="absent" ${status==='absent'?'checked':''}> A</label>
-                          <label style="font-weight:normal;"><input type="radio" name="att_${studentId}" value="late" ${status==='late'?'checked':''}> L</label>
+                      <div class="attendance-controls" style="margin-left:auto;">
+                          <select name="att_${studentId}" style="padding:2px 5px; border-radius:4px; border:1px solid #ccc; font-size:12px;">
+                              <option value="unmarked" ${!status || status==='unmarked'?'selected':''}>Select Status</option>
+                              <option value="present" ${status==='present'?'selected':''}>Present</option>
+                              <option value="absent" ${status==='absent'?'selected':''}>Absent</option>
+                              <option value="late" ${status==='late'?'selected':''}>Late</option>
+                          </select>
                       </div>`;
                   }
                   
@@ -1326,10 +1357,12 @@ window.saveClassEntry = async function(event, entryId) {
     if (window.currentEditingDate) {
         const targetId = entryId ? entryId : savedEntry.id;
         const attendanceRecords = [];
-        const radios = document.querySelectorAll('input[type="radio"][name^="att_"]:checked');
-        radios.forEach(r => {
-            const studentId = r.name.replace('att_', '');
-            attendanceRecords.push({ studentId, status: r.value });
+        const selects = document.querySelectorAll('select[name^="att_"]');
+        selects.forEach(s => {
+            const studentId = s.name.replace('att_', '');
+            if (s.value !== 'unmarked') {
+                attendanceRecords.push({ studentId, status: s.value });
+            }
         });
         
         if (attendanceRecords.length > 0) {
