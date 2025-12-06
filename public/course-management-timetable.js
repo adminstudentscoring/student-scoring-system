@@ -379,7 +379,7 @@ function renderEntryInCell(entry, day, date) {
   entryEl.onclick = (e) => {
     e.stopPropagation();
     if (!isReadOnly) {
-      window.openEditClassModal(entry);
+      window.openEditClassModal(entry, dateStr);
     }
   };
   
@@ -591,7 +591,7 @@ function renderEntryInDayCell(entry, date) {
   entryEl.onclick = (e) => {
     e.stopPropagation();
     if (!isReadOnly) {
-      window.openEditClassModal(entry);
+      window.openEditClassModal(entry, dateStr);
     }
   };
   
@@ -665,7 +665,7 @@ function renderMonthView() {
     const dayEntries = getEntriesForDate(date);
     dayEntries.forEach(entry => {
       const courseColor = entry.courseIds.length > 0 ? getCourseColor(entry.courseIds[0]) : '#667eea';
-      html += `<div class="timetable-month-entry" style="background: ${courseColor};" data-entry-id="${entry.id}" onclick="event.stopPropagation(); ${!isReadOnly ? `window.openEditClassModal(${JSON.stringify(entry).replace(/"/g, '&quot;')})` : ''}">${escapeHtml(entry.className)}</div>`;
+      html += `<div class="timetable-month-entry" style="background: ${courseColor};" data-entry-id="${entry.id}" onclick="event.stopPropagation(); ${!isReadOnly ? `window.openEditClassModal(${JSON.stringify(entry).replace(/"/g, '&quot;')}, '${formatDateISO(date)}')` : ''}">${escapeHtml(entry.className)}</div>`;
     });
     
     html += '</div>';
@@ -717,8 +717,22 @@ window.openCreateClassModal = function() {
   openEditClassModal(null);
 };
 
-window.openEditClassModal = async function(entry) {
-  console.log('[Debug] Opening Edit Class Modal');
+window.openEditClassModal = async function(entry, dateStr) {
+  console.log('[Debug] Opening Edit Class Modal', { entry, dateStr });
+  
+  // Store date for attendance saving
+  window.currentEditingDate = dateStr;
+  
+  // Load Attendance if date provided
+  let currentAttendance = [];
+  if (entry && dateStr) {
+      try {
+          const response = await window.authUtils.authenticatedFetch(`/attendance?timetableEntryId=${entry.id}&date=${dateStr}`);
+          if (response.ok) {
+              currentAttendance = await response.json();
+          }
+      } catch(e) { console.error('Error loading attendance:', e); }
+  }
   
   // Ensure teachers are loaded
   if (!teachers || teachers.length === 0) {
@@ -921,7 +935,10 @@ window.openEditClassModal = async function(entry) {
               const allStudentIds = [...new Set([...seriesStudentIds, ...linkedStudentIds])];
               
               return `
-              <label>Enrolled Students (${allStudentIds.length})</label>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <label>Enrolled Students (${allStudentIds.length})</label>
+                  ${dateStr ? `<span style="font-size:12px; color:#667eea; font-weight:bold;">Attendance: ${dateStr}</span>` : ''}
+              </div>
               <div class="enrolled-students-list" style="border: 1px solid #e0e0e0; border-radius: 6px; max-height: 150px; overflow-y: auto;">
                 ${allStudentIds.map(studentId => {
                   const student = (window.students || []).find(s => s.id === studentId);
@@ -929,10 +946,25 @@ window.openEditClassModal = async function(entry) {
                   const dispId = student ? escapeHtml(student.studentId) : studentId;
                   const isSeries = seriesStudentIds.includes(studentId);
                   
+                  let attHtml = '';
+                  if (dateStr) {
+                      const att = currentAttendance.find(r => r.studentId === studentId);
+                      const status = att ? att.status : '';
+                      attHtml = `
+                      <div class="attendance-controls" style="display:flex; gap:8px; margin-left:10px; font-size:12px;">
+                          <label style="font-weight:normal;"><input type="radio" name="att_${studentId}" value="present" ${status==='present'?'checked':''}> P</label>
+                          <label style="font-weight:normal;"><input type="radio" name="att_${studentId}" value="absent" ${status==='absent'?'checked':''}> A</label>
+                          <label style="font-weight:normal;"><input type="radio" name="att_${studentId}" value="late" ${status==='late'?'checked':''}> L</label>
+                      </div>`;
+                  }
+                  
                   return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
-                      ${!isSeries ? '<span style="font-size:11px; color:#999; margin-left:5px; background:#f3f4f6; padding:2px 6px; border-radius:4px;">Session</span>' : ''}
+                    <div style="display:flex; align-items:center;">
+                      <div>
+                          <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
+                          ${!isSeries ? '<span style="font-size:11px; color:#999; margin-left:5px; background:#f3f4f6; padding:2px 6px; border-radius:4px;">Session</span>' : ''}
+                      </div>
+                      ${attHtml}
                     </div>
                     ${isSeries ? `<span style="cursor:pointer; color:#ef4444; font-weight:bold;" onclick="removeStudentTag('${studentId}')">×</span>` : ''}
                   </div>`;
@@ -1286,6 +1318,30 @@ window.saveClassEntry = async function(event, entryId) {
         return;
       }
       throw new Error(errorData.error || 'Failed to save class entry');
+    }
+
+    const savedEntry = await response.json();
+
+    // Save Attendance if date is present (Instance Edit)
+    if (window.currentEditingDate) {
+        const targetId = entryId ? entryId : savedEntry.id;
+        const attendanceRecords = [];
+        const radios = document.querySelectorAll('input[type="radio"][name^="att_"]:checked');
+        radios.forEach(r => {
+            const studentId = r.name.replace('att_', '');
+            attendanceRecords.push({ studentId, status: r.value });
+        });
+        
+        if (attendanceRecords.length > 0) {
+             await window.authUtils.authenticatedFetch('/attendance', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                      timetableEntryId: targetId,
+                      date: window.currentEditingDate,
+                      records: attendanceRecords
+                  })
+             });
+        }
     }
 
     if (window.showToast) {

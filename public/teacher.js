@@ -1660,6 +1660,21 @@ async function checkCurrentClass() {
         btn.style.display = 'inline-block';
         btn.onclick = () => startClassFromEntry(activeEntry);
         
+        // Add Attendance Button dynamically
+        let attBtn = document.getElementById('attCurrentClassBtn');
+        if (!attBtn) {
+            attBtn = document.createElement('button');
+            attBtn.id = 'attCurrentClassBtn';
+            attBtn.className = 'btn btn-info';
+            attBtn.textContent = '📝 Attendance';
+            attBtn.style.marginTop = '5px';
+            attBtn.style.marginLeft = '5px';
+            attBtn.style.border = 'none';
+            if (btn.parentNode) btn.parentNode.appendChild(attBtn);
+        }
+        attBtn.style.display = 'inline-block';
+        attBtn.onclick = () => openAttendanceModal(activeEntry);
+        
         list.style.display = 'block';
         list.textContent = students.map(s => s.name).join(', ') || 'No students enrolled';
         list.style.color = '#065f46';
@@ -1776,7 +1791,10 @@ function renderTodaysClasses(dateStr, dayName) {
                     <div style="color: #666; font-size: 0.9rem;">${entry.startTime} - ${entry.endTime}</div>
                     <div style="color: #888; font-size: 0.85rem;">${students.length} Students</div>
                 </div>
-                <button class="btn btn-sm btn-primary" onclick="startClassFromEntryWithId('${entry.id}')">Start Class</button>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn btn-sm btn-info" onclick="openAttendanceModalWithId('${entry.id}')">Attendance</button>
+                    <button class="btn btn-sm btn-primary" onclick="startClassFromEntryWithId('${entry.id}')">Start Class</button>
+                </div>
             </div>
         `;
     }).join('');
@@ -1793,6 +1811,110 @@ function renderTodaysClasses(dateStr, dayName) {
         window.hasScrolledToClass = dateStr;
     }
 }
+
+// Attendance Logic
+function openAttendanceModal(entry) {
+    if (!entry) return;
+    
+    const modal = document.getElementById('attendanceModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('attClassName').textContent = entry.className;
+        document.getElementById('attClassTime').textContent = `${entry.startTime} - ${entry.endTime}`;
+        
+        // Load students
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const students = getStudentsForEntry(entry, dateStr);
+        
+        // Load existing attendance
+        loadTeacherAttendanceData(entry.id, dateStr, students);
+    }
+}
+
+function closeAttendanceModal() {
+    const modal = document.getElementById('attendanceModal');
+    if (modal) modal.classList.remove('show');
+}
+
+async function loadTeacherAttendanceData(entryId, dateStr, students) {
+    const container = document.getElementById('attStudentList');
+    container.innerHTML = '<p style="padding:10px;">Loading...</p>';
+    
+    let currentAttendance = [];
+    try {
+        const response = await apiFetch(`/attendance?timetableEntryId=${entryId}&date=${dateStr}`);
+        if (response.ok) {
+            currentAttendance = await response.json();
+        }
+    } catch(e) { console.error(e); }
+    
+    if (students.length === 0) {
+        container.innerHTML = '<p style="padding:10px;">No students enrolled.</p>';
+        return;
+    }
+    
+    container.innerHTML = students.map(s => {
+        const att = currentAttendance.find(r => r.studentId === s.id);
+        const status = att ? att.status : 'unmarked';
+        
+        return `
+        <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHtml(s.name)}</strong> <span style="color:#666; font-size:0.9rem;">(${s.studentId})</span>
+            </div>
+            <div class="attendance-options">
+                <label style="margin-right:10px; cursor:pointer;"><input type="radio" name="t_att_${s.id}" value="present" ${status==='present'?'checked':''}> Present</label>
+                <label style="margin-right:10px; cursor:pointer;"><input type="radio" name="t_att_${s.id}" value="late" ${status==='late'?'checked':''}> Late</label>
+                <label style="cursor:pointer;"><input type="radio" name="t_att_${s.id}" value="absent" ${status==='absent'?'checked':''}> Absent</label>
+            </div>
+        </div>
+        `;
+    }).join('');
+    
+    // Store context for save
+    window.currentAttContext = { entryId, dateStr };
+}
+
+async function saveTeacherAttendance() {
+    if (!window.currentAttContext) return;
+    const { entryId, dateStr } = window.currentAttContext;
+    
+    const attendanceRecords = [];
+    const radios = document.querySelectorAll('#attStudentList input[type="radio"]:checked');
+    radios.forEach(r => {
+        const studentId = r.name.replace('t_att_', '');
+        attendanceRecords.push({ studentId, status: r.value });
+    });
+    
+    try {
+        const response = await apiFetch('/attendance', {
+            method: 'POST',
+            body: JSON.stringify({
+                timetableEntryId: entryId,
+                date: dateStr,
+                records: attendanceRecords
+            })
+        });
+        
+        if (response.ok) {
+            showNotification('Attendance saved!', 'success');
+            closeAttendanceModal();
+        } else {
+            throw new Error('Failed to save');
+        }
+    } catch (e) {
+        showNotification('Error saving attendance', 'error');
+    }
+}
+
+// Make global
+window.closeAttendanceModal = closeAttendanceModal;
+window.saveTeacherAttendance = saveTeacherAttendance;
+window.openAttendanceModalWithId = function(entryId) {
+    const entry = (window.timetableEntries || []).find(e => e.id === entryId);
+    if (entry) openAttendanceModal(entry);
+};
 
 window.startClassFromEntryWithId = function(entryId) {
     const entry = (window.timetableEntries || []).find(e => e.id === entryId);

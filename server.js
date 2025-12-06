@@ -27,6 +27,7 @@ const PACKAGES_FILE = path.join(__dirname, process.env.PACKAGES_FILE || path.joi
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
 const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
+const ATTENDANCE_FILE = path.join(__dirname, process.env.ATTENDANCE_FILE || path.join(DATA_DIR, 'attendance.json'));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Import authentication utilities
@@ -2389,7 +2390,7 @@ app.get('/api/organizations/teachers', authenticateUser, requireOrganizationAcce
     
     if (!orgUser.organizationId) {
         console.log(`[DEBUG] Org User has NO organizationId. ID: ${req.user.id}`);
-        return res.status(403).json({ error: 'Organization not found' });
+      return res.status(403).json({ error: 'Organization not found' });
     }
     
     // Get all teachers in this organization
@@ -7672,6 +7673,111 @@ async function writeEnrollments(enrollments) {
     return false;
   }
 }
+
+// Read attendance data
+async function readAttendance() {
+  try {
+    const content = await fs.readFile(ATTENDANCE_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Error reading attendance:', error);
+    return [];
+  }
+}
+
+// Write attendance data
+async function writeAttendance(data) {
+  try {
+    await fs.writeFile(ATTENDANCE_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing attendance:', error);
+    return false;
+  }
+}
+
+// Get attendance records
+app.get('/api/attendance', authenticateUser, requireOrganizationAccess, async (req, res) => {
+  try {
+    const { timetableEntryId, date, studentId } = req.query;
+    let records = await readAttendance();
+    
+    // Filter
+    if (req.organizationFilter) {
+        records = records.filter(r => r.organizationId === req.organizationFilter);
+    }
+    
+    if (timetableEntryId) {
+        records = records.filter(r => r.timetableEntryId === timetableEntryId);
+    }
+    if (date) {
+        records = records.filter(r => r.date === date);
+    }
+    if (studentId) {
+        records = records.filter(r => r.studentId === studentId);
+    }
+    
+    res.json(records);
+  } catch (error) {
+    console.error('Error getting attendance:', error);
+    res.status(500).json({ error: 'Failed to get attendance' });
+  }
+});
+
+// Save attendance records
+app.post('/api/attendance', authenticateUser, requireOrganizationAccess, async (req, res) => {
+  try {
+    const { timetableEntryId, date, records } = req.body;
+    
+    if (!timetableEntryId || !date || !Array.isArray(records)) {
+        return res.status(400).json({ error: 'Invalid data' });
+    }
+    
+    let allRecords = await readAttendance();
+    let organizationId;
+    
+    if (req.user.role === 'admin') {
+        const timetableData = await readTimetable();
+        const entry = timetableData.entries.find(e => e.id === timetableEntryId);
+        if (!entry) return res.status(404).json({ error: 'Entry not found' });
+        organizationId = entry.organizationId;
+    } else {
+        organizationId = req.user.organizationId;
+    }
+    
+    records.forEach(rec => {
+        const existingIndex = allRecords.findIndex(r => 
+            r.timetableEntryId === timetableEntryId && 
+            r.date === date && 
+            r.studentId === rec.studentId
+        );
+        
+        const newRecord = {
+            id: existingIndex !== -1 ? allRecords[existingIndex].id : `att_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            organizationId,
+            timetableEntryId,
+            date,
+            studentId: rec.studentId,
+            status: rec.status,
+            updatedAt: new Date().toISOString(),
+            updatedBy: req.user.id
+        };
+        
+        if (existingIndex !== -1) {
+            allRecords[existingIndex] = newRecord;
+        } else {
+            allRecords.push(newRecord);
+        }
+    });
+    
+    await writeAttendance(allRecords);
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('Error saving attendance:', error);
+    res.status(500).json({ error: 'Failed to save attendance' });
+  }
+});
 
 // Create Sales Order
 app.post('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
