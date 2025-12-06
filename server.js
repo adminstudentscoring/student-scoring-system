@@ -29,6 +29,7 @@ const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DA
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
 const ATTENDANCE_FILE = path.join(__dirname, process.env.ATTENDANCE_FILE || path.join(DATA_DIR, 'attendance.json'));
 const TRANSACTIONS_FILE = path.join(__dirname, process.env.TRANSACTIONS_FILE || path.join(DATA_DIR, 'transactions.json'));
+const EXPENSES_FILE = path.join(__dirname, process.env.EXPENSES_FILE || path.join(DATA_DIR, 'expenses.json'));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Import authentication utilities
@@ -8000,6 +8001,92 @@ app.delete('/api/organizations/orders/:id', authenticateUser, authorizeRole('org
   } catch (error) {
     console.error('Error deleting order:', error);
     res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
+// Read expenses data
+async function readExpenses() {
+  try {
+    const content = await fs.readFile(EXPENSES_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Error reading expenses:', error);
+    return [];
+  }
+}
+
+// Write expenses data
+async function writeExpenses(data) {
+  try {
+    await fs.writeFile(EXPENSES_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing expenses:', error);
+    return false;
+  }
+}
+
+// Get Expenses
+app.get('/api/organizations/expenses', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const expenses = await readExpenses();
+    const orgExpenses = expenses.filter(e => e.organizationId === req.user.organizationId);
+    res.json(orgExpenses);
+  } catch (error) {
+    console.error('Error getting expenses:', error);
+    res.status(500).json({ error: 'Failed to get expenses' });
+  }
+});
+
+// Add Expense
+app.post('/api/organizations/expenses', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { item, amount, date, category, note } = req.body;
+    
+    if (!item || !amount || !date || !category) {
+        return res.status(400).json({ error: 'Required fields missing' });
+    }
+    
+    const expenses = await readExpenses();
+    const newExpense = {
+        id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        organizationId: req.user.organizationId,
+        item,
+        amount: parseFloat(amount),
+        date,
+        category,
+        note: note || '',
+        createdAt: new Date().toISOString(),
+        createdBy: req.user.id
+    };
+    
+    expenses.push(newExpense);
+    await writeExpenses(expenses);
+    
+    res.json(newExpense);
+  } catch (error) {
+    console.error('Error adding expense:', error);
+    res.status(500).json({ error: 'Failed to add expense' });
+  }
+});
+
+// Delete Expense
+app.delete('/api/organizations/expenses/:id', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const expenses = await readExpenses();
+    const index = expenses.findIndex(e => e.id === id);
+    
+    if (index === -1) return res.status(404).json({ error: 'Expense not found' });
+    if (expenses[index].organizationId !== req.user.organizationId) return res.status(403).json({ error: 'Access denied' });
+    
+    expenses.splice(index, 1);
+    await writeExpenses(expenses);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting expense:', error);
+    res.status(500).json({ error: 'Failed to delete expense' });
   }
 });
 

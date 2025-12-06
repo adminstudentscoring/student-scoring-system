@@ -2,6 +2,7 @@
 
 let accountingState = {
     orders: [],
+    expenses: [],
     filter: 'all', // all, paid, unpaid
     subTab: 'orders' // orders, accounts, expenses, reports
 };
@@ -12,7 +13,7 @@ window.loadAccountingModule = async function() {
     
     container.innerHTML = '<div class="loading-placeholder" style="padding:20px; text-align:center;">Loading accounting data...</div>';
     
-    await loadOrders();
+    await Promise.all([loadOrders(), loadExpenses()]);
     renderAccountingUI();
 };
 
@@ -29,17 +30,64 @@ async function loadOrders() {
     }
 }
 
+async function loadExpenses() {
+    try {
+        const response = await window.authUtils.authenticatedFetch('/organizations/expenses');
+        if (response.ok) {
+            accountingState.expenses = await response.json();
+            // Sort desc date
+            accountingState.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+    } catch (e) {
+        console.error('Failed to load expenses', e);
+    }
+}
+
 function renderAccountingUI() {
     const container = document.getElementById('accountingSubTabContent');
     if (!container) return;
     
+    // Calculate Overview Stats
+    const totalRevenue = accountingState.orders
+        .filter(o => o.status === 'paid')
+        .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        
+    const totalExpenses = accountingState.expenses
+        .reduce((sum, e) => sum + (e.amount || 0), 0);
+        
+    const netIncome = totalRevenue - totalExpenses;
+    const outstanding = accountingState.orders
+        .filter(o => o.status === 'unpaid')
+        .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    
     // Sub-tab navigation
     let navHtml = `
-        <div class="accounting-tabs" style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
-            <button class="btn ${accountingState.subTab === 'orders' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('orders')">Orders</button>
-            <button class="btn ${accountingState.subTab === 'accounts' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('accounts')">Student Accounts</button>
-            <button class="btn ${accountingState.subTab === 'expenses' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('expenses')">Expenses</button>
-            <button class="btn ${accountingState.subTab === 'reports' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('reports')">Reports</button>
+        <div class="accounting-header">
+            <div class="stat-cards">
+                <div class="stat-card">
+                    <div class="stat-value">$${formatNumber(totalRevenue)}</div>
+                    <div class="stat-label">Total Revenue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #ef4444;">$${formatNumber(totalExpenses)}</div>
+                    <div class="stat-label">Total Expenses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: ${netIncome >= 0 ? '#10b981' : '#ef4444'};">$${formatNumber(netIncome)}</div>
+                    <div class="stat-label">Net Income</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #f59e0b;">$${formatNumber(outstanding)}</div>
+                    <div class="stat-label">Outstanding (Unpaid)</div>
+                </div>
+            </div>
+        
+            <div class="accounting-tabs" style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                <button class="btn ${accountingState.subTab === 'orders' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('orders')">Orders</button>
+                <button class="btn ${accountingState.subTab === 'accounts' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('accounts')">Student Accounts</button>
+                <button class="btn ${accountingState.subTab === 'expenses' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('expenses')">Expenses</button>
+                <button class="btn ${accountingState.subTab === 'reports' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('reports')">Reports</button>
+            </div>
         </div>
         <div id="accountingTabContent"></div>
     `;
@@ -76,10 +124,72 @@ function renderActiveTab() {
         renderOrdersTab(content);
     } else if (accountingState.subTab === 'accounts') {
         renderAccountsTab(content);
+    } else if (accountingState.subTab === 'expenses') {
+        renderExpensesTab(content);
     } else {
-        const titleMap = { 'expenses': 'Expenses', 'reports': 'Reports' };
-        content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;"><h3>${titleMap[accountingState.subTab]}</h3><p>Coming soon...</p></div>`;
+        content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;"><h3>Reports</h3><p>Coming soon...</p></div>`;
     }
+}
+
+function renderOrdersTab(container) {
+    container.innerHTML = `
+        <div class="filters">
+            <button class="btn btn-sm ${accountingState.filter === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="filterOrders('all')">All</button>
+            <button class="btn btn-sm ${accountingState.filter === 'paid' ? 'btn-primary' : 'btn-secondary'}" onclick="filterOrders('paid')">Paid</button>
+            <button class="btn btn-sm ${accountingState.filter === 'unpaid' ? 'btn-primary' : 'btn-secondary'}" onclick="filterOrders('unpaid')">Unpaid</button>
+        </div>
+        
+        <div class="orders-list">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Student</th>
+                        <th>Items</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersTableBody">
+                    ${getOrdersRows()}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function getOrdersRows() {
+    let filtered = accountingState.orders;
+    if (accountingState.filter !== 'all') {
+        filtered = filtered.filter(o => o.status === accountingState.filter);
+    }
+    
+    if (filtered.length === 0) return '<tr><td colspan="6" style="text-align:center; padding:20px;">No orders found</td></tr>';
+    
+    return filtered.map(order => {
+        const student = (window.students || []).find(s => s.id === order.studentId);
+        const studentName = student ? escapeHtml(student.name) : 'Unknown';
+        const dateStr = new Date(order.date).toLocaleDateString();
+        const itemsSummary = order.items.map(i => i.productData.name).join(', ');
+        
+        let actionHtml = '';
+        if (order.status === 'unpaid') {
+            actionHtml = `<button class="btn btn-sm btn-success" onclick="markOrderPaid('${order.id}')">Mark Paid</button>`;
+        }
+        actionHtml += ` <button class="btn btn-sm btn-danger" onclick="deleteOrder('${order.id}')">Delete</button>`;
+        
+        return `
+            <tr>
+                <td>${dateStr}</td>
+                <td>${studentName}</td>
+                <td>${itemsSummary}</td>
+                <td>$${formatNumber(order.totalAmount)}</td>
+                <td><span class="status-badge status-${order.status}">${order.status}</span></td>
+                <td>${actionHtml}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function renderAccountsTab(container) {
@@ -134,6 +244,161 @@ function getAccountsRows(students) {
     `).join('');
 }
 
+function renderExpensesTab(container) {
+    container.innerHTML = `
+        <div class="accounting-header" style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" onclick="openAddExpenseModal()">+ Add Expense</button>
+        </div>
+        
+        <div class="expenses-list">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Item</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Note</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${getExpensesRows()}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function getExpensesRows() {
+    if (accountingState.expenses.length === 0) return '<tr><td colspan="6" style="text-align:center; padding:20px;">No expenses found</td></tr>';
+    
+    return accountingState.expenses.map(exp => `
+        <tr>
+            <td>${new Date(exp.date).toLocaleDateString()}</td>
+            <td>${escapeHtml(exp.item)}</td>
+            <td>${escapeHtml(exp.category)}</td>
+            <td style="color:#ef4444;">-$${formatNumber(exp.amount)}</td>
+            <td>${escapeHtml(exp.note)}</td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="deleteExpense('${exp.id}')">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Expense Modal
+window.openAddExpenseModal = function() {
+    let modal = document.getElementById('expenseModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'expenseModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>💸 Add Expense</h2>
+                    <span class="modal-close" onclick="closeExpenseModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="expDate" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    <div class="form-group">
+                        <label>Item / Description</label>
+                        <input type="text" id="expItem" placeholder="e.g. Office Rent">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="expCategory">
+                            <option value="Rent">Rent</option>
+                            <option value="Salary">Salary</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount ($)</label>
+                        <input type="number" id="expAmount" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Note (Optional)</label>
+                        <input type="text" id="expNote">
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeExpenseModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="submitExpense()">Save</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Reset form
+    document.getElementById('expItem').value = '';
+    document.getElementById('expAmount').value = '';
+    document.getElementById('expNote').value = '';
+    
+    modal.classList.add('show');
+};
+
+window.closeExpenseModal = function() {
+    document.getElementById('expenseModal')?.classList.remove('show');
+};
+
+window.submitExpense = async function() {
+    const date = document.getElementById('expDate').value;
+    const item = document.getElementById('expItem').value;
+    const category = document.getElementById('expCategory').value;
+    const amount = document.getElementById('expAmount').value;
+    const note = document.getElementById('expNote').value;
+    
+    if (!item || !amount) {
+        alert('Item and Amount are required');
+        return;
+    }
+    
+    try {
+        const response = await window.authUtils.authenticatedFetch('/organizations/expenses', {
+            method: 'POST',
+            body: JSON.stringify({ date, item, category, amount, note })
+        });
+        
+        if (response.ok) {
+            const newExp = await response.json();
+            accountingState.expenses.push(newExp);
+            accountingState.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            alert('Expense added');
+            closeExpenseModal();
+            renderAccountingUI(); // Update dashboard and list
+        } else {
+            alert('Failed to add expense');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Error adding expense');
+    }
+};
+
+window.deleteExpense = async function(id) {
+    if (!confirm('Delete this expense?')) return;
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/organizations/expenses/${id}`, {
+            method: 'DELETE'
+        });
+        if (response.ok) {
+            accountingState.expenses = accountingState.expenses.filter(e => e.id !== id);
+            renderAccountingUI();
+            alert('Expense deleted');
+        }
+    } catch(e) { alert('Error deleting expense'); }
+};
+
+// Balance Modal (Keep existing)
 window.openBalanceModal = function(studentId) {
     const student = window.students.find(s => s.id === studentId);
     if (!student) return;
@@ -189,8 +454,7 @@ window.openBalanceModal = function(studentId) {
 };
 
 window.closeBalanceModal = function() {
-    const modal = document.getElementById('balanceModal');
-    if (modal) modal.classList.remove('show');
+    document.getElementById('balanceModal').classList.remove('show');
 };
 
 window.submitBalanceAdjustment = async function() {
@@ -229,88 +493,6 @@ window.submitBalanceAdjustment = async function() {
     }
 };
 
-function renderOrdersTab(container) {
-    const totalRevenue = accountingState.orders
-        .filter(o => o.status === 'paid')
-        .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-        
-    const outstanding = accountingState.orders
-        .filter(o => o.status === 'unpaid')
-        .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-
-    container.innerHTML = `
-        <div class="accounting-header">
-            <div class="stat-cards">
-                <div class="stat-card">
-                    <div class="stat-value">$${formatNumber(totalRevenue)}</div>
-                    <div class="stat-label">Total Revenue (Paid)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" style="color: #ef4444;">$${formatNumber(outstanding)}</div>
-                    <div class="stat-label">Outstanding (Unpaid)</div>
-                </div>
-            </div>
-            
-            <div class="filters">
-                <button class="btn btn-sm ${accountingState.filter === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="filterOrders('all')">All</button>
-                <button class="btn btn-sm ${accountingState.filter === 'paid' ? 'btn-primary' : 'btn-secondary'}" onclick="filterOrders('paid')">Paid</button>
-                <button class="btn btn-sm ${accountingState.filter === 'unpaid' ? 'btn-primary' : 'btn-secondary'}" onclick="filterOrders('unpaid')">Unpaid</button>
-            </div>
-        </div>
-        
-        <div class="orders-list">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Student</th>
-                        <th>Items</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${renderOrdersRows()}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-function renderOrdersRows() {
-    let filtered = accountingState.orders;
-    if (accountingState.filter !== 'all') {
-        filtered = filtered.filter(o => o.status === accountingState.filter);
-    }
-    
-    if (filtered.length === 0) return '<tr><td colspan="6" style="text-align:center; padding:20px;">No orders found</td></tr>';
-    
-    return filtered.map(order => {
-        const student = (window.students || []).find(s => s.id === order.studentId);
-        const studentName = student ? escapeHtml(student.name) : 'Unknown';
-        const dateStr = new Date(order.date).toLocaleDateString();
-        const itemsSummary = order.items.map(i => i.productData.name).join(', ');
-        
-        let actionHtml = '';
-        if (order.status === 'unpaid') {
-            actionHtml = `<button class="btn btn-sm btn-success" onclick="markOrderPaid('${order.id}')">Mark Paid</button>`;
-        }
-        actionHtml += ` <button class="btn btn-sm btn-danger" onclick="deleteOrder('${order.id}')">Delete</button>`;
-        
-        return `
-            <tr>
-                <td>${dateStr}</td>
-                <td>${studentName}</td>
-                <td>${itemsSummary}</td>
-                <td>$${formatNumber(order.totalAmount)}</td>
-                <td><span class="status-badge status-${order.status}">${order.status}</span></td>
-                <td>${actionHtml}</td>
-            </tr>
-        `;
-    }).join('');
-}
-
 window.switchAccountingTab = function(tab) {
     accountingState.subTab = tab;
     renderAccountingUI();
@@ -318,7 +500,7 @@ window.switchAccountingTab = function(tab) {
 
 window.filterOrders = function(filter) {
     accountingState.filter = filter;
-    renderActiveTab();
+    document.getElementById('ordersTableBody').innerHTML = getOrdersRows();
 };
 
 window.markOrderPaid = async function(orderId) {
@@ -331,10 +513,9 @@ window.markOrderPaid = async function(orderId) {
         });
         
         if (response.ok) {
-            // Update local state
             const order = accountingState.orders.find(o => o.id === orderId);
             if (order) order.status = 'paid';
-            renderActiveTab();
+            renderAccountingUI();
             if (window.showToast) window.showToast('Order marked as paid', 'success');
             else alert('Order marked as paid');
         }
@@ -353,9 +534,8 @@ window.deleteOrder = async function(orderId) {
         });
         
         if (response.ok) {
-            // Update local state
             accountingState.orders = accountingState.orders.filter(o => o.id !== orderId);
-            renderActiveTab();
+            renderAccountingUI();
             if (window.showToast) window.showToast('Order deleted', 'success');
             else alert('Order deleted');
         } else {
