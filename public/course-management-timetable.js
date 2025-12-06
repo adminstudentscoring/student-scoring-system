@@ -1014,7 +1014,7 @@ window.openEditClassModal = async function(entry, dateStr) {
             })()}
           </div>
           <div class="edit-class-modal-actions">
-            ${isEdit ? `<button type="button" class="btn btn-danger" onclick="deleteClassEntry('${entry.id}')">Delete</button>` : ''}
+            ${isEdit ? `<button type="button" class="btn btn-danger" onclick="deleteClassEntry('${entry.id}', '${dateStr || ''}')">Delete</button>` : ''}
             <button type="button" class="btn btn-secondary" onclick="closeEditClassModal()">Cancel</button>
             <button type="submit" class="btn btn-primary">Save</button>
           </div>
@@ -1405,12 +1405,74 @@ window.saveClassEntry = async function(event, entryId) {
   }
 };
 
-// Delete class entry
-window.deleteClassEntry = async function(entryId) {
+// Delete class entry logic
+window.deleteClassEntry = async function(entryId, dateStr) {
+  const entry = (window.timetableEntries || []).find(e => e.id === entryId);
+  
+  if (entry && entry.isRecurring && dateStr) {
+      const modal = document.createElement('div');
+      modal.className = 'modal show';
+      modal.style.zIndex = '10002'; // Ensure it's above edit modal
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Delete Recurring Class</h2>
+                <span class="modal-close" onclick="this.closest('.modal').remove()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>This is a recurring class (${dateStr}). How do you want to delete?</p>
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                    <button class="btn btn-secondary" style="text-align:left;" onclick="window.confirmDeleteInstance('${entryId}', '${dateStr}', 'single', this)">
+                        <strong>Delete This Session Only</strong><br>
+                        <span style="font-size:0.8rem">Remove only this specific class instance.</span>
+                    </button>
+                    <button class="btn btn-warning" style="text-align:left;" onclick="window.confirmDeleteInstance('${entryId}', '${dateStr}', 'future', this)">
+                        <strong>Delete This and Future Sessions</strong><br>
+                        <span style="font-size:0.8rem">End the series here. Future classes will be removed.</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;" onclick="window.confirmDeleteInstance('${entryId}', '${dateStr}', 'series', this)">
+                        <strong>Delete Entire Series</strong><br>
+                        <span style="font-size:0.8rem">Remove the class and all its history.</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      return;
+  }
+
   if (!confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
     return;
   }
+  await performDeleteSeries(entryId);
+};
 
+window.confirmDeleteInstance = async function(entryId, dateStr, mode, btn) {
+    btn.closest('.modal').remove();
+    
+    if (mode === 'series') {
+        await performDeleteSeries(entryId);
+    } else {
+        try {
+            const response = await window.authUtils.authenticatedFetch(`/organizations/timetable/${entryId}/delete-instance`, {
+                method: 'POST',
+                body: JSON.stringify({ date: dateStr, mode })
+            });
+            
+            if (response.ok) {
+                if (window.showToast) window.showToast('Class deleted successfully', 'success');
+                else alert('Class deleted successfully');
+                closeEditClassModal();
+                loadTimetableData();
+            } else {
+                alert('Failed to delete class');
+            }
+        } catch(e) { console.error(e); alert('Error deleting class'); }
+    }
+};
+
+async function performDeleteSeries(entryId) {
   try {
     const response = await window.authUtils.authenticatedFetch(`/organizations/timetable/${entryId}`, {
       method: 'DELETE'
@@ -1439,7 +1501,7 @@ window.deleteClassEntry = async function(entryId) {
       alert('Error: ' + error.message);
     }
   }
-};
+}
 
 // Show class field error
 function showClassFieldError(fieldId, message) {
