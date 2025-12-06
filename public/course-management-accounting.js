@@ -3,6 +3,7 @@
 let accountingState = {
     orders: [],
     filter: 'all', // all, paid, unpaid
+    subTab: 'orders' // orders, accounts, expenses, reports
 };
 
 window.loadAccountingModule = async function() {
@@ -32,6 +33,54 @@ function renderAccountingUI() {
     const container = document.getElementById('accountingSubTabContent');
     if (!container) return;
     
+    // Sub-tab navigation
+    let navHtml = `
+        <div class="accounting-tabs" style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
+            <button class="btn ${accountingState.subTab === 'orders' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('orders')">Orders</button>
+            <button class="btn ${accountingState.subTab === 'accounts' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('accounts')">Student Accounts</button>
+            <button class="btn ${accountingState.subTab === 'expenses' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('expenses')">Expenses</button>
+            <button class="btn ${accountingState.subTab === 'reports' ? 'btn-primary' : 'btn-secondary'}" onclick="switchAccountingTab('reports')">Reports</button>
+        </div>
+        <div id="accountingTabContent"></div>
+    `;
+    
+    container.innerHTML = navHtml;
+    
+    // Inject CSS
+    if (!document.getElementById('accountingStyles')) {
+        const style = document.createElement('style');
+        style.id = 'accountingStyles';
+        style.textContent = `
+            .accounting-header { margin-bottom: 20px; }
+            .stat-cards { display: flex; gap: 20px; margin-bottom: 20px; }
+            .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); flex: 1; text-align: center; border: 1px solid #eee; }
+            .stat-value { font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 5px; }
+            .stat-label { color: #666; font-size: 14px; }
+            .filters { display: flex; gap: 10px; margin-bottom: 15px; }
+            .data-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+            .data-table th, .data-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+            .data-table th { background: #f8f9fa; font-weight: 600; color: #555; }
+            .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; display: inline-block; }
+            .status-paid { background: #d1fae5; color: #065f46; }
+            .status-unpaid { background: #fee2e2; color: #991b1b; }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    renderActiveTab();
+}
+
+function renderActiveTab() {
+    const content = document.getElementById('accountingTabContent');
+    if (accountingState.subTab === 'orders') {
+        renderOrdersTab(content);
+    } else {
+        const titleMap = { 'accounts': 'Student Accounts', 'expenses': 'Expenses', 'reports': 'Reports' };
+        content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;"><h3>${titleMap[accountingState.subTab]}</h3><p>Coming soon...</p></div>`;
+    }
+}
+
+function renderOrdersTab(container) {
     const totalRevenue = accountingState.orders
         .filter(o => o.status === 'paid')
         .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -78,27 +127,6 @@ function renderAccountingUI() {
             </table>
         </div>
     `;
-    
-    // Inject CSS
-    if (!document.getElementById('accountingStyles')) {
-        const style = document.createElement('style');
-        style.id = 'accountingStyles';
-        style.textContent = `
-            .accounting-header { margin-bottom: 20px; }
-            .stat-cards { display: flex; gap: 20px; margin-bottom: 20px; }
-            .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); flex: 1; text-align: center; border: 1px solid #eee; }
-            .stat-value { font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 5px; }
-            .stat-label { color: #666; font-size: 14px; }
-            .filters { display: flex; gap: 10px; margin-bottom: 15px; }
-            .data-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-            .data-table th, .data-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
-            .data-table th { background: #f8f9fa; font-weight: 600; color: #555; }
-            .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; display: inline-block; }
-            .status-paid { background: #d1fae5; color: #065f46; }
-            .status-unpaid { background: #fee2e2; color: #991b1b; }
-        `;
-        document.head.appendChild(style);
-    }
 }
 
 function renderOrdersRows() {
@@ -119,6 +147,7 @@ function renderOrdersRows() {
         if (order.status === 'unpaid') {
             actionHtml = `<button class="btn btn-sm btn-success" onclick="markOrderPaid('${order.id}')">Mark Paid</button>`;
         }
+        actionHtml += ` <button class="btn btn-sm btn-danger" onclick="deleteOrder('${order.id}')">Delete</button>`;
         
         return `
             <tr>
@@ -133,9 +162,14 @@ function renderOrdersRows() {
     }).join('');
 }
 
+window.switchAccountingTab = function(tab) {
+    accountingState.subTab = tab;
+    renderAccountingUI();
+};
+
 window.filterOrders = function(filter) {
     accountingState.filter = filter;
-    renderAccountingUI();
+    renderActiveTab();
 };
 
 window.markOrderPaid = async function(orderId) {
@@ -151,13 +185,36 @@ window.markOrderPaid = async function(orderId) {
             // Update local state
             const order = accountingState.orders.find(o => o.id === orderId);
             if (order) order.status = 'paid';
-            renderAccountingUI();
+            renderActiveTab();
             if (window.showToast) window.showToast('Order marked as paid', 'success');
             else alert('Order marked as paid');
         }
     } catch (e) {
         console.error(e);
         alert('Failed to update order');
+    }
+};
+
+window.deleteOrder = async function(orderId) {
+    if (!confirm('Are you sure you want to delete this order?')) return;
+    
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${orderId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            // Update local state
+            accountingState.orders = accountingState.orders.filter(o => o.id !== orderId);
+            renderActiveTab();
+            if (window.showToast) window.showToast('Order deleted', 'success');
+            else alert('Order deleted');
+        } else {
+            throw new Error('Failed to delete');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to delete order');
     }
 };
 
@@ -171,4 +228,3 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
-

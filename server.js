@@ -7836,6 +7836,32 @@ app.patch('/api/organizations/orders/:id/status', authenticateUser, authorizeRol
   }
 });
 
+// Delete Order
+app.delete('/api/organizations/orders/:id', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    
+    const orders = await readOrders();
+    const orderIndex = orders.findIndex(o => o.id === id);
+    
+    if (orderIndex === -1) return res.status(404).json({ error: 'Order not found' });
+    
+    if (orders[orderIndex].organizationId !== orgUser.organizationId) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    orders.splice(orderIndex, 1);
+    await writeOrders(orders);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
 // Create Sales Order
 app.post('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
   console.log('[DEBUG] POST /orders called');
