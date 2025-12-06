@@ -862,7 +862,9 @@ window.enrollMonthly = function(startClassInstanceId, periodMonths) {
   // Set end of day
   endDate.setHours(23, 59, 59, 999);
   
-  console.log(`[DEBUG] Enroll Monthly: Start=${startDate.toISOString()}, Period=${periodMonths}, End=${endDate.toISOString()}`);
+  const debugMsg = `[DEBUG] Enroll Monthly: Start=${startDate.toISOString().split('T')[0]}, Period=${periodMonths}, End=${endDate.toISOString().split('T')[0]}, AvailableClasses=${allFuture.length}`;
+  console.log(debugMsg);
+  alert(debugMsg); // Force popup to verify variables
   
   const startTime = startCls.entry.startTime;
   const startDayOfWeek = startCls.date.getDay();
