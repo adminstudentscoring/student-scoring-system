@@ -67,6 +67,7 @@ async function loadStudents() {
         
         const data = await response.json();
         students = Array.isArray(data) ? data : (data.students || []);
+        window.students = students; // Make available globally for timetable
         renderStudents();
         renderClassStudentsList();
         // Update game zone student list if modal is open
