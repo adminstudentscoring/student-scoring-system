@@ -3611,7 +3611,7 @@ app.get('/api/teachers/timetable', authenticateUser, authorizeRole('teacher'), a
 // Create timetable entry (organization only)
 app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
-    const { className, startTime, endTime, isRecurring, dayOfWeek, date, startDate, endDate, courseIds, teacherIds, classroom, studentIds } = req.body;
+    const { className, startTime, endTime, isRecurring, dayOfWeek, date, startDate, endDate, courseIds, teacherIds, classroom, studentIds, exceptions } = req.body;
     
     // Validation
     if (!className || className.trim().length === 0) {
@@ -3701,6 +3701,7 @@ app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organi
       teacherIds: Array.isArray(teacherIds) ? teacherIds : [],
       classroom: classroom ? classroom.trim() : null,
       studentIds: Array.isArray(studentIds) ? studentIds : [],
+      exceptions: Array.isArray(exceptions) ? exceptions : [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -3732,7 +3733,7 @@ app.post('/api/organizations/timetable', authenticateUser, authorizeRole('organi
 app.put('/api/organizations/timetable/:id', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { className, startTime, endTime, isRecurring, dayOfWeek, date, startDate, endDate, courseIds, teacherIds, classroom, studentIds } = req.body;
+    const { className, startTime, endTime, isRecurring, dayOfWeek, date, startDate, endDate, courseIds, teacherIds, classroom, studentIds, exceptions } = req.body;
     
     const timetableData = await readTimetable();
     const entryIndex = timetableData.entries.findIndex(e => e.id === id);
@@ -3841,6 +3842,7 @@ app.put('/api/organizations/timetable/:id', authenticateUser, authorizeRole('org
     if (teacherIds !== undefined) entry.teacherIds = Array.isArray(teacherIds) ? teacherIds : [];
     if (classroom !== undefined) entry.classroom = classroom ? classroom.trim() : null;
     if (studentIds !== undefined) entry.studentIds = Array.isArray(studentIds) ? studentIds : [];
+    if (exceptions !== undefined) entry.exceptions = Array.isArray(exceptions) ? exceptions : [];
     entry.updatedAt = new Date().toISOString();
     
     // Update metadata
@@ -3890,6 +3892,48 @@ app.delete('/api/organizations/timetable/:id', authenticateUser, authorizeRole('
   } catch (error) {
     console.error('Error deleting timetable entry:', error);
     res.status(500).json({ error: 'Failed to delete timetable entry' });
+  }
+});
+
+// Delete specific instance of recurring class
+app.post('/api/organizations/timetable/:id/delete-instance', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, mode } = req.body; // mode: 'single' or 'future'
+    
+    const timetableData = await readTimetable();
+    const entryIndex = timetableData.entries.findIndex(e => e.id === id);
+    
+    if (entryIndex === -1) return res.status(404).json({ error: 'Entry not found' });
+    const entry = timetableData.entries[entryIndex];
+    
+    // Verify Org
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    if (!orgUser || !orgUser.organizationId || entry.organizationId !== orgUser.organizationId) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    if (mode === 'single') {
+        if (!entry.exceptions) entry.exceptions = [];
+        if (!entry.exceptions.includes(date)) {
+            entry.exceptions.push(date);
+        }
+    } else if (mode === 'future') {
+        // Set endDate to the day before
+        const targetDate = new Date(date);
+        targetDate.setDate(targetDate.getDate() - 1);
+        entry.endDate = targetDate.toISOString();
+    }
+    
+    entry.updatedAt = new Date().toISOString();
+    timetableData.entries[entryIndex] = entry;
+    await writeTimetable(timetableData);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting instance:', error);
+    res.status(500).json({ error: 'Failed to delete instance' });
   }
 });
 

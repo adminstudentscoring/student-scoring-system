@@ -301,6 +301,9 @@ function renderWeekEntries() {
         const date = weekDates[dayIndex];
         const dateISO = formatDateISO(date);
         
+        // Check exceptions
+        if (entry.exceptions && entry.exceptions.includes(dateISO)) return;
+        
         // Check date range
         if (entry.startDate && entry.startDate > dateISO) return;
         if (entry.endDate && entry.endDate < dateISO) return;
@@ -529,6 +532,9 @@ function renderDayEntries(date) {
     if (entry.isRecurring) {
       // Recurring entries - check if this day matches
       if (entry.dayOfWeek && entry.dayOfWeek.includes(dayName)) {
+        // Check exceptions
+        if (entry.exceptions && entry.exceptions.includes(dateISO)) return;
+        
         // Check date range
         if (entry.startDate && entry.startDate > dateISO) return;
         if (entry.endDate && entry.endDate < dateISO) return;
@@ -717,6 +723,9 @@ function getEntriesForDate(date) {
     if (entry.isRecurring) {
       // Recurring entries
       if (entry.dayOfWeek && entry.dayOfWeek.includes(dayName)) {
+        // Check exceptions
+        if (entry.exceptions && entry.exceptions.includes(dateISO)) return;
+        
         // Check date range
         if (entry.startDate && entry.startDate > dateISO) return;
         if (entry.endDate && entry.endDate < dateISO) return;
