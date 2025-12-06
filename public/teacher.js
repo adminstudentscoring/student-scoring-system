@@ -1680,6 +1680,8 @@ async function checkCurrentClass() {
         list.style.color = '#065f46';
         
         currentClassEntry = activeEntry;
+        section.setAttribute('onmouseenter', `showClassTooltip(event, '${activeEntry.id}')`);
+        section.setAttribute('onmouseleave', 'hideClassTooltip()');
     } else {
         // No Active Class State
         section.style.borderLeft = '5px solid #ccc';
@@ -1698,6 +1700,8 @@ async function checkCurrentClass() {
         list.style.display = 'none';
         
         currentClassEntry = null;
+        section.removeAttribute('onmouseenter');
+        section.removeAttribute('onmouseleave');
     }
     
     // Render All Classes Today
@@ -1782,10 +1786,10 @@ function renderTodaysClasses(dateStr, dayName) {
         const students = getStudentsForEntry(entry, dateStr);
         
         return `
-            <div class="todays-class-item ${isNext ? 'next-class' : ''}" id="class-item-${index}" style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: ${isNext ? '#f0fdf4' : 'white'}; border-left: ${isNext ? '4px solid #10b981' : 'none'};">
+            <div class="todays-class-item ${isNext ? 'next-class' : ''}" id="class-item-${index}" style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: ${isNext ? '#f0fdf4' : 'white'}; border-left: ${isNext ? '4px solid #10b981' : 'none'};" onmouseenter="showClassTooltip(event, '${entry.id}')" onmouseleave="hideClassTooltip()">
                 <div>
                     <div style="font-weight: bold; font-size: 1.05rem; color: ${isNext ? '#059669' : '#333'};">
-                        ${escapeHtml(entry.className)} 
+                        ${escapeHtml(entry.className)}  
                         ${isNext ? '<span style="font-size: 0.8rem; background: #10b981; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 5px;">Target</span>' : ''}
                     </div>
                     <div style="color: #666; font-size: 0.9rem;">${entry.startTime} - ${entry.endTime}</div>
@@ -1924,5 +1928,76 @@ window.openAttendanceModalWithId = function(entryId) {
 window.startClassFromEntryWithId = function(entryId) {
     const entry = (window.timetableEntries || []).find(e => e.id === entryId);
     if (entry) startClassFromEntry(entry);
+};
+
+// Tooltip Logic
+let tooltipEl = null;
+
+function createTooltip() {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'tooltip';
+    document.body.appendChild(tooltipEl);
+    
+    const style = document.createElement('style');
+    style.textContent = `
+        .tooltip {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+            pointer-events: none;
+            min-width: 200px;
+            font-size: 0.9rem;
+        }
+        .tooltip-header { font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 5px; }
+        .tooltip-row { display: flex; justify-content: space-between; padding: 2px 0; }
+        .status-present { color: green; }
+        .status-absent { color: red; }
+        .status-late { color: orange; }
+    `;
+    document.head.appendChild(style);
+}
+
+window.showClassTooltip = async function(event, entryId) {
+    if (!tooltipEl) createTooltip();
+    
+    const entry = (window.timetableEntries || []).find(e => e.id === entryId);
+    if (!entry) return;
+    
+    tooltipEl.style.left = `${event.clientX + 15}px`;
+    tooltipEl.style.top = `${event.clientY + 15}px`;
+    tooltipEl.style.display = 'block';
+    tooltipEl.innerHTML = 'Loading...';
+    
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const students = getStudentsForEntry(entry, dateStr);
+    
+    let currentAttendance = [];
+    try {
+        const response = await apiFetch(`/attendance?timetableEntryId=${entryId}&date=${dateStr}`);
+        if (response.ok) currentAttendance = await response.json();
+    } catch(e) {}
+    
+    let html = `<div class="tooltip-header">${escapeHtml(entry.className)} (${students.length})</div>`;
+    if (students.length === 0) {
+        html += '<div>No students</div>';
+    } else {
+        html += students.map(s => {
+            const att = currentAttendance.find(r => r.studentId === s.id);
+            const status = att ? att.status : '-';
+            const statusClass = status !== '-' ? `status-${status}` : '';
+            return `<div class="tooltip-row"><span>${escapeHtml(s.name)}</span><span class="${statusClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</span></div>`;
+        }).join('');
+    }
+    tooltipEl.innerHTML = html;
+};
+
+window.hideClassTooltip = function() {
+    if (tooltipEl) tooltipEl.style.display = 'none';
 };
 

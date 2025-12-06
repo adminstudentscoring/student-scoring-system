@@ -86,6 +86,7 @@ async function loadTimetableTeachers() {
     
     teachers = await response.json();
     console.log('[DEBUG] Teachers loaded:', teachers);
+    renderTimetable(); // Re-render to update names
   } catch (error) {
     console.error('Error loading teachers:', error);
   }
