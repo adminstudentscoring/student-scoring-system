@@ -846,6 +846,44 @@ window.dropSalesAllFuture = async function(timetableEntryId) {
    }
 };
 
+window.enrollMonthly = function(startClassInstanceId, periodMonths) {
+  const allFuture = salesState.classSelection.availableClasses;
+  const startIndex = allFuture.findIndex(c => c.id === startClassInstanceId);
+  
+  if (startIndex === -1) return;
+  
+  const startCls = allFuture[startIndex];
+  const startDate = new Date(startCls.date);
+  
+  // Calculate End Date: Last day of (StartMonth + Period - 1)
+  const startMonth = startDate.getMonth();
+  const startYear = startDate.getFullYear();
+  const endDate = new Date(startYear, startMonth + periodMonths, 0);
+  // Set end of day
+  endDate.setHours(23, 59, 59, 999);
+  
+  const startTime = startCls.entry.startTime;
+  const startDayOfWeek = startCls.date.getDay();
+  
+  const selected = allFuture.filter((c, idx) => {
+      if (idx < startIndex) return false;
+      if (c.date > endDate) return false;
+      
+      // Match time and day (Strict match for recurring series)
+      if (c.entry.startTime !== startTime) return false;
+      if (c.date.getDay() !== startDayOfWeek) return false;
+      
+      return true;
+  });
+  
+  if (selected.length === 0) {
+      alert('No classes found in the selected period.');
+      return;
+  }
+  
+  addToCart(selected);
+};
+
 window.enrollSingle = function(classInstanceId) {
   const cls = findClassInstance(classInstanceId);
   if (!cls) return;
@@ -895,15 +933,26 @@ function addToCart(selectedClasses) {
       date: formatDateForCompare(cls.date) // e.g. "2025-12-08"
   }));
   
+  // Calculate Price
+  let price = 0;
+  if (salesState.selectedProduct.type === 'package') {
+      const pkg = salesState.selectedProduct.data;
+      if (pkg.priceStrategy === 'monthly') {
+          price = (pkg.monthlyLessonPrice || 0) * selectedClasses.length;
+      } else {
+          price = calculateSalesPackagePrice(pkg);
+      }
+  } else {
+      price = parseFloat(salesState.selectedProduct.data.price) * selectedClasses.length;
+  }
+  
   // Create Order Item
   const orderItem = {
     id: Date.now().toString(),
     productType: salesState.selectedProduct.type,
     productData: salesState.selectedProduct.data,
     enrolledClasses: formattedClasses,
-    price: salesState.selectedProduct.type === 'package' 
-      ? calculateSalesPackagePrice(salesState.selectedProduct.data)
-      : parseFloat(salesState.selectedProduct.data.price) * selectedClasses.length
+    price: price
   };
   
   salesState.cart.push(orderItem);

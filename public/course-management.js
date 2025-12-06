@@ -2165,6 +2165,15 @@ function renderPackages() {
     const validityStatus = getValidityStatus(pkg);
     const hasDeletedCourse = checkHasDeletedCourse(pkg);
     
+    const isMonthly = pkg.priceStrategy === 'monthly';
+    const packagePriceDisplay = isMonthly 
+        ? `$${formatNumber(pkg.monthlyLessonPrice)}/lesson (${pkg.monthlyPeriod} mo)`
+        : `$${formatNumber(packagePrice)}`;
+    
+    const discountDisplay = isMonthly
+        ? '-'
+        : `$${formatNumber(discount)} (${discountPercent}%)`;
+    
     html += `
       <tr>
         <td>${escapeHtml(pkg.name)}</td>
@@ -2182,8 +2191,8 @@ function renderPackages() {
           </div>
         </td>
         <td>$${formatNumber(originalPrice)}</td>
-        <td>$${formatNumber(packagePrice)}</td>
-        <td>$${formatNumber(discount)} (${discountPercent}%)</td>
+        <td>${packagePriceDisplay}</td>
+        <td>${discountDisplay}</td>
         <td>
           <span class="package-status ${pkg.status}">
             ${pkg.status === 'inactive' && hasDeletedCourse ? 'Inactive (Course Deleted)' : pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1)}
@@ -2230,6 +2239,8 @@ function getPackagePrice(pkg) {
     return originalPrice - discount;
   } else if (pkg.priceStrategy === 'custom') {
     return pkg.customPrice || 0;
+  } else if (pkg.priceStrategy === 'monthly') {
+    return pkg.monthlyLessonPrice || 0;
   }
   return 0;
 }
@@ -2432,6 +2443,7 @@ function openPackageModal(pkg) {
               <option value="fixed" ${isEdit && pkg.priceStrategy === 'fixed' ? 'selected' : ''}>Fixed Price</option>
               <option value="discount" ${isEdit && pkg.priceStrategy === 'discount' ? 'selected' : ''}>Discount Percentage</option>
               <option value="custom" ${isEdit && pkg.priceStrategy === 'custom' ? 'selected' : ''}>Custom Price</option>
+              <option value="monthly" ${isEdit && pkg.priceStrategy === 'monthly' ? 'selected' : ''}>Monthly Pay</option>
             </select>
             <div class="error-message" id="packagePriceStrategyError"></div>
           </div>
@@ -2440,6 +2452,19 @@ function openPackageModal(pkg) {
             <label id="packagePriceLabel"></label>
             <input type="text" id="packagePriceInput" placeholder="0.00" oninput="updatePackagePricePreview()" onblur="formatPriceInput(this)" onfocus="unformatPriceInput(this)">
             <div class="error-message" id="packagePriceError"></div>
+          </div>
+
+          <div class="form-group" id="packageMonthlyGroup" style="display: none;">
+            <div style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label>Each Lesson Price <span class="required">*</span></label>
+                    <input type="number" id="monthlyLessonPrice" min="0" step="0.01" placeholder="0.00" value="${isEdit && pkg.monthlyLessonPrice ? pkg.monthlyLessonPrice : ''}" oninput="updatePackagePricePreview()">
+                </div>
+                <div style="flex: 1;">
+                    <label>Period (Months) <span class="required">*</span></label>
+                    <input type="number" id="monthlyPeriod" min="1" step="1" placeholder="1" value="${isEdit && pkg.monthlyPeriod ? pkg.monthlyPeriod : ''}" oninput="updatePackagePricePreview()">
+                </div>
+            </div>
           </div>
           
           <div class="form-group">
@@ -2583,10 +2608,14 @@ function updatePackageCourseSubtotal(index) {
 function updatePackagePriceStrategy() {
   const strategy = document.getElementById('packagePriceStrategy').value;
   const inputGroup = document.getElementById('packagePriceInputGroup');
+  const monthlyGroup = document.getElementById('packageMonthlyGroup');
   const label = document.getElementById('packagePriceLabel');
   const input = document.getElementById('packagePriceInput');
   const modal = document.getElementById('packageModal');
   const pkg = modal && modal.dataset.packageId ? packages.find(p => p.id === modal.dataset.packageId) : null;
+  
+  inputGroup.style.display = 'none';
+  monthlyGroup.style.display = 'none';
   
   if (strategy === 'fixed') {
     inputGroup.style.display = 'block';
@@ -2607,8 +2636,8 @@ function updatePackagePriceStrategy() {
     label.innerHTML = 'Custom Price <span class="required">*</span>';
     input.placeholder = '0.00';
     input.value = pkg && pkg.customPrice ? pkg.customPrice.toFixed(2) : '';
-  } else {
-    inputGroup.style.display = 'none';
+  } else if (strategy === 'monthly') {
+    monthlyGroup.style.display = 'block';
   }
   
   updatePackagePricePreview();
@@ -2628,6 +2657,13 @@ function updatePackagePricePreview() {
     finalPrice = originalPrice - (originalPrice * discount / 100);
   } else if (strategy === 'custom' && priceInput) {
     finalPrice = parseFloat(priceInput.replace(/,/g, '')) || 0;
+  } else if (strategy === 'monthly') {
+    const mp = parseFloat(document.getElementById('monthlyLessonPrice')?.value) || 0;
+    const mper = parseInt(document.getElementById('monthlyPeriod')?.value) || 0;
+    document.getElementById('packageOriginalPrice').textContent = `$${formatNumber(originalPrice)}`;
+    document.getElementById('packageDiscountedPrice').textContent = '-';
+    document.getElementById('packageFinalPrice').textContent = `$${formatNumber(mp)}/lesson (${mper} mo)`;
+    return;
   }
   
   const discountedAmount = originalPrice - finalPrice;
@@ -2729,6 +2765,9 @@ async function savePackage(event, packageId) {
   }
   
   let priceValue = null;
+  let monthlyLessonPrice = null;
+  let monthlyPeriod = null;
+
   if (strategy === 'fixed') {
     const fixedPrice = document.getElementById('packagePriceInput').value.replace(/,/g, '');
     if (!fixedPrice) {
@@ -2762,6 +2801,23 @@ async function savePackage(event, packageId) {
       showPackageFieldError('packagePriceError', 'Custom price must be a valid number >= 0');
       return;
     }
+  } else if (strategy === 'monthly') {
+    const mp = document.getElementById('monthlyLessonPrice').value;
+    const mper = document.getElementById('monthlyPeriod').value;
+    if (!mp || !mper) {
+      showPackageFieldError('packagePriceStrategy', 'Monthly price and period are required');
+      return;
+    }
+    monthlyLessonPrice = parseFloat(mp);
+    monthlyPeriod = parseInt(mper);
+    if (isNaN(monthlyLessonPrice) || monthlyLessonPrice < 0) {
+        showPackageFieldError('packagePriceStrategy', 'Monthly price must be valid');
+        return;
+    }
+    if (isNaN(monthlyPeriod) || monthlyPeriod < 1) {
+        showPackageFieldError('packagePriceStrategy', 'Period must be at least 1 month');
+        return;
+    }
   }
   
   // Prepare request body
@@ -2769,19 +2825,16 @@ async function savePackage(event, packageId) {
     name,
     courses,
     priceStrategy: strategy,
+    monthlyLessonPrice: strategy === 'monthly' ? monthlyLessonPrice : null,
+    monthlyPeriod: strategy === 'monthly' ? monthlyPeriod : null,
+    fixedPrice: strategy === 'fixed' ? priceValue : null,
+    discountPercentage: strategy === 'discount' ? priceValue : null,
+    customPrice: strategy === 'custom' ? priceValue : null,
     description: description || null,
     startDate: startDate || null,
     endDate: endDate || null,
     status: status || 'active'
   };
-  
-  if (strategy === 'fixed') {
-    body.fixedPrice = priceValue;
-  } else if (strategy === 'discount') {
-    body.discountPercentage = priceValue;
-  } else if (strategy === 'custom') {
-    body.customPrice = priceValue;
-  }
   
   try {
     const url = packageId 
