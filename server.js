@@ -7783,6 +7783,59 @@ app.post('/api/attendance', authenticateUser, requireOrganizationAccess, async (
   }
 });
 
+// Get Organization Orders
+app.get('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    if (!orgUser || !orgUser.organizationId) return res.status(403).json({ error: 'Org not found' });
+    
+    const orders = await readOrders();
+    const orgOrders = orders.filter(o => o.organizationId === orgUser.organizationId);
+    
+    res.json(orgOrders);
+  } catch (error) {
+    console.error('Error getting orders:', error);
+    res.status(500).json({ error: 'Failed to get orders' });
+  }
+});
+
+// Update Order Status
+app.patch('/api/organizations/orders/:id/status', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!['paid', 'unpaid', 'cancelled', 'refunded'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+    }
+    
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    
+    const orders = await readOrders();
+    const orderIndex = orders.findIndex(o => o.id === id);
+    
+    if (orderIndex === -1) return res.status(404).json({ error: 'Order not found' });
+    
+    const order = orders[orderIndex];
+    if (order.organizationId !== orgUser.organizationId) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    order.status = status;
+    order.updatedAt = new Date().toISOString();
+    order.updatedBy = req.user.id;
+    
+    await writeOrders(orders);
+    
+    res.json(order);
+  } catch (error) {
+    console.error('Error updating order:', error);
+    res.status(500).json({ error: 'Failed to update order' });
+  }
+});
+
 // Create Sales Order
 app.post('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
   console.log('[DEBUG] POST /orders called');

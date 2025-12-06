@@ -248,6 +248,13 @@ function switchSubTab(subTab) {
         console.error('Sales module not loaded');
     }
   }
+  
+  // Load accounting
+  if (subTab === 'accounting') {
+    if (window.loadAccountingModule) {
+      window.loadAccountingModule();
+    }
+  }
 }
 
 // Load courses from API
