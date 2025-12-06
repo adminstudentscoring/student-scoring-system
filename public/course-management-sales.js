@@ -862,6 +862,8 @@ window.enrollMonthly = function(startClassInstanceId, periodMonths) {
   // Set end of day
   endDate.setHours(23, 59, 59, 999);
   
+  console.log(`[DEBUG] Enroll Monthly: Start=${startDate.toISOString()}, Period=${periodMonths}, End=${endDate.toISOString()}`);
+  
   const startTime = startCls.entry.startTime;
   const startDayOfWeek = startCls.date.getDay();
   
@@ -875,6 +877,8 @@ window.enrollMonthly = function(startClassInstanceId, periodMonths) {
       
       return true;
   });
+  
+  console.log(`[DEBUG] Selected ${selected.length} classes`);
   
   if (selected.length === 0) {
       alert('No classes found in the selected period.');
