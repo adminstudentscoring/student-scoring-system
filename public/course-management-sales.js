@@ -714,13 +714,25 @@ function updateDaySchedule() {
     
     if (productType === 'package' && salesState.selectedProduct) {
       const pkg = salesState.selectedProduct.data;
-      const lessonCount = getPackageLessonCount(pkg);
-      buttonsHtml += `
-        <div class="enroll-option">
-          <span class="option-label">All lessons (${lessonCount} lessons from this date)</span>
-          <button class="btn btn-sm btn-primary" onclick="enrollConsecutive('${cls.id}', ${lessonCount})">Enroll</button>
-        </div>
-      `;
+      
+      if (pkg.priceStrategy === 'monthly') {
+          const period = pkg.monthlyPeriod || 1;
+          const label = `Monthly (${period} mo)`;
+          buttonsHtml += `
+            <div class="enroll-option">
+              <span class="option-label">${label}</span>
+              <button class="btn btn-sm btn-primary" onclick="enrollMonthly('${cls.id}', ${period})">Enroll</button>
+            </div>
+          `;
+      } else {
+          const lessonCount = getPackageLessonCount(pkg);
+          buttonsHtml += `
+            <div class="enroll-option">
+              <span class="option-label">All lessons (${lessonCount} lessons from this date)</span>
+              <button class="btn btn-sm btn-primary" onclick="enrollConsecutive('${cls.id}', ${lessonCount})">Enroll</button>
+            </div>
+          `;
+      }
     } else if (productType === 'course' && salesState.selectedProduct) {
       // Enable "Enroll Next 4" for single courses too, as requested
       const lessonCount = 4;
