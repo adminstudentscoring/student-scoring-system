@@ -74,11 +74,160 @@ function renderActiveTab() {
     const content = document.getElementById('accountingTabContent');
     if (accountingState.subTab === 'orders') {
         renderOrdersTab(content);
+    } else if (accountingState.subTab === 'accounts') {
+        renderAccountsTab(content);
     } else {
-        const titleMap = { 'accounts': 'Student Accounts', 'expenses': 'Expenses', 'reports': 'Reports' };
+        const titleMap = { 'expenses': 'Expenses', 'reports': 'Reports' };
         content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;"><h3>${titleMap[accountingState.subTab]}</h3><p>Coming soon...</p></div>`;
     }
 }
+
+function renderAccountsTab(container) {
+    const students = window.students || [];
+    
+    container.innerHTML = `
+        <div class="accounting-header">
+            <div class="search-filter">
+                <input type="text" id="accountSearch" placeholder="Search students..." class="search-input" style="padding:8px; width:300px; border:1px solid #ccc; border-radius:4px;" oninput="renderAccountsRows()">
+            </div>
+        </div>
+        
+        <div class="accounts-list">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Student Name</th>
+                        <th>Student ID</th>
+                        <th>Current Balance</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTableBody">
+                    ${getAccountsRows(students)}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+window.renderAccountsRows = function() {
+    const search = document.getElementById('accountSearch').value.toLowerCase();
+    const students = (window.students || []).filter(s => 
+        s.name.toLowerCase().includes(search) || 
+        s.studentId.toLowerCase().includes(search)
+    );
+    document.getElementById('accountsTableBody').innerHTML = getAccountsRows(students);
+};
+
+function getAccountsRows(students) {
+    if (students.length === 0) return '<tr><td colspan="4" style="text-align:center; padding:20px;">No students found</td></tr>';
+    
+    return students.map(s => `
+        <tr>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${escapeHtml(s.studentId)}</td>
+            <td style="font-weight:bold; color:${(s.balance || 0) >= 0 ? '#10b981' : '#ef4444'}">$${formatNumber(s.balance || 0)}</td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="openBalanceModal('${s.id}')">Adjust Balance</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+window.openBalanceModal = function(studentId) {
+    const student = window.students.find(s => s.id === studentId);
+    if (!student) return;
+    
+    let modal = document.getElementById('balanceModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'balanceModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>💰 Adjust Balance</h2>
+                    <span class="modal-close" onclick="closeBalanceModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <h3 id="balStudentName"></h3>
+                    <div class="form-group">
+                        <label>Current Balance: <span id="balCurrent" style="font-weight:bold;"></span></label>
+                    </div>
+                    <div class="form-group">
+                        <label>Action</label>
+                        <div style="display:flex; gap:10px;">
+                            <label><input type="radio" name="balType" value="credit" checked> Add Credit (Top-up)</label>
+                            <label><input type="radio" name="balType" value="debit"> Deduct (Charge)</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount ($)</label>
+                        <input type="number" id="balAmount" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Note / Reason</label>
+                        <input type="text" id="balNote" placeholder="e.g. Cash payment, Refund, Correction">
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeBalanceModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="submitBalanceAdjustment()">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    modal.dataset.studentId = studentId;
+    document.getElementById('balStudentName').textContent = student.name;
+    document.getElementById('balCurrent').textContent = `$${formatNumber(student.balance || 0)}`;
+    document.getElementById('balAmount').value = '';
+    document.getElementById('balNote').value = '';
+    
+    modal.classList.add('show');
+};
+
+window.closeBalanceModal = function() {
+    const modal = document.getElementById('balanceModal');
+    if (modal) modal.classList.remove('show');
+};
+
+window.submitBalanceAdjustment = async function() {
+    const modal = document.getElementById('balanceModal');
+    const studentId = modal.dataset.studentId;
+    const amount = document.getElementById('balAmount').value;
+    const type = document.querySelector('input[name="balType"]:checked').value;
+    const note = document.getElementById('balNote').value;
+    
+    if (!amount || amount <= 0) {
+        alert('Please enter a valid amount');
+        return;
+    }
+    
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/organizations/students/${studentId}/balance`, {
+            method: 'POST',
+            body: JSON.stringify({ amount, type, note })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            alert('Balance updated');
+            closeBalanceModal();
+            
+            const student = window.students.find(s => s.id === studentId);
+            if (student) student.balance = result.balance;
+            
+            renderActiveTab(); 
+        } else {
+            alert('Failed to update balance');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Error updating balance');
+    }
+};
 
 function renderOrdersTab(container) {
     const totalRevenue = accountingState.orders

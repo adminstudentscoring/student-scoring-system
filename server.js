@@ -28,6 +28,7 @@ const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.j
 const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
 const ATTENDANCE_FILE = path.join(__dirname, process.env.ATTENDANCE_FILE || path.join(DATA_DIR, 'attendance.json'));
+const TRANSACTIONS_FILE = path.join(__dirname, process.env.TRANSACTIONS_FILE || path.join(DATA_DIR, 'transactions.json'));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Import authentication utilities
@@ -7824,6 +7825,102 @@ app.post('/api/attendance', authenticateUser, requireOrganizationAccess, async (
   } catch (error) {
     console.error('Error saving attendance:', error);
     res.status(500).json({ error: 'Failed to save attendance' });
+  }
+});
+
+// Read transactions data
+async function readTransactions() {
+  try {
+    const content = await fs.readFile(TRANSACTIONS_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Error reading transactions:', error);
+    return [];
+  }
+}
+
+// Write transactions data
+async function writeTransactions(data) {
+  try {
+    await fs.writeFile(TRANSACTIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing transactions:', error);
+    return false;
+  }
+}
+
+// Adjust Student Balance
+app.post('/api/organizations/students/:id/balance', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, type, note } = req.body;
+    
+    if (!amount || !type || !['credit', 'debit'].includes(type)) {
+        return res.status(400).json({ error: 'Invalid data' });
+    }
+    
+    const data = await readData();
+    const studentIndex = data.students.findIndex(s => s.id === id);
+    if (studentIndex === -1) return res.status(404).json({ error: 'Student not found' });
+    
+    const student = data.students[studentIndex];
+    const orgId = req.user.organizationId;
+    
+    if (student.organizationId !== orgId) return res.status(403).json({ error: 'Access denied' });
+    
+    const value = parseFloat(amount);
+    if (isNaN(value)) return res.status(400).json({ error: 'Invalid amount' });
+    
+    const oldBalance = student.balance || 0;
+    if (type === 'credit') {
+        student.balance = oldBalance + value;
+    } else {
+        student.balance = oldBalance - value;
+    }
+    
+    const transactions = await readTransactions();
+    const transaction = {
+        id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        organizationId: orgId,
+        studentId: id,
+        type,
+        amount: value,
+        balanceBefore: oldBalance,
+        balanceAfter: student.balance,
+        note: note || '',
+        createdAt: new Date().toISOString(),
+        createdBy: req.user.id
+    };
+    transactions.push(transaction);
+    
+    await writeData(data);
+    await writeTransactions(transactions);
+    
+    res.json({ success: true, balance: student.balance, transaction });
+    
+  } catch (error) {
+    console.error('Error adjusting balance:', error);
+    res.status(500).json({ error: 'Failed to adjust balance' });
+  }
+});
+
+// Get Transactions
+app.get('/api/organizations/transactions', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { studentId } = req.query;
+    const transactions = await readTransactions();
+    const orgId = req.user.organizationId;
+    
+    let filtered = transactions.filter(t => t.organizationId === orgId);
+    if (studentId) {
+        filtered = filtered.filter(t => t.studentId === studentId);
+    }
+    
+    res.json(filtered);
+  } catch (error) {
+    console.error('Error getting transactions:', error);
+    res.status(500).json({ error: 'Failed to get transactions' });
   }
 });
 
