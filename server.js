@@ -3189,7 +3189,7 @@ app.get('/api/organizations/packages', authenticateUser, requireOrganizationAcce
 // Create a new package (organization and admin)
 app.post('/api/organizations/packages', authenticateUser, requireOrganizationAccess, async (req, res) => {
   try {
-    const { name, courses, priceStrategy, fixedPrice, discountPercentage, customPrice, description, startDate, endDate, status } = req.body;
+    const { name, courses, priceStrategy, fixedPrice, discountPercentage, customPrice, monthlyLessonPrice, monthlyPeriod, description, startDate, endDate, status } = req.body;
     
     // Validation
     if (!name || name.trim().length === 0) {
@@ -3215,8 +3215,8 @@ app.post('/api/organizations/packages', authenticateUser, requireOrganizationAcc
     }
     
     // Validate price strategy
-    if (!priceStrategy || !['fixed', 'discount', 'custom'].includes(priceStrategy)) {
-      return res.status(400).json({ error: 'Price strategy must be fixed, discount, or custom' });
+    if (!priceStrategy || !['fixed', 'discount', 'custom', 'monthly'].includes(priceStrategy)) {
+      return res.status(400).json({ error: 'Price strategy must be fixed, discount, custom, or monthly' });
     }
     
     // Validate price based on strategy
@@ -3243,6 +3243,18 @@ app.post('/api/organizations/packages', authenticateUser, requireOrganizationAcc
       const priceNum = parseFloat(customPrice);
       if (isNaN(priceNum) || priceNum < 0) {
         return res.status(400).json({ error: 'Custom price must be a valid number greater than or equal to 0' });
+      }
+    } else if (priceStrategy === 'monthly') {
+      if (monthlyLessonPrice === undefined || monthlyLessonPrice === null || monthlyPeriod === undefined || monthlyPeriod === null) {
+        return res.status(400).json({ error: 'Monthly price and period are required' });
+      }
+      const priceNum = parseFloat(monthlyLessonPrice);
+      const periodNum = parseInt(monthlyPeriod);
+      if (isNaN(priceNum) || priceNum < 0) {
+        return res.status(400).json({ error: 'Monthly price must be >= 0' });
+      }
+      if (isNaN(periodNum) || periodNum < 1) {
+        return res.status(400).json({ error: 'Period must be >= 1' });
       }
     }
     
@@ -3310,6 +3322,8 @@ app.post('/api/organizations/packages', authenticateUser, requireOrganizationAcc
       fixedPrice: priceStrategy === 'fixed' ? parseFloat(fixedPrice) : null,
       discountPercentage: priceStrategy === 'discount' ? parseFloat(discountPercentage) : null,
       customPrice: priceStrategy === 'custom' ? parseFloat(customPrice) : null,
+      monthlyLessonPrice: priceStrategy === 'monthly' ? parseFloat(monthlyLessonPrice) : null,
+      monthlyPeriod: priceStrategy === 'monthly' ? parseInt(monthlyPeriod) : null,
       description: description ? description.trim() : null,
       startDate: startDate || null,
       endDate: endDate || null,
@@ -3332,7 +3346,7 @@ app.post('/api/organizations/packages', authenticateUser, requireOrganizationAcc
 app.put('/api/organizations/packages/:id', authenticateUser, requireOrganizationAccess, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, courses, priceStrategy, fixedPrice, discountPercentage, customPrice, description, startDate, endDate, status } = req.body;
+    const { name, courses, priceStrategy, fixedPrice, discountPercentage, customPrice, monthlyLessonPrice, monthlyPeriod, description, startDate, endDate, status } = req.body;
     
     const packages = await readPackages();
     const packageIndex = packages.findIndex(p => p.id === id);
@@ -3402,55 +3416,56 @@ app.put('/api/organizations/packages/:id', authenticateUser, requireOrganization
     }
     
     if (priceStrategy !== undefined) {
-      if (!['fixed', 'discount', 'custom'].includes(priceStrategy)) {
-        return res.status(400).json({ error: 'Price strategy must be fixed, discount, or custom' });
+      if (!['fixed', 'discount', 'custom', 'monthly'].includes(priceStrategy)) {
+        return res.status(400).json({ error: 'Price strategy must be fixed, discount, custom, or monthly' });
       }
       pkg.priceStrategy = priceStrategy;
     }
     
-    if (priceStrategy === 'fixed' || fixedPrice !== undefined) {
-      if (priceStrategy === 'fixed') {
-        if (fixedPrice === undefined || fixedPrice === null) {
-          return res.status(400).json({ error: 'Fixed price is required for fixed price strategy' });
-        }
-        const priceNum = parseFloat(fixedPrice);
-        if (isNaN(priceNum) || priceNum < 0) {
-          return res.status(400).json({ error: 'Fixed price must be a valid number greater than or equal to 0' });
-        }
-        pkg.fixedPrice = priceNum;
+    if (fixedPrice !== undefined) pkg.fixedPrice = fixedPrice;
+    if (discountPercentage !== undefined) pkg.discountPercentage = discountPercentage;
+    if (customPrice !== undefined) pkg.customPrice = customPrice;
+    if (monthlyLessonPrice !== undefined) pkg.monthlyLessonPrice = monthlyLessonPrice;
+    if (monthlyPeriod !== undefined) pkg.monthlyPeriod = monthlyPeriod;
+    
+    if (pkg.priceStrategy === 'fixed') {
+        if (pkg.fixedPrice === undefined || pkg.fixedPrice === null) return res.status(400).json({ error: 'Fixed price required' });
+        const num = parseFloat(pkg.fixedPrice);
+        if (isNaN(num) || num < 0) return res.status(400).json({ error: 'Invalid fixed price' });
+        pkg.fixedPrice = num;
         pkg.discountPercentage = null;
         pkg.customPrice = null;
-      }
-    }
-    
-    if (priceStrategy === 'discount' || discountPercentage !== undefined) {
-      if (priceStrategy === 'discount') {
-        if (discountPercentage === undefined || discountPercentage === null) {
-          return res.status(400).json({ error: 'Discount percentage is required for discount strategy' });
-        }
-        const discountNum = parseFloat(discountPercentage);
-        if (isNaN(discountNum) || discountNum < 0 || discountNum > 100) {
-          return res.status(400).json({ error: 'Discount percentage must be a number between 0 and 100' });
-        }
-        pkg.discountPercentage = discountNum;
+        pkg.monthlyLessonPrice = null;
+        pkg.monthlyPeriod = null;
+    } else if (pkg.priceStrategy === 'discount') {
+        if (pkg.discountPercentage === undefined || pkg.discountPercentage === null) return res.status(400).json({ error: 'Discount required' });
+        const num = parseFloat(pkg.discountPercentage);
+        if (isNaN(num) || num < 0 || num > 100) return res.status(400).json({ error: 'Invalid discount' });
+        pkg.discountPercentage = num;
         pkg.fixedPrice = null;
         pkg.customPrice = null;
-      }
-    }
-    
-    if (priceStrategy === 'custom' || customPrice !== undefined) {
-      if (priceStrategy === 'custom') {
-        if (customPrice === undefined || customPrice === null) {
-          return res.status(400).json({ error: 'Custom price is required for custom price strategy' });
-        }
-        const priceNum = parseFloat(customPrice);
-        if (isNaN(priceNum) || priceNum < 0) {
-          return res.status(400).json({ error: 'Custom price must be a valid number greater than or equal to 0' });
-        }
-        pkg.customPrice = priceNum;
+        pkg.monthlyLessonPrice = null;
+        pkg.monthlyPeriod = null;
+    } else if (pkg.priceStrategy === 'custom') {
+        if (pkg.customPrice === undefined || pkg.customPrice === null) return res.status(400).json({ error: 'Custom price required' });
+        const num = parseFloat(pkg.customPrice);
+        if (isNaN(num) || num < 0) return res.status(400).json({ error: 'Invalid custom price' });
+        pkg.customPrice = num;
         pkg.fixedPrice = null;
         pkg.discountPercentage = null;
-      }
+        pkg.monthlyLessonPrice = null;
+        pkg.monthlyPeriod = null;
+    } else if (pkg.priceStrategy === 'monthly') {
+        if (pkg.monthlyLessonPrice === undefined || pkg.monthlyLessonPrice === null || !pkg.monthlyPeriod) return res.status(400).json({ error: 'Monthly price/period required' });
+        const priceNum = parseFloat(pkg.monthlyLessonPrice);
+        const periodNum = parseInt(pkg.monthlyPeriod);
+        if (isNaN(priceNum) || priceNum < 0) return res.status(400).json({ error: 'Invalid monthly price' });
+        if (isNaN(periodNum) || periodNum < 1) return res.status(400).json({ error: 'Invalid period' });
+        pkg.monthlyLessonPrice = priceNum;
+        pkg.monthlyPeriod = periodNum;
+        pkg.fixedPrice = null;
+        pkg.discountPercentage = null;
+        pkg.customPrice = null;
     }
     
     if (description !== undefined) {
