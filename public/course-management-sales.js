@@ -1952,9 +1952,15 @@ window.confirmCheckout = async function() {
     // Handle Existing Order Payment
     if (checkoutState.mode === 'existing' && checkoutState.orderId) {
         try {
+            // Determine status based on amount
+            // If amount is 0 and total is > 0, assume it's still unpaid (just updating details or printing reminder)
+            // Unless it is a free order (total 0)
+            const orderTotal = checkoutState.existingOrder ? checkoutState.existingOrder.totalAmount : 0;
+            const newStatus = (amount > 0 || orderTotal === 0) ? 'paid' : 'unpaid';
+
             // Update Order Status using PATCH /status endpoint which exists in server.js
             const updatePayload = {
-                status: 'paid',
+                status: newStatus,
                 paymentDetails: paymentDetails
             };
             
