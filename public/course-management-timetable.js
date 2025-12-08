@@ -7,6 +7,7 @@ let timetableEnrollments = [];
 let timetableMetadata = { classNames: [], classrooms: [] };
 // Note: courses variable is shared from course-management.js
 let teachers = [];
+window.timetableSettings = {};
 let currentView = 'week'; // 'day', 'week', 'month'
 let currentDate = new Date();
 let isReadOnly = false; // For teacher view
@@ -14,10 +15,24 @@ let isReadOnly = false; // For teacher view
 // Initialize timetable management
 window.loadTimetableManagement = function(userRole = 'organization') {
   isReadOnly = userRole === 'teacher';
-  loadTimetableData();
-  loadTimetableCourses();
-  loadTimetableTeachers();
+  loadTimetableSettings().then(() => {
+      loadTimetableData();
+      loadTimetableCourses();
+      loadTimetableTeachers();
+  });
 };
+
+async function loadTimetableSettings() {
+    try {
+        const response = await window.authUtils.authenticatedFetch('/organizations/settings');
+        if (response && response.ok) {
+            const settings = await response.json();
+            window.timetableSettings = settings.scheduleSettings || {};
+        }
+    } catch (e) {
+        console.error('Error loading settings', e);
+    }
+}
 
 // Load timetable data
 async function loadTimetableData() {
@@ -202,8 +217,8 @@ function renderWeekView() {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const allTimeSlots = generateTimeSlots();
   
-  // Only show first 18 time slots (08:00 to 12:30)
-  const visibleTimeSlots = allTimeSlots.slice(0, 18);
+  // Use all time slots based on settings
+  const visibleTimeSlots = allTimeSlots;
   
   // Get current week dates
   const weekDates = getWeekDates(currentDate);
@@ -254,16 +269,27 @@ function scrollToCurrentTime() {
   const currentMin = now.getMinutes();
   const currentTimeMinutes = currentHour * 60 + currentMin;
   
+  // Get settings for boundaries
+  const settings = window.timetableSettings || {};
+  const startStr = settings.viewStartTime || '08:00';
+  const endStr = settings.viewEndTime || '22:00';
+  
+  const [startHour, startMin] = startStr.split(':').map(Number);
+  const [endHour, endMin] = endStr.split(':').map(Number);
+  
+  const startBoundMinutes = startHour * 60 + startMin;
+  const endBoundMinutes = endHour * 60 + endMin;
+  
   // Calculate target time
   let targetTimeMinutes = currentTimeMinutes;
   
-  // If current time is before 08:00, scroll to start
-  if (currentTimeMinutes < 8 * 60) {
-    targetTimeMinutes = 8 * 60;
+  // If current time is before view start, scroll to start
+  if (currentTimeMinutes < startBoundMinutes) {
+    targetTimeMinutes = startBoundMinutes;
   }
-  // If current time is after 20:00, scroll to end
-  else if (currentTimeMinutes > 20 * 60) {
-    targetTimeMinutes = 20 * 60;
+  // If current time is after view end, scroll to end
+  else if (currentTimeMinutes > endBoundMinutes) {
+    targetTimeMinutes = endBoundMinutes;
   }
   
   // Round to nearest 15 minutes
@@ -335,16 +361,28 @@ function renderEntryInCell(entry, day, date) {
   const duration = endTotalMinutes - startTotalMinutes;
   
   // Calculate position and height directly from minutes
-  const slotHeight = 30; // 30px per 15 minutes
-  const baseMinutes = 8 * 60; // 08:00 in minutes (480)
+  const settings = window.timetableSettings || {};
+  const startStr = settings.viewStartTime || '08:00';
+  const interval = settings.slotInterval || 15;
   
-  // Calculate slot index: round to nearest 15-minute slot
-  const startSlotIndex = Math.round((startTotalMinutes - baseMinutes) / 15);
-  const endSlotIndex = Math.round((endTotalMinutes - baseMinutes) / 15);
+  const [baseHour, baseMin] = startStr.split(':').map(Number);
+  const baseMinutes = baseHour * 60 + baseMin;
+  
+  const slotHeight = 30; // 30px per interval slot
+  
+  // Calculate slot index: round to nearest interval slot
+  const startSlotIndex = Math.round((startTotalMinutes - baseMinutes) / interval);
+  const endSlotIndex = Math.round((endTotalMinutes - baseMinutes) / interval);
+  
+  // Get max slots from generated slots (approximate calculation to avoid regeneration)
+  const endStr = settings.viewEndTime || '22:00';
+  const [endLimitHour, endLimitMin] = endStr.split(':').map(Number);
+  const endLimitMinutes = endLimitHour * 60 + endLimitMin;
+  const totalSlots = Math.floor((endLimitMinutes - baseMinutes) / interval) + 1;
   
   // Ensure indices are valid
-  const validStartIndex = Math.max(0, Math.min(startSlotIndex, 52)); // Max index for 20:45
-  const validEndIndex = Math.max(0, Math.min(endSlotIndex, 52));
+  const validStartIndex = Math.max(0, Math.min(startSlotIndex, totalSlots));
+  const validEndIndex = Math.max(0, Math.min(endSlotIndex, totalSlots));
   
   // Calculate top position: each slot is 30px, align to slot start
   const top = validStartIndex * slotHeight;
@@ -425,11 +463,22 @@ function renderEntryInCell(entry, day, date) {
 
 // Helper functions
 function generateTimeSlots() {
+  const settings = window.timetableSettings || {};
+  const startStr = settings.viewStartTime || '08:00';
+  const endStr = settings.viewEndTime || '22:00';
+  const interval = settings.slotInterval || 15;
+  
+  const [startHour, startMin] = startStr.split(':').map(Number);
+  const [endHour, endMin] = endStr.split(':').map(Number);
+  
+  const startTime = startHour * 60 + startMin;
+  const endTime = endHour * 60 + endMin;
+  
   const slots = [];
-  for (let hour = 8; hour <= 20; hour++) {
-    for (let min = 0; min < 60; min += 15) {
-      slots.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
-    }
+  for (let time = startTime; time <= endTime; time += interval) {
+      const h = Math.floor(time / 60);
+      const m = time % 60;
+      slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
   }
   return slots;
 }
@@ -564,16 +613,28 @@ function renderEntryInDayCell(entry, date) {
   const duration = endTotalMinutes - startTotalMinutes;
   
   // Calculate position and height directly from minutes
-  const slotHeight = 30; // 30px per 15 minutes
-  const baseMinutes = 8 * 60; // 08:00 in minutes (480)
+  const settings = window.timetableSettings || {};
+  const startStr = settings.viewStartTime || '08:00';
+  const interval = settings.slotInterval || 15;
   
-  // Calculate slot index: round to nearest 15-minute slot
-  const startSlotIndex = Math.round((startTotalMinutes - baseMinutes) / 15);
-  const endSlotIndex = Math.round((endTotalMinutes - baseMinutes) / 15);
+  const [baseHour, baseMin] = startStr.split(':').map(Number);
+  const baseMinutes = baseHour * 60 + baseMin;
+  
+  const slotHeight = 30; // 30px per interval slot
+  
+  // Calculate slot index: round to nearest interval slot
+  const startSlotIndex = Math.round((startTotalMinutes - baseMinutes) / interval);
+  const endSlotIndex = Math.round((endTotalMinutes - baseMinutes) / interval);
+  
+  // Get max slots from generated slots (approximate calculation to avoid regeneration)
+  const endStr = settings.viewEndTime || '22:00';
+  const [endLimitHour, endLimitMin] = endStr.split(':').map(Number);
+  const endLimitMinutes = endLimitHour * 60 + endLimitMin;
+  const totalSlots = Math.floor((endLimitMinutes - baseMinutes) / interval) + 1;
   
   // Ensure indices are valid
-  const validStartIndex = Math.max(0, Math.min(startSlotIndex, 52)); // Max index for 20:45
-  const validEndIndex = Math.max(0, Math.min(endSlotIndex, 52));
+  const validStartIndex = Math.max(0, Math.min(startSlotIndex, totalSlots));
+  const validEndIndex = Math.max(0, Math.min(endSlotIndex, totalSlots));
   
   // Calculate top position: each slot is 30px, align to slot start
   const top = validStartIndex * slotHeight;

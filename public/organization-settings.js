@@ -204,6 +204,9 @@ function renderSettingsCategory(categoryId) {
             break;
             
         case 'cm-timetable':
+            html += renderTimetableSettings(currentSettings.scheduleSettings || {});
+            break;
+            
         case 'cm-courses':
         case 'cm-package':
         case 'cm-accounting':
@@ -887,6 +890,46 @@ window.handleLevelImageUpload = function(index, input) {
     };
     reader.readAsDataURL(file);
 };
+
+function renderTimetableSettings(settings) {
+    return `
+        <div class="settings-category">
+            <h3>📅 Timetable View Settings</h3>
+            <div class="category-description">Configure the visible time range and slot interval for the timetable view</div>
+            
+            <div class="settings-group">
+                <label>View Start Time</label>
+                <select onchange="updateSetting('scheduleSettings', 'viewStartTime', this.value)" style="padding:8px;">
+                    ${generateSettingsTimeOptions(0, 23, settings.viewStartTime || '08:00')}
+                </select>
+            </div>
+            <div class="settings-group">
+                <label>View End Time</label>
+                <select onchange="updateSetting('scheduleSettings', 'viewEndTime', this.value)" style="padding:8px;">
+                    ${generateSettingsTimeOptions(0, 23, settings.viewEndTime || '22:00')}
+                </select>
+            </div>
+            <div class="settings-group">
+                <label>Time Slot Interval (Minutes)</label>
+                <select onchange="updateSetting('scheduleSettings', 'slotInterval', parseInt(this.value))" style="padding:8px;">
+                    <option value="15" ${settings.slotInterval === 15 ? 'selected' : ''}>15 Minutes</option>
+                    <option value="30" ${settings.slotInterval === 30 ? 'selected' : ''}>30 Minutes</option>
+                    <option value="60" ${settings.slotInterval === 60 ? 'selected' : ''}>1 Hour</option>
+                </select>
+            </div>
+        </div>
+    `;
+}
+
+function generateSettingsTimeOptions(startHour, endHour, selectedValue) {
+    let options = '';
+    for (let i = startHour; i <= endHour; i++) {
+        const hour = String(i).padStart(2, '0');
+        const time = `${hour}:00`;
+        options += `<option value="${time}" ${time === selectedValue ? 'selected' : ''}>${time}</option>`;
+    }
+    return options;
+}
 
 // Initialize default settings when script loads
 defaultSettings = getDefaultSettings();
