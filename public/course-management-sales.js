@@ -1932,3 +1932,126 @@ window.renderStudentEnrollments = function() {
     const list = container.querySelector('.sales-student-history');
     if (list) list.scrollTop = list.scrollHeight;
 };
+
+window.printReceipt = function(order) {
+    const isPaid = order.status === 'paid' || (order.paymentDetails && order.paymentDetails.amount > 0);
+    const title = isPaid ? 'Receipt' : 'Payment Reminder';
+    
+    const student = salesState.selectedStudent;
+    const studentName = student ? student.name : 'Unknown';
+    const studentId = student ? student.studentId : '';
+    
+    const dateStr = new Date().toLocaleString('en-GB');
+    
+    let itemsHtml = '';
+    let totalAmount = 0;
+    
+    order.items.forEach(item => {
+        const productName = item.productData.name;
+        const price = item.price;
+        const quantity = item.enrolledClasses ? item.enrolledClasses.length : 1;
+        totalAmount += price;
+        
+        let desc = `<b>${escapeHtml(productName)}</b>`;
+        if (item.enrolledClasses && item.enrolledClasses.length > 0) {
+            const dates = item.enrolledClasses.map(c => {
+                const d = new Date(c.date);
+                return `${d.getDate()}/${d.getMonth()+1}`;
+            }).join(', ');
+            
+            const first = item.enrolledClasses[0];
+            desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
+            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(first.entry.teacherName || 'Unknown')}</span>`;
+        }
+        
+        itemsHtml += `
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:8px;">${desc}</td>
+                <td style="padding:8px; text-align:right;">$${formatNumber(price / quantity)}</td>
+                <td style="padding:8px; text-align:center;">${quantity}</td>
+                <td style="padding:8px; text-align:right;">$${formatNumber(price)}</td>
+            </tr>
+        `;
+    });
+    
+    const payInfo = order.paymentDetails || {};
+    const payAmount = payInfo.amount || 0;
+    const payMethod = payInfo.method || '-';
+    const remark = payInfo.remark || '';
+    
+    const win = window.open('', 'Receipt', 'width=800,height=900');
+    win.document.write(`
+        <html>
+        <head>
+            <title>${title} - ${order.id}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                .header { text-align: center; margin-bottom: 30px; position: relative; }
+                .header h1 { margin: 0; font-size: 24px; }
+                .meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }
+                .meta-right { text-align: right; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
+                th { border-bottom: 2px solid #000; text-align: left; padding: 8px; }
+                .totals { text-align: right; margin-bottom: 30px; }
+                .totals-row { display: flex; justify-content: flex-end; gap: 20px; margin-bottom: 5px; }
+                .footer { margin-top: 50px; font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
+                .logo { width: 60px; height: 60px; position: absolute; left: 0; top: 0; background: #eee; border-radius: 50%; display:flex;align-items:center;justify-content:center; font-size:10px; border:1px solid #ccc; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo">Logo</div>
+                <h1>${title}</h1>
+                <div style="text-align:right; font-size:12px; margin-top:5px;">
+                    No.: ${order.id.split('_').pop().toUpperCase()}<br>
+                    Date: ${dateStr}
+                </div>
+            </div>
+            
+            <div class="meta">
+                <div class="meta-left">
+                    <strong>Received From:</strong><br>
+                    ${escapeHtml(studentName)} (${escapeHtml(studentId)})
+                </div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item Description</th>
+                        <th style="text-align:right;">Price</th>
+                        <th style="text-align:center;">Quantity</th>
+                        <th style="text-align:right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+            
+            <div class="totals">
+                <div class="totals-row">
+                    <strong>TOTAL</strong>
+                    <strong>$${formatNumber(totalAmount)}</strong>
+                </div>
+                <div class="totals-row" style="border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
+                    <span>Pay By: ${payMethod.toUpperCase()}</span>
+                    <span>$${formatNumber(payAmount)}</span>
+                </div>
+                ${remark ? `<div style="margin-top:5px; font-size:12px;">Remark: ${escapeHtml(remark)}</div>` : ''}
+            </div>
+            
+            <div class="footer">
+                <strong>Make-up Lesson Arrangements:</strong><br>
+                - All make-up class quotas must be used within two months.<br>
+                - Sessions cannot be postponed under any circumstances.<br>
+                - Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.<br>
+                - Must apply for leave at least 2 hours before class.
+            </div>
+            
+            <script>window.print();</script>
+        </body>
+        </html>
+    `);
+    win.document.close();
+};

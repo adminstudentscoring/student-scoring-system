@@ -8094,7 +8094,7 @@ app.delete('/api/organizations/expenses/:id', authenticateUser, authorizeRole('o
 app.post('/api/organizations/orders', authenticateUser, authorizeRole('organization'), async (req, res) => {
   console.log('[DEBUG] POST /orders called');
   try {
-    const { studentId, items, paymentStatus } = req.body;
+    const { studentId, items, paymentStatus, paymentDetails } = req.body;
     console.log('[DEBUG] Order Payload:', { studentId, itemCount: items?.length, paymentStatus });
 
     if (!studentId || !items || !Array.isArray(items)) {
@@ -8116,6 +8116,7 @@ app.post('/api/organizations/orders', authenticateUser, authorizeRole('organizat
       studentId,
       date: new Date().toISOString(),
       status: paymentStatus || 'unpaid', // unpaid, paid
+      paymentDetails: paymentDetails || null,
       items: items, // Store full structure
       totalAmount: items.reduce((sum, item) => sum + (item.price || 0), 0),
       createdBy: req.user.id
