@@ -1313,6 +1313,10 @@ window.saveSalesOrder = async function() {
       if (salesState.selectedStudent) {
           await loadStudentOrders(salesState.selectedStudent.id);
       }
+      // Automatically print Payment Reminder
+      if (typeof printReceipt === 'function') {
+          printReceipt(order);
+      }
   }
 };
 
