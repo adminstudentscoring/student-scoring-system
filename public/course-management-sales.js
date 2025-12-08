@@ -1025,7 +1025,7 @@ window.selectSalesStudent = function(studentId) {
     </div>
     <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
   `;
-
+  
   let historyContainer = document.getElementById('salesStudentHistory');
   if (!historyContainer) {
       historyContainer = document.createElement('div');
@@ -1188,7 +1188,7 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
        }
        
        if (paymentDetails) {
-           return response; // Return response for receipt generation
+           return order; // Return order object for receipt generation
        }
      } else {
        let errorMsg = 'Failed to save order';
@@ -1696,11 +1696,10 @@ window.confirmCheckout = async function() {
     const status = amount > 0 ? 'paid' : 'unpaid';
     
     // Call API
-    const response = await submitSalesOrder(status, selectedItems, paymentDetails);
+    const order = await submitSalesOrder(status, selectedItems, paymentDetails);
     
-    if (response && response.ok) {
+    if (order) {
        closeCheckoutModal();
-       const order = await response.json();
        if (typeof printReceipt === 'function') printReceipt(order);
        
        if (salesState.cart.length === 0) {
