@@ -1130,14 +1130,23 @@ function renderStudentUnpaidOrders() {
                 const dateStr = new Date(order.date).toLocaleDateString();
                 const itemsSummary = order.items.map(i => i.productData.name).join(', ');
                 
+                const firstItem = order.items[0];
+                const firstClass = (firstItem && firstItem.enrolledClasses && firstItem.enrolledClasses.length > 0) ? firstItem.enrolledClasses[0] : null;
+                const dateToJump = firstClass ? firstClass.date : null;
+                const courseToJump = firstClass ? firstClass.entry.courseIds[0] : null;
+                const jumpAttr = dateToJump ? `onclick="jumpToDate('${dateToJump}', '${courseToJump}')" style="cursor:pointer;" title="Jump to ${dateToJump}"` : '';
+
                 return `
                     <div class="unpaid-item">
-                        <div class="unpaid-info">
+                        <div class="unpaid-info" ${jumpAttr}>
                             <div class="unpaid-date">${dateStr}</div>
                             <div title="${escapeHtml(itemsSummary)}">${escapeHtml(itemsSummary.substring(0, 25))}${itemsSummary.length > 25 ? '...' : ''}</div>
                         </div>
                         <div class="unpaid-amount">$${formatNumber(order.totalAmount)}</div>
-                        <button class="btn-pay-order" onclick="payExistingOrder('${order.id}')">Pay</button>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-pay-order" onclick="payExistingOrder('${order.id}')">Pay</button>
+                            <button class="btn-pay-order" style="background:#ef4444;" onclick="deleteSalesOrder('${order.id}')">Del</button>
+                        </div>
                     </div>
                 `;
             }).join('')}
@@ -1187,6 +1196,42 @@ window.payExistingOrder = function(orderId) {
     updatePayButton();
     
     modal.classList.add('show');
+};
+
+window.deleteSalesOrder = async function(orderId) {
+    if (!confirm('Are you sure you want to delete this order?')) return;
+    
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${orderId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            if (window.showToast) window.showToast('Order deleted successfully', 'success');
+            else alert('Order deleted successfully');
+            
+            // Reload orders
+            if (salesState.selectedStudent) {
+                loadStudentOrders(salesState.selectedStudent.id);
+            }
+            
+            // Refresh timetable if needed
+            if (typeof window.loadTimetableData === 'function') {
+                await window.loadTimetableData();
+            }
+            
+            // Refresh UI
+            if (typeof updateDaySchedule === 'function') updateDaySchedule();
+            if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+            
+        } else {
+            const err = await response.json();
+            alert(err.error || 'Failed to delete order');
+        }
+    } catch (e) {
+        console.error('Error deleting order:', e);
+        alert('Error deleting order');
+    }
 };
 
 window.deselectSalesStudent = function() {
