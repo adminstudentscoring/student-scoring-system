@@ -125,7 +125,18 @@ function renderSettings() {
     const categories = [
         { id: 'teacher-management', name: 'Teacher Management', icon: '👨‍🏫' },
         { id: 'student-management', name: 'Student Management', icon: '👥' },
-        { id: 'course-management', name: 'Course Management', icon: '📚' },
+        { 
+            id: 'course-management', 
+            name: 'Course Management', 
+            icon: '📚',
+            children: [
+                { id: 'cm-timetable', name: 'Timetable' },
+                { id: 'cm-courses', name: 'Courses' },
+                { id: 'cm-package', name: 'Course Package' },
+                { id: 'cm-accounting', name: 'Accounting' },
+                { id: 'cm-sales', name: 'Sales' }
+            ]
+        },
         { id: 'statistic-management', name: 'Statistic Management', icon: '📊' },
         { id: 'class-view-management', name: 'Class View Management', icon: '🎮' },
         { id: 'general', name: 'General', icon: '⚙️' }
@@ -135,11 +146,27 @@ function renderSettings() {
         <div class="course-management">
             <!-- Left Sidebar -->
             <div class="course-sub-tabs">
-                ${categories.map((cat, index) => `
-                    <button class="course-sub-tab settings-nav-tab ${index === 4 ? 'active' : ''}" data-cat-id="${cat.id}" onclick="switchSettingsCategory('${cat.id}')">
-                        ${cat.icon} ${cat.name}
-                    </button>
-                `).join('')}
+                ${categories.map((cat, index) => {
+                    if (cat.children) {
+                        return `
+                            <div class="course-sub-tab-group" style="margin-bottom: 5px;">
+                                <div class="course-sub-tab-header" style="padding: 10px 15px; font-weight: bold; color: #555; cursor: default;">
+                                    ${cat.icon} ${cat.name}
+                                </div>
+                                ${cat.children.map(child => `
+                                    <button class="course-sub-tab settings-nav-tab" data-cat-id="${child.id}" onclick="switchSettingsCategory('${child.id}')" style="padding-left: 35px; font-size: 0.9rem;">
+                                        ${child.name}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    return `
+                        <button class="course-sub-tab settings-nav-tab ${cat.id === 'class-view-management' ? 'active' : ''}" data-cat-id="${cat.id}" onclick="switchSettingsCategory('${cat.id}')">
+                            ${cat.icon} ${cat.name}
+                        </button>
+                    `;
+                }).join('')}
             </div>
             
             <!-- Content Area -->
@@ -174,6 +201,20 @@ function renderSettingsCategory(categoryId) {
                 <hr style="margin: 30px 0; border: 0; border-top: 1px dashed #ccc;">
                 ${renderChallengeLevels(clSettings)}
             </div>`;
+            break;
+            
+        case 'cm-timetable':
+        case 'cm-courses':
+        case 'cm-package':
+        case 'cm-accounting':
+        case 'cm-sales':
+            html += `
+                <div class="empty-state" style="padding: 60px; text-align: center; color: #999;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🚧</div>
+                    <h3>${categoryId.replace('cm-', '').toUpperCase()} SETTINGS</h3>
+                    <p>This feature is coming soon.</p>
+                </div>
+            `;
             break;
             
         case 'teacher-management':
