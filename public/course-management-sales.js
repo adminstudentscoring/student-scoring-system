@@ -1053,12 +1053,140 @@ window.selectSalesStudent = function(studentId) {
       if (card.parentNode) card.parentNode.insertBefore(historyContainer, card.nextSibling);
   }
   
+  // Load student's orders
+  loadStudentOrders(studentId);
+
   if (window.renderStudentEnrollments) window.renderStudentEnrollments();
   
   document.querySelector('.cart-empty-state').innerHTML = 'Select products from the left to create an order.';
   renderSalesCart();
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+};
+
+// Load Student Orders
+async function loadStudentOrders(studentId) {
+    // Fetch all orders and filter (simplest integration)
+    // Ideally backend should support /organizations/orders?studentId=...
+    try {
+        const response = await window.authUtils.authenticatedFetch('/organizations/orders');
+        if (response.ok) {
+            const allOrders = await response.json();
+            // Filter for this student and unpaid status
+            const unpaidOrders = allOrders.filter(o => o.studentId === studentId && o.status === 'unpaid');
+            salesState.currentUnpaidOrders = unpaidOrders; // Store in state
+            renderStudentUnpaidOrders();
+        }
+    } catch (e) {
+        console.error('Failed to load student orders', e);
+    }
+}
+
+// Render Unpaid Orders in Sidebar
+function renderStudentUnpaidOrders() {
+    let container = document.getElementById('salesUnpaidOrders');
+    const card = document.getElementById('selectedStudentCard');
+    
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'salesUnpaidOrders';
+        container.className = 'sales-unpaid-orders';
+        // Insert after selectedStudentCard
+        if (card && card.parentNode) card.parentNode.insertBefore(container, card.nextSibling);
+        
+        // Add styles if not present
+        if (!document.getElementById('salesUnpaidStyles')) {
+            const style = document.createElement('style');
+            style.id = 'salesUnpaidStyles';
+            style.textContent = `
+                .sales-unpaid-orders { margin-top: 10px; padding: 10px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; }
+                .unpaid-header { font-weight: bold; font-size: 12px; color: #9f1239; margin-bottom: 8px; display:flex; justify-content:space-between; }
+                .unpaid-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 0; border-bottom: 1px solid #fecdd3; }
+                .unpaid-item:last-child { border-bottom: none; }
+                .unpaid-info { flex: 1; }
+                .unpaid-date { font-size: 11px; color: #881337; }
+                .unpaid-amount { font-weight: bold; color: #be123c; }
+                .btn-pay-order { padding: 4px 10px; font-size: 11px; background: #e11d48; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px; }
+                .btn-pay-order:hover { background: #be123c; }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+    
+    const orders = salesState.currentUnpaidOrders || [];
+    
+    if (orders.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    container.innerHTML = `
+        <div class="unpaid-header">
+            <span>⚠️ Unpaid Orders (${orders.length})</span>
+        </div>
+        <div class="unpaid-list">
+            ${orders.map(order => {
+                const dateStr = new Date(order.date).toLocaleDateString();
+                const itemsSummary = order.items.map(i => i.productData.name).join(', ');
+                
+                return `
+                    <div class="unpaid-item">
+                        <div class="unpaid-info">
+                            <div class="unpaid-date">${dateStr}</div>
+                            <div title="${escapeHtml(itemsSummary)}">${escapeHtml(itemsSummary.substring(0, 25))}${itemsSummary.length > 25 ? '...' : ''}</div>
+                        </div>
+                        <div class="unpaid-amount">$${formatNumber(order.totalAmount)}</div>
+                        <button class="btn-pay-order" onclick="payExistingOrder('${order.id}')">Pay</button>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+window.payExistingOrder = function(orderId) {
+    const order = (salesState.currentUnpaidOrders || []).find(o => o.id === orderId);
+    if (!order) return;
+    
+    // Set checkout state for existing order
+    checkoutState.mode = 'existing';
+    checkoutState.orderId = orderId;
+    checkoutState.existingOrder = order;
+    checkoutState.method = 'cash';
+    
+    const modal = document.getElementById('checkoutModal');
+    if (!modal) return;
+    
+    // Render items from order
+    const container = document.getElementById('checkoutItemsList');
+    container.innerHTML = order.items.map(item => `
+        <div class="checkout-item" style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="display:flex; align-items:center; gap:10px; font-weight:bold;">
+                    <input type="checkbox" checked disabled>
+                    ${escapeHtml(item.productData.name)}
+                </label>
+                <span style="font-weight:bold;">$${formatNumber(item.price)}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    // Disable select all as it's fixed for existing order
+    const selectAll = document.getElementById('checkoutSelectAll');
+    if (selectAll) selectAll.disabled = true;
+    
+    // Update total
+    document.getElementById('checkoutShouldPay').textContent = `$${formatNumber(order.totalAmount)}`;
+    
+    // Pre-fill input
+    const input = document.querySelector(`#paymentFormCash .payment-amount-input`);
+    if (input) input.value = order.totalAmount;
+    
+    switchPaymentMethod('cash');
+    updatePayButton();
+    
+    modal.classList.add('show');
 };
 
 window.deselectSalesStudent = function() {
@@ -1134,7 +1262,13 @@ window.resetSales = function() {
 };
 
 window.saveSalesOrder = async function() {
-  await submitSalesOrder('unpaid');
+  const order = await submitSalesOrder('unpaid');
+  if (order) {
+      // After saving, reload student orders to show in unpaid list
+      if (salesState.selectedStudent) {
+          await loadStudentOrders(salesState.selectedStudent.id);
+      }
+  }
 };
 
 window.processSalesPayment = function() {
@@ -1209,6 +1343,7 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
        if (paymentDetails) {
            return order; // Return order object for receipt generation
        }
+       return order; // Always return order for further processing
      } else {
        let errorMsg = 'Failed to save order';
        try {
@@ -1586,7 +1721,14 @@ window.openCheckoutModal = function() {
     // Reset State
     checkoutState.selectedIndices = new Set(salesState.cart.map((_, i) => i)); // Select all by default
     checkoutState.method = 'cash';
-    document.getElementById('checkoutSelectAll').checked = true;
+    checkoutState.mode = 'new'; // Default mode
+    checkoutState.orderId = null;
+    
+    const selectAll = document.getElementById('checkoutSelectAll');
+    if (selectAll) {
+        selectAll.checked = true;
+        selectAll.disabled = false;
+    }
     
     renderCheckoutItems();
     switchPaymentMethod('cash'); // Reset UI
@@ -1712,6 +1854,42 @@ window.confirmCheckout = async function() {
         bank: document.getElementById(`pay${suffix}Bank`)?.value || ''
     };
     
+    // Handle Existing Order Payment
+    if (checkoutState.mode === 'existing' && checkoutState.orderId) {
+        try {
+            // Update Order Status
+            const updatePayload = {
+                status: 'paid',
+                paymentDetails: paymentDetails
+            };
+            
+            const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${checkoutState.orderId}`, {
+                method: 'PUT',
+                body: JSON.stringify(updatePayload)
+            });
+            
+            if (response.ok) {
+                const updatedOrder = await response.json();
+                if (window.showToast) window.showToast('Payment successful!', 'success');
+                else alert('Payment successful!');
+                
+                closeCheckoutModal();
+                if (typeof printReceipt === 'function') printReceipt(updatedOrder);
+                
+                // Refresh
+                if (salesState.selectedStudent) {
+                    loadStudentOrders(salesState.selectedStudent.id);
+                }
+            } else {
+                alert('Failed to update order');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error processing payment');
+        }
+        return;
+    }
+    
     const selectedItems = salesState.cart.filter((_, i) => checkoutState.selectedIndices.has(i));
     if (selectedItems.length === 0) {
         alert('No items selected');
@@ -1728,7 +1906,13 @@ window.confirmCheckout = async function() {
        if (typeof printReceipt === 'function') printReceipt(order);
        
        if (salesState.cart.length === 0) {
-           document.getElementById('checkoutSelectAll').checked = false;
+           const selectAll = document.getElementById('checkoutSelectAll');
+           if (selectAll) selectAll.checked = false;
+       }
+       
+       // Refresh unpaid orders if we just paid something
+       if (salesState.selectedStudent) {
+           loadStudentOrders(salesState.selectedStudent.id);
        }
     }
 };
