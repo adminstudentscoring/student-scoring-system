@@ -131,6 +131,23 @@ function renderActiveTab() {
     }
 }
 
+function printOrderReceipt(orderId) {
+    const order = accountingState.orders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    // Check if sales module printReceipt exists
+    if (typeof window.printReceipt === 'function') {
+        // Find student for sales state context (required by printReceipt)
+        if (window.salesState) {
+            const student = (window.students || []).find(s => s.id === order.studentId);
+            window.salesState.selectedStudent = student;
+        }
+        window.printReceipt(order);
+    } else {
+        alert('Receipt printing is available in Sales module. Please ensure Sales module is loaded.');
+    }
+}
+
 function renderOrdersTab(container) {
     container.innerHTML = `
         <div class="filters">
@@ -176,6 +193,9 @@ function getOrdersRows() {
         let actionHtml = '';
         if (order.status === 'unpaid') {
             actionHtml = `<button class="btn btn-sm btn-success" onclick="markOrderPaid('${order.id}')">Mark Paid</button>`;
+            actionHtml += ` <button class="btn btn-sm btn-outline" onclick="printOrderReceipt('${order.id}')" title="Print Payment Reminder">Reminder</button>`;
+        } else {
+             actionHtml = `<button class="btn btn-sm btn-outline" onclick="printOrderReceipt('${order.id}')" title="Print Receipt">Receipt</button>`;
         }
         actionHtml += ` <button class="btn btn-sm btn-danger" onclick="deleteOrder('${order.id}')">Delete</button>`;
         
