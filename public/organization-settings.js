@@ -123,97 +123,75 @@ function renderSettings() {
     }
 
     const categories = [
-        { id: 'teacherPermissions', name: '👨‍🏫 Teacher Permissions', icon: '👨‍🏫' },
-        { id: 'studentPermissions', name: '👥 Student Permissions', icon: '👥' },
-        { id: 'classViewMode', name: '📊 Class-View Mode', icon: '📊' },
-        { id: 'studentLevelUp', name: '📈 Student Level-up Settings', icon: '📈' },
-        { id: 'displaySettings', name: '🎨 Display Settings', icon: '🎨' },
-        { id: 'scheduleSettings', name: '📅 Schedule Settings', icon: '📅' },
-        { id: 'scoringRules', name: '🎯 Scoring Rules', icon: '🎯' },
-        { id: 'challengeLevels', name: '⚔️ Challenge Mode Levels', icon: '⚔️' },
-        { id: 'backupSettings', name: '💾 Data Backup & Restore', icon: '💾' },
-        { id: 'notificationSettings', name: '🔔 Notification Settings', icon: '🔔' },
-        { id: 'organizationInfo', name: '🏢 Organization Info', icon: '🏢' },
-        { id: 'securitySettings', name: '🔒 Security Settings', icon: '🔒' }
+        { id: 'teacher-management', name: 'Teacher Management', icon: '👨‍🏫' },
+        { id: 'student-management', name: 'Student Management', icon: '👥' },
+        { id: 'course-management', name: 'Course Management', icon: '📚' },
+        { id: 'statistic-management', name: 'Statistic Management', icon: '📊' },
+        { id: 'class-view-management', name: 'Class View Management', icon: '🎮' },
+        { id: 'general', name: 'General', icon: '⚙️' }
     ];
 
     let html = `
-        <div class="settings-container">
-            <div class="settings-actions" style="justify-content: space-between; align-items: center;">
-                <h2 style="margin: 0;">⚙️ Settings</h2>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-secondary" onclick="previewSettings()">👁️ Preview</button>
-                    <button class="btn btn-secondary" onclick="resetAllSettings()">🔄 Reset All to Default</button>
-                    <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
-                </div>
-            </div>
-            <div class="settings-tabs" id="settingsTabs">
+        <div class="course-management">
+            <!-- Left Sidebar -->
+            <div class="course-sub-tabs">
                 ${categories.map((cat, index) => `
-                    <button class="settings-tab ${index === 0 ? 'active' : ''}" onclick="switchSettingsCategory('${cat.id}')">
-                        ${cat.name}
+                    <button class="course-sub-tab settings-nav-tab ${index === 4 ? 'active' : ''}" data-cat-id="${cat.id}" onclick="switchSettingsCategory('${cat.id}')">
+                        ${cat.icon} ${cat.name}
                     </button>
                 `).join('')}
             </div>
+            
+            <!-- Content Area -->
+            <div class="course-management-content" id="settingsContent">
+                <!-- Default to Class View Management -->
+                ${renderSettingsCategory('class-view-management')}
+            </div>
+        </div>
+        
+        <div class="settings-actions-footer" style="padding: 20px; text-align: right; border-top: 1px solid #eee; background: #fff; margin-top: 20px;">
+             <button class="btn btn-secondary" onclick="resetAllSettings()">🔄 Reset All</button>
+             <button class="btn btn-primary" onclick="saveSettings()">💾 Save All Settings</button>
+        </div>
     `;
-
-    // Render each category
-    categories.forEach((cat, index) => {
-        html += renderSettingsCategory(cat.id, cat.name, index === 0);
-    });
-
-    html += '</div>';
+    
     document.getElementById('settingsContainer').innerHTML = html;
 }
 
-/**
- * Render a specific settings category
- */
-function renderSettingsCategory(categoryId, categoryName, isActive) {
-    const settings = currentSettings[categoryId] || {};
-    let html = `<div class="settings-category-content ${isActive ? 'active' : ''}" id="${categoryId}Content">`;
-
+function renderSettingsCategory(categoryId) {
+    let html = '';
+    
     switch(categoryId) {
-        case 'teacherPermissions':
-            html += renderTeacherPermissions(settings);
+        case 'class-view-management':
+            // Merge Class View Mode + Challenge Levels
+            const cvSettings = currentSettings.classViewMode || {};
+            const clSettings = currentSettings.challengeLevels || { levels: [], mode: 'classic' };
+            // Ensure clean images
+            if (clSettings.levels) clSettings.levels.forEach(l => delete l.image);
+            
+            html += `<div class="settings-section">
+                ${renderClassViewMode(cvSettings)}
+                <hr style="margin: 30px 0; border: 0; border-top: 1px dashed #ccc;">
+                ${renderChallengeLevels(clSettings)}
+            </div>`;
             break;
-        case 'studentPermissions':
-            html += renderStudentPermissions(settings);
-            break;
-        case 'classViewMode':
-            html += renderClassViewMode(settings);
-            break;
-        case 'studentLevelUp':
-            html += renderStudentLevelUp(settings);
-            break;
-        case 'displaySettings':
-            html += renderDisplaySettings(settings);
-            break;
-        case 'scheduleSettings':
-            html += renderScheduleSettings(settings);
-            break;
-        case 'scoringRules':
-            html += renderScoringRules(settings);
-            break;
-        case 'challengeLevels':
-            // challengeLevels has a nested structure with levels array
-            const challengeSettings = currentSettings.challengeLevels || { levels: [] };
-            html += renderChallengeLevels(challengeSettings);
-            break;
-        case 'backupSettings':
-            html += renderBackupSettings(settings);
-            break;
-        case 'notificationSettings':
-            html += renderNotificationSettings(settings);
-            break;
-        case 'organizationInfo':
-            html += renderOrganizationInfo(settings);
-            break;
-        case 'securitySettings':
-            html += renderSecuritySettings(settings);
+            
+        case 'teacher-management':
+        case 'student-management':
+        case 'course-management':
+        case 'statistic-management':
+        case 'general':
+        default:
+            html += `
+                <div class="empty-state" style="padding: 60px; text-align: center; color: #999;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🚧</div>
+                    <h3>${categoryId.replace(/-/g, ' ').toUpperCase()}</h3>
+                    <p>This feature is coming soon.</p>
+                </div>
+            `;
             break;
     }
-
-    html += `</div>`;
+    
     return html;
 }
 
@@ -675,11 +653,12 @@ function renderSecuritySettings(settings) {
  * Switch settings category tab
  */
 function switchSettingsCategory(categoryId) {
-    document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.settings-category-content').forEach(content => content.classList.remove('active'));
+    document.querySelectorAll('.settings-nav-tab').forEach(btn => {
+        if (btn.dataset.catId === categoryId) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
     
-    event.target.classList.add('active');
-    document.getElementById(`${categoryId}Content`).classList.add('active');
+    document.getElementById('settingsContent').innerHTML = renderSettingsCategory(categoryId);
 }
 
 /**
