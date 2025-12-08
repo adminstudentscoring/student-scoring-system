@@ -14,12 +14,14 @@ let salesState = {
     viewDate: new Date(), // For calendar navigation (Year/Month)
     selectedDate: new Date(), // Currently selected day
     availableClasses: [] // All future classes cache
-  }
+  },
+  teachers: [] // Cache teachers
 };
 
 // Initialize Sales Module
 window.loadSalesModule = async function() {
   loadSalesProducts();
+  loadSalesTeachers();
   
   // Preload Timetable Data for Enrollments History
   try {
@@ -41,6 +43,18 @@ window.loadSalesModule = async function() {
 
 function setupSalesEventListeners() {
   // Any specific event listeners for sales module
+}
+
+// Load Teachers for Sales
+async function loadSalesTeachers() {
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/teachers');
+    if (response && response.ok) {
+      salesState.teachers = await response.json();
+    }
+  } catch (error) {
+    console.error('Error loading teachers for sales:', error);
+  }
 }
 
 // Load Sales Products (Courses and Packages)
@@ -365,6 +379,11 @@ async function loadAvailableClasses(courseId) {
     
     // Filter for this course
     const courseEntries = allEntries.filter(e => {
+      // Ensure teacherName is populated if missing
+      if (!e.teacherName && e.teacherIds && e.teacherIds.length > 0) {
+          e.teacherName = getTeacherName(e.teacherIds[0]);
+      }
+
       if (e.courseIds && Array.isArray(e.courseIds) && e.courseIds.includes(courseId)) {
         return true;
       }
@@ -643,7 +662,7 @@ function updateDaySchedule() {
         </div>
         <div class="card-details">
           <div class="card-title">${escapeHtml(entry.className)}</div>
-          <div class="card-teacher">${escapeHtml(entry.teacherName || 'Unknown Teacher')}</div>
+          <div class="card-teacher">${escapeHtml(entry.teacherName || (entry.teacherIds && entry.teacherIds.length > 0 ? getTeacherName(entry.teacherIds[0]) : 'Unknown Teacher'))}</div>
           <div class="enrolled-status">✅ Saved</div>
         </div>
         <div class="card-actions">
@@ -669,7 +688,7 @@ function updateDaySchedule() {
         </div>
         <div class="card-details">
           <div class="card-title">${escapeHtml(entry.className)}</div>
-          <div class="card-teacher">${escapeHtml(entry.teacherName || 'Unknown Teacher')}</div>
+          <div class="card-teacher">${escapeHtml(entry.teacherName || (entry.teacherIds && entry.teacherIds.length > 0 ? getTeacherName(entry.teacherIds[0]) : 'Unknown Teacher'))}</div>
           <div class="enrolled-status" style="color: #2563eb;">Pending Payment</div>
         </div>
         <div class="card-actions">
@@ -738,7 +757,7 @@ function updateDaySchedule() {
         </div>
         <div class="card-details">
           <div class="card-title">${escapeHtml(cls.entry.className)}</div>
-          <div class="card-teacher">${escapeHtml(cls.entry.teacherName || 'Unknown Teacher')}</div>
+          <div class="card-teacher">${escapeHtml(cls.entry.teacherName || (cls.entry.teacherIds && cls.entry.teacherIds.length > 0 ? getTeacherName(cls.entry.teacherIds[0]) : 'Unknown Teacher'))}</div>
         </div>
         <div class="card-actions">
           ${buttonsHtml}
@@ -1297,6 +1316,12 @@ function getPackageLessonCount(pkg) {
   return pkg.courses.reduce((sum, c) => sum + c.quantity, 0);
 }
 
+function getTeacherName(teacherId) {
+    if (!salesState.teachers) return 'Unknown';
+    const teacher = salesState.teachers.find(t => t.id === teacherId);
+    return teacher ? teacher.name : 'Unknown';
+}
+
 // Add CSS styles dynamically for new layout
 const salesStyles = document.createElement('style');
 salesStyles.textContent = `
@@ -1735,8 +1760,10 @@ window.printReceipt = function(order) {
             }).join(', ');
             
             const first = item.enrolledClasses[0];
+            const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
+
             desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
-            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(first.entry.teacherName || 'Unknown')}</span>`;
+            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
         }
         
         itemsHtml += `
@@ -1959,8 +1986,10 @@ window.printReceipt = function(order) {
             }).join(', ');
             
             const first = item.enrolledClasses[0];
+            const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
+
             desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
-            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(first.entry.teacherName || 'Unknown')}</span>`;
+            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
         }
         
         itemsHtml += `
