@@ -1136,11 +1136,22 @@ function renderStudentUnpaidOrders() {
                 const courseToJump = firstClass ? firstClass.entry.courseIds[0] : null;
                 const jumpAttr = dateToJump ? `onclick="jumpToDate('${dateToJump}', '${courseToJump}')" style="cursor:pointer;" title="Jump to ${dateToJump}"` : '';
 
+                // Format class date if available
+                let displayDate = dateStr; // Default to order date
+                let dateLabel = 'Order: ';
+                if (dateToJump) {
+                    const classDateObj = new Date(dateToJump);
+                    if (!isNaN(classDateObj)) {
+                        displayDate = classDateObj.toLocaleDateString();
+                        dateLabel = 'Class: ';
+                    }
+                }
+
                 return `
                     <div class="unpaid-item">
                         <div class="unpaid-info" ${jumpAttr}>
-                            <div class="unpaid-date">${dateStr}</div>
-                            <div title="${escapeHtml(itemsSummary)}">${escapeHtml(itemsSummary.substring(0, 25))}${itemsSummary.length > 25 ? '...' : ''}</div>
+                            <div class="unpaid-date" style="font-size:10px; color:#666;">${dateLabel}${displayDate}</div>
+                            <div title="${escapeHtml(itemsSummary)}" style="font-weight:600; color:#333;">${escapeHtml(itemsSummary.substring(0, 25))}${itemsSummary.length > 25 ? '...' : ''}</div>
                         </div>
                         <div class="unpaid-amount">$${formatNumber(order.totalAmount)}</div>
                         <div style="display:flex; gap:5px;">
