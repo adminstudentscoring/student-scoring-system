@@ -1980,7 +1980,11 @@ window.printReceipt = async function(order) {
         paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
     };
 
-    const isPaid = order.status === 'paid' || (order.paymentDetails && order.paymentDetails.amount > 0);
+    // Determine if it is a Receipt (Paid) or Reminder (Unpaid)
+    // If status is 'paid', it's a receipt.
+    // If status is 'unpaid', it's a reminder.
+    // The payment details amount check was causing issues for $0 payments or unpaid orders showing as receipts if details existed but amount was 0.
+    const isPaid = order.status === 'paid';
     const title = isPaid ? 'Receipt' : 'Payment Reminder';
     const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
     
@@ -2243,7 +2247,11 @@ window.printReceipt = async function(order) {
         paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
     };
 
-    const isPaid = order.status === 'paid' || (order.paymentDetails && order.paymentDetails.amount > 0);
+    // Determine if it is a Receipt (Paid) or Reminder (Unpaid)
+    // If status is 'paid', it's a receipt.
+    // If status is 'unpaid', it's a reminder.
+    // The payment details amount check was causing issues for $0 payments or unpaid orders showing as receipts if details existed but amount was 0.
+    const isPaid = order.status === 'paid';
     const title = isPaid ? 'Receipt' : 'Payment Reminder';
     const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
     
