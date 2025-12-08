@@ -432,8 +432,6 @@ function generateFutureClasses(entries, weeks = 8) {
         let daysUntil = targetDay - currentDay;
         if (daysUntil < 0) daysUntil += 7;
         
-        // Important: If today is the target day, daysUntil is 0. 
-        
         current.setDate(current.getDate() + daysUntil);
         
         console.log(`[DEBUG] Start Date adjusted to first instance: ${current.toDateString()}`);
@@ -531,25 +529,20 @@ function renderMiniCalendar() {
   
   grid.innerHTML = '';
   
-  // First day of month (0-6, Sun=0) -> Convert to Mon=0
   const firstDay = new Date(year, month, 1).getDay();
-  const startOffset = (firstDay === 0 ? 6 : firstDay - 1); // Mon=0, ... Sun=6
-  
+  const startOffset = (firstDay === 0 ? 6 : firstDay - 1); // Mon=0
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
-  // Empty slots
   for (let i = 0; i < startOffset; i++) {
     grid.innerHTML += `<div class="calendar-day empty"></div>`;
   }
   
-  // Days
   for (let d = 1; d <= daysInMonth; d++) {
     const currentDayDate = new Date(year, month, d);
     const currentStr = formatDateForCompare(currentDayDate);
     const isToday = formatDateForCompare(today) === currentStr;
     const isSelected = formatDateForCompare(selectedDate) === currentStr;
     
-    // Check if has classes
     const hasClass = salesState.classSelection.availableClasses.some(c => 
       formatDateForCompare(c.date) === currentStr
     );
@@ -570,8 +563,6 @@ function renderMiniCalendar() {
   }
 }
 
-// --- Schedule List UI Logic ---
-
 function updateDaySchedule() {
   const header = document.getElementById('scheduleHeader');
   const container = document.getElementById('dayScheduleList');
@@ -582,7 +573,7 @@ function updateDaySchedule() {
   
   header.innerHTML = `<h3>${selectedDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>`;
   
-  // Inject styles for Enrolled/Drop if not present
+  // Inject styles
   if (!document.getElementById('salesDropStyles')) {
       const style = document.createElement('style');
       style.id = 'salesDropStyles';
@@ -612,7 +603,6 @@ function updateDaySchedule() {
   salesState.cart.forEach((item, cartIndex) => {
       if (item.enrolledClasses && Array.isArray(item.enrolledClasses)) {
           item.enrolledClasses.forEach(cls => {
-              // cls.date might be Date object or string
               const d = new Date(cls.date);
               const dStr = formatDateForCompare(d);
               if (dStr === selectedStr) {
@@ -642,9 +632,7 @@ function updateDaySchedule() {
   enrolledClasses.forEach(enrollment => {
       const entry = (window.timetableEntries || []).find(e => e.id === enrollment.timetableEntryId);
       if (!entry) return;
-      
       const timeStr = `${entry.startTime} - ${entry.endTime}`;
-      const courseId = (entry.courseIds && entry.courseIds.length > 0) ? entry.courseIds[0] : '';
       
       html += `
       <div class="schedule-card enrolled">
@@ -696,7 +684,6 @@ function updateDaySchedule() {
   const productType = salesState.selectedProduct ? salesState.selectedProduct.type : 'course';
   
   html += dayClasses.map(cls => {
-    // Skip if already enrolled or in cart
     const isEnrolled = enrolledClasses.some(e => e.timetableEntryId === cls.entry.id);
     const isInCart = cartClasses.some(c => c.entry.id === cls.entry.id);
     
@@ -734,7 +721,6 @@ function updateDaySchedule() {
           `;
       }
     } else if (productType === 'course' && salesState.selectedProduct) {
-      // Enable "Enroll Next 4" for single courses too, as requested
       const lessonCount = 4;
       buttonsHtml += `
         <div class="enroll-option">
@@ -784,19 +770,14 @@ window.dropSalesLesson = async function(enrollmentId) {
       if (window.showToast) window.showToast('Lesson dropped successfully', 'success');
       else alert('Lesson dropped successfully');
       
-      // Refresh Timetable (Enrollments)
       if (window.loadTimetableData) await window.loadTimetableData();
       
-      // Refresh Student (Balance update)
       if (result.newBalance !== undefined) {
         const s = (window.students || []).find(stu => stu.id === salesState.selectedStudent.id);
         if (s) s.balance = result.newBalance;
-        
-        // Trigger UI update via re-selection
         selectSalesStudent(salesState.selectedStudent.id); 
       }
       
-      // Refresh Calendar
       if (salesState.classSelection.courseId) {
           loadAvailableClasses(salesState.classSelection.courseId);
       } else {
@@ -862,20 +843,18 @@ window.enrollSingle = function(classInstanceId) {
 };
 
 window.enrollConsecutive = function(startClassInstanceId, count) {
-  // Find start index
   const allFuture = salesState.classSelection.availableClasses;
   const startIndex = allFuture.findIndex(c => c.id === startClassInstanceId);
   
   if (startIndex === -1) return;
   
-  // Select consecutive classes matching the same time/day logic?
   const startCls = allFuture[startIndex];
   const startTime = startCls.entry.startTime;
   
   const matchingClasses = allFuture.filter((c, idx) => 
     idx >= startIndex && 
     c.entry.startTime === startTime &&
-    c.date.getDay() === startCls.date.getDay() // Strict same day of week
+    c.date.getDay() === startCls.date.getDay()
   );
   
   const selected = matchingClasses.slice(0, count);
@@ -896,11 +875,9 @@ window.enrollMonthly = function(startClassInstanceId, periodMonths) {
   const startCls = allFuture[startIndex];
   const startDate = new Date(startCls.date);
   
-  // Calculate End Date: Last day of (StartMonth + Period - 1)
   const startMonth = startDate.getMonth();
   const startYear = startDate.getFullYear();
   const endDate = new Date(startYear, startMonth + periodMonths, 0);
-  // Set end of day
   endDate.setHours(23, 59, 59, 999);
   
   console.log(`[DEBUG] Enroll Monthly: Start=${startDate.toISOString()}, Period=${periodMonths}, End=${endDate.toISOString()}`);
@@ -912,7 +889,6 @@ window.enrollMonthly = function(startClassInstanceId, periodMonths) {
       if (idx < startIndex) return false;
       if (c.date > endDate) return false;
       
-      // Match time and day (Strict match for recurring series)
       if (c.entry.startTime !== startTime) return false;
       if (c.date.getDay() !== startDayOfWeek) return false;
       
@@ -936,13 +912,11 @@ function findClassInstance(id) {
 function addToCart(selectedClasses) {
   if (selectedClasses.length === 0) return;
   
-  // Format classes for order (Ensure Date is YYYY-MM-DD string to prevent timezone shifts)
   const formattedClasses = selectedClasses.map(cls => ({
       ...cls,
-      date: formatDateForCompare(cls.date) // e.g. "2025-12-08"
+      date: formatDateForCompare(cls.date)
   }));
   
-  // Calculate Price
   let price = 0;
   if (salesState.selectedProduct.type === 'package') {
       const pkg = salesState.selectedProduct.data;
@@ -955,7 +929,6 @@ function addToCart(selectedClasses) {
       price = parseFloat(salesState.selectedProduct.data.price) * selectedClasses.length;
   }
   
-  // Create Order Item
   const orderItem = {
     id: Date.now().toString(),
     productType: salesState.selectedProduct.type,
@@ -965,34 +938,21 @@ function addToCart(selectedClasses) {
   };
   
   salesState.cart.push(orderItem);
-  
-  // Stay on Calendar View (Step 2)
-  // salesState.step = 1;
-  // salesState.selectedProduct = null;
-  // showProductList();
-  
   renderSalesCart();
-  
-  // Refresh Schedule to show "In Cart" status
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 }
-
-// ==================== Student Search in Sales ====================
-// (Keep existing student search code below...)
 
 // Show Student Dropdown
 window.showStudentDropdown = function() {
   const dropdown = document.getElementById('salesStudentDropdown');
   if (dropdown) dropdown.style.display = 'block';
-  handleSalesStudentSearch(); // Load initial list
+  handleSalesStudentSearch(); 
 };
 
-// Hide Student Dropdown
 function hideStudentDropdown() {
   const dropdown = document.getElementById('salesStudentDropdown');
   if (dropdown) {
-    // Small delay to allow click events on items to fire
     setTimeout(() => {
       dropdown.style.display = 'none';
     }, 200);
@@ -1006,10 +966,8 @@ window.handleSalesStudentSearch = async function() {
   
   if (!dropdown) return;
   
-  // Reuse global students list or fetch if needed
   let studentsList = window.students || [];
   if (studentsList.length === 0) {
-    // Try to load students if not available
     try {
       const response = await window.authUtils.authenticatedFetch('/students');
       if (response && response.ok) {
@@ -1050,11 +1008,9 @@ window.selectSalesStudent = function(studentId) {
   
   salesState.selectedStudent = student;
   
-  // Update UI
-  document.getElementById('salesStudentSearch').value = ''; // Clear search
+  document.getElementById('salesStudentSearch').value = ''; 
   hideStudentDropdown();
   
-  // Hide empty state, show card
   document.getElementById('emptyStudentState').style.display = 'none';
   const card = document.getElementById('selectedStudentCard');
   card.style.display = 'flex';
@@ -1070,43 +1026,30 @@ window.selectSalesStudent = function(studentId) {
     <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
   `;
 
-  // Create/Update History Container
   let historyContainer = document.getElementById('salesStudentHistory');
   if (!historyContainer) {
       historyContainer = document.createElement('div');
       historyContainer.id = 'salesStudentHistory';
       historyContainer.className = 'sales-student-history';
-      // Insert after student card
       if (card.parentNode) card.parentNode.insertBefore(historyContainer, card.nextSibling);
   }
   
   if (window.renderStudentEnrollments) window.renderStudentEnrollments();
   
-  // Show cart placeholder text
   document.querySelector('.cart-empty-state').innerHTML = 'Select products from the left to create an order.';
-  
-  // Render cart if any
   renderSalesCart();
-  
-  // Refresh Calendar
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
 
-// Deselect Student
 window.deselectSalesStudent = function() {
   salesState.selectedStudent = null;
   document.getElementById('selectedStudentCard').style.display = 'none';
-  
   const historyContainer = document.getElementById('salesStudentHistory');
   if (historyContainer) historyContainer.innerHTML = '';
-  
   document.getElementById('emptyStudentState').style.display = 'flex';
   document.querySelector('.cart-empty-state').innerHTML = 'You will see student\'s orders here once you have selected a student above.';
-  // Hide cart content
   document.getElementById('salesCartContent').style.display = 'none';
-  
-  // Refresh Calendar
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
@@ -1122,18 +1065,14 @@ window.renderStudentEnrollments = function() {
         return;
     }
     
-    // Get enrollments
     const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
-    
-    // Sort by date (Oldest -> Newest)
     enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
     
     if (enrollments.length === 0) {
-        container.innerHTML = ''; // No history to show
+        container.innerHTML = ''; 
         return;
     }
     
-    // Inject CSS for history
     if (!document.getElementById('salesHistoryStyles')) {
         const style = document.createElement('style');
         style.id = 'salesHistoryStyles';
@@ -1164,7 +1103,6 @@ window.renderStudentEnrollments = function() {
             }).join('')}
         </div>
     `;
-    // Scroll to bottom
     const list = container.querySelector('.sales-student-history');
     if (list) list.scrollTop = list.scrollHeight;
 };
@@ -1172,7 +1110,6 @@ window.renderStudentEnrollments = function() {
 window.resetSales = function() {
   salesState.cart = [];
   deselectSalesStudent();
-  // Refresh products
   salesState.step = 1;
   showProductList();
 };
@@ -1202,7 +1139,7 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
   
   // Use button reference
   const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
-  const saveBtn = document.querySelector('.sales-footer-actions .btn-secondary'); // Assuming Save is the secondary button
+  const saveBtn = document.querySelector('.sales-footer-actions .btn-secondary'); 
   const activeBtn = status === 'paid' ? payBtn : saveBtn;
   const originalText = activeBtn ? activeBtn.textContent : '';
   
