@@ -86,6 +86,18 @@ function getDefaultSettings() {
             passwordMinLength: 6,
             maxLoginAttempts: 5,
             sessionTimeout: 3600000 // ms (1 hour)
+        },
+        salesSettings: {
+            receipt: {
+                logo: '',
+                remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.'
+            },
+            paymentReminder: {
+                logo: '',
+                remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.',
+                paymentMethod: '',
+                qrCode: ''
+            }
         }
     };
 }
@@ -207,17 +219,18 @@ function renderSettingsCategory(categoryId) {
             html += renderTimetableSettings(currentSettings.scheduleSettings || {});
             break;
             
+        case 'cm-sales':
+            html += renderSalesSettings(currentSettings.salesSettings || {});
+            break;
+
+        case 'cm-sales':
+            html += renderSalesSettings(currentSettings.salesSettings || {});
+            break;
+
         case 'cm-courses':
         case 'cm-package':
         case 'cm-accounting':
-        case 'cm-sales':
-            html += `
-                <div class="empty-state" style="padding: 60px; text-align: center; color: #999;">
-                    <div style="font-size: 48px; margin-bottom: 20px;">🚧</div>
-                    <h3>${categoryId.replace('cm-', '').toUpperCase()} SETTINGS</h3>
-                    <p>This feature is coming soon.</p>
-                </div>
-            `;
+            html += renderSalesSettings(currentSettings.salesSettings || {});
             break;
             
         case 'teacher-management':
@@ -930,6 +943,385 @@ function generateSettingsTimeOptions(startHour, endHour, selectedValue) {
     }
     return options;
 }
+
+function renderSalesSettings(settings) {
+    // Ensure defaults
+    const receipt = settings.receipt || { logo: '', remark: '' };
+    const reminder = settings.paymentReminder || { logo: '', remark: '', paymentMethod: '', qrCode: '' };
+    
+    return `
+        <div class="settings-category">
+            <h3>📊 Sales Settings</h3>
+            <div class="category-description">Configure receipt and payment reminder templates</div>
+            
+            <!-- Receipt Settings -->
+            <div class="settings-group" style="border:1px solid #eee; padding:15px; border-radius:8px; margin-bottom:20px;">
+                <h4 style="margin-top:0;">🧾 Receipt Settings</h4>
+                
+                <div class="settings-group">
+                    <label>Receipt Logo</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${receipt.logo ? `<img src="${receipt.logo}" style="height:50px; border:1px solid #ddd; padding:2px;">` : '<div style="height:50px; width:50px; background:#eee; display:flex; align-items:center; justify-content:center; font-size:10px; color:#999;">No Logo</div>'}
+                        <input type="file" accept="image/*" onchange="handleSalesLogoUpload('receipt', this)">
+                        ${receipt.logo ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'receipt.logo', '')">Remove</button>` : ''}
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <label>Remark (Footer Text)</label>
+                    <textarea style="width:100%; height:100px; padding:8px; border:1px solid #ddd; border-radius:4px;" onchange="updateSetting('salesSettings', 'receipt.remark', this.value)">${receipt.remark || ''}</textarea>
+                </div>
+            </div>
+            
+            <!-- Payment Reminder Settings -->
+            <div class="settings-group" style="border:1px solid #eee; padding:15px; border-radius:8px;">
+                <h4 style="margin-top:0;">🔔 Payment Reminder Settings</h4>
+                
+                <div class="settings-group">
+                    <label>Reminder Logo</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${reminder.logo ? `<img src="${reminder.logo}" style="height:50px; border:1px solid #ddd; padding:2px;">` : '<div style="height:50px; width:50px; background:#eee; display:flex; align-items:center; justify-content:center; font-size:10px; color:#999;">No Logo</div>'}
+                        <input type="file" accept="image/*" onchange="handleSalesLogoUpload('paymentReminder', this)">
+                        ${reminder.logo ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'paymentReminder.logo', '')">Remove</button>` : ''}
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <label>Remark (Footer Text)</label>
+                    <textarea style="width:100%; height:100px; padding:8px; border:1px solid #ddd; border-radius:4px;" onchange="updateSetting('salesSettings', 'paymentReminder.remark', this.value)">${reminder.remark || ''}</textarea>
+                </div>
+                
+                <div class="settings-group">
+                    <label>Payment Method Info</label>
+                    <textarea style="width:100%; height:80px; padding:8px; border:1px solid #ddd; border-radius:4px;" placeholder="Bank Info, FPS ID, etc." onchange="updateSetting('salesSettings', 'paymentReminder.paymentMethod', this.value)">${reminder.paymentMethod || ''}</textarea>
+                </div>
+                
+                <div class="settings-group">
+                    <label>Payment QR Code</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${reminder.qrCode ? `<img src="${reminder.qrCode}" style="height:100px; border:1px solid #ddd; padding:2px;">` : '<div style="height:100px; width:100px; background:#eee; display:flex; align-items:center; justify-content:center; font-size:10px; color:#999;">No QR</div>'}
+                        <input type="file" accept="image/*" onchange="handleSalesQRCodeUpload(this)">
+                        ${reminder.qrCode ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'paymentReminder.qrCode', '')">Remove</button>` : ''}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-actions">
+                <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+    `;
+}
+
+window.handleSalesLogoUpload = function(type, input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    if (file.size > 1024 * 1024) {
+        alert('Image too large (max 1MB)');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        updateSetting('salesSettings', `${type}.logo`, base64);
+        renderSettings(); // Re-render to show image
+    };
+    reader.readAsDataURL(file);
+};
+
+window.handleSalesQRCodeUpload = function(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    if (file.size > 1024 * 1024) {
+        alert('Image too large (max 1MB)');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        updateSetting('salesSettings', 'paymentReminder.qrCode', base64);
+        renderSettings(); // Re-render to show image
+    };
+    reader.readAsDataURL(file);
+};
+
+// Sales Settings Implementation
+
+function renderSalesSettings(settings) {
+    // Ensure defaults
+    if (!settings.receipt) settings.receipt = { 
+        logo: '', 
+        remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.' 
+    };
+    if (!settings.paymentReminder) settings.paymentReminder = { 
+        logo: '', 
+        remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', 
+        paymentMethod: '', 
+        qrCode: '' 
+    };
+    
+    const receipt = settings.receipt;
+    const reminder = settings.paymentReminder;
+    
+    return `
+        <div class="settings-category">
+            <h3>📊 Sales Settings</h3>
+            <div class="category-description">Configure receipt and payment reminder templates</div>
+            
+            <!-- Receipt Settings (Collapsible) -->
+            <div class="settings-group" style="border:1px solid #e0e0e0; border-radius:8px; overflow:hidden; margin-bottom:20px;">
+                <div onclick="toggleSettingsSection('receiptSettingsContent')" style="padding:15px; background:#f8f9fa; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:bold;">
+                    <span>🧾 Receipt Settings</span>
+                    <span>▼</span>
+                </div>
+                <div id="receiptSettingsContent" style="padding:15px; display:none;">
+                    <div class="settings-group">
+                        <label>Receipt Logo</label>
+                        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+                            <div style="width:100px; height:100px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#f9f9f9; overflow:hidden;">
+                                ${receipt.logo ? `<img src="${receipt.logo}" style="max-width:100%; max-height:100%;">` : '<span style="color:#999; font-size:12px;">No Logo</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" accept="image/*" onchange="handleSalesImageUpload('receipt', 'logo', this)" style="margin-bottom:5px;">
+                                <div class="help-text">Recommended size: 200x200px (PNG/JPG)</div>
+                                ${receipt.logo ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'receipt.logo', '')" style="margin-top:5px;">Remove Logo</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-group">
+                        <label>Remark (Footer Text)</label>
+                        <textarea style="width:100%; height:120px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" onchange="updateSetting('salesSettings', 'receipt.remark', this.value)">${receipt.remark || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Payment Reminder Settings (Collapsible) -->
+            <div class="settings-group" style="border:1px solid #e0e0e0; border-radius:8px; overflow:hidden;">
+                <div onclick="toggleSettingsSection('reminderSettingsContent')" style="padding:15px; background:#f8f9fa; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:bold;">
+                    <span>🔔 Payment Reminder Settings</span>
+                    <span>▼</span>
+                </div>
+                <div id="reminderSettingsContent" style="padding:15px; display:none;">
+                    <div class="settings-group">
+                        <label>Reminder Logo</label>
+                        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+                            <div style="width:100px; height:100px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#f9f9f9; overflow:hidden;">
+                                ${reminder.logo ? `<img src="${reminder.logo}" style="max-width:100%; max-height:100%;">` : '<span style="color:#999; font-size:12px;">No Logo</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" accept="image/*" onchange="handleSalesImageUpload('paymentReminder', 'logo', this)" style="margin-bottom:5px;">
+                                <div class="help-text">Recommended size: 200x200px (PNG/JPG)</div>
+                                ${reminder.logo ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'paymentReminder.logo', '')" style="margin-top:5px;">Remove Logo</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-group">
+                        <label>Payment Method Information</label>
+                        <textarea style="width:100%; height:100px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" placeholder="Bank Account, FPS ID, PayMe Link, etc." onchange="updateSetting('salesSettings', 'paymentReminder.paymentMethod', this.value)">${reminder.paymentMethod || ''}</textarea>
+                    </div>
+
+                    <div class="settings-group">
+                        <label>Payment QR Code</label>
+                        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+                            <div style="width:120px; height:120px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#f9f9f9; overflow:hidden;">
+                                ${reminder.qrCode ? `<img src="${reminder.qrCode}" style="max-width:100%; max-height:100%;">` : '<span style="color:#999; font-size:12px;">No QR Code</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" accept="image/*" onchange="handleSalesImageUpload('paymentReminder', 'qrCode', this)" style="margin-bottom:5px;">
+                                <div class="help-text">Upload Payment QR Code (FPS/PayMe)</div>
+                                ${reminder.qrCode ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'paymentReminder.qrCode', '')" style="margin-top:5px;">Remove QR Code</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <label>Remark (Footer Text)</label>
+                        <textarea style="width:100%; height:120px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" onchange="updateSetting('salesSettings', 'paymentReminder.remark', this.value)">${reminder.remark || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-actions" style="margin-top:20px;">
+                <button class="btn btn-primary" onclick="saveSettings()">Save All Settings</button>
+            </div>
+        </div>
+    `;
+}
+
+window.toggleSettingsSection = function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+window.handleSalesImageUpload = function(category, field, input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Validate size (max 500KB for logos/QR)
+    if (file.size > 500 * 1024) {
+        alert('Image too large (max 500KB)');
+        input.value = ''; // clear input
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        updateSetting('salesSettings', `${category}.${field}`, base64);
+        renderSettings(); // Re-render to show preview
+        // Re-open the section
+        setTimeout(() => {
+            const sectionId = category === 'receipt' ? 'receiptSettingsContent' : 'reminderSettingsContent';
+            const el = document.getElementById(sectionId);
+            if (el) el.style.display = 'block';
+        }, 50);
+    };
+    reader.readAsDataURL(file);
+};
+
+function renderSalesSettings(settings) {
+    // Ensure defaults
+    if (!settings.receipt) settings.receipt = { 
+        logo: '', 
+        remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.' 
+    };
+    if (!settings.paymentReminder) settings.paymentReminder = { 
+        logo: '', 
+        remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', 
+        paymentMethod: '', 
+        qrCode: '' 
+    };
+    
+    const receipt = settings.receipt;
+    const reminder = settings.paymentReminder;
+    
+    return `
+        <div class="settings-category">
+            <h3>📊 Sales Settings</h3>
+            <div class="category-description">Configure receipt and payment reminder templates</div>
+            
+            <!-- Receipt Settings (Collapsible) -->
+            <div class="settings-group" style="border:1px solid #e0e0e0; border-radius:8px; overflow:hidden; margin-bottom:20px;">
+                <div onclick="toggleSettingsSection('receiptSettingsContent')" style="padding:15px; background:#f8f9fa; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:bold;">
+                    <span>🧾 Receipt Settings</span>
+                    <span>▼</span>
+                </div>
+                <div id="receiptSettingsContent" style="padding:15px; display:none;">
+                    <div class="settings-group">
+                        <label>Receipt Logo</label>
+                        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+                            <div style="width:100px; height:100px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#f9f9f9; overflow:hidden;">
+                                ${receipt.logo ? `<img src="${receipt.logo}" style="max-width:100%; max-height:100%;">` : '<span style="color:#999; font-size:12px;">No Logo</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" accept="image/*" onchange="handleSalesImageUpload('receipt', 'logo', this)" style="margin-bottom:5px;">
+                                <div class="help-text">Recommended size: 200x200px (PNG/JPG)</div>
+                                ${receipt.logo ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'receipt.logo', '')" style="margin-top:5px;">Remove Logo</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-group">
+                        <label>Remark (Footer Text)</label>
+                        <textarea style="width:100%; height:120px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" onchange="updateSetting('salesSettings', 'receipt.remark', this.value)">${receipt.remark || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Payment Reminder Settings (Collapsible) -->
+            <div class="settings-group" style="border:1px solid #e0e0e0; border-radius:8px; overflow:hidden;">
+                <div onclick="toggleSettingsSection('reminderSettingsContent')" style="padding:15px; background:#f8f9fa; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:bold;">
+                    <span>🔔 Payment Reminder Settings</span>
+                    <span>▼</span>
+                </div>
+                <div id="reminderSettingsContent" style="padding:15px; display:none;">
+                    <div class="settings-group">
+                        <label>Reminder Logo</label>
+                        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+                            <div style="width:100px; height:100px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#f9f9f9; overflow:hidden;">
+                                ${reminder.logo ? `<img src="${reminder.logo}" style="max-width:100%; max-height:100%;">` : '<span style="color:#999; font-size:12px;">No Logo</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" accept="image/*" onchange="handleSalesImageUpload('paymentReminder', 'logo', this)" style="margin-bottom:5px;">
+                                <div class="help-text">Recommended size: 200x200px (PNG/JPG)</div>
+                                ${reminder.logo ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'paymentReminder.logo', '')" style="margin-top:5px;">Remove Logo</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-group">
+                        <label>Payment Method Information</label>
+                        <textarea style="width:100%; height:100px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" placeholder="Bank Account, FPS ID, PayMe Link, etc." onchange="updateSetting('salesSettings', 'paymentReminder.paymentMethod', this.value)">${reminder.paymentMethod || ''}</textarea>
+                    </div>
+
+                    <div class="settings-group">
+                        <label>Payment QR Code</label>
+                        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+                            <div style="width:120px; height:120px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#f9f9f9; overflow:hidden;">
+                                ${reminder.qrCode ? `<img src="${reminder.qrCode}" style="max-width:100%; max-height:100%;">` : '<span style="color:#999; font-size:12px;">No QR Code</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" accept="image/*" onchange="handleSalesImageUpload('paymentReminder', 'qrCode', this)" style="margin-bottom:5px;">
+                                <div class="help-text">Upload Payment QR Code (FPS/PayMe)</div>
+                                ${reminder.qrCode ? `<button class="btn btn-danger btn-sm" onclick="updateSetting('salesSettings', 'paymentReminder.qrCode', '')" style="margin-top:5px;">Remove QR Code</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <label>Remark (Footer Text)</label>
+                        <textarea style="width:100%; height:120px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" onchange="updateSetting('salesSettings', 'paymentReminder.remark', this.value)">${reminder.remark || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-actions" style="margin-top:20px;">
+                <button class="btn btn-primary" onclick="saveSettings()">Save All Settings</button>
+            </div>
+        </div>
+    `;
+}
+
+window.toggleSettingsSection = function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+window.handleSalesImageUpload = function(category, field, input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Validate size (max 500KB for logos/QR)
+    if (file.size > 500 * 1024) {
+        alert('Image too large (max 500KB)');
+        input.value = ''; // clear input
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64 = e.target.result;
+        updateSetting('salesSettings', `${category}.${field}`, base64);
+        renderSettings(); // Re-render to show preview
+        // Re-open the section
+        setTimeout(() => {
+            const sectionId = category === 'receipt' ? 'receiptSettingsContent' : 'reminderSettingsContent';
+            const el = document.getElementById(sectionId);
+            if (el) el.style.display = 'block';
+        }, 50);
+    };
+    reader.readAsDataURL(file);
+};
 
 // Initialize default settings when script loads
 defaultSettings = getDefaultSettings();

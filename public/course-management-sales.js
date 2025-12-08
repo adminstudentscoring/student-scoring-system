@@ -1733,9 +1733,32 @@ window.confirmCheckout = async function() {
     }
 };
 
-window.printReceipt = function(order) {
+window.printReceipt = async function(order) {
+    // Ensure settings are loaded
+    if (!window.currentSettings) {
+        try {
+            const response = await window.authUtils.authenticatedFetch('/organizations/settings');
+            if (response && response.ok) {
+                window.currentSettings = await response.json();
+            }
+        } catch (e) {
+            console.error('Failed to load settings for receipt', e);
+        }
+    }
+
+    const salesSettings = (window.currentSettings && window.currentSettings.salesSettings) ? window.currentSettings.salesSettings : {
+        receipt: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.' },
+        paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
+    };
+
     const isPaid = order.status === 'paid' || (order.paymentDetails && order.paymentDetails.amount > 0);
     const title = isPaid ? 'Receipt' : 'Payment Reminder';
+    const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
+    
+    const logoSrc = config.logo || '';
+    const remarkText = (config.remark || '').replace(/\n/g, '<br>');
+    const paymentMethodInfo = (!isPaid && config.paymentMethod) ? config.paymentMethod.replace(/\n/g, '<br>') : '';
+    const qrCodeSrc = (!isPaid && config.qrCode) ? config.qrCode : '';
     
     const student = salesState.selectedStudent;
     const studentName = student ? student.name : 'Unknown';
@@ -1797,12 +1820,18 @@ window.printReceipt = function(order) {
                 .totals { text-align: right; margin-bottom: 30px; }
                 .totals-row { display: flex; justify-content: flex-end; gap: 20px; margin-bottom: 5px; }
                 .footer { margin-top: 50px; font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
-                .logo { width: 60px; height: 60px; position: absolute; left: 0; top: 0; background: #eee; border-radius: 50%; display:flex;align-items:center;justify-content:center; font-size:10px; border:1px solid #ccc; }
+                .logo { width: 80px; height: 80px; position: absolute; left: 0; top: 0; display:flex;align-items:center;justify-content:center; }
+                .logo img { max-width: 100%; max-height: 100%; }
+                .payment-info-section { margin-top: 30px; border: 1px dashed #ccc; padding: 15px; display: flex; gap: 20px; }
+                .qr-code-container { width: 120px; height: 120px; flex-shrink: 0; }
+                .qr-code-container img { width: 100%; height: 100%; object-fit: contain; }
             </style>
         </head>
         <body>
             <div class="header">
-                <div class="logo">Logo</div>
+                <div class="logo">
+                    ${logoSrc ? `<img src="${logoSrc}">` : '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;border-radius:50%;">Logo</div>'}
+                </div>
                 <h1>${title}</h1>
                 <div style="text-align:right; font-size:12px; margin-top:5px;">
                     No.: ${order.id.split('_').pop().toUpperCase()}<br>
@@ -1836,19 +1865,27 @@ window.printReceipt = function(order) {
                     <strong>TOTAL</strong>
                     <strong>$${formatNumber(totalAmount)}</strong>
                 </div>
+                ${isPaid ? `
                 <div class="totals-row" style="border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
                     <span>Pay By: ${payMethod.toUpperCase()}</span>
                     <span>$${formatNumber(payAmount)}</span>
                 </div>
                 ${remark ? `<div style="margin-top:5px; font-size:12px;">Remark: ${escapeHtml(remark)}</div>` : ''}
+                ` : ''}
             </div>
             
+            ${!isPaid && (paymentMethodInfo || qrCodeSrc) ? `
+            <div class="payment-info-section">
+                ${qrCodeSrc ? `<div class="qr-code-container"><img src="${qrCodeSrc}"></div>` : ''}
+                <div style="flex:1; font-size:13px;">
+                    <strong>Payment Methods:</strong><br>
+                    ${paymentMethodInfo || 'Please contact us for payment details.'}
+                </div>
+            </div>
+            ` : ''}
+            
             <div class="footer">
-                <strong>Make-up Lesson Arrangements:</strong><br>
-                - All make-up class quotas must be used within two months.<br>
-                - Sessions cannot be postponed under any circumstances.<br>
-                - Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.<br>
-                - Must apply for leave at least 2 hours before class.
+                ${remarkText}
             </div>
             
             <script>window.print();</script>
@@ -1959,9 +1996,32 @@ window.renderStudentEnrollments = function() {
     if (list) list.scrollTop = list.scrollHeight;
 };
 
-window.printReceipt = function(order) {
+window.printReceipt = async function(order) {
+    // Ensure settings are loaded
+    if (!window.currentSettings) {
+        try {
+            const response = await window.authUtils.authenticatedFetch('/organizations/settings');
+            if (response && response.ok) {
+                window.currentSettings = await response.json();
+            }
+        } catch (e) {
+            console.error('Failed to load settings for receipt', e);
+        }
+    }
+
+    const salesSettings = (window.currentSettings && window.currentSettings.salesSettings) ? window.currentSettings.salesSettings : {
+        receipt: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.' },
+        paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
+    };
+
     const isPaid = order.status === 'paid' || (order.paymentDetails && order.paymentDetails.amount > 0);
     const title = isPaid ? 'Receipt' : 'Payment Reminder';
+    const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
+    
+    const logoSrc = config.logo || '';
+    const remarkText = (config.remark || '').replace(/\n/g, '<br>');
+    const paymentMethodInfo = (!isPaid && config.paymentMethod) ? config.paymentMethod.replace(/\n/g, '<br>') : '';
+    const qrCodeSrc = (!isPaid && config.qrCode) ? config.qrCode : '';
     
     const student = salesState.selectedStudent;
     const studentName = student ? student.name : 'Unknown';
@@ -2023,12 +2083,18 @@ window.printReceipt = function(order) {
                 .totals { text-align: right; margin-bottom: 30px; }
                 .totals-row { display: flex; justify-content: flex-end; gap: 20px; margin-bottom: 5px; }
                 .footer { margin-top: 50px; font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
-                .logo { width: 60px; height: 60px; position: absolute; left: 0; top: 0; background: #eee; border-radius: 50%; display:flex;align-items:center;justify-content:center; font-size:10px; border:1px solid #ccc; }
+                .logo { width: 80px; height: 80px; position: absolute; left: 0; top: 0; display:flex;align-items:center;justify-content:center; }
+                .logo img { max-width: 100%; max-height: 100%; }
+                .payment-info-section { margin-top: 30px; border: 1px dashed #ccc; padding: 15px; display: flex; gap: 20px; }
+                .qr-code-container { width: 120px; height: 120px; flex-shrink: 0; }
+                .qr-code-container img { width: 100%; height: 100%; object-fit: contain; }
             </style>
         </head>
         <body>
             <div class="header">
-                <div class="logo">Logo</div>
+                <div class="logo">
+                    ${logoSrc ? `<img src="${logoSrc}">` : '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;border-radius:50%;">Logo</div>'}
+                </div>
                 <h1>${title}</h1>
                 <div style="text-align:right; font-size:12px; margin-top:5px;">
                     No.: ${order.id.split('_').pop().toUpperCase()}<br>
@@ -2062,19 +2128,27 @@ window.printReceipt = function(order) {
                     <strong>TOTAL</strong>
                     <strong>$${formatNumber(totalAmount)}</strong>
                 </div>
+                ${isPaid ? `
                 <div class="totals-row" style="border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
                     <span>Pay By: ${payMethod.toUpperCase()}</span>
                     <span>$${formatNumber(payAmount)}</span>
                 </div>
                 ${remark ? `<div style="margin-top:5px; font-size:12px;">Remark: ${escapeHtml(remark)}</div>` : ''}
+                ` : ''}
             </div>
             
+            ${!isPaid && (paymentMethodInfo || qrCodeSrc) ? `
+            <div class="payment-info-section">
+                ${qrCodeSrc ? `<div class="qr-code-container"><img src="${qrCodeSrc}"></div>` : ''}
+                <div style="flex:1; font-size:13px;">
+                    <strong>Payment Methods:</strong><br>
+                    ${paymentMethodInfo || 'Please contact us for payment details.'}
+                </div>
+            </div>
+            ` : ''}
+            
             <div class="footer">
-                <strong>Make-up Lesson Arrangements:</strong><br>
-                - All make-up class quotas must be used within two months.<br>
-                - Sessions cannot be postponed under any circumstances.<br>
-                - Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.<br>
-                - Must apply for leave at least 2 hours before class.
+                ${remarkText}
             </div>
             
             <script>window.print();</script>
