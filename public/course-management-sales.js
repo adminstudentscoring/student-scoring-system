@@ -1217,18 +1217,29 @@ window.deleteSalesOrder = async function(orderId) {
             for (const item of order.items) {
                 if (item.enrolledClasses) {
                     for (const cls of item.enrolledClasses) {
-                        // Drop enrolled class logic - reusing drop API
-                        // We need enrollment ID which might be in the class object or we need to find it
-                        // Assuming backend deletion of order might handle cascade, but user requested explicit drop.
-                        // Best approach: Rely on backend to cascade delete or manually call drop API if needed.
-                        // Given user requirement "Please add also cancel enrolled target lesson", we should try to drop if possible.
+                        // Find actual enrollment ID from timetableEnrollments
+                        // The cls object here is from order structure which might be static snapshot
+                        // We need to find active enrollment that matches this class entry
                         
-                        // However, simplified approach: If backend DELETE order removes enrollments, that's best.
-                        // If not, we need to iterate. 
-                        // Let's assume the DELETE order endpoint handles cleanup, but if not, we can call drop.
+                        // We match by timetableEntryId, studentId and date
+                        const enrollment = (window.timetableEnrollments || []).find(e => 
+                            e.timetableEntryId === cls.entry.id && 
+                            e.studentId === salesState.selectedStudent.id &&
+                            e.date === cls.date
+                        );
                         
-                        // Check if backend cascade is implemented? Usually deleting an order should release the hold.
-                        // If "Save" = "Enroll", then these are real enrollments.
+                        if (enrollment) {
+                            console.log('[DEBUG] Dropping enrollment:', enrollment.id);
+                            await window.authUtils.authenticatedFetch('/organizations/enrollments/drop', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    studentId: salesState.selectedStudent.id,
+                                    mode: 'single',
+                                    enrollmentId: enrollment.id
+                                })
+                            });
+                        }
                     }
                 }
             }
