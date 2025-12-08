@@ -1902,14 +1902,14 @@ window.confirmCheckout = async function() {
     // Handle Existing Order Payment
     if (checkoutState.mode === 'existing' && checkoutState.orderId) {
         try {
-            // Update Order Status
+            // Update Order Status using PATCH /status endpoint which exists in server.js
             const updatePayload = {
                 status: 'paid',
                 paymentDetails: paymentDetails
             };
             
-            const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${checkoutState.orderId}`, {
-                method: 'PUT',
+            const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${checkoutState.orderId}/status`, {
+                method: 'PATCH',
                 body: JSON.stringify(updatePayload)
             });
             
