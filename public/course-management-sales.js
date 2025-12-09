@@ -2121,15 +2121,23 @@ window.confirmCheckout = async function() {
         if (!confirm(`Confirm deduct $${formatNumber(balanceDeduction)} from balance?`)) return;
         
         try {
+            console.debug('[checkout] balance deduction payload', {
+                studentId: student?.id,
+                amount: balanceDeduction,
+                totalOrderAmount,
+                studentBalance,
+                mode: checkoutState.mode
+            });
             const response = await window.authUtils.authenticatedFetch(`/organizations/students/${student.id}/balance`, {
                 method: 'POST',
                 body: JSON.stringify({
-                    type: 'deduct',
+                    type: 'debit',
                     amount: balanceDeduction,
                     remark: `Payment for Order (Checkout)` 
                 })
             });
             if (!response.ok) {
+                console.error('[checkout] balance deduction failed', response.status, response.statusText);
                 alert('Failed to deduct balance. Payment aborted.');
                 return;
             }
