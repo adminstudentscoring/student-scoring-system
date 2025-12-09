@@ -854,12 +854,16 @@ async function writeRunningQueenLeaderboard(entries) {
 async function addRunningQueenLeaderboardEntry(entry) {
   const entries = await readRunningQueenLeaderboard();
   const mode = entry.mode === 'infinite' ? 'infinite' : 'timed';
+  const queenCount = Number(entry.queenCount);
+  const timerDurationMs = Number(entry.timerDurationMs || entry.timerDuration);
   const normalized = {
     players: entry.players || [],
     mode,
     score: Number(entry.score) || 0,
     duration: Number(entry.duration) || 0,
     status: entry.status || 'success',
+    queenCount: Number.isFinite(queenCount) && queenCount > 0 ? queenCount : null,
+    timerDurationMs: Number.isFinite(timerDurationMs) && timerDurationMs > 0 ? timerDurationMs : 0,
     createdAt: entry.createdAt || new Date().toISOString()
   };
   entries.push(normalized);
@@ -7196,7 +7200,7 @@ app.get('/api/running-queen/leaderboard', async (req, res) => {
 
 app.post('/api/running-queen/leaderboard', async (req, res) => {
   try {
-    const { players, score, duration, status, mode } = req.body || {};
+    const { players, score, duration, status, mode, queenCount, timerDurationMs, timerDuration } = req.body || {};
     if (!Array.isArray(players) || players.length === 0) {
       return res.status(400).json({ error: 'Players list is required' });
     }
@@ -7210,7 +7214,9 @@ app.post('/api/running-queen/leaderboard', async (req, res) => {
       score,
       duration,
       status,
-      mode
+      mode,
+      queenCount,
+      timerDurationMs: timerDurationMs || timerDuration
     });
     res.json({ success: true, entries });
   } catch (error) {
@@ -7946,7 +7952,7 @@ app.get('/api/organizations/orders', authenticateUser, authorizeRole('organizati
 app.patch('/api/organizations/orders/:id/status', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, paymentDetails } = req.body;
     
     if (!['paid', 'unpaid', 'cancelled', 'refunded'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
@@ -7966,6 +7972,9 @@ app.patch('/api/organizations/orders/:id/status', authenticateUser, authorizeRol
     }
     
     order.status = status;
+    if (paymentDetails) {
+        order.paymentDetails = paymentDetails;
+    }
     order.updatedAt = new Date().toISOString();
     order.updatedBy = req.user.id;
     

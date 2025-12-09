@@ -1355,6 +1355,34 @@
     padding-right: 6px;
 }
 
+.rq-leaderboard-group {
+    border: 1px solid rgba(110, 128, 210, 0.18);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: rgba(18, 24, 42, 0.4);
+}
+
+.rq-leaderboard-group + .rq-leaderboard-group {
+    margin-top: 10px;
+}
+
+.rq-leaderboard-group-title {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+}
+
+.rq-leaderboard-subgroup + .rq-leaderboard-subgroup {
+    margin-top: 8px;
+}
+
+.rq-leaderboard-subtitle {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+    color: #e3e8ff;
+}
+
 .rq-leaderboard-item {
     display: flex;
     gap: 12px;
@@ -2778,6 +2806,15 @@
 .running-queen-root .rq-leaderboard-names,
 .running-queen-root .rq-leaderboard-meta {
     color: #111827;
+}
+
+.running-queen-root .rq-leaderboard-group {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+}
+
+.running-queen-root .rq-leaderboard-subtitle {
+    color: #1f2937;
 }
 
 .running-queen-root .rq-modal {
