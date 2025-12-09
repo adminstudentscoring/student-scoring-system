@@ -4542,6 +4542,31 @@ app.get('/api/public/students/:id', async (req, res) => {
     
     // Return student data (public view)
     const rankInfo = getRankInfo(student.score || 0);
+
+    // Teacher-specific ranking (first teacher that has this student assigned)
+    let rankInTeacher = null;
+    let totalStudentsInTeacher = null;
+    try {
+      const users = await readUsers();
+      const teacher = users.find(u =>
+        u.role === 'teacher' &&
+        Array.isArray(u.assignedStudents) &&
+        u.assignedStudents.includes(student.id)
+      );
+      if (teacher && Array.isArray(teacher.assignedStudents)) {
+        const studentsForTeacher = data.students
+          .filter(s => teacher.assignedStudents.includes(s.id))
+          .sort((a, b) => (b.score || 0) - (a.score || 0));
+        const index = studentsForTeacher.findIndex(s => s.id === student.id);
+        if (index !== -1) {
+          rankInTeacher = index + 1;
+          totalStudentsInTeacher = studentsForTeacher.length;
+        }
+      }
+    } catch (err) {
+      console.warn('Unable to compute teacher ranking for public student view:', err);
+    }
+
     const publicData = {
         id: student.id,
         name: student.name,
@@ -4555,9 +4580,8 @@ app.get('/api/public/students/:id', async (req, res) => {
         answerCount: student.answerCount,
         stats: student.stats,
         protected: false,
-        // Add teacher info if needed? 
-        // Student object usually doesn't have teacher info directly.
-        // But stats are there.
+        rankInTeacher,
+        totalStudentsInTeacher
     };
     
     res.json(publicData);
