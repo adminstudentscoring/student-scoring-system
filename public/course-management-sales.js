@@ -1504,7 +1504,7 @@ function renderSalesCart() {
   emptyState.style.display = 'none';
   
   const html = salesState.cart.map((item, index) => {
-    total += item.price;
+    // total is already calculated above, do not add again
     const dateCount = item.enrolledClasses.length;
     
     const getFormattedDate = (d) => {
