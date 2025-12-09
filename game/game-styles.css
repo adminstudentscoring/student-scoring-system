@@ -1003,12 +1003,12 @@
 
 .rq-scoreboard {
     background: rgba(33, 40, 68, 0.9);
-    border-radius: 14px;
-    padding: 14px 16px;
+    border-radius: 12px;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    border: 1px solid rgba(71, 90, 160, 0.35);
+    gap: 8px;
+    border: 1px solid rgba(71, 90, 160, 0.28);
     color: #f3f5ff;
 }
 
@@ -1017,18 +1017,18 @@
     justify-content: space-between;
     align-items: center;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
 .rq-score-total-label {
     opacity: 0.82;
     text-transform: uppercase;
-    font-size: 0.84rem;
-    letter-spacing: 0.06em;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
 }
 
 .rq-score-total-value {
-    font-size: 1.14rem;
+    font-size: 1rem;
 }
 
 .rq-score-list {
@@ -1042,9 +1042,9 @@
     justify-content: space-between;
     align-items: center;
     background: rgba(61, 76, 130, 0.68);
-    border-radius: 10px;
-    padding: 7px 12px;
-    border: 1px solid rgba(96, 116, 200, 0.25);
+    border-radius: 9px;
+    padding: 6px 10px;
+    border: 1px solid rgba(96, 116, 200, 0.22);
 }
 
 .rq-score-name {
@@ -1052,9 +1052,9 @@
 }
 
 .rq-score-value {
-    font-size: 1rem;
-    background: rgba(84, 204, 94, 0.28);
-    padding: 4px 12px;
+    font-size: 0.95rem;
+    background: rgba(84, 204, 94, 0.24);
+    padding: 3px 10px;
     border-radius: 999px;
     color: #eafff0;
 }
@@ -1067,9 +1067,10 @@
 
 .rq-status-bar {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     justify-content: space-between;
     flex-wrap: wrap;
+    margin-bottom: 2px;
 }
 
 .rq-status-actions {
@@ -1103,11 +1104,11 @@
     flex-direction: column;
     gap: 4px;
     background: rgba(37, 44, 78, 0.9);
-    padding: 12px 16px;
-    border-radius: 12px;
-    min-width: 150px;
-    border: 1px solid rgba(94, 118, 210, 0.35);
-    box-shadow: 0 12px 22px rgba(4, 7, 22, 0.45);
+    padding: 10px 12px;
+    border-radius: 10px;
+    min-width: 140px;
+    border: 1px solid rgba(94, 118, 210, 0.28);
+    box-shadow: 0 8px 16px rgba(4, 7, 22, 0.35);
 }
 
 .rq-status-label {
