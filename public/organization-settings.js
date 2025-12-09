@@ -6,7 +6,7 @@
 // Settings state
 let currentSettings = null;
 let defaultSettings = null;
-let teacherPermState = {
+let teacherPermissionState = {
     teachers: [],
     filtered: [],
     loading: false,
@@ -146,7 +146,7 @@ function renderSettings() {
             name: 'Teacher Setting', 
             icon: '👨‍🏫',
             children: [
-                { id: 'ts-permittion', name: 'Teachert Permittion' }
+                { id: 'ts-permission', name: 'Teacher Permission' }
             ]
         },
         { id: 'student-setting', name: 'Student Setting', icon: '👥' },
@@ -246,8 +246,8 @@ function renderSettingsCategory(categoryId) {
             html += renderSalesSettings(currentSettings.salesSettings || {});
             break;
 
-        case 'ts-permittion':
-            html += renderTeacherPermittionSection();
+        case 'ts-permission':
+            html += renderTeacherPermissionSection();
             break;
             
         case 'teacher-setting':
@@ -272,12 +272,12 @@ function renderSettingsCategory(categoryId) {
 /**
  * Render Teacher Permittion section (list + modal placeholder)
  */
-function renderTeacherPermittionSection() {
+function renderTeacherPermissionSection() {
     return `
         <div class="settings-section">
-            <h3>Teachert Permittion</h3>
+            <h3>Teacher Permission</h3>
             <div class="settings-group" style="display:flex; justify-content: space-between; align-items:center; gap:10px; margin-top:10px;">
-                <input type="text" id="tsSearchInput" placeholder="Search teacher..." oninput="filterTeacherPermittionList()" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                <input type="text" id="tsSearchInput" placeholder="Search teacher..." oninput="filterTeacherPermissionList()" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
                 <div id="tsStatus" style="color:#666; font-size:0.9rem;">Loading...</div>
             </div>
             <div id="tsTeacherList" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
@@ -772,8 +772,8 @@ function switchSettingsCategory(categoryId) {
     
     document.getElementById('settingsContent').innerHTML = renderSettingsCategory(categoryId);
 
-    if (categoryId === 'ts-permittion') {
-        initTeacherPermittion();
+    if (categoryId === 'ts-permission') {
+        initTeacherPermission();
     }
 }
 
@@ -846,15 +846,15 @@ function resetAllSettings() {
 /**
  * Teacher Permittion helpers
  */
-async function initTeacherPermittion() {
+async function initTeacherPermission() {
     const listEl = document.getElementById('tsTeacherList');
     const statusEl = document.getElementById('tsStatus');
     if (!listEl || !statusEl) return;
 
     statusEl.textContent = 'Loading...';
     listEl.innerHTML = '';
-    teacherPermState.loading = true;
-    teacherPermState.error = null;
+    teacherPermissionState.loading = true;
+    teacherPermissionState.error = null;
 
     try {
         const resp = await window.authUtils.authenticatedFetch('/organizations/teachers');
@@ -863,27 +863,27 @@ async function initTeacherPermittion() {
         }
         const data = await resp.json();
         const teachers = Array.isArray(data) ? data : (Array.isArray(data.teachers) ? data.teachers : []);
-        teacherPermState.teachers = teachers;
-        teacherPermState.filtered = teachers;
+        teacherPermissionState.teachers = teachers;
+        teacherPermissionState.filtered = teachers;
         statusEl.textContent = `${teachers.length} teacher(s)`;
-        renderTeacherPermittionList();
+        renderTeacherPermissionList();
     } catch (err) {
         console.error('load teachers failed', err);
-        teacherPermState.error = err;
+        teacherPermissionState.error = err;
         statusEl.textContent = 'Error loading teachers';
         listEl.innerHTML = `<div class="empty-state" style="padding:12px; color:#c00;">${err.message || 'Error loading teachers'}</div>`;
     } finally {
-        teacherPermState.loading = false;
+        teacherPermissionState.loading = false;
     }
 }
 
-function renderTeacherPermittionList() {
+function renderTeacherPermissionList() {
     const listEl = document.getElementById('tsTeacherList');
     const statusEl = document.getElementById('tsStatus');
     if (!listEl) return;
 
-    const items = teacherPermState.filtered || [];
-    if (statusEl) statusEl.textContent = teacherPermState.loading ? 'Loading...' : `${items.length} teacher(s)`;
+    const items = teacherPermissionState.filtered || [];
+    if (statusEl) statusEl.textContent = teacherPermissionState.loading ? 'Loading...' : `${items.length} teacher(s)`;
 
     if (items.length === 0) {
         listEl.innerHTML = `<div class="empty-state" style="padding:12px; color:#666;">No teachers found.</div>`;
@@ -907,21 +907,21 @@ function renderTeacherPermittionList() {
     }).join('');
 }
 
-function filterTeacherPermittionList() {
+function filterTeacherPermissionList() {
     const input = document.getElementById('tsSearchInput');
     if (!input) return;
     const keyword = input.value.trim().toLowerCase();
     if (!keyword) {
-        teacherPermState.filtered = teacherPermState.teachers;
+        teacherPermissionState.filtered = teacherPermissionState.teachers;
     } else {
-        teacherPermState.filtered = teacherPermState.teachers.filter(t => {
+        teacherPermissionState.filtered = teacherPermissionState.teachers.filter(t => {
             const name = (t.name || '').toLowerCase();
             const email = (t.email || t.username || '').toLowerCase();
             const tid = (t.teacherId || '').toLowerCase();
             return name.includes(keyword) || email.includes(keyword) || tid.includes(keyword);
         });
     }
-    renderTeacherPermittionList();
+    renderTeacherPermissionList();
 }
 
 function openTeacherPermissionModal(teacherId, teacherName = '') {
