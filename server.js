@@ -7882,7 +7882,7 @@ async function writeTransactions(data) {
 }
 
 // Adjust Student Balance
-app.post('/api/organizations/students/:id/balance', authenticateUser, authorizeRole('organization'), async (req, res) => {
+app.post('/api/organizations/students/:id/balance', authenticateUser, authorizeRole('organization', 'teacher'), async (req, res) => {
   try {
     const { id } = req.params;
     const { amount, type, note } = req.body;
