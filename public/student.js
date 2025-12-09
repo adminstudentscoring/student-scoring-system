@@ -106,16 +106,15 @@ function renderRanking() {
     if (!container) return;
 
     const rank = Number(studentData?.rankInTeacher);
-    const total = Number(studentData?.totalStudentsInTeacher);
 
-    if (Number.isFinite(rank) && rank > 0 && Number.isFinite(total) && total > 0) {
+    if (Number.isFinite(rank) && rank > 0) {
         container.innerHTML = `
             <div class="stat-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px;">
                 <div>
                     <div style="font-weight:700; font-size:1rem; color:#333;">Your ranking</div>
                     <div style="color:#666;">Among students taught by your teachers</div>
                 </div>
-                <div style="font-size:1.3rem; font-weight:700; color:#4f46e5;">#${rank} / ${total}</div>
+                <div style="font-size:1.3rem; font-weight:700; color:#4f46e5;">#${rank}</div>
             </div>
         `;
         return;
