@@ -1132,7 +1132,8 @@
 }
 
 .rq-board-container {
-    width: 100%;
+    width: min(700px, 100%);
+    max-width: 700px;
     aspect-ratio: 1 / 1;
     background: rgba(18, 24, 39, 0.85);
     border-radius: 18px;
@@ -1258,6 +1259,7 @@
 
 .rq-log-list {
     flex: 1;
+    max-height: 260px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
