@@ -1365,7 +1365,12 @@ window.saveSalesOrder = async function() {
 };
 
 window.processSalesPayment = function() {
-  openCheckoutModal();
+  // Check if cart is empty but we have unpaid orders
+  if (salesState.cart.length === 0 && salesState.currentUnpaidOrders && salesState.currentUnpaidOrders.length > 0) {
+      openCheckoutModal('unpaid_orders');
+  } else {
+      openCheckoutModal('new');
+  }
 };
 
 async function submitSalesOrder(status, itemsOverride = null, paymentDetails = null) {
@@ -1463,6 +1468,31 @@ function renderSalesCart() {
   const container = document.getElementById('salesCartContent');
   const emptyState = document.querySelector('.cart-empty-state');
   
+  // Always update Pay Button first based on cart total
+  let total = 0;
+  salesState.cart.forEach(item => total += item.price);
+  
+  const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
+  if (payBtn) {
+      payBtn.textContent = `Pay $${total.toFixed(0)}`;
+      
+      // If cart is empty but there are unpaid orders, maybe show sum of unpaid?
+      // Or just keep it $0. 
+      // User requested: "When there are unpaid orders, Pay button below should be enabled".
+      // Let's update logic: if cart is empty, check unpaid orders.
+      if (total === 0 && salesState.currentUnpaidOrders && salesState.currentUnpaidOrders.length > 0) {
+          const unpaidTotal = salesState.currentUnpaidOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+          // Optional: Change text to "Pay Unpaid ($...)"?
+          // For now, keep $0 or update? 
+          // If we update to unpaid total, user might be confused if they click and it only pays one.
+          // Let's keep it $0 but ensure `processSalesPayment` handles it.
+          // Or better: change text to "Pay Unpaid"
+          payBtn.textContent = `Pay Unpaid ($${unpaidTotal.toFixed(0)})`;
+      } else if (total === 0) {
+          payBtn.textContent = `Pay $0`;
+      }
+  }
+
   if (salesState.cart.length === 0) {
     container.style.display = 'none';
     emptyState.style.display = 'block';
@@ -1472,8 +1502,6 @@ function renderSalesCart() {
   
   container.style.display = 'block';
   emptyState.style.display = 'none';
-  
-  let total = 0;
   
   const html = salesState.cart.map((item, index) => {
     total += item.price;
@@ -1511,10 +1539,6 @@ function renderSalesCart() {
   `;
   
   container.innerHTML = html + totalHtml;
-  
-  // Update Pay Button
-  const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
-  if (payBtn) payBtn.textContent = `Pay $${total.toFixed(0)}`;
 }
 
 window.removeSalesCartItem = function(index) {
@@ -1811,22 +1835,27 @@ window.openCheckoutModal = function(mode = 'new') {
     const modal = document.getElementById('checkoutModal');
     if (!modal) return;
     
-    // Reset State for new orders
-    if (mode === 'new') {
-        checkoutState.selectedIndices = new Set(salesState.cart.map((_, i) => i)); // Select all by default
-        checkoutState.method = 'cash';
-        checkoutState.mode = 'new'; 
-        checkoutState.orderId = null;
-        
-        const selectAll = document.getElementById('checkoutSelectAll');
-        if (selectAll) {
-            selectAll.checked = true;
-            selectAll.disabled = false;
-        }
-        
-        renderCheckoutItems();
-        switchPaymentMethod('cash');
+    // Reset State
+    checkoutState.method = 'cash';
+    checkoutState.mode = mode;
+    checkoutState.orderId = null;
+    
+    const selectAll = document.getElementById('checkoutSelectAll');
+    if (selectAll) {
+        selectAll.checked = true;
+        selectAll.disabled = false;
     }
+
+    if (mode === 'new') {
+        checkoutState.selectedIndices = new Set(salesState.cart.map((_, i) => i));
+    } else if (mode === 'unpaid_orders') {
+        // Select all unpaid orders by default. Indices correspond to salesState.currentUnpaidOrders array
+        const unpaidOrders = salesState.currentUnpaidOrders || [];
+        checkoutState.selectedIndices = new Set(unpaidOrders.map((_, i) => i));
+    }
+    
+    renderCheckoutItems();
+    switchPaymentMethod('cash');
     
     modal.classList.add('show');
 };
@@ -1837,16 +1866,53 @@ window.closeCheckoutModal = function() {
 
 function renderCheckoutItems() {
     const container = document.getElementById('checkoutItemsList');
-    container.innerHTML = salesState.cart.map((item, index) => {
+    let itemsSource = [];
+    
+    if (checkoutState.mode === 'unpaid_orders') {
+        itemsSource = salesState.currentUnpaidOrders || [];
+    } else {
+        itemsSource = salesState.cart;
+    }
+
+    container.innerHTML = itemsSource.map((item, index) => {
         const isChecked = checkoutState.selectedIndices.has(index);
         
+        let name = '';
+        let price = 0;
         let detailsHtml = '';
-        if (item.enrolledClasses && item.enrolledClasses.length > 0) {
-            detailsHtml = item.enrolledClasses.map(cls => {
-                const d = new Date(cls.date);
-                const dateStr = !isNaN(d) ? d.toLocaleDateString() : 'Invalid Date';
-                return `<div style="font-size:0.85rem; color:#666; margin-left:20px;">${cls.entry.startTime}-${cls.entry.endTime} | ${cls.entry.dayOfWeek} | ${cls.entry.className} > ${dateStr}</div>`;
-            }).join('');
+        
+        if (checkoutState.mode === 'unpaid_orders') {
+            // item is an Order
+            name = item.items.map(i => i.productData.name).join(', ');
+            price = item.totalAmount;
+            
+            // Show order details
+            const dateStr = new Date(item.date).toLocaleDateString();
+            detailsHtml = `<div style="font-size:0.85rem; color:#666; margin-left:20px;">Order Date: ${dateStr}</div>`;
+             if (item.items && item.items.length > 0) {
+                item.items.forEach(orderItem => {
+                    if (orderItem.enrolledClasses && orderItem.enrolledClasses.length > 0) {
+                        detailsHtml += orderItem.enrolledClasses.map(cls => {
+                            const d = new Date(cls.date);
+                            const dateStr = !isNaN(d) ? d.toLocaleDateString() : 'Invalid Date';
+                            const entry = cls.entry || {};
+                            return `<div style="font-size:0.8rem; color:#888; margin-left:20px;">- ${entry.startTime || ''}-${entry.endTime || ''} | ${entry.className || ''} > ${dateStr}</div>`;
+                        }).join('');
+                    }
+                });
+            }
+        } else {
+            // item is Cart Item
+            name = item.productData.name;
+            price = item.price;
+            
+            if (item.enrolledClasses && item.enrolledClasses.length > 0) {
+                detailsHtml = item.enrolledClasses.map(cls => {
+                    const d = new Date(cls.date);
+                    const dateStr = !isNaN(d) ? d.toLocaleDateString() : 'Invalid Date';
+                    return `<div style="font-size:0.85rem; color:#666; margin-left:20px;">${cls.entry.startTime}-${cls.entry.endTime} | ${cls.entry.dayOfWeek} | ${cls.entry.className} > ${dateStr}</div>`;
+                }).join('');
+            }
         }
         
         return `
@@ -1854,9 +1920,9 @@ function renderCheckoutItems() {
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <label style="display:flex; align-items:center; gap:10px; font-weight:bold;">
                         <input type="checkbox" onchange="toggleCheckoutItem(${index})" ${isChecked ? 'checked' : ''}>
-                        ${escapeHtml(item.productData.name)}
+                        ${escapeHtml(name)}
                     </label>
-                    <span style="font-weight:bold;">$${formatNumber(item.price)}</span>
+                    <span style="font-weight:bold;">$${formatNumber(price)}</span>
                 </div>
                 <div style="margin-top:5px;">${detailsHtml}</div>
             </div>
@@ -1868,8 +1934,16 @@ function renderCheckoutItems() {
 
 window.toggleCheckoutSelectAll = function() {
     const checked = document.getElementById('checkoutSelectAll').checked;
+    let itemsCount = 0;
+    
+    if (checkoutState.mode === 'unpaid_orders') {
+        itemsCount = (salesState.currentUnpaidOrders || []).length;
+    } else {
+        itemsCount = salesState.cart.length;
+    }
+
     if (checked) {
-        checkoutState.selectedIndices = new Set(salesState.cart.map((_, i) => i));
+        checkoutState.selectedIndices = new Set(Array.from({length: itemsCount}, (_, i) => i));
     } else {
         checkoutState.selectedIndices.clear();
     }
@@ -1883,7 +1957,14 @@ window.toggleCheckoutItem = function(index) {
         checkoutState.selectedIndices.add(index);
     }
     
-    const allSelected = salesState.cart.length > 0 && checkoutState.selectedIndices.size === salesState.cart.length;
+    let itemsCount = 0;
+    if (checkoutState.mode === 'unpaid_orders') {
+        itemsCount = (salesState.currentUnpaidOrders || []).length;
+    } else {
+        itemsCount = salesState.cart.length;
+    }
+    
+    const allSelected = itemsCount > 0 && checkoutState.selectedIndices.size === itemsCount;
     document.getElementById('checkoutSelectAll').checked = allSelected;
     
     updateCheckoutTotal();
@@ -1891,9 +1972,23 @@ window.toggleCheckoutItem = function(index) {
 
 function updateCheckoutTotal() {
     let total = 0;
-    checkoutState.selectedIndices.forEach(index => {
-        total += salesState.cart[index].price;
-    });
+    let itemsSource = [];
+    
+    if (checkoutState.mode === 'unpaid_orders') {
+        itemsSource = salesState.currentUnpaidOrders || [];
+        checkoutState.selectedIndices.forEach(index => {
+            if (itemsSource[index]) {
+                total += itemsSource[index].totalAmount;
+            }
+        });
+    } else {
+        itemsSource = salesState.cart;
+        checkoutState.selectedIndices.forEach(index => {
+            if (itemsSource[index]) {
+                total += itemsSource[index].price;
+            }
+        });
+    }
     
     document.getElementById('checkoutShouldPay').textContent = `$${formatNumber(total)}`;
     
@@ -1987,6 +2082,93 @@ window.confirmCheckout = async function() {
         } catch (e) {
             console.error(e);
             alert('Error processing payment');
+        }
+        return;
+    }
+
+    // Handle Unpaid Orders (Multiple Existing)
+    if (checkoutState.mode === 'unpaid_orders') {
+        const selectedIndices = Array.from(checkoutState.selectedIndices);
+        if (selectedIndices.length === 0) {
+            alert('No orders selected');
+            return;
+        }
+
+        const unpaidOrders = salesState.currentUnpaidOrders || [];
+        const ordersToPay = selectedIndices.map(i => unpaidOrders[i]).filter(Boolean);
+        
+        if (ordersToPay.length === 0) return;
+        
+        // Show processing on button
+        const payBtn = document.getElementById('checkoutPayBtn');
+        const originalText = payBtn ? payBtn.textContent : 'Pay';
+        if (payBtn) {
+            payBtn.textContent = 'Processing...';
+            payBtn.disabled = true;
+        }
+
+        let successCount = 0;
+        let lastUpdatedOrder = null;
+        const totalInputAmount = amount; // from outer scope
+
+        try {
+            for (const order of ordersToPay) {
+                // Determine status. If total input > 0, we mark as paid. 
+                // Otherwise ($0) it remains unpaid (Reminder).
+                // Logic: If I pay $0, I just want a reminder.
+                const status = totalInputAmount > 0 ? 'paid' : 'unpaid';
+                
+                let orderPaymentAmount = 0;
+                if (status === 'paid') {
+                     orderPaymentAmount = order.totalAmount; // Assume full payment per order
+                }
+
+                const orderPaymentDetails = {
+                    ...paymentDetails,
+                    amount: orderPaymentAmount
+                };
+
+                const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${order.id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        status: status,
+                        paymentDetails: orderPaymentDetails
+                    })
+                });
+                
+                if (response.ok) {
+                    successCount++;
+                    lastUpdatedOrder = await response.json();
+                }
+            }
+
+            if (successCount > 0) {
+                if (window.showToast) window.showToast(`Processed ${successCount} orders`, 'success');
+                else alert(`Processed ${successCount} orders`);
+                
+                closeCheckoutModal();
+                
+                // If we paid multiple, just print the last one to avoid popup blocking, 
+                // or if it's just one, print it.
+                if (lastUpdatedOrder && typeof printReceipt === 'function') {
+                    printReceipt(lastUpdatedOrder);
+                }
+
+                // Refresh
+                if (salesState.selectedStudent) {
+                    loadStudentOrders(salesState.selectedStudent.id);
+                }
+            } else {
+                alert('Failed to process orders');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error processing payments');
+        } finally {
+            if (payBtn) {
+                 payBtn.textContent = originalText;
+                 payBtn.disabled = false;
+            }
         }
         return;
     }
