@@ -283,14 +283,20 @@ function renderTeacherPermittionSection() {
             <div id="tsTeacherList" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
         </div>
 
-        <div id="tsPermissionModal" class="modal" style="display:none;">
-            <div class="modal-content" style="max-width:520px;">
+        <div id="tsPermissionModal" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:2000; align-items:center; justify-content:center;">
+            <div class="modal-content" style="max-width:640px; width:90%; max-height:90vh; overflow:hidden; display:flex; flex-direction:column;">
                 <div class="modal-header">
                     <h2 id="tsModalTitle">Teacher Permissions</h2>
                     <span class="modal-close" onclick="closeTeacherPermissionModal()">&times;</span>
                 </div>
-                <div class="modal-body" id="tsModalBody">
-                    <p style="color:#666;">(Content coming soon)</p>
+                <div class="modal-body" style="padding-top:0; display:flex; flex-direction:column; gap:12px; flex:1; overflow:hidden;">
+                    <div class="payment-tabs" style="display:flex; gap:10px; margin-top:0; flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="tsTabEditStudent" onclick="switchTsPermissionTab('edit')" style="min-width:140px;">Edit Student</button>
+                        <button class="btn btn-secondary" id="tsTabCourseMgmt" onclick="switchTsPermissionTab('course')" style="min-width:180px;">Course Management</button>
+                    </div>
+                    <div id="tsTabContent" style="flex:1; overflow:auto; border:1px solid #eee; border-radius:8px; padding:12px;">
+                        <p style="color:#666;">(Placeholder) Select a tab to configure permissions.</p>
+                    </div>
                 </div>
                 <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
                     <button class="btn btn-secondary" onclick="closeTeacherPermissionModal()">Cancel</button>
@@ -921,11 +927,10 @@ function filterTeacherPermittionList() {
 function openTeacherPermissionModal(teacherId, teacherName = '') {
     const modal = document.getElementById('tsPermissionModal');
     const titleEl = document.getElementById('tsModalTitle');
-    const bodyEl = document.getElementById('tsModalBody');
     if (!modal) return;
     if (titleEl) titleEl.textContent = teacherName ? `Teacher Permissions - ${teacherName}` : 'Teacher Permissions';
-    if (bodyEl) bodyEl.innerHTML = `<p style="color:#666;">(Placeholder) Content for ${teacherName || 'selected teacher'} coming soon.</p>`;
-    modal.style.display = 'block';
+    switchTsPermissionTab('edit');
+    modal.style.display = 'flex';
 }
 
 function closeTeacherPermissionModal() {
@@ -937,6 +942,31 @@ function confirmTeacherPermission() {
     // Placeholder action
     closeTeacherPermissionModal();
     alert('Permissions saved (placeholder).');
+}
+
+function switchTsPermissionTab(tab) {
+    const tabEdit = document.getElementById('tsTabEditStudent');
+    const tabCourse = document.getElementById('tsTabCourseMgmt');
+    const content = document.getElementById('tsTabContent');
+    if (!content) return;
+
+    if (tab === 'edit') {
+        if (tabEdit) tabEdit.className = 'btn btn-primary';
+        if (tabCourse) tabCourse.className = 'btn btn-secondary';
+        content.innerHTML = `
+            <div style="color:#666;">
+                <p>(Placeholder) Edit Student permissions will be configured here.</p>
+            </div>
+        `;
+    } else {
+        if (tabEdit) tabEdit.className = 'btn btn-secondary';
+        if (tabCourse) tabCourse.className = 'btn btn-primary';
+        content.innerHTML = `
+            <div style="color:#666;">
+                <p>(Placeholder) Course Management permissions will be configured here.</p>
+            </div>
+        `;
+    }
 }
 
 /**
