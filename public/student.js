@@ -112,6 +112,34 @@ window.switchTab = function(tab) {
     }
 };
 
+window.openStudentGame = function(gameKey) {
+    if (!studentData) return;
+    const player = {
+        id: studentData.id || studentData._id || studentId || studentData.studentId || '',
+        name: studentData.name || 'Student',
+        studentId: studentData.studentId || ''
+    };
+
+    if (gameKey === 'runningQueen') {
+        try {
+            localStorage.setItem('runningQueenPlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist runningQueenPlayers', e);
+        }
+        window.open('/game/game-window.html?game=runningQueen', '_blank');
+        return;
+    }
+
+    if (gameKey === 'royalExchange') {
+        try {
+            localStorage.setItem('royalExchangePlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist royalExchangePlayers', e);
+        }
+        window.open('/game/game-window.html?game=royalExchange', '_blank');
+    }
+};
+
 // Allow Enter key for password
 document.getElementById('accessPasswordInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') checkPassword();
