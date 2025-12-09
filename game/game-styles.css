@@ -998,6 +998,7 @@
     gap: 18px;
     border: 1px solid rgba(63, 80, 140, 0.35);
     box-shadow: 0 20px 40px rgba(9, 11, 22, 0.65);
+    position: relative;
 }
 
 .rq-scoreboard {
@@ -1281,6 +1282,46 @@
     border-radius: 12px;
     background: rgba(61, 75, 130, 0.6);
     border: 1px solid rgba(90, 112, 196, 0.28);
+}
+
+.rq-fail-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 30;
+}
+
+.rq-fail-overlay.hidden {
+    display: none !important;
+}
+
+.rq-fail-card {
+    width: min(360px, 90%);
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 16px;
+    padding: 20px 24px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+    text-align: center;
+}
+
+.rq-fail-title {
+    margin: 0 0 8px;
+}
+
+.rq-fail-message {
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+
+.rq-fail-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
 }
 
 .rq-log-success {

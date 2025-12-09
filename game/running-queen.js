@@ -242,6 +242,16 @@
               <div id="rqBoard" class="rq-board"></div>
             </div>
           </div>
+          <div id="rqInfiniteFailOverlay" class="rq-fail-overlay hidden" role="dialog" aria-live="assertive">
+            <div class="rq-fail-card">
+              <h3 class="rq-fail-title">Defeat</h3>
+              <p class="rq-fail-message">Infinite run ended. Try again?</p>
+              <div class="rq-fail-actions">
+                <button type="button" id="rqFailRetryButton" class="rq-primary">Retry</button>
+                <button type="button" id="rqFailCancelButton" class="rq-secondary">Cancel</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="rq-log-panel">
           <div class="rq-log-header">
@@ -310,6 +320,10 @@
     };
     state.rulesOverlayEl = container.querySelector('#rqRulesOverlay');
     state.rulesModalBodyEl = container.querySelector('#rqRulesModal .rq-modal-body');
+    state.failOverlayEl = container.querySelector('#rqInfiniteFailOverlay');
+    state.failMessageEl = container.querySelector('#rqInfiniteFailOverlay .rq-fail-message');
+    state.failRetryButton = container.querySelector('#rqFailRetryButton');
+    state.failCancelButton = container.querySelector('#rqFailCancelButton');
   }
 
   function attachListeners(container) {
@@ -464,6 +478,23 @@
       });
     }
 
+    if (state.failRetryButton) {
+      state.failRetryButton.addEventListener('click', () => {
+        hideInfiniteFailOverlay();
+        if (state.mode !== 'infinite') {
+          switchMode('infinite');
+          return;
+        }
+        startGame(container);
+      });
+    }
+
+    if (state.failCancelButton) {
+      state.failCancelButton.addEventListener('click', () => {
+        hideInfiniteFailOverlay();
+      });
+    }
+
     if (!state.keydownListenerAttached) {
       document.addEventListener('keydown', onGlobalKeydown);
       state.keydownListenerAttached = true;
@@ -535,6 +566,10 @@
     }
     if (infiniteSection) {
       infiniteSection.classList.toggle('visible', state.mode === 'infinite');
+      infiniteSection.querySelectorAll('[data-infinite-queens]').forEach(button => {
+        const value = parseInt(button.getAttribute('data-infinite-queens'), 10);
+        button.classList.toggle('active', value === state.infiniteQueenCount);
+      });
     }
     if (boardInput) {
       boardInput.disabled = state.mode !== 'classic';
@@ -569,6 +604,7 @@
 
   function resetGameState(resetConfig = false) {
     stopTimer();
+    hideInfiniteFailOverlay();
     if (resetConfig) {
       state.boardSize = DEFAULT_CONFIG.boardSize;
       state.queenCount = DEFAULT_CONFIG.queenCount;
@@ -604,6 +640,7 @@
   }
 
   function startGame(container) {
+    hideInfiniteFailOverlay();
     stopTimer();
     let boardSize = state.boardSize;
     let queenCount = state.queenCount;
@@ -1309,6 +1346,26 @@
     setTimeout(removePopup, 2500);
   }
 
+  function showInfiniteFailOverlay(message) {
+    const overlay = state.failOverlayEl || document.getElementById('rqInfiniteFailOverlay');
+    if (!overlay) {
+      return;
+    }
+    const msgEl = state.failMessageEl || overlay.querySelector('.rq-fail-message');
+    if (msgEl) {
+      msgEl.textContent = message || 'Infinite run ended. Try again?';
+    }
+    overlay.classList.remove('hidden');
+  }
+
+  function hideInfiniteFailOverlay() {
+    const overlay = state.failOverlayEl || document.getElementById('rqInfiniteFailOverlay');
+    if (!overlay) {
+      return;
+    }
+    overlay.classList.add('hidden');
+  }
+
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
@@ -1363,6 +1420,7 @@
       return;
     }
     finalizeGame(false, { message });
+    showInfiniteFailOverlay(message);
   }
 
   function formatTimer(ms) {
