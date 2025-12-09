@@ -1823,7 +1823,9 @@ document.head.appendChild(salesStyles);
 // Checkout Logic
 let checkoutState = {
     selectedIndices: new Set(),
-    method: 'cash'
+    method: 'cash',
+    useBalance: false,
+    balanceAmount: 0
 };
 
 window.openCheckoutModal = function(mode = 'new') {
@@ -1839,6 +1841,8 @@ window.openCheckoutModal = function(mode = 'new') {
     checkoutState.method = 'cash';
     checkoutState.mode = mode;
     checkoutState.orderId = null;
+    checkoutState.useBalance = false;
+    checkoutState.balanceAmount = 0;
     
     const selectAll = document.getElementById('checkoutSelectAll');
     if (selectAll) {
@@ -1854,6 +1858,24 @@ window.openCheckoutModal = function(mode = 'new') {
         checkoutState.selectedIndices = new Set(unpaidOrders.map((_, i) => i));
     }
     
+    // UI: Check Balance
+    const balanceSection = document.getElementById('balancePaymentSection');
+    const balanceDisplay = document.getElementById('availableBalanceDisplay');
+    const useBalanceCheckbox = document.getElementById('useBalanceCheckbox');
+    const student = salesState.selectedStudent;
+    
+    if (balanceSection) {
+        if (student && (student.balance || 0) > 0) {
+            balanceSection.style.display = 'block';
+            if (balanceDisplay) balanceDisplay.textContent = `$${formatNumber(student.balance)}`;
+            if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
+            const info = document.getElementById('balanceDeductionInfo');
+            if (info) info.style.display = 'none';
+        } else {
+            balanceSection.style.display = 'none';
+        }
+    }
+    
     renderCheckoutItems();
     switchPaymentMethod('cash');
     
@@ -1862,6 +1884,12 @@ window.openCheckoutModal = function(mode = 'new') {
 
 window.closeCheckoutModal = function() {
     document.getElementById('checkoutModal').classList.remove('show');
+};
+
+window.toggleUseBalance = function() {
+    const checkbox = document.getElementById('useBalanceCheckbox');
+    checkoutState.useBalance = checkbox ? checkbox.checked : false;
+    updateCheckoutTotal();
 };
 
 function renderCheckoutItems() {
@@ -1990,11 +2018,39 @@ function updateCheckoutTotal() {
         });
     }
     
-    document.getElementById('checkoutShouldPay').textContent = `$${formatNumber(total)}`;
+    // Balance Calculation
+    const student = salesState.selectedStudent;
+    const studentBalance = student ? (student.balance || 0) : 0;
+    
+    let balanceDeduction = 0;
+    if (checkoutState.useBalance) {
+        balanceDeduction = Math.min(total, studentBalance);
+    }
+    checkoutState.balanceAmount = balanceDeduction;
+    
+    const remainingPay = Math.max(0, total - balanceDeduction);
+    
+    // Update UI for Balance
+    const deductionDisplay = document.getElementById('balanceDeductionAmount');
+    const deductionInfo = document.getElementById('balanceDeductionInfo');
+    if (deductionDisplay && deductionInfo) {
+        if (balanceDeduction > 0) {
+            deductionDisplay.textContent = `$${formatNumber(balanceDeduction)}`;
+            deductionInfo.style.display = 'block';
+        } else {
+            deductionInfo.style.display = 'none';
+        }
+    }
+    
+    // Update Should Pay display
+    const payDisplay = document.getElementById('checkoutShouldPay');
+    if (payDisplay) {
+        payDisplay.textContent = `$${formatNumber(remainingPay)}`;
+    }
     
     const input = document.querySelector(`#paymentForm${checkoutState.method.charAt(0).toUpperCase() + checkoutState.method.slice(1)} .payment-amount-input`);
     if (input) {
-        input.value = total;
+        input.value = remainingPay;
     }
     updatePayButton();
 }
@@ -2034,28 +2090,83 @@ window.confirmCheckout = async function() {
     const method = checkoutState.method;
     const suffix = method.charAt(0).toUpperCase() + method.slice(1);
     const amountInput = document.getElementById(`pay${suffix}Amount`);
-    const amount = parseFloat(amountInput.value) || 0;
+    const cashAmount = parseFloat(amountInput.value) || 0;
     
+    // Recalculate Total
+    let totalOrderAmount = 0;
+    let itemsSource = [];
+    if (checkoutState.mode === 'unpaid_orders') {
+        const unpaidOrders = salesState.currentUnpaidOrders || [];
+        checkoutState.selectedIndices.forEach(i => {
+            if (unpaidOrders[i]) totalOrderAmount += unpaidOrders[i].totalAmount;
+        });
+    } else if (checkoutState.mode === 'existing') {
+        totalOrderAmount = checkoutState.existingOrder ? checkoutState.existingOrder.totalAmount : 0;
+    } else {
+        salesState.cart.forEach((item, i) => {
+            if (checkoutState.selectedIndices.has(i)) totalOrderAmount += item.price;
+        });
+    }
+
+    // Balance Deduction Logic
+    const student = salesState.selectedStudent;
+    const studentBalance = student ? (student.balance || 0) : 0;
+    let balanceDeduction = 0;
+    if (checkoutState.useBalance) {
+        balanceDeduction = Math.min(totalOrderAmount, studentBalance);
+    }
+
+    // 1. Deduct Balance (API)
+    if (balanceDeduction > 0) {
+        if (!confirm(`Confirm deduct $${formatNumber(balanceDeduction)} from balance?`)) return;
+        
+        try {
+            const response = await window.authUtils.authenticatedFetch(`/organizations/students/${student.id}/balance`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    type: 'deduct',
+                    amount: balanceDeduction,
+                    remark: `Payment for Order (Checkout)` 
+                })
+            });
+            if (!response.ok) {
+                alert('Failed to deduct balance. Payment aborted.');
+                return;
+            }
+            // Update local balance
+            const resData = await response.json();
+            if (resData.balance !== undefined) student.balance = resData.balance;
+        } catch (e) {
+            console.error(e);
+            alert('Error deducting balance');
+            return;
+        }
+    }
+
+    const remarkInput = document.getElementById(`pay${suffix}Remark`)?.value || '';
+    let finalRemark = remarkInput;
+    if (balanceDeduction > 0) {
+        finalRemark += ` (Paid $${balanceDeduction} via Balance)`;
+    }
+
     const paymentDetails = {
         method: method,
-        amount: amount,
-        remark: document.getElementById(`pay${suffix}Remark`)?.value || '',
+        amount: cashAmount,
+        balanceUsed: balanceDeduction, // New Field
+        remark: finalRemark,
         reference: document.getElementById(`pay${suffix}Ref`)?.value || '',
         bank: document.getElementById(`pay${suffix}Bank`)?.value || ''
     };
     
-    // Handle Existing Order Payment
+    // Determine General Status (for Single/New orders)
+    const isPaidGeneral = (cashAmount + balanceDeduction) > 0 || totalOrderAmount === 0;
+    const statusGeneral = isPaidGeneral ? 'paid' : 'unpaid';
+
+    // Handle Existing Order Payment (Single)
     if (checkoutState.mode === 'existing' && checkoutState.orderId) {
         try {
-            // Determine status based on amount
-            // If amount is 0 and total is > 0, assume it's still unpaid (just updating details or printing reminder)
-            // Unless it is a free order (total 0)
-            const orderTotal = checkoutState.existingOrder ? checkoutState.existingOrder.totalAmount : 0;
-            const newStatus = (amount > 0 || orderTotal === 0) ? 'paid' : 'unpaid';
-
-            // Update Order Status using PATCH /status endpoint which exists in server.js
             const updatePayload = {
-                status: newStatus,
+                status: statusGeneral,
                 paymentDetails: paymentDetails
             };
             
@@ -2072,7 +2183,6 @@ window.confirmCheckout = async function() {
                 closeCheckoutModal();
                 if (typeof printReceipt === 'function') printReceipt(updatedOrder);
                 
-                // Refresh
                 if (salesState.selectedStudent) {
                     loadStudentOrders(salesState.selectedStudent.id);
                 }
@@ -2086,7 +2196,7 @@ window.confirmCheckout = async function() {
         return;
     }
 
-    // Handle Unpaid Orders (Multiple Existing)
+    // Handle Unpaid Orders (Multiple)
     if (checkoutState.mode === 'unpaid_orders') {
         const selectedIndices = Array.from(checkoutState.selectedIndices);
         if (selectedIndices.length === 0) {
@@ -2099,7 +2209,6 @@ window.confirmCheckout = async function() {
         
         if (ordersToPay.length === 0) return;
         
-        // Show processing on button
         const payBtn = document.getElementById('checkoutPayBtn');
         const originalText = payBtn ? payBtn.textContent : 'Pay';
         if (payBtn) {
@@ -2108,30 +2217,48 @@ window.confirmCheckout = async function() {
         }
 
         let successCount = 0;
-        let updatedOrders = []; // Collect updated orders
-        const totalInputAmount = amount; // from outer scope
+        let updatedOrders = [];
+        
+        // Distribution state
+        let remainingBal = balanceDeduction;
+        let remainingCash = cashAmount;
 
         try {
             for (const order of ordersToPay) {
-                // Determine status. If total input > 0, we mark as paid. 
-                // Otherwise ($0) it remains unpaid (Reminder).
-                // Logic: If I pay $0, I just want a reminder.
-                const status = totalInputAmount > 0 ? 'paid' : 'unpaid';
+                const thisOrderTotal = order.totalAmount;
                 
-                let orderPaymentAmount = 0;
-                if (status === 'paid') {
-                     orderPaymentAmount = order.totalAmount; // Assume full payment per order
+                // Distribute Balance
+                const thisOrderBal = Math.min(thisOrderTotal, remainingBal);
+                remainingBal -= thisOrderBal;
+                
+                // Distribute Cash (Fill remaining need if possible)
+                const needed = thisOrderTotal - thisOrderBal;
+                const thisOrderCash = Math.min(needed, remainingCash);
+                // Note: If user overpaid cash, it accumulates in the last order or stays unused? 
+                // Currently we just use what is needed. If remainingCash > needed, we just take needed.
+                // If user wants to pay MORE than total? Logic assumes payment <= total usually.
+                // If remainingCash > needed, we decrement only needed.
+                if (remainingCash > thisOrderCash) {
+                    remainingCash -= thisOrderCash;
+                } else {
+                    remainingCash = 0;
                 }
 
+                // Determine per-order status
+                const thisStatus = (thisOrderBal + thisOrderCash > 0 || thisOrderTotal === 0) ? 'paid' : 'unpaid';
+                
                 const orderPaymentDetails = {
                     ...paymentDetails,
-                    amount: orderPaymentAmount
+                    amount: thisOrderCash,
+                    balanceUsed: thisOrderBal,
+                    // If balance was used, ensure remark reflects it if not global?
+                    // We set global remark already.
                 };
 
                 const response = await window.authUtils.authenticatedFetch(`/organizations/orders/${order.id}/status`, {
                     method: 'PATCH',
                     body: JSON.stringify({
-                        status: status,
+                        status: thisStatus,
                         paymentDetails: orderPaymentDetails
                     })
                 });
@@ -2149,12 +2276,10 @@ window.confirmCheckout = async function() {
                 
                 closeCheckoutModal();
                 
-                // Pass all updated orders to printReceipt
                 if (updatedOrders.length > 0 && typeof printReceipt === 'function') {
                     printReceipt(updatedOrders);
                 }
 
-                // Refresh
                 if (salesState.selectedStudent) {
                     loadStudentOrders(salesState.selectedStudent.id);
                 }
@@ -2173,16 +2298,15 @@ window.confirmCheckout = async function() {
         return;
     }
     
+    // Handle New Order (Cart)
     const selectedItems = salesState.cart.filter((_, i) => checkoutState.selectedIndices.has(i));
     if (selectedItems.length === 0) {
         alert('No items selected');
         return;
     }
     
-    const status = amount > 0 ? 'paid' : 'unpaid';
-    
     // Call API
-    const order = await submitSalesOrder(status, selectedItems, paymentDetails);
+    const order = await submitSalesOrder(statusGeneral, selectedItems, paymentDetails);
     
     if (order) {
        closeCheckoutModal();
@@ -2193,7 +2317,6 @@ window.confirmCheckout = async function() {
            if (selectAll) selectAll.checked = false;
        }
        
-       // Refresh unpaid orders if we just paid something
        if (salesState.selectedStudent) {
            loadStudentOrders(salesState.selectedStudent.id);
        }

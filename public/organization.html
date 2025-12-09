@@ -655,6 +655,18 @@
                 <!-- Right Panel: Payment Methods -->
                 <div style="flex: 1; padding: 20px; display: flex; flex-direction: column;">
                     <h3>Payment Methods</h3>
+                    
+                    <!-- Balance Payment Section -->
+                    <div id="balancePaymentSection" style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: none;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: bold; color: #166534; margin-bottom: 0;">
+                            <input type="checkbox" id="useBalanceCheckbox" onchange="toggleUseBalance()" style="width: 18px; height: 18px; margin-right: 10px;">
+                            Use Balance (Available: <span id="availableBalanceDisplay">$0.00</span>)
+                        </label>
+                        <div id="balanceDeductionInfo" style="margin-left: 28px; font-size: 0.9rem; color: #15803d; margin-top: 5px; display: none;">
+                            Deducting: <span id="balanceDeductionAmount" style="font-weight: bold;">$0.00</span>
+                        </div>
+                    </div>
+
                     <p style="color:#666; font-size:0.9rem; margin-bottom:10px;">Pick one or many payment methods:</p>
                     <div class="payment-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
                         <button class="btn btn-primary" id="payMethodCash" onclick="switchPaymentMethod('cash')">Cash</button>
