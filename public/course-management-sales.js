@@ -2108,7 +2108,7 @@ window.confirmCheckout = async function() {
         }
 
         let successCount = 0;
-        let lastUpdatedOrder = null;
+        let updatedOrders = []; // Collect updated orders
         const totalInputAmount = amount; // from outer scope
 
         try {
@@ -2138,7 +2138,8 @@ window.confirmCheckout = async function() {
                 
                 if (response.ok) {
                     successCount++;
-                    lastUpdatedOrder = await response.json();
+                    const updatedOrder = await response.json();
+                    updatedOrders.push(updatedOrder);
                 }
             }
 
@@ -2148,10 +2149,9 @@ window.confirmCheckout = async function() {
                 
                 closeCheckoutModal();
                 
-                // If we paid multiple, just print the last one to avoid popup blocking, 
-                // or if it's just one, print it.
-                if (lastUpdatedOrder && typeof printReceipt === 'function') {
-                    printReceipt(lastUpdatedOrder);
+                // Pass all updated orders to printReceipt
+                if (updatedOrders.length > 0 && typeof printReceipt === 'function') {
+                    printReceipt(updatedOrders);
                 }
 
                 // Refresh
@@ -2200,7 +2200,17 @@ window.confirmCheckout = async function() {
     }
 };
 
-window.printReceipt = async function(order) {
+window.printReceipt = async function(orderOrOrders) {
+    // Handle array input (merged receipt/reminder)
+    const isArray = Array.isArray(orderOrOrders);
+    const orders = isArray ? orderOrOrders : [orderOrOrders];
+    
+    if (orders.length === 0) return;
+    
+    // Use the first order to determine status (assuming all in batch have same status)
+    const primaryOrder = orders[0];
+    const isPaid = primaryOrder.status === 'paid'; 
+    
     // Ensure settings are loaded
     if (!window.currentSettings) {
         try {
@@ -2218,11 +2228,6 @@ window.printReceipt = async function(order) {
         paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
     };
 
-    // Determine if it is a Receipt (Paid) or Reminder (Unpaid)
-    // If status is 'paid', it's a receipt.
-    // If status is 'unpaid', it's a reminder.
-    // The payment details amount check was causing issues for $0 payments or unpaid orders showing as receipts if details existed but amount was 0.
-    const isPaid = order.status === 'paid';
     const title = isPaid ? 'Receipt' : 'Payment Reminder';
     const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
     
@@ -2239,39 +2244,48 @@ window.printReceipt = async function(order) {
     
     let itemsHtml = '';
     let totalAmount = 0;
+    let payAmount = 0;
     
-    order.items.forEach(item => {
-        const productName = item.productData.name;
-        const price = item.price;
-        const quantity = item.enrolledClasses ? item.enrolledClasses.length : 1;
-        totalAmount += price;
-        
-        let desc = `<b>${escapeHtml(productName)}</b>`;
-        if (item.enrolledClasses && item.enrolledClasses.length > 0) {
-            const dates = item.enrolledClasses.map(c => {
-                const d = new Date(c.date);
-                return `${d.getDate()}/${d.getMonth()+1}`;
-            }).join(', ');
-            
-            const first = item.enrolledClasses[0];
-            const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
+    // Collect all order IDs
+    const orderIds = orders.map(o => o.id.split('_').pop().toUpperCase()).join(', ');
+    
+    // Iterate through ALL orders
+    orders.forEach(order => {
+        const orderPayInfo = order.paymentDetails || {};
+        payAmount += (orderPayInfo.amount || 0);
 
-            desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
-            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
-        }
-        
-        itemsHtml += `
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:8px;">${desc}</td>
-                <td style="padding:8px; text-align:right;">$${formatNumber(price / quantity)}</td>
-                <td style="padding:8px; text-align:center;">${quantity}</td>
-                <td style="padding:8px; text-align:right;">$${formatNumber(price)}</td>
-            </tr>
-        `;
+        order.items.forEach(item => {
+            const productName = item.productData.name;
+            const price = item.price;
+            const quantity = item.enrolledClasses ? item.enrolledClasses.length : 1;
+            totalAmount += price;
+            
+            let desc = `<b>${escapeHtml(productName)}</b>`;
+            if (item.enrolledClasses && item.enrolledClasses.length > 0) {
+                const dates = item.enrolledClasses.map(c => {
+                    const d = new Date(c.date);
+                    return `${d.getDate()}/${d.getMonth()+1}`;
+                }).join(', ');
+                
+                const first = item.enrolledClasses[0];
+                const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
+
+                desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
+                desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
+            }
+            
+            itemsHtml += `
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px;">${desc}</td>
+                    <td style="padding:8px; text-align:right;">$${formatNumber(price / quantity)}</td>
+                    <td style="padding:8px; text-align:center;">${quantity}</td>
+                    <td style="padding:8px; text-align:right;">$${formatNumber(price)}</td>
+                </tr>
+            `;
+        });
     });
     
-    const payInfo = order.paymentDetails || {};
-    const payAmount = payInfo.amount || 0;
+    const payInfo = primaryOrder.paymentDetails || {}; 
     const payMethod = payInfo.method || '-';
     const remark = payInfo.remark || '';
     
@@ -2279,7 +2293,7 @@ window.printReceipt = async function(order) {
     win.document.write(`
         <html>
         <head>
-            <title>${title} - ${order.id}</title>
+            <title>${title} - ${orderIds}</title>
             <style>
                 body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
                 .header { text-align: center; margin-bottom: 30px; position: relative; }
@@ -2305,7 +2319,7 @@ window.printReceipt = async function(order) {
                 </div>
                 <h1>${title}</h1>
                 <div style="text-align:right; font-size:12px; margin-top:5px;">
-                    No.: ${order.id.split('_').pop().toUpperCase()}<br>
+                    No.: ${orderIds}<br>
                     Date: ${dateStr}
                 </div>
             </div>
@@ -2467,7 +2481,17 @@ window.renderStudentEnrollments = function() {
     if (list) list.scrollTop = list.scrollHeight;
 };
 
-window.printReceipt = async function(order) {
+window.printReceipt = async function(orderOrOrders) {
+    // Handle array input (merged receipt/reminder)
+    const isArray = Array.isArray(orderOrOrders);
+    const orders = isArray ? orderOrOrders : [orderOrOrders];
+    
+    if (orders.length === 0) return;
+    
+    // Use the first order to determine status (assuming all in batch have same status)
+    const primaryOrder = orders[0];
+    const isPaid = primaryOrder.status === 'paid'; 
+    
     // Ensure settings are loaded
     if (!window.currentSettings) {
         try {
@@ -2485,11 +2509,6 @@ window.printReceipt = async function(order) {
         paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
     };
 
-    // Determine if it is a Receipt (Paid) or Reminder (Unpaid)
-    // If status is 'paid', it's a receipt.
-    // If status is 'unpaid', it's a reminder.
-    // The payment details amount check was causing issues for $0 payments or unpaid orders showing as receipts if details existed but amount was 0.
-    const isPaid = order.status === 'paid';
     const title = isPaid ? 'Receipt' : 'Payment Reminder';
     const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
     
@@ -2506,39 +2525,48 @@ window.printReceipt = async function(order) {
     
     let itemsHtml = '';
     let totalAmount = 0;
+    let payAmount = 0;
     
-    order.items.forEach(item => {
-        const productName = item.productData.name;
-        const price = item.price;
-        const quantity = item.enrolledClasses ? item.enrolledClasses.length : 1;
-        totalAmount += price;
-        
-        let desc = `<b>${escapeHtml(productName)}</b>`;
-        if (item.enrolledClasses && item.enrolledClasses.length > 0) {
-            const dates = item.enrolledClasses.map(c => {
-                const d = new Date(c.date);
-                return `${d.getDate()}/${d.getMonth()+1}`;
-            }).join(', ');
-            
-            const first = item.enrolledClasses[0];
-            const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
+    // Collect all order IDs
+    const orderIds = orders.map(o => o.id.split('_').pop().toUpperCase()).join(', ');
+    
+    // Iterate through ALL orders
+    orders.forEach(order => {
+        const orderPayInfo = order.paymentDetails || {};
+        payAmount += (orderPayInfo.amount || 0);
 
-            desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
-            desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
-        }
-        
-        itemsHtml += `
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:8px;">${desc}</td>
-                <td style="padding:8px; text-align:right;">$${formatNumber(price / quantity)}</td>
-                <td style="padding:8px; text-align:center;">${quantity}</td>
-                <td style="padding:8px; text-align:right;">$${formatNumber(price)}</td>
-            </tr>
-        `;
+        order.items.forEach(item => {
+            const productName = item.productData.name;
+            const price = item.price;
+            const quantity = item.enrolledClasses ? item.enrolledClasses.length : 1;
+            totalAmount += price;
+            
+            let desc = `<b>${escapeHtml(productName)}</b>`;
+            if (item.enrolledClasses && item.enrolledClasses.length > 0) {
+                const dates = item.enrolledClasses.map(c => {
+                    const d = new Date(c.date);
+                    return `${d.getDate()}/${d.getMonth()+1}`;
+                }).join(', ');
+                
+                const first = item.enrolledClasses[0];
+                const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
+
+                desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
+                desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
+            }
+            
+            itemsHtml += `
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px;">${desc}</td>
+                    <td style="padding:8px; text-align:right;">$${formatNumber(price / quantity)}</td>
+                    <td style="padding:8px; text-align:center;">${quantity}</td>
+                    <td style="padding:8px; text-align:right;">$${formatNumber(price)}</td>
+                </tr>
+            `;
+        });
     });
     
-    const payInfo = order.paymentDetails || {};
-    const payAmount = payInfo.amount || 0;
+    const payInfo = primaryOrder.paymentDetails || {}; 
     const payMethod = payInfo.method || '-';
     const remark = payInfo.remark || '';
     
@@ -2546,7 +2574,7 @@ window.printReceipt = async function(order) {
     win.document.write(`
         <html>
         <head>
-            <title>${title} - ${order.id}</title>
+            <title>${title} - ${orderIds}</title>
             <style>
                 body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
                 .header { text-align: center; margin-bottom: 30px; position: relative; }
@@ -2572,7 +2600,7 @@ window.printReceipt = async function(order) {
                 </div>
                 <h1>${title}</h1>
                 <div style="text-align:right; font-size:12px; margin-top:5px;">
-                    No.: ${order.id.split('_').pop().toUpperCase()}<br>
+                    No.: ${orderIds}<br>
                     Date: ${dateStr}
                 </div>
             </div>
