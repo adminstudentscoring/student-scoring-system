@@ -100,17 +100,16 @@ function renderDashboard() {
 }
 
 window.switchTab = function(tab) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => {
+        const key = t.getAttribute('data-tab');
+        t.classList.toggle('active', key === tab);
+    });
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     
-    // Find the button that was clicked
-    // event.target might be the button or child
-    // Simple way: assume 2 tabs, toggle logic
-    const buttons = document.querySelectorAll('.tab');
-    if (tab === 'home') buttons[0].classList.add('active');
-    if (tab === 'stats') buttons[1].classList.add('active');
-    
-    document.getElementById(`${tab}Tab`).classList.add('active');
+    const target = document.getElementById(`${tab}Tab`);
+    if (target) {
+        target.classList.add('active');
+    }
 };
 
 // Allow Enter key for password

@@ -144,8 +144,9 @@
         </div>
 
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('home')">🏠 Home Page</div>
-            <div class="tab" onclick="switchTab('stats')">📊 Statistics</div>
+            <div class="tab active" data-tab="home" onclick="switchTab('home')">🏠 Home Page</div>
+            <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
+            <div class="tab" data-tab="game" onclick="switchTab('game')">🎮 Game</div>
         </div>
 
         <div id="homeTab" class="tab-content active">
@@ -197,6 +198,14 @@
                 <div class="empty-state" style="padding: 20px; text-align: center; background: #f9fafb; border-radius: 8px;">
                     Ranking data is loading...
                 </div>
+            </div>
+        </div>
+
+        <div id="gameTab" class="tab-content">
+            <h3>Game</h3>
+            <p style="color:#666; margin-bottom: 16px;">Game hub coming soon.</p>
+            <div class="empty-state" style="padding: 20px; text-align: center; background: #f9fafb; border-radius: 8px; color: #666;">
+                Stay tuned for upcoming game features.
             </div>
         </div>
     </div>
