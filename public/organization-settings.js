@@ -135,8 +135,15 @@ function renderSettings() {
     }
 
     const categories = [
-        { id: 'teacher-management', name: 'Teacher Management', icon: '👨‍🏫' },
-        { id: 'student-management', name: 'Student Management', icon: '👥' },
+        { 
+            id: 'teacher-setting', 
+            name: 'Teacher Setting', 
+            icon: '👨‍🏫',
+            children: [
+                { id: 'ts-permittion', name: 'Teachert Permittion' }
+            ]
+        },
+        { id: 'student-setting', name: 'Student Setting', icon: '👥' },
         { 
             id: 'course-management', 
             name: 'Course Management', 
@@ -232,9 +239,18 @@ function renderSettingsCategory(categoryId) {
         case 'cm-accounting':
             html += renderSalesSettings(currentSettings.salesSettings || {});
             break;
+
+        case 'ts-permittion':
+            html += `
+                <div class="settings-section">
+                    <h3>Teachert Permittion</h3>
+                    <p style="color:#666;">(Placeholder) Permissions content coming soon.</p>
+                </div>
+            `;
+            break;
             
-        case 'teacher-management':
-        case 'student-management':
+        case 'teacher-setting':
+        case 'student-setting':
         case 'course-management':
         case 'statistic-management':
         case 'general':
