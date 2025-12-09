@@ -2578,3 +2578,198 @@
     color: #2d3765;
 }
 
+/* Light theme overrides for Running Queen & Royal Exchange */
+.running-queen-root,
+.royal-exchange-root {
+    background: #ffffff;
+    color: #111827;
+}
+
+.running-queen-root h2,
+.royal-exchange-root h2 {
+    color: #0f172a;
+}
+
+.running-queen-root .rq-config-panel,
+.running-queen-root .rq-board-panel,
+.running-queen-root .rq-scoreboard {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
+
+.running-queen-root .rq-scoreboard {
+    background: #f8fafc;
+}
+
+.running-queen-root .rq-mode-description {
+    background: #f8fafc;
+    color: #111827;
+}
+
+.running-queen-root .rq-config-field input {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #111827;
+    box-shadow: none;
+}
+
+.running-queen-root .rq-toggle-button,
+.running-queen-root .rq-preset-button {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    box-shadow: none;
+}
+
+.running-queen-root .rq-toggle-button.active {
+    background: #e0f2fe;
+    border-color: #38bdf8;
+    box-shadow: none;
+}
+
+.running-queen-root .rq-preset-button.active {
+    background: #e0e7ff;
+    color: #1f2937;
+    box-shadow: none;
+}
+
+.royal-exchange-root .re-board-panel,
+.royal-exchange-root .re-section {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
+
+.royal-exchange-root .re-status-item {
+    background: #f8fafc;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: none;
+}
+
+.royal-exchange-root .re-status-label {
+    color: #4b5563;
+    opacity: 1;
+}
+
+.royal-exchange-root .re-status-value {
+    color: #111827;
+}
+
+.royal-exchange-root .re-player-item {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+}
+
+.royal-exchange-root .re-log-entry {
+    background: #f8fafc;
+    color: #111827;
+}
+
+.royal-exchange-root .re-modal {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.1);
+}
+
+.royal-exchange-root .re-modal-close {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.running-queen-root .rq-status-item {
+    background: #f8fafc;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: none;
+}
+
+.running-queen-root .rq-status-label {
+    color: #4b5563;
+    opacity: 1;
+}
+
+.running-queen-root .rq-status-value {
+    color: #111827;
+}
+
+.running-queen-root .rq-board-container {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+}
+
+.running-queen-root .rq-board {
+    box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+.running-queen-root .rq-board-col-labels,
+.running-queen-root .rq-board-row-labels {
+    color: #475569;
+}
+
+.running-queen-root .rq-log-panel {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
+
+.running-queen-root .rq-log-entry {
+    background: #f8fafc;
+    color: #111827;
+}
+
+.running-queen-root .rq-leaderboard-item {
+    background: #f8fafc;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+}
+
+.running-queen-root .rq-leaderboard-rank,
+.running-queen-root .rq-leaderboard-names,
+.running-queen-root .rq-leaderboard-meta {
+    color: #111827;
+}
+
+.running-queen-root .rq-modal {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.1);
+}
+
+.running-queen-root .rq-modal-close {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.running-queen-root .rq-modal-tab {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #d1d5db;
+}
+
+.running-queen-root .rq-modal-tab.active {
+    background: #e0e7ff;
+    color: #111827;
+    box-shadow: none;
+    border-color: #c7d2fe;
+}
+
+.royal-exchange-root .re-leaderboard-item {
+    background: #f8fafc;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+}
+
+.royal-exchange-root .re-leaderboard-rank,
+.royal-exchange-root .re-leaderboard-names,
+.royal-exchange-root .re-leaderboard-meta {
+    color: #111827;
+}
+
