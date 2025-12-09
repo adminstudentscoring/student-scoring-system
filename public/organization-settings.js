@@ -6,6 +6,12 @@
 // Settings state
 let currentSettings = null;
 let defaultSettings = null;
+let teacherPermState = {
+    teachers: [],
+    filtered: [],
+    loading: false,
+    error: null
+};
 
 /**
  * Get default settings configuration
@@ -241,12 +247,7 @@ function renderSettingsCategory(categoryId) {
             break;
 
         case 'ts-permittion':
-            html += `
-                <div class="settings-section">
-                    <h3>Teachert Permittion</h3>
-                    <p style="color:#666;">(Placeholder) Permissions content coming soon.</p>
-                </div>
-            `;
+            html += renderTeacherPermittionSection();
             break;
             
         case 'teacher-setting':
@@ -266,6 +267,38 @@ function renderSettingsCategory(categoryId) {
     }
     
     return html;
+}
+
+/**
+ * Render Teacher Permittion section (list + modal placeholder)
+ */
+function renderTeacherPermittionSection() {
+    return `
+        <div class="settings-section">
+            <h3>Teachert Permittion</h3>
+            <div class="settings-group" style="display:flex; justify-content: space-between; align-items:center; gap:10px; margin-top:10px;">
+                <input type="text" id="tsSearchInput" placeholder="Search teacher..." oninput="filterTeacherPermittionList()" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                <div id="tsStatus" style="color:#666; font-size:0.9rem;">Loading...</div>
+            </div>
+            <div id="tsTeacherList" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+
+        <div id="tsPermissionModal" class="modal" style="display:none;">
+            <div class="modal-content" style="max-width:520px;">
+                <div class="modal-header">
+                    <h2 id="tsModalTitle">Teacher Permissions</h2>
+                    <span class="modal-close" onclick="closeTeacherPermissionModal()">&times;</span>
+                </div>
+                <div class="modal-body" id="tsModalBody">
+                    <p style="color:#666;">(Content coming soon)</p>
+                </div>
+                <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button class="btn btn-secondary" onclick="closeTeacherPermissionModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmTeacherPermission()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 /**
@@ -732,6 +765,10 @@ function switchSettingsCategory(categoryId) {
     });
     
     document.getElementById('settingsContent').innerHTML = renderSettingsCategory(categoryId);
+
+    if (categoryId === 'ts-permittion') {
+        initTeacherPermittion();
+    }
 }
 
 /**
@@ -798,6 +835,108 @@ function resetAllSettings() {
     }
     currentSettings = JSON.parse(JSON.stringify(defaultSettings));
     renderSettings();
+}
+
+/**
+ * Teacher Permittion helpers
+ */
+async function initTeacherPermittion() {
+    const listEl = document.getElementById('tsTeacherList');
+    const statusEl = document.getElementById('tsStatus');
+    if (!listEl || !statusEl) return;
+
+    statusEl.textContent = 'Loading...';
+    listEl.innerHTML = '';
+    teacherPermState.loading = true;
+    teacherPermState.error = null;
+
+    try {
+        const resp = await window.authUtils.authenticatedFetch('/organizations/teachers');
+        if (!resp || !resp.ok) {
+            throw new Error('Failed to load teachers');
+        }
+        const data = await resp.json();
+        const teachers = Array.isArray(data) ? data : (Array.isArray(data.teachers) ? data.teachers : []);
+        teacherPermState.teachers = teachers;
+        teacherPermState.filtered = teachers;
+        statusEl.textContent = `${teachers.length} teacher(s)`;
+        renderTeacherPermittionList();
+    } catch (err) {
+        console.error('load teachers failed', err);
+        teacherPermState.error = err;
+        statusEl.textContent = 'Error loading teachers';
+        listEl.innerHTML = `<div class="empty-state" style="padding:12px; color:#c00;">${err.message || 'Error loading teachers'}</div>`;
+    } finally {
+        teacherPermState.loading = false;
+    }
+}
+
+function renderTeacherPermittionList() {
+    const listEl = document.getElementById('tsTeacherList');
+    const statusEl = document.getElementById('tsStatus');
+    if (!listEl) return;
+
+    const items = teacherPermState.filtered || [];
+    if (statusEl) statusEl.textContent = teacherPermState.loading ? 'Loading...' : `${items.length} teacher(s)`;
+
+    if (items.length === 0) {
+        listEl.innerHTML = `<div class="empty-state" style="padding:12px; color:#666;">No teachers found.</div>`;
+        return;
+    }
+
+    listEl.innerHTML = items.map(t => {
+        const name = t.name || 'Unknown';
+        const email = t.email || t.username || '';
+        const tid = t.teacherId || '';
+        return `
+            <div class="settings-group" style="display:flex; align-items:center; justify-content: space-between; gap:10px; border:1px solid #eee; border-radius:8px; padding:10px 12px; background:#fff;">
+                <div style="display:flex; flex-direction:column;">
+                    <span style="font-weight:600;">${name}</span>
+                    <span style="color:#666; font-size:0.9rem;">${email}</span>
+                    ${tid ? `<span style="color:#999; font-size:0.8rem;">ID: ${tid}</span>` : ''}
+                </div>
+                <button class="btn btn-primary" onclick="openTeacherPermissionModal('${t.id || ''}', '${name.replace(/'/g, "\\'")}')">Manage</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function filterTeacherPermittionList() {
+    const input = document.getElementById('tsSearchInput');
+    if (!input) return;
+    const keyword = input.value.trim().toLowerCase();
+    if (!keyword) {
+        teacherPermState.filtered = teacherPermState.teachers;
+    } else {
+        teacherPermState.filtered = teacherPermState.teachers.filter(t => {
+            const name = (t.name || '').toLowerCase();
+            const email = (t.email || t.username || '').toLowerCase();
+            const tid = (t.teacherId || '').toLowerCase();
+            return name.includes(keyword) || email.includes(keyword) || tid.includes(keyword);
+        });
+    }
+    renderTeacherPermittionList();
+}
+
+function openTeacherPermissionModal(teacherId, teacherName = '') {
+    const modal = document.getElementById('tsPermissionModal');
+    const titleEl = document.getElementById('tsModalTitle');
+    const bodyEl = document.getElementById('tsModalBody');
+    if (!modal) return;
+    if (titleEl) titleEl.textContent = teacherName ? `Teacher Permissions - ${teacherName}` : 'Teacher Permissions';
+    if (bodyEl) bodyEl.innerHTML = `<p style="color:#666;">(Placeholder) Content for ${teacherName || 'selected teacher'} coming soon.</p>`;
+    modal.style.display = 'block';
+}
+
+function closeTeacherPermissionModal() {
+    const modal = document.getElementById('tsPermissionModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function confirmTeacherPermission() {
+    // Placeholder action
+    closeTeacherPermissionModal();
+    alert('Permissions saved (placeholder).');
 }
 
 /**
