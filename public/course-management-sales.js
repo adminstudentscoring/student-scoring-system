@@ -1130,9 +1130,11 @@ window.openStudentDetailsOverlay = function(event) {
         .overlay-empty { color: #94a3b8; font-size: 14px; text-align: center; padding: 20px 10px; }
         .overlay-history-list { display: flex; flex-direction: column; gap: 10px; }
         .overlay-history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+        .overlay-history-item.makeup-class { border-color: #667eea; background: #eef2ff; }
         .overlay-history-date { font-weight: 700; color: #2563eb; }
         .overlay-history-title { flex: 1; margin-left: 12px; color: #111827; font-weight: 600; }
         .overlay-history-meta { font-size: 12px; color: #6b7280; }
+        .overlay-history-note { font-size: 11px; color: #667eea; font-weight: 500; }
         .student-name-link { background: none; border: none; padding: 0; margin: 0; font: inherit; color: #1d4ed8; cursor: pointer; }
         .student-name-link:hover { text-decoration: underline; }
       `;
@@ -1204,11 +1206,15 @@ function renderStudentOverlayClassHistory() {
       ${enrollments.map(e => {
         const entry = entries.find(ent => ent.id === e.timetableEntryId);
         const className = entry ? entry.className : 'Unknown Class';
+        const isMakeup = e.makeupFrom || (e.notes && e.notes.includes('Makeup from'));
+        const makeupInfo = isMakeup ? (e.makeupFrom ? `Makeup from ${e.makeupFrom.date}` : e.notes) : '';
+
         return `
-          <div class="overlay-history-item">
+          <div class="overlay-history-item ${isMakeup ? 'makeup-class' : ''}">
             <div>
               <div class="overlay-history-date">${e.date}</div>
               <div class="overlay-history-meta">${escapeHtml(className)}</div>
+              ${makeupInfo ? `<div class="overlay-history-note" style="font-size: 11px; color: #667eea; margin-top: 2px;">${escapeHtml(makeupInfo)}</div>` : ''}
             </div>
             <div class="overlay-history-title">${escapeHtml(className)}</div>
           </div>

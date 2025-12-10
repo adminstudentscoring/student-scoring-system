@@ -4004,6 +4004,109 @@ app.post('/api/organizations/timetable/:id/delete-instance', authenticateUser, a
   }
 });
 
+// Makeup Class - Drop original and enroll to new class
+app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  const logs = [];
+  const log = (msg) => {
+    console.log('[MAKEUP]', msg);
+    logs.push(msg);
+  };
+
+  try {
+    const { studentId, fromEntryId, fromDate, toEntryId, toDate, studentName } = req.body;
+
+    log(`Makeup request: ${studentName} (${studentId}) from ${fromEntryId} on ${fromDate} to ${toEntryId} on ${toDate}`);
+
+    if (!studentId || !fromEntryId || !fromDate || !toEntryId || !toDate) {
+      return res.status(400).json({ error: 'Missing required fields', logs });
+    }
+
+    const enrollments = await readEnrollments();
+    const timetableData = await readTimetable();
+    const orgUser = await getCurrentOrgUser(req);
+
+    // Step 1: Find and drop the original enrollment
+    log('Step 1: Finding original enrollment to drop');
+    const originalEnrollmentIndex = enrollments.findIndex(e =>
+      e.studentId === studentId &&
+      e.timetableEntryId === fromEntryId &&
+      e.date === fromDate
+    );
+
+    if (originalEnrollmentIndex === -1) {
+      log('Warning: Original enrollment not found, proceeding with new enrollment only');
+    } else {
+      const originalEnrollment = enrollments[originalEnrollmentIndex];
+      log(`Found original enrollment: ${originalEnrollment.id}`);
+
+      // Remove the original enrollment
+      enrollments.splice(originalEnrollmentIndex, 1);
+      log('Original enrollment dropped');
+    }
+
+    // Step 2: Create new enrollment for the target class
+    log('Step 2: Creating new enrollment for target class');
+
+    // Check if already enrolled in target class
+    const existingTargetEnrollment = enrollments.find(e =>
+      e.studentId === studentId &&
+      e.timetableEntryId === toEntryId &&
+      e.date === toDate
+    );
+
+    if (existingTargetEnrollment) {
+      log('Student already enrolled in target class, no new enrollment needed');
+    } else {
+      // Create new enrollment
+      const newEnrollment = {
+        id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        organizationId: orgUser.organizationId,
+        studentId,
+        timetableEntryId: toEntryId,
+        date: toDate,
+        type: 'single',
+        notes: `Makeup from ${fromDate} (${fromEntryId})`,
+        createdAt: new Date().toISOString(),
+        makeupFrom: {
+          entryId: fromEntryId,
+          date: fromDate,
+          reason: 'student_makeup'
+        }
+      };
+
+      enrollments.push(newEnrollment);
+      log(`New enrollment created: ${newEnrollment.id}`);
+    }
+
+    // Step 3: Save changes
+    await writeEnrollments(enrollments);
+    log('Enrollments saved successfully');
+
+    // Step 4: Update timetable data if needed (for cache consistency)
+    // This ensures frontend gets updated data immediately
+    await loadTimetableData();
+
+    log('Makeup process completed successfully');
+    res.json({
+      success: true,
+      message: 'Student makeup completed',
+      logs,
+      data: {
+        droppedEnrollment: originalEnrollmentIndex !== -1,
+        newEnrollmentCreated: !existingTargetEnrollment,
+        fromClass: fromEntryId,
+        toClass: toEntryId,
+        fromDate,
+        toDate
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing makeup:', error);
+    res.status(500).json({ error: 'Failed to process makeup', logs });
+  }
+});
+
 // ==================== Teacher Management API ====================
 
 // Teacher selects students for Class View

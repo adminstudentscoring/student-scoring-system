@@ -1429,6 +1429,7 @@ function handleMakeupTargetSelect(entry, dateStr) {
 
 async function performMakeupAssignment(payload) {
   try {
+    console.log('[MAKEUP] Sending makeup request:', payload);
     const response = await window.authUtils.authenticatedFetch('/organizations/timetable/makeup', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -1436,19 +1437,23 @@ async function performMakeupAssignment(payload) {
 
     if (response && response.ok) {
       const result = await response.json();
-      if (window.showToast) window.showToast('Make-up set successfully', 'success');
-      else alert('Make-up set successfully');
+      console.log('[MAKEUP] Makeup success:', result);
+
+      if (window.showToast) window.showToast('Make-up completed successfully', 'success');
+      else alert('Make-up completed successfully');
+
       cancelMakeupFlow();
       await loadTimetableData();
       return;
     }
 
     const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to set make-up');
+    console.error('[MAKEUP] Makeup failed:', errorData);
+    throw new Error(errorData.error || 'Failed to complete make-up');
   } catch (e) {
     console.error('Make-up error', e);
-    if (window.showToast) window.showToast('Failed to set make-up', 'error');
-    else alert('Failed to set make-up');
+    if (window.showToast) window.showToast('Failed to complete make-up', 'error');
+    else alert('Failed to complete make-up');
     cancelMakeupFlow();
   }
 }
