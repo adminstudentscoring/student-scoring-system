@@ -4009,7 +4009,7 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
   const logs = [];
   const log = (msg) => {
     console.log('[MAKEUP]', msg);
-    logs.push(msg);
+    logs.push(String(msg)); // Ensure msg is a string to avoid JSON serialization issues
   };
 
   try {
@@ -4021,46 +4021,83 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
       return res.status(400).json({ error: 'Missing required fields', logs });
     }
 
+    // Check user authentication
+    if (!req.user || !req.user.organizationId) {
+      log('Error: User not authenticated or missing organizationId');
+      return res.status(403).json({ error: 'Authentication required', logs });
+    }
+
     const enrollments = await readEnrollments();
     const timetableData = await readTimetable();
-    const orgUser = await getCurrentOrgUser(req);
+    log(`Loaded ${enrollments.length} enrollments`);
 
-    // Step 1: Find and drop the original enrollment
-    log('Step 1: Finding original enrollment to drop');
+    // Debug: Log first few enrollments to understand structure
+    if (enrollments.length > 0) {
+      log(`Sample enrollment: ${JSON.stringify(enrollments[0])}`);
+    }
+
+    // Step 1: Find and drop the original enrollment or student from entry
+    log('Step 1: Finding original enrollment/student to drop');
+    log(`Looking for studentId: ${studentId}, timetableEntryId: ${fromEntryId}, date: ${fromDate}`);
+
+    // First, check if student is in enrollments
+    const studentEnrollments = enrollments.filter(e => String(e.studentId) === String(studentId));
+    log(`Student has ${studentEnrollments.length} total enrollments`);
+
     const originalEnrollmentIndex = enrollments.findIndex(e =>
-      e.studentId === studentId &&
+      String(e.studentId) === String(studentId) &&
       e.timetableEntryId === fromEntryId &&
       e.date === fromDate
     );
 
-    if (originalEnrollmentIndex === -1) {
-      log('Warning: Original enrollment not found, proceeding with new enrollment only');
-    } else {
+    let studentRemoved = false;
+
+    if (originalEnrollmentIndex !== -1) {
       const originalEnrollment = enrollments[originalEnrollmentIndex];
       log(`Found original enrollment: ${originalEnrollment.id}`);
 
       // Remove the original enrollment
       enrollments.splice(originalEnrollmentIndex, 1);
       log('Original enrollment dropped');
+      studentRemoved = true;
+    } else {
+      // Check if student is directly in timetable entry studentIds
+      const fromEntry = timetableData.entries.find(e => e.id === fromEntryId);
+      if (fromEntry && fromEntry.studentIds && fromEntry.studentIds.includes(studentId)) {
+        const studentIndex = fromEntry.studentIds.indexOf(studentId);
+        fromEntry.studentIds.splice(studentIndex, 1);
+        log(`Student removed from entry.studentIds at index ${studentIndex}`);
+        studentRemoved = true;
+      } else {
+        log('Warning: Student not found in enrollments or entry.studentIds');
+      }
+    }
+
+    if (!studentRemoved) {
+      log('Warning: Student was not removed from original class, proceeding with new enrollment anyway');
     }
 
     // Step 2: Create new enrollment for the target class
     log('Step 2: Creating new enrollment for target class');
 
-    // Check if already enrolled in target class
+    // Check if already enrolled in target class (enrollment)
     const existingTargetEnrollment = enrollments.find(e =>
-      e.studentId === studentId &&
+      String(e.studentId) === String(studentId) &&
       e.timetableEntryId === toEntryId &&
       e.date === toDate
     );
 
-    if (existingTargetEnrollment) {
-      log('Student already enrolled in target class, no new enrollment needed');
+    // Check if already in target entry studentIds
+    const toEntry = timetableData.entries.find(e => e.id === toEntryId);
+    const alreadyInTargetEntry = toEntry && toEntry.studentIds && toEntry.studentIds.includes(studentId);
+
+    if (existingTargetEnrollment || alreadyInTargetEntry) {
+      log(`Student already in target class (enrollment: ${!!existingTargetEnrollment}, entry: ${!!alreadyInTargetEntry})`);
     } else {
       // Create new enrollment
       const newEnrollment = {
         id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        organizationId: orgUser.organizationId,
+        organizationId: req.user.organizationId,
         studentId,
         timetableEntryId: toEntryId,
         date: toDate,
@@ -4082,9 +4119,11 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
     await writeEnrollments(enrollments);
     log('Enrollments saved successfully');
 
-    // Step 4: Update timetable data if needed (for cache consistency)
-    // This ensures frontend gets updated data immediately
-    await loadTimetableData();
+    // Save timetable data if it was modified (studentIds changed)
+    await writeTimetable(timetableData);
+    log('Timetable data saved successfully');
+
+    // Note: Frontend will automatically reload data after successful response
 
     log('Makeup process completed successfully');
     res.json({
@@ -4103,6 +4142,7 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
 
   } catch (error) {
     console.error('Error processing makeup:', error);
+    log(`Error: ${error.message}`);
     res.status(500).json({ error: 'Failed to process makeup', logs });
   }
 });
