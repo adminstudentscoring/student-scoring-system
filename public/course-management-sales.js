@@ -1039,7 +1039,10 @@ window.selectSalesStudent = function(studentId) {
   card.innerHTML = `
     <div class="selected-student-avatar">${student.name.charAt(0).toUpperCase()}</div>
     <div class="selected-student-info">
-      <h3>${escapeHtml(student.name)} <span class="student-id-badge">${escapeHtml(student.studentId)}</span></h3>
+      <h3>
+        <button class="student-name-link" onclick="openStudentDetailsOverlay(event)">${escapeHtml(student.name)}</button>
+        <span class="student-id-badge">${escapeHtml(student.studentId)}</span>
+      </h3>
       <div class="student-balance">Balance: $${balance.toFixed(2)}</div>
     </div>
     <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
@@ -1063,6 +1066,168 @@ window.selectSalesStudent = function(studentId) {
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
+
+// Open Student Details Overlay (Class/Payment History)
+window.openStudentDetailsOverlay = function(event) {
+  if (event) event.stopPropagation();
+  const student = salesState.selectedStudent;
+  if (!student) return;
+
+  let overlay = document.getElementById('studentDetailsOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'studentDetailsOverlay';
+    overlay.className = 'student-details-overlay-backdrop';
+    overlay.innerHTML = `
+      <div class="student-details-overlay" onclick="event.stopPropagation();">
+        <div class="overlay-header">
+          <div class="overlay-avatar">${student.name.charAt(0).toUpperCase()}</div>
+          <div class="overlay-meta">
+            <div class="overlay-name-row">
+              <span class="overlay-name"></span>
+              <span class="overlay-id"></span>
+            </div>
+            <div class="overlay-balance"></div>
+          </div>
+        </div>
+        <div class="overlay-tabs">
+          <button class="overlay-tab active" data-tab="class" onclick="switchStudentOverlayTab('class')">Class History</button>
+          <button class="overlay-tab" data-tab="payment" onclick="switchStudentOverlayTab('payment')">Payment History</button>
+        </div>
+        <div class="overlay-content">
+          <div id="studentOverlayClassTab" class="overlay-tab-panel active"></div>
+          <div id="studentOverlayPaymentTab" class="overlay-tab-panel"></div>
+        </div>
+        <div class="overlay-footer">
+          <button class="btn-close-overlay" onclick="closeStudentOverlay()">Close</button>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', closeStudentOverlay);
+    document.body.appendChild(overlay);
+
+    if (!document.getElementById('studentOverlayStyles')) {
+      const style = document.createElement('style');
+      style.id = 'studentOverlayStyles';
+      style.textContent = `
+        .student-details-overlay-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 2000; }
+        .student-details-overlay { background: #fff; width: 520px; max-height: 85vh; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 12px 30px rgba(0,0,0,0.18); overflow: hidden; }
+        .student-details-overlay .overlay-header { display: flex; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid #f1f5f9; }
+        .student-details-overlay .overlay-avatar { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #60a5fa, #2563eb); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; }
+        .student-details-overlay .overlay-meta { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+        .student-details-overlay .overlay-name-row { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: #111827; }
+        .student-details-overlay .overlay-id { background: #eef2ff; color: #3730a3; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+        .student-details-overlay .overlay-balance { font-size: 14px; color: #6b7280; }
+        .student-details-overlay .overlay-tabs { display: flex; gap: 8px; padding: 12px 20px 0; }
+        .student-details-overlay .overlay-tab { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; color: #334155; padding: 10px; border-radius: 10px 10px 0 0; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .student-details-overlay .overlay-tab.active { background: #fff; border-bottom-color: #fff; color: #111827; box-shadow: 0 -1px 0 #fff; }
+        .student-details-overlay .overlay-content { padding: 12px 20px 0; flex: 1; overflow-y: auto; }
+        .student-details-overlay .overlay-tab-panel { display: none; }
+        .student-details-overlay .overlay-tab-panel.active { display: block; }
+        .student-details-overlay .overlay-footer { position: sticky; bottom: 0; background: #fff; padding: 14px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
+        .student-details-overlay .btn-close-overlay { min-width: 100px; padding: 10px 14px; background: #1d4ed8; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+        .student-details-overlay .btn-close-overlay:hover { background: #1e40af; }
+        .overlay-empty { color: #94a3b8; font-size: 14px; text-align: center; padding: 20px 10px; }
+        .overlay-history-list { display: flex; flex-direction: column; gap: 10px; }
+        .overlay-history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+        .overlay-history-date { font-weight: 700; color: #2563eb; }
+        .overlay-history-title { flex: 1; margin-left: 12px; color: #111827; font-weight: 600; }
+        .overlay-history-meta { font-size: 12px; color: #6b7280; }
+        .student-name-link { background: none; border: none; padding: 0; margin: 0; font: inherit; color: #1d4ed8; cursor: pointer; }
+        .student-name-link:hover { text-decoration: underline; }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+
+  const balance = typeof student.balance === 'number' ? student.balance : 0;
+  const nameEl = overlay.querySelector('.overlay-name');
+  const idEl = overlay.querySelector('.overlay-id');
+  const balanceEl = overlay.querySelector('.overlay-balance');
+  const avatarEl = overlay.querySelector('.overlay-avatar');
+
+  if (nameEl) nameEl.textContent = student.name || 'Student';
+  if (idEl) idEl.textContent = student.studentId || '—';
+  if (balanceEl) balanceEl.textContent = `Balance: $${balance.toFixed(2)}`;
+  if (avatarEl) avatarEl.textContent = student.name ? student.name.charAt(0).toUpperCase() : '?';
+
+  switchStudentOverlayTab('class');
+  overlay.style.display = 'flex';
+};
+
+// Switch tabs inside student overlay
+window.switchStudentOverlayTab = function(tab) {
+  const overlay = document.getElementById('studentDetailsOverlay');
+  if (!overlay) return;
+
+  overlay.querySelectorAll('.overlay-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  overlay.querySelectorAll('.overlay-tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === (tab === 'class' ? 'studentOverlayClassTab' : 'studentOverlayPaymentTab'));
+  });
+
+  if (tab === 'class') {
+    renderStudentOverlayClassHistory();
+  } else {
+    renderStudentOverlayPaymentHistory();
+  }
+};
+
+// Close overlay
+window.closeStudentOverlay = function() {
+  const overlay = document.getElementById('studentDetailsOverlay');
+  if (overlay) overlay.style.display = 'none';
+};
+
+// Render Class History tab content
+function renderStudentOverlayClassHistory() {
+  const panel = document.getElementById('studentOverlayClassTab');
+  if (!panel) return;
+  const studentId = salesState.selectedStudent?.id;
+  if (!studentId) {
+    panel.innerHTML = '<div class="overlay-empty">No student selected.</div>';
+    return;
+  }
+
+  const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
+  enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (enrollments.length === 0) {
+    panel.innerHTML = '<div class="overlay-empty">No class history yet.</div>';
+    return;
+  }
+
+  const entries = window.timetableEntries || [];
+  panel.innerHTML = `
+    <div class="overlay-history-list">
+      ${enrollments.map(e => {
+        const entry = entries.find(ent => ent.id === e.timetableEntryId);
+        const className = entry ? entry.className : 'Unknown Class';
+        return `
+          <div class="overlay-history-item">
+            <div>
+              <div class="overlay-history-date">${e.date}</div>
+              <div class="overlay-history-meta">${escapeHtml(className)}</div>
+            </div>
+            <div class="overlay-history-title">${escapeHtml(className)}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Render Payment History tab content (placeholder for backend hookup)
+function renderStudentOverlayPaymentHistory() {
+  const panel = document.getElementById('studentOverlayPaymentTab');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="overlay-empty">
+      Payment history will appear here once connected to backend records.
+    </div>
+  `;
+}
 
 // Load Student Orders
 async function loadStudentOrders(studentId) {
@@ -1283,6 +1448,7 @@ window.deselectSalesStudent = function() {
   document.getElementById('selectedStudentCard').style.display = 'none';
   const historyContainer = document.getElementById('salesStudentHistory');
   if (historyContainer) historyContainer.innerHTML = '';
+  closeStudentOverlay();
   document.getElementById('emptyStudentState').style.display = 'flex';
   document.querySelector('.cart-empty-state').innerHTML = 'You will see student\'s orders here once you have selected a student above.';
   document.getElementById('salesCartContent').style.display = 'none';
