@@ -39,17 +39,29 @@ async function loadTimetableSettings() {
 
 // Load timetable data
 async function loadTimetableData() {
+  console.log('[DEBUG] Loading timetable data...');
   try {
     const endpoint = isReadOnly ? '/teachers/timetable' : '/organizations/timetable';
+    console.log('[DEBUG] Fetching from endpoint:', endpoint);
     const response = await window.authUtils.authenticatedFetch(endpoint);
-    if (!response) return;
-    
+    if (!response) {
+      console.log('[DEBUG] No response from fetch');
+      return;
+    }
+
     if (!response.ok) {
       const errorData = await response.json();
+      console.log('[DEBUG] Response not ok:', errorData);
       throw new Error(errorData.error || 'Failed to load timetable');
     }
-    
+
     const data = await response.json();
+    console.log('[DEBUG] Raw timetable data received:', {
+      entriesCount: data.entries ? data.entries.length : 0,
+      enrollmentsCount: data.enrollments ? data.enrollments.length : 0,
+      metadata: data.metadata
+    });
+
     timetableEntries = data.entries || [];
     timetableEnrollments = data.enrollments || [];
     // Expose globally for Sales module
@@ -57,8 +69,14 @@ async function loadTimetableData() {
     window.timetableEnrollments = timetableEnrollments;
 
     timetableMetadata = data.metadata || { classNames: [], classrooms: [] };
-    
+
+    console.log('[DEBUG] Processed timetable data:', {
+      entries: timetableEntries.map(e => ({ id: e.id, className: e.className, studentIds: e.studentIds })),
+      enrollments: timetableEnrollments.slice(0, 10) // First 10 enrollments
+    });
+
     renderTimetable();
+    console.log('[DEBUG] Timetable rendered');
   } catch (error) {
     console.error('Error loading timetable:', error);
     showTimetableError('Failed to load timetable');
@@ -442,11 +460,21 @@ function renderEntryInCell(entry, day, date) {
   entryEl.setAttribute('data-entry-id', entry.id);
   entryEl.onclick = (e) => {
     e.stopPropagation();
+    console.log('[DEBUG] Timetable entry clicked:', {
+      entryId: entry.id,
+      className: entry.className,
+      date: dateStr,
+      makeupFlowActive: makeupFlowState.active,
+      isReadOnly
+    });
+
     if (makeupFlowState.active) {
+      console.log('[DEBUG] Makeup flow active, handling makeup target selection');
       handleMakeupTargetSelect(entry, dateStr);
       return;
     }
     if (!isReadOnly) {
+      console.log('[DEBUG] Opening edit modal for entry');
       window.openEditClassModal(entry, dateStr);
     }
   };
@@ -1381,7 +1409,9 @@ window.closeMakeupPopup = function() {
 };
 
 window.startMakeupFlow = function() {
+  console.log('[DEBUG] Starting makeup flow for context:', makeupContext);
   if (!makeupContext.studentId) {
+    console.log('[DEBUG] No student ID in makeup context, closing popup');
     closeMakeupPopup();
     return;
   }
@@ -1393,7 +1423,9 @@ window.startMakeupFlow = function() {
     fromDate: makeupContext.dateStr,
     studentName: makeupContext.studentName
   };
-  
+
+  console.log('[DEBUG] Makeup flow state set:', makeupFlowState);
+
   // Close edit modal to allow interaction with timetable, but preserve makeup flow
   closeEditClassModal(true);
 
@@ -1404,21 +1436,30 @@ window.startMakeupFlow = function() {
     if (text) text.textContent = `Select a class for ${makeupContext.studentName} to make up`;
     banner.style.display = 'flex';
   }
+  console.log('[DEBUG] Makeup mode UI activated');
   if (window.showToast) window.showToast('Make-up mode: click a class slot to assign.', 'info');
 };
 
 window.cancelMakeupFlow = function() {
+  console.log('[DEBUG] Cancelling makeup flow, previous state:', makeupFlowState);
   makeupFlowState = { active: false, studentId: null, fromEntryId: null, fromDate: null, studentName: '' };
   document.body.classList.remove('makeup-mode-active');
   const banner = document.getElementById('makeupModeBanner');
   if (banner) banner.style.display = 'none';
+  console.log('[DEBUG] Makeup flow cancelled');
 };
 
 function handleMakeupTargetSelect(entry, dateStr) {
   if (!makeupFlowState.active) return;
-  
+
   console.log('[DEBUG] Makeup Target Selected:', { entry, dateStr, makeupFlowState });
-  
+  console.log('[DEBUG] Entry details:', {
+    id: entry.id,
+    className: entry.className,
+    date: dateStr,
+    studentIds: entry.studentIds
+  });
+
   performMakeupAssignment({
     studentId: makeupFlowState.studentId,
     fromEntryId: makeupFlowState.fromEntryId,
@@ -1431,28 +1472,47 @@ function handleMakeupTargetSelect(entry, dateStr) {
 
 async function performMakeupAssignment(payload) {
   console.log('[DEBUG] Sending makeup request:', payload);
+  console.log('[DEBUG] Current timetable entries before request:', timetableEntries.length);
+  console.log('[DEBUG] Current enrollments before request:', timetableEnrollments.length);
+
   try {
     const response = await window.authUtils.authenticatedFetch('/organizations/timetable/makeup', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
-    
+
     console.log('[DEBUG] Makeup response status:', response ? response.status : 'No response');
-    
+
     if (response && response.ok) {
       const result = await response.json();
       console.log('[DEBUG] Makeup success result:', result);
       if (result.logs) console.log('[DEBUG SERVER LOGS]:\n', result.logs.join('\n'));
-      
+
+      console.log('[DEBUG] Reloading timetable data after successful makeup...');
+      await loadTimetableData();
+      console.log('[DEBUG] Timetable data reloaded, new entries count:', timetableEntries.length);
+      console.log('[DEBUG] New enrollments count:', timetableEnrollments.length);
+
+      // Check if the student was actually moved
+      const fromEntry = timetableEntries.find(e => e.id === payload.fromEntryId);
+      const toEntry = timetableEntries.find(e => e.id === payload.toEntryId);
+
+      console.log('[DEBUG] From entry student IDs:', fromEntry ? fromEntry.studentIds : 'Entry not found');
+      console.log('[DEBUG] To entry student IDs:', toEntry ? toEntry.studentIds : 'Entry not found');
+
+      // Check enrollments for the specific dates
+      const relevantEnrollments = timetableEnrollments.filter(e =>
+        (e.timetableEntryId === payload.fromEntryId && e.date === payload.fromDate) ||
+        (e.timetableEntryId === payload.toEntryId && e.date === payload.toDate)
+      );
+      console.log('[DEBUG] Relevant enrollments:', relevantEnrollments);
+
       if (window.showToast) window.showToast('Make-up set successfully', 'success');
       else alert('Make-up set successfully');
       cancelMakeupFlow();
-      console.log('[DEBUG] Reloading timetable data...');
-      await loadTimetableData();
-      console.log('[DEBUG] Timetable data reloaded');
       return;
     }
-    
+
     const errorData = await response.json();
     console.error('[DEBUG] Makeup failed:', errorData);
     if (errorData.logs) console.error('[DEBUG SERVER LOGS]:\n', errorData.logs.join('\n'));
