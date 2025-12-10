@@ -954,8 +954,33 @@ function switchTsPermissionTab(tab) {
         if (tabEdit) tabEdit.className = 'btn btn-primary';
         if (tabCourse) tabCourse.className = 'btn btn-secondary';
         content.innerHTML = `
-            <div style="color:#666;">
-                <p>(Placeholder) Edit Student permissions will be configured here.</p>
+            <div style="color:#333; display:flex; flex-direction:column; gap:10px;">
+                <div style="font-weight:600; margin-bottom:4px;">Edit Student Permissions</div>
+                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
+                    <input type="checkbox" id="tsPerm_addStudent">
+                    <span>Add Student</span>
+                </label>
+                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
+                    <input type="checkbox" id="tsPerm_deleteStudent">
+                    <span>Delete Student</span>
+                </label>
+                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
+                    <input type="checkbox" id="tsPerm_editScore">
+                    <span>Edit Score</span>
+                </label>
+                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
+                    <input type="checkbox" id="tsPerm_editName">
+                    <span>Edit Student Name</span>
+                </label>
+                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
+                    <input type="checkbox" id="tsPerm_editId">
+                    <span>Edit Student ID</span>
+                </label>
+                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
+                    <input type="checkbox" id="tsPerm_editSharePwd">
+                    <span>Edit Student Share Link password</span>
+                </label>
+                <div style="color:#777; font-size:0.9rem; margin-top:6px;">(Temporary UI only; not yet connected to backend.)</div>
             </div>
         `;
     } else {
