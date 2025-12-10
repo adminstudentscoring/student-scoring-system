@@ -11,6 +11,9 @@ window.timetableSettings = {};
 let currentView = 'week'; // 'day', 'week', 'month'
 let currentDate = new Date();
 let isReadOnly = false; // For teacher view
+// Makeup / postpone state
+let makeupFlowState = { active: false, studentId: null, fromEntryId: null, fromDate: null, studentName: '' };
+let makeupContext = { studentId: null, studentName: '', entryId: null, dateStr: null };
 
 // Initialize timetable management
 window.loadTimetableManagement = function(userRole = 'organization') {
@@ -420,6 +423,10 @@ function renderEntryInCell(entry, day, date) {
   entryEl.setAttribute('data-entry-id', entry.id);
   entryEl.onclick = (e) => {
     e.stopPropagation();
+    if (makeupFlowState.active) {
+      handleMakeupTargetSelect(entry, dateStr);
+      return;
+    }
     if (!isReadOnly) {
       window.openEditClassModal(entry, dateStr);
     }
@@ -1060,7 +1067,8 @@ window.openEditClassModal = async function(entry, dateStr) {
                       </div>`;
                   }
                   
-                  return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+                  const showMakeupBtn = dateStr && (!status || status === 'unmarked' || status === 'absent');
+                  return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap:10px;">
                     <div style="display:flex; align-items:center;">
                       <div>
                           <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
@@ -1068,7 +1076,10 @@ window.openEditClassModal = async function(entry, dateStr) {
                       </div>
                       ${attHtml}
                     </div>
-                    ${isSeries ? `<span style="cursor:pointer; color:#ef4444; font-weight:bold;" onclick="removeStudentTag('${studentId}')">×</span>` : ''}
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      ${showMakeupBtn ? `<button class="makeup-action-btn" title="Make up / Postpone" onclick="openMakeupPopup('${studentId}', '${entryData.id}', '${dateStr}')">⋯</button>` : ''}
+                      ${isSeries ? `<span style="cursor:pointer; color:#ef4444; font-weight:bold;" onclick="removeStudentTag('${studentId}')">×</span>` : ''}
+                    </div>
                   </div>`;
                 }).join('') || '<div style="padding: 15px; text-align: center; color: #999; font-style: italic;">No enrolled students</div>'}
               </div>`;
@@ -1263,7 +1274,189 @@ window.closeEditClassModal = function() {
   window.selectedCourseIds = new Set();
   window.selectedTeacherIds = new Set();
   window.selectedDays = new Set();
+  closeMakeupPopup();
+  cancelMakeupFlow();
 };
+
+// Makeup/Postpone popup for enrolled students
+window.openMakeupPopup = function(studentId, entryId, dateStr) {
+  const student = (window.students || []).find(s => s.id === studentId);
+  const name = student ? student.name : 'Student';
+  makeupContext = { studentId, studentName: name, entryId, dateStr };
+
+  let popup = document.getElementById('makeupPopup');
+  if (!popup) {
+    popup = document.createElement('div');
+    popup.id = 'makeupPopup';
+    popup.className = 'makeup-popup-backdrop';
+    popup.innerHTML = `
+      <div class="makeup-popup" onclick="event.stopPropagation();">
+        <div class="makeup-popup-header">
+          <div>
+            <div class="makeup-popup-title">Make-up / Postpone</div>
+            <div class="makeup-popup-subtitle"></div>
+          </div>
+          <button class="makeup-popup-close" onclick="closeMakeupPopup()">×</button>
+        </div>
+        <div class="makeup-popup-actions">
+          <button class="makeup-popup-btn primary" onclick="startMakeupFlow()">Make Up Class</button>
+          <button class="makeup-popup-btn" onclick="handlePostponeSelection()">Postpone (+7 days)</button>
+        </div>
+      </div>
+    `;
+    popup.addEventListener('click', closeMakeupPopup);
+    document.body.appendChild(popup);
+
+    if (!document.getElementById('makeupPopupStyles')) {
+      const style = document.createElement('style');
+      style.id = 'makeupPopupStyles';
+      style.textContent = `
+        .makeup-action-btn { min-width: 34px; height: 28px; border-radius: 6px; border: 1px solid #cbd5e1; background:#f8fafc; cursor:pointer; font-weight:700; }
+        .makeup-action-btn:hover { background:#e2e8f0; }
+        .makeup-popup-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 2100; padding: 16px; }
+        .makeup-popup { background: #fff; border-radius: 12px; padding: 16px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
+        .makeup-popup-header { display:flex; align-items:center; justify-content: space-between; gap:10px; }
+        .makeup-popup-title { font-size: 16px; font-weight: 700; color:#0f172a; }
+        .makeup-popup-subtitle { font-size: 13px; color:#64748b; margin-top:4px; }
+        .makeup-popup-close { border:none; background:transparent; font-size: 20px; cursor: pointer; color:#475569; }
+        .makeup-popup-actions { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+        .makeup-popup-btn { padding: 10px 12px; border-radius: 10px; border:1px solid #e2e8f0; background:#f8fafc; cursor:pointer; font-weight:600; text-align:left; }
+        .makeup-popup-btn.primary { background:#2563eb; color:#fff; border-color:#2563eb; }
+        .makeup-popup-btn.primary:hover { background:#1d4ed8; }
+        .makeup-popup-btn:hover { background:#e2e8f0; }
+        body.makeup-mode-active .timetable-entry { outline: 2px dashed #2563eb; cursor: pointer; }
+        .makeup-mode-banner { position: fixed; bottom: 15px; right: 15px; background:#1d4ed8; color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 6px 16px rgba(0,0,0,0.2); z-index:2101; display:none; align-items:center; gap:10px; }
+        .makeup-mode-banner button { background:rgba(255,255,255,0.15); border:none; color:#fff; padding:6px 10px; border-radius:8px; cursor:pointer; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Banner for guidance
+    const banner = document.createElement('div');
+    banner.id = 'makeupModeBanner';
+    banner.className = 'makeup-mode-banner';
+    banner.innerHTML = `
+      <span id="makeupModeText">Make-up mode active</span>
+      <button onclick="cancelMakeupFlow()">Cancel</button>
+    `;
+    document.body.appendChild(banner);
+  }
+
+  const subtitle = popup.querySelector('.makeup-popup-subtitle');
+  if (subtitle) subtitle.textContent = `${name} • ${dateStr}`;
+  popup.style.display = 'flex';
+};
+
+window.closeMakeupPopup = function() {
+  const popup = document.getElementById('makeupPopup');
+  if (popup) popup.style.display = 'none';
+};
+
+window.startMakeupFlow = function() {
+  if (!makeupContext.studentId) {
+    closeMakeupPopup();
+    return;
+  }
+  closeMakeupPopup();
+  makeupFlowState = {
+    active: true,
+    studentId: makeupContext.studentId,
+    fromEntryId: makeupContext.entryId,
+    fromDate: makeupContext.dateStr,
+    studentName: makeupContext.studentName
+  };
+  document.body.classList.add('makeup-mode-active');
+  const banner = document.getElementById('makeupModeBanner');
+  if (banner) {
+    const text = banner.querySelector('#makeupModeText');
+    if (text) text.textContent = `Select a class for ${makeupContext.studentName} to make up`;
+    banner.style.display = 'flex';
+  }
+  if (window.showToast) window.showToast('Make-up mode: click a class slot to assign.', 'info');
+};
+
+window.cancelMakeupFlow = function() {
+  makeupFlowState = { active: false, studentId: null, fromEntryId: null, fromDate: null, studentName: '' };
+  document.body.classList.remove('makeup-mode-active');
+  const banner = document.getElementById('makeupModeBanner');
+  if (banner) banner.style.display = 'none';
+};
+
+function handleMakeupTargetSelect(entry, dateStr) {
+  if (!makeupFlowState.active) return;
+  performMakeupAssignment({
+    studentId: makeupFlowState.studentId,
+    fromEntryId: makeupFlowState.fromEntryId,
+    fromDate: makeupFlowState.fromDate,
+    toEntryId: entry.id,
+    toDate: dateStr,
+    studentName: makeupFlowState.studentName
+  });
+}
+
+async function performMakeupAssignment(payload) {
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/timetable/makeup', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (response && response.ok) {
+      if (window.showToast) window.showToast('Make-up set successfully', 'success');
+      else alert('Make-up set successfully');
+      cancelMakeupFlow();
+      await loadTimetableData();
+      return;
+    }
+    throw new Error('Failed to set make-up');
+  } catch (e) {
+    console.error('Make-up error', e);
+    if (window.showToast) window.showToast('Failed to set make-up', 'error');
+    else alert('Failed to set make-up');
+    cancelMakeupFlow();
+  }
+}
+
+window.handlePostponeSelection = async function() {
+  if (!makeupContext.studentId) {
+    closeMakeupPopup();
+    return;
+  }
+  closeMakeupPopup();
+  await postponeEnrollment(makeupContext);
+};
+
+async function postponeEnrollment(ctx) {
+  const newDate = addDays(ctx.dateStr, 7);
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/timetable/postpone', {
+      method: 'POST',
+      body: JSON.stringify({
+        timetableEntryId: ctx.entryId,
+        date: ctx.dateStr,
+        studentId: ctx.studentId,
+        newDate
+      })
+    });
+    if (response && response.ok) {
+      if (window.showToast) window.showToast(`Postponed to ${newDate}`, 'success');
+      else alert(`Postponed to ${newDate}`);
+      await loadTimetableData();
+      return;
+    }
+    throw new Error('Failed to postpone');
+  } catch (e) {
+    console.error('Postpone error', e);
+    if (window.showToast) window.showToast('Failed to postpone class', 'error');
+    else alert('Failed to postpone class');
+  }
+}
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
 
 // Remove student tag
 window.removeStudentTag = function(studentId) {
