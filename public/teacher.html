@@ -137,6 +137,10 @@
                     <span class="sidebar-icon">➕</span>
                     <span class="sidebar-text">Create Student</span>
                 </button>
+                <button id="quickClassViewBtn" class="sidebar-btn" onclick="openQuickClassViewModal()">
+                    <span class="sidebar-icon">👥</span>
+                    <span class="sidebar-text">Class View</span>
+                </button>
                 <button id="gameZoneBtn" class="sidebar-btn">
                     <span class="sidebar-icon">🎮</span>
                     <span class="sidebar-text">Game Zone</span>
@@ -362,6 +366,35 @@
                     <div class="game-area-content" id="gameAreaContent">
                         <!-- Game content will be loaded here -->
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Class View Selection Modal -->
+    <div id="quickClassViewModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h2>👥 Select Students for Class View</h2>
+                <span class="modal-close" onclick="closeQuickClassViewModal()">&times;</span>
+            </div>
+            <div class="modal-body" style="flex: 1; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 0;">
+                <div style="margin-bottom: 10px;">
+                    <input type="text" id="quickClassViewSearch" placeholder="Search students..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 10px; display: flex; gap: 10px;">
+                    <button class="btn btn-sm btn-secondary" onclick="quickClassViewSelectAll()">Select All</button>
+                    <button class="btn btn-sm btn-secondary" onclick="quickClassViewDeselectAll()">Deselect All</button>
+                </div>
+                <div id="quickClassViewList" style="flex: 1; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 10px;">
+                    <!-- Students will be loaded here -->
+                </div>
+                <div class="modal-actions" style="margin-top: 15px; padding-bottom: 15px;">
+                    <div style="flex: 1; text-align: left; color: #666; font-size: 0.9rem;">
+                        <span id="quickClassViewCount">0</span> selected
+                    </div>
+                    <button class="btn btn-secondary" onclick="closeQuickClassViewModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmQuickClassView()">Confirm & Update</button>
                 </div>
             </div>
         </div>
