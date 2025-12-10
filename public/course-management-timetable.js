@@ -406,19 +406,31 @@ function renderEntryInCell(entry, day, date) {
   // Calculate student count
   const baseStudents = entry.studentIds ? entry.studentIds.length : 0;
   const dateStr = formatDateISO(date);
-  const extraStudents = (timetableEnrollments || []).filter(e => 
+  
+  // Filter extra students (single enrollments)
+  const extraStudentIds = (timetableEnrollments || []).filter(e => 
     e.timetableEntryId === entry.id && 
     e.date === dateStr && 
     e.type === 'single'
-  ).length;
+  ).map(e => e.studentId);
   
-  const excludedStudents = (timetableEnrollments || []).filter(e => 
+  // Filter excluded students
+  const excludedStudentIds = (timetableEnrollments || []).filter(e => 
     e.timetableEntryId === entry.id && 
     e.date === dateStr && 
     e.type === 'exclusion'
-  ).length;
+  ).map(e => e.studentId);
 
-  const totalStudents = Math.max(0, baseStudents + extraStudents - excludedStudents);
+  // Combine base + extra - excluded
+  // Convert IDs to strings for safe comparison
+  const baseStudentIds = (entry.studentIds || []).map(String);
+  const extraStudentIdsStr = extraStudentIds.map(String);
+  const excludedStudentIdsStr = excludedStudentIds.map(String);
+  
+  const allStudentIds = [...new Set([...baseStudentIds, ...extraStudentIdsStr])]
+      .filter(id => !excludedStudentIdsStr.includes(id));
+  
+  const totalStudents = allStudentIds.length;
   
   const entryEl = document.createElement('div');
   entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
@@ -455,22 +467,8 @@ function renderEntryInCell(entry, day, date) {
   
   if (height >= 75 && totalStudents > 0) {
       // Get student names
-      const s1 = entry.studentIds || [];
-      const s2 = (timetableEnrollments || []).filter(e => 
-        e.timetableEntryId === entry.id && 
-        e.date === dateStr && 
-        e.type === 'single'
-      ).map(e => e.studentId);
-      
-      const excludedIds = (timetableEnrollments || []).filter(e => 
-        e.timetableEntryId === entry.id && 
-        e.date === dateStr && 
-        e.type === 'exclusion'
-      ).map(e => e.studentId);
-      
-      const allIds = [...new Set([...s1, ...s2])].filter(id => !excludedIds.includes(id));
-      const names = allIds.map(id => {
-          const s = (window.students || []).find(stu => stu.id === id);
+      const names = allStudentIds.map(id => {
+          const s = (window.students || []).find(stu => String(stu.id) === id);
           return s ? s.name : 'Unknown';
       });
       
@@ -1061,8 +1059,12 @@ window.openEditClassModal = async function(entry, dateStr) {
                  ? linkedEnrollments.filter(e => e.date === dateStr && e.type === 'exclusion').map(e => e.studentId)
                  : [];
                  
-              const seriesStudentIds = entryData.studentIds || [];
-              const allStudentIds = [...new Set([...seriesStudentIds, ...linkedStudentIds])].filter(id => !excludedStudentIds.includes(id));
+              const seriesStudentIds = (entryData.studentIds || []).map(String);
+              const linkedStudentIdsStr = linkedStudentIds.map(String);
+              const excludedStudentIdsStr = excludedStudentIds.map(String);
+              
+              const allStudentIds = [...new Set([...seriesStudentIds, ...linkedStudentIdsStr])]
+                  .filter(id => !excludedStudentIdsStr.includes(id));
               
               return `
               <div style="display:flex; justify-content:space-between; align-items:center;">
