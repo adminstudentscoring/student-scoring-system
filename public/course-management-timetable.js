@@ -1263,7 +1263,7 @@ window.filterTeacherOptions = function() {
 };
 
 // Close Edit Class Modal
-window.closeEditClassModal = function() {
+window.closeEditClassModal = function(preserveMakeup = false) {
   const modal = document.getElementById('editClassModal');
   if (modal) {
     modal.classList.remove('show');
@@ -1275,7 +1275,9 @@ window.closeEditClassModal = function() {
   window.selectedTeacherIds = new Set();
   window.selectedDays = new Set();
   closeMakeupPopup();
-  cancelMakeupFlow();
+  if (!preserveMakeup) {
+    cancelMakeupFlow();
+  }
 };
 
 // Makeup/Postpone popup for enrolled students
@@ -1313,7 +1315,7 @@ window.openMakeupPopup = function(studentId, entryId, dateStr) {
       style.textContent = `
         .makeup-action-btn { min-width: 34px; height: 28px; border-radius: 6px; border: 1px solid #cbd5e1; background:#f8fafc; cursor:pointer; font-weight:700; }
         .makeup-action-btn:hover { background:#e2e8f0; }
-        .makeup-popup-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 2100; padding: 16px; }
+        .makeup-popup-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 10100; padding: 16px; }
         .makeup-popup { background: #fff; border-radius: 12px; padding: 16px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
         .makeup-popup-header { display:flex; align-items:center; justify-content: space-between; gap:10px; }
         .makeup-popup-title { font-size: 16px; font-weight: 700; color:#0f172a; }
@@ -1365,6 +1367,10 @@ window.startMakeupFlow = function() {
     fromDate: makeupContext.dateStr,
     studentName: makeupContext.studentName
   };
+  
+  // Close edit modal to allow interaction with timetable, but preserve makeup flow
+  closeEditClassModal(true);
+
   document.body.classList.add('makeup-mode-active');
   const banner = document.getElementById('makeupModeBanner');
   if (banner) {
