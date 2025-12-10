@@ -4054,17 +4054,14 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
     if (fromEntryId && fromDate) {
       const fromEntry = timetableData.entries.find(e => e.id === fromEntryId);
       log(`[DEBUG SERVER] Processing source entry: ${fromEntry ? fromEntry.id : 'Not Found'}`);
-      
-      // Determine if student is in series list
+
+      // Determine if student is in series list (directly in entry.studentIds)
       const isInSeries = fromEntry && fromEntry.studentIds && fromEntry.studentIds.map(String).includes(targetStudentId);
-      
+
       // Determine if student is enrolled via "enrollments.json" as "series" (Sales module standard)
-      // We need to check timetableData.enrollments for type 'series' or similar
-      // BUT actually, Sales module usually pushes to timetableEntry.studentIds OR specific enrollments.
-      // Let's check if there are enrollments for this series in timetableData.enrollments
-      const isEnrolledAsSeries = timetableData.enrollments.some(e => 
-          e.timetableEntryId === fromEntryId && 
-          String(e.studentId) === targetStudentId && 
+      const isEnrolledAsSeries = timetableData.enrollments.some(e =>
+          e.timetableEntryId === fromEntryId &&
+          String(e.studentId) === targetStudentId &&
           (e.type === 'series' || e.type === 'recurring')
       );
 
@@ -4072,11 +4069,11 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
 
       if (isInSeries || isEnrolledAsSeries) {
         log('[DEBUG SERVER] Student is part of recurring series (via list or enrollment), adding exclusion');
-        
-        const exclusionExists = timetableData.enrollments.find(e => 
-          e.timetableEntryId === fromEntryId && 
-          String(e.studentId) === targetStudentId && 
-          e.date === fromDate && 
+
+        const exclusionExists = timetableData.enrollments.find(e =>
+          e.timetableEntryId === fromEntryId &&
+          String(e.studentId) === targetStudentId &&
+          e.date === fromDate &&
           e.type === 'exclusion'
         );
 
@@ -4090,55 +4087,67 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
              notes: `Makeup to ${toDate}`,
              createdAt: new Date().toISOString()
            });
-           log('[DEBUG SERVER] Exclusion added');
+           log('[DEBUG SERVER] Exclusion added for recurring series');
         } else {
             log('[DEBUG SERVER] Exclusion already exists');
         }
-      } 
+      }
       else {
          log('[DEBUG SERVER] Student is NOT in recurring series, checking for single enrollment');
-         const sourceEnrollmentIndex = timetableData.enrollments.findIndex(e => 
-            e.timetableEntryId === fromEntryId && 
-            String(e.studentId) === targetStudentId && 
-            e.date === fromDate && 
+         const sourceEnrollmentIndex = timetableData.enrollments.findIndex(e =>
+            e.timetableEntryId === fromEntryId &&
+            String(e.studentId) === targetStudentId &&
+            e.date === fromDate &&
             (e.type === 'single' || !e.type) // Handle legacy/undefined type as single if not series
          );
-         
+
          if (sourceEnrollmentIndex !== -1) {
              log(`[DEBUG SERVER] Found single enrollment (Type: ${timetableData.enrollments[sourceEnrollmentIndex].type}), removing it`);
              timetableData.enrollments.splice(sourceEnrollmentIndex, 1);
+             log('[DEBUG SERVER] Single enrollment removed');
          } else {
-             // Fallback: If we can't find them but they ARE in the class (frontend says so), 
-             // it might be they are in 'enrollments' but with a different logic?
-             // Or maybe they are enrolled in the *Course* but mapped to the timetable?
-             // But for now, let's assume if we can't find them, we can't remove them.
-             // We'll log all enrollments for this student/entry to debug.
-             const debugEnrollments = timetableData.enrollments.filter(e => 
-                 e.timetableEntryId === fromEntryId && String(e.studentId) === targetStudentId
-             );
-             log(`[DEBUG SERVER] No matching source enrollment found to remove. Existing enrollments for this entry/student: ${JSON.stringify(debugEnrollments)}`);
-             
-             // FORCE EXCLUSION anyway if we think they might be there?
-             // If the user sees them, they are likely being rendered. 
-             // If we add an exclusion, the frontend SHOULD respect it regardless of how they got there (except 'single').
-             log('[DEBUG SERVER] Attempting to force exclusion as fallback since student is visible in UI');
-             const exclusionExists = timetableData.enrollments.find(e => 
-                e.timetableEntryId === fromEntryId && 
-                String(e.studentId) === targetStudentId && 
-                e.date === fromDate && 
-                e.type === 'exclusion'
-             );
-             if (!exclusionExists) {
-                 timetableData.enrollments.push({
-                     id: Date.now().toString() + '_fallback_ex',
-                     timetableEntryId: fromEntryId,
-                     studentId: targetStudentId,
-                     date: fromDate,
-                     type: 'exclusion',
-                     notes: `Makeup to ${toDate} (Fallback)`,
-                     createdAt: new Date().toISOString()
-                 });
-                 log('[DEBUG SERVER] Fallback exclusion added');
+             // If student is visible in UI but not in enrollments, they might be directly in entry.studentIds
+             // In this case, we need to remove them from entry.studentIds instead
+             if (fromEntry && fromEntry.studentIds && fromEntry.studentIds.map(String).includes(targetStudentId)) {
+                 log('[DEBUG SERVER] Student found in entry.studentIds, removing from series list');
+                 const studentIndex = fromEntry.studentIds.findIndex(id => String(id) === targetStudentId);
+                 if (studentIndex !== -1) {
+                     fromEntry.studentIds.splice(studentIndex, 1);
+                     log('[DEBUG SERVER] Student removed from entry.studentIds');
+                 }
+             } else {
+                 // Fallback: If we can't find them but they ARE in the class (frontend says so),
+                 // it might be they are in 'enrollments' but with a different logic?
+                 // Or maybe they are enrolled in the *Course* but mapped to the timetable?
+                 // But for now, let's assume if we can't find them, we can't remove them.
+                 // We'll log all enrollments for this student/entry to debug.
+                 const debugEnrollments = timetableData.enrollments.filter(e =>
+                     e.timetableEntryId === fromEntryId && String(e.studentId) === targetStudentId
+                 );
+                 log(`[DEBUG SERVER] No matching source enrollment found to remove. Existing enrollments for this entry/student: ${JSON.stringify(debugEnrollments)}`);
+
+                 // FORCE EXCLUSION anyway if we think they might be there?
+                 // If the user sees them, they are likely being rendered.
+                 // If we add an exclusion, the frontend SHOULD respect it regardless of how they got there (except 'single').
+                 log('[DEBUG SERVER] Attempting to force exclusion as fallback since student is visible in UI');
+                 const exclusionExists = timetableData.enrollments.find(e =>
+                    e.timetableEntryId === fromEntryId &&
+                    String(e.studentId) === targetStudentId &&
+                    e.date === fromDate &&
+                    e.type === 'exclusion'
+                 );
+                 if (!exclusionExists) {
+                     timetableData.enrollments.push({
+                         id: Date.now().toString() + '_fallback_ex',
+                         timetableEntryId: fromEntryId,
+                         studentId: targetStudentId,
+                         date: fromDate,
+                         type: 'exclusion',
+                         notes: `Makeup to ${toDate} (Fallback)`,
+                         createdAt: new Date().toISOString()
+                     });
+                     log('[DEBUG SERVER] Fallback exclusion added');
+                 }
              }
          }
       }
