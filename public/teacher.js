@@ -491,6 +491,13 @@ async function deleteStudent(studentId) {
 
 // Update student score directly
 async function updateStudentScore(studentId) {
+    if (currentUser && currentUser.role === 'teacher') {
+        if (!currentUser.teacherPermissions || !currentUser.teacherPermissions.editScore) {
+            showNotification('Insufficient permissions: You are not allowed to edit scores.', 'error');
+            return;
+        }
+    }
+
     const student = students.find(s => s.id === studentId);
     if (!student) {
         showNotification('Student not found', 'error');
@@ -513,14 +520,14 @@ async function updateStudentScore(studentId) {
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error || 'Failed to update score');
         }
 
         showNotification('Score updated successfully!', 'success');
         loadStudents();
     } catch (error) {
-        showNotification('Error: ' + error.message, 'error');
+        showNotification(error.message, 'error');
     }
 }
 
@@ -1515,9 +1522,44 @@ window.openShareModal = function(studentId) {
         
         // Set Password State
         const hasPassword = !!student.accessPassword;
-        document.getElementById('enablePasswordToggle').checked = hasPassword;
-        document.getElementById('accessPassword').value = student.accessPassword || '';
+        const toggle = document.getElementById('enablePasswordToggle');
+        const pwdInput = document.getElementById('accessPassword');
+        const saveBtn = document.querySelector('#passwordGroup button');
+
+        toggle.checked = hasPassword;
+        pwdInput.value = student.accessPassword || '';
         togglePasswordInput();
+
+        // Check Permissions
+        let canEditPwd = true;
+        if (currentUser && currentUser.role === 'teacher') {
+            if (!currentUser.teacherPermissions || !currentUser.teacherPermissions.editSharePwd) {
+                canEditPwd = false;
+            }
+        }
+
+        if (!canEditPwd) {
+            toggle.disabled = true;
+            pwdInput.disabled = true;
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.style.opacity = '0.5';
+                saveBtn.style.cursor = 'not-allowed';
+                saveBtn.title = 'Insufficient permissions';
+            }
+            // Add visual cue
+            toggle.parentElement.title = 'Insufficient permissions to change password settings';
+        } else {
+            toggle.disabled = false;
+            pwdInput.disabled = false;
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.style.opacity = '1';
+                saveBtn.style.cursor = 'pointer';
+                saveBtn.title = '';
+            }
+            toggle.parentElement.title = '';
+        }
     }
 };
 
@@ -1534,6 +1576,15 @@ window.togglePasswordInput = function() {
 
 window.saveAccessPassword = async function() {
     if (!currentShareStudentId) return;
+
+    // Double check permission before saving
+    if (currentUser && currentUser.role === 'teacher') {
+        if (!currentUser.teacherPermissions || !currentUser.teacherPermissions.editSharePwd) {
+            showNotification('Insufficient permissions: You are not allowed to edit share password.', 'error');
+            return;
+        }
+    }
+
     const enabled = document.getElementById('enablePasswordToggle').checked;
     const password = document.getElementById('accessPassword').value.trim();
     
@@ -1559,10 +1610,11 @@ window.saveAccessPassword = async function() {
             const student = students.find(s => s.id === currentShareStudentId);
             if (student) student.accessPassword = updateData.accessPassword;
         } else {
-            throw new Error('Failed to save');
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to save');
         }
     } catch (error) {
-        showNotification('Error saving password', 'error');
+        showNotification(error.message || 'Error saving password', 'error');
     }
 };
 
