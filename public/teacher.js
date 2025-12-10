@@ -2213,3 +2213,138 @@ window.openEditStudentProfile = openEditStudentProfile;
 window.closeEditStudentProfile = closeEditStudentProfile;
 window.saveStudentProfile = saveStudentProfile;
 
+
+// ==================== Quick Class View Functions ====================
+
+let tempClassViewSelection = new Set();
+
+function openQuickClassViewModal() {
+    const modal = document.getElementById('quickClassViewModal');
+    if (!modal) return;
+    
+    // Initialize temp set with current selection
+    tempClassViewSelection = new Set(selectedClassStudentIds);
+    
+    renderQuickClassViewList();
+    updateQuickClassViewCount();
+    modal.classList.add('show');
+    
+    // Focus search
+    setTimeout(() => {
+        document.getElementById('quickClassViewSearch')?.focus();
+    }, 100);
+}
+
+function closeQuickClassViewModal() {
+    const modal = document.getElementById('quickClassViewModal');
+    if (modal) modal.classList.remove('show');
+}
+
+function renderQuickClassViewList() {
+    const container = document.getElementById('quickClassViewList');
+    if (!container) return;
+    
+    const searchTerm = document.getElementById('quickClassViewSearch')?.value.toLowerCase() || '';
+    
+    const filteredStudents = students.filter(student =>
+        student.name.toLowerCase().includes(searchTerm) ||
+        student.studentId.toLowerCase().includes(searchTerm)
+    );
+    
+    if (filteredStudents.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No students found</div>';
+        return;
+    }
+    
+    container.innerHTML = filteredStudents.map(student => {
+        const isChecked = tempClassViewSelection.has(student.id);
+        // Escape function needs to be safe for inline HTML
+        const safeName = escapeHtml(student.name);
+        const safeId = escapeHtml(student.studentId);
+        
+        return `
+            <label style="display:flex; align-items:center; padding:8px; border-bottom:1px solid #eee; cursor:pointer;">
+                <input type="checkbox" 
+                       value="${student.id}" 
+                       ${isChecked ? 'checked' : ''} 
+                       onchange="toggleQuickClassViewSelection('${student.id}')"
+                       style="margin-right:10px; width:18px; height:18px;">
+                <span>${safeName} <span style="color:#888; font-size:0.9rem;">(${safeId})</span></span>
+            </label>
+        `;
+    }).join('');
+}
+
+function toggleQuickClassViewSelection(studentId) {
+    if (tempClassViewSelection.has(studentId)) {
+        tempClassViewSelection.delete(studentId);
+    } else {
+        tempClassViewSelection.add(studentId);
+    }
+    updateQuickClassViewCount();
+}
+
+function quickClassViewSelectAll() {
+    const searchTerm = document.getElementById('quickClassViewSearch')?.value.toLowerCase() || '';
+    const filteredStudents = students.filter(student =>
+        student.name.toLowerCase().includes(searchTerm) ||
+        student.studentId.toLowerCase().includes(searchTerm)
+    );
+    
+    filteredStudents.forEach(s => tempClassViewSelection.add(s.id));
+    renderQuickClassViewList();
+    updateQuickClassViewCount();
+}
+
+function quickClassViewDeselectAll() {
+    const searchTerm = document.getElementById('quickClassViewSearch')?.value.toLowerCase() || '';
+    
+    // If search is active, only deselect visible ones
+    if (searchTerm) {
+        const filteredStudents = students.filter(student =>
+            student.name.toLowerCase().includes(searchTerm) ||
+            student.studentId.toLowerCase().includes(searchTerm)
+        );
+        filteredStudents.forEach(s => tempClassViewSelection.delete(s.id));
+    } else {
+        tempClassViewSelection.clear();
+    }
+    
+    renderQuickClassViewList();
+    updateQuickClassViewCount();
+}
+
+function updateQuickClassViewCount() {
+    const el = document.getElementById('quickClassViewCount');
+    if (el) el.textContent = tempClassViewSelection.size;
+}
+
+async function confirmQuickClassView() {
+    // Update main selection
+    selectedClassStudentIds = new Set(tempClassViewSelection);
+    
+    // Save to server
+    await saveClassViewSelection(); // Reuse existing save function
+    
+    // Update main UI
+    renderClassStudentsList();
+    updateSelectedCount();
+    
+    closeQuickClassViewModal();
+    
+    // Optional: Ask to open Class View immediately
+    if (confirm('Selection updated! Open Class View now?')) {
+        openClassView();
+    }
+}
+
+// Event Listeners for Quick Class View
+document.getElementById('quickClassViewSearch')?.addEventListener('input', renderQuickClassViewList);
+
+// Make global
+window.openQuickClassViewModal = openQuickClassViewModal;
+window.closeQuickClassViewModal = closeQuickClassViewModal;
+window.toggleQuickClassViewSelection = toggleQuickClassViewSelection;
+window.quickClassViewSelectAll = quickClassViewSelectAll;
+window.quickClassViewDeselectAll = quickClassViewDeselectAll;
+window.confirmQuickClassView = confirmQuickClassView;
