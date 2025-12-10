@@ -924,11 +924,15 @@ function filterTeacherPermissionList() {
     renderTeacherPermissionList();
 }
 
+let currentTeacherId = null;
+
 function openTeacherPermissionModal(teacherId, teacherName = '') {
     const modal = document.getElementById('tsPermissionModal');
     const titleEl = document.getElementById('tsModalTitle');
     if (!modal) return;
     if (titleEl) titleEl.textContent = teacherName ? `Teacher Permissions - ${teacherName}` : 'Teacher Permissions';
+    
+    currentTeacherId = teacherId;
     switchTsPermissionTab('edit');
     modal.style.display = 'flex';
 }
@@ -936,12 +940,44 @@ function openTeacherPermissionModal(teacherId, teacherName = '') {
 function closeTeacherPermissionModal() {
     const modal = document.getElementById('tsPermissionModal');
     if (modal) modal.style.display = 'none';
+    currentTeacherId = null;
 }
 
-function confirmTeacherPermission() {
-    // Placeholder action
-    closeTeacherPermissionModal();
-    alert('Permissions saved (placeholder).');
+async function confirmTeacherPermission() {
+    if (!currentTeacherId) return;
+    
+    // Gather permissions
+    const permissions = {
+        addStudent: document.getElementById('tsPerm_addStudent')?.checked || false,
+        deleteStudent: document.getElementById('tsPerm_deleteStudent')?.checked || false,
+        editScore: document.getElementById('tsPerm_editScore')?.checked || false,
+        editName: document.getElementById('tsPerm_editName')?.checked || false,
+        editId: document.getElementById('tsPerm_editId')?.checked || false,
+        editSharePwd: document.getElementById('tsPerm_editSharePwd')?.checked || false
+    };
+    
+    try {
+        const response = await window.authUtils.authenticatedFetch(`/organizations/teachers/${currentTeacherId}/permissions`, {
+            method: 'PUT',
+            body: JSON.stringify(permissions)
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update permissions');
+        }
+        
+        // Update local state if needed
+        const teacher = teacherPermissionState.teachers.find(t => t.id === currentTeacherId);
+        if (teacher) {
+            teacher.teacherPermissions = permissions;
+        }
+        
+        closeTeacherPermissionModal();
+        alert('Permissions saved successfully.');
+    } catch (error) {
+        console.error('Save permissions failed', error);
+        alert('Error saving permissions: ' + error.message);
+    }
 }
 
 function switchTsPermissionTab(tab) {
@@ -953,34 +989,38 @@ function switchTsPermissionTab(tab) {
     if (tab === 'edit') {
         if (tabEdit) tabEdit.className = 'btn btn-primary';
         if (tabCourse) tabCourse.className = 'btn btn-secondary';
+        
+        // Find teacher to get current permissions
+        const teacher = teacherPermissionState.teachers.find(t => t.id === currentTeacherId);
+        const perms = teacher?.teacherPermissions || {};
+
         content.innerHTML = `
             <div style="color:#333; display:flex; flex-direction:column; gap:10px;">
                 <div style="font-weight:600; margin-bottom:4px;">Edit Student Permissions</div>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_addStudent">
+                    <input type="checkbox" id="tsPerm_addStudent" ${perms.addStudent ? 'checked' : ''}>
                     <span>Add Student</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_deleteStudent">
+                    <input type="checkbox" id="tsPerm_deleteStudent" ${perms.deleteStudent ? 'checked' : ''}>
                     <span>Delete Student</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_editScore">
+                    <input type="checkbox" id="tsPerm_editScore" ${perms.editScore ? 'checked' : ''}>
                     <span>Edit Score</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_editName">
+                    <input type="checkbox" id="tsPerm_editName" ${perms.editName ? 'checked' : ''}>
                     <span>Edit Student Name</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_editId">
+                    <input type="checkbox" id="tsPerm_editId" ${perms.editId ? 'checked' : ''}>
                     <span>Edit Student ID</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_editSharePwd">
+                    <input type="checkbox" id="tsPerm_editSharePwd" ${perms.editSharePwd ? 'checked' : ''}>
                     <span>Edit Student Share Link password</span>
                 </label>
-                <div style="color:#777; font-size:0.9rem; margin-top:6px;">(Temporary UI only; not yet connected to backend.)</div>
             </div>
         `;
     } else {

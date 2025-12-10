@@ -2002,3 +2002,62 @@ window.hideClassTooltip = function() {
     if (tooltipEl) tooltipEl.style.display = 'none';
 };
 
+
+
+// ==================== Create Student Modal Functions ====================
+
+function openCreateStudentModal() {
+    const modal = document.getElementById('teacherCreateStudentModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('teacherCreateStudentForm')?.reset();
+    }
+}
+
+function closeCreateStudentModal() {
+    const modal = document.getElementById('teacherCreateStudentModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+async function submitCreateStudent(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('teacherCreateStudentName').value.trim();
+    const studentId = document.getElementById('teacherCreateStudentId').value.trim();
+    
+    if (!name || !studentId) {
+        showNotification('Please fill in all fields', 'error');
+        return;
+    }
+    
+    try {
+        const response = await apiFetch('/organizations/students', {
+            method: 'POST',
+            body: JSON.stringify({ name, studentId })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to create student');
+        }
+        
+        const newStudent = await response.json();
+        
+        showNotification('Student ' + newStudent.name + ' created and assigned!', 'success');
+        closeCreateStudentModal();
+        
+        // Reload students to show the new one
+        loadStudents();
+    } catch (error) {
+        console.error('Create student error:', error);
+        showNotification(error.message, 'error');
+    }
+}
+
+// Make globally available
+window.openCreateStudentModal = openCreateStudentModal;
+window.closeCreateStudentModal = closeCreateStudentModal;
+window.submitCreateStudent = submitCreateStudent;
+

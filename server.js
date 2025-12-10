@@ -1377,8 +1377,8 @@ app.post('/api/organizations/teachers', authenticateUser, authorizeRole('organiz
   }
 });
 
-// Organization creates a student (requires organization authentication)
-app.post('/api/organizations/students', authenticateUser, authorizeRole('organization'), async (req, res) => {
+// Organization creates a student (requires organization authentication or teacher permission)
+app.post('/api/organizations/students', authenticateUser, authorizeRole('organization', 'teacher'), async (req, res) => {
   try {
     const { name, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
     
@@ -1387,15 +1387,23 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
       return res.status(400).json({ error: 'Student Name is required' });
     }
     
-    // Get organization
+    // Get user and check permissions if teacher
     const users = await readUsers();
-    const orgUser = users.find(u => u.id === req.user.id);
-    if (!orgUser || !orgUser.organizationId) {
+    const currentUser = users.find(u => u.id === req.user.id);
+    
+    if (!currentUser || !currentUser.organizationId) {
       return res.status(403).json({ error: 'Organization not found' });
+    }
+
+    // Teacher Permission Check
+    if (currentUser.role === 'teacher') {
+        if (!currentUser.teacherPermissions || !currentUser.teacherPermissions.addStudent) {
+            return res.status(403).json({ error: 'Insufficient permissions: You are not allowed to add students.' });
+        }
     }
     
     const organizations = await readOrganizations();
-    const organization = organizations.find(o => o.id === orgUser.organizationId);
+    const organization = organizations.find(o => o.id === currentUser.organizationId);
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
     }
@@ -1404,7 +1412,7 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
     const data = await readData();
     if (studentId) {
     const existingStudent = data.students.find(s => 
-      s.organizationId === orgUser.organizationId && 
+      s.organizationId === currentUser.organizationId && 
       s.studentId === studentId
     );
     if (existingStudent) {
@@ -1425,7 +1433,7 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
       emergencyContactName: emergencyContactName || '',
       emergencyContactRelation: emergencyContactRelation || '',
       emergencyContactNumber: emergencyContactNumber || '',
-      organizationId: orgUser.organizationId,
+      organizationId: currentUser.organizationId,
       answerCount: 0,
       totalAnswers: 0,
       correctAnswers: 0,
@@ -1450,6 +1458,22 @@ app.post('/api/organizations/students', authenticateUser, authorizeRole('organiz
     // Update organization
     organization.students.push(newStudent.id);
     await writeOrganizations(organizations);
+
+    // If Teacher created it, Auto-Assign
+    if (currentUser.role === 'teacher') {
+        if (!currentUser.assignedStudents) {
+            currentUser.assignedStudents = [];
+        }
+        if (!currentUser.assignedStudents.includes(newStudent.id)) {
+            currentUser.assignedStudents.push(newStudent.id);
+            // Save updated teacher user
+            const teacherIndex = users.findIndex(u => u.id === currentUser.id);
+            if (teacherIndex !== -1) {
+                users[teacherIndex] = currentUser;
+                await writeUsers(users);
+            }
+        }
+    }
     
     broadcast({ type: 'studentAdded', student: newStudent });
     res.status(201).json(newStudent);
@@ -2418,6 +2442,43 @@ app.get('/api/organizations/teachers', authenticateUser, requireOrganizationAcce
   } catch (error) {
     console.error('Error getting teachers:', error);
     res.status(500).json({ error: 'Failed to get teachers' });
+  }
+});
+
+// Update teacher permissions
+app.put('/api/organizations/teachers/:teacherId/permissions', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const permissions = req.body; // Expect { addStudent: true/false, ... }
+
+    const users = await readUsers();
+    const orgUser = users.find(u => u.id === req.user.id);
+    if (!orgUser || !orgUser.organizationId) {
+      return res.status(403).json({ error: 'Organization not found' });
+    }
+
+    const teacherIndex = users.findIndex(u => u.id === teacherId && u.role === 'teacher' && u.organizationId === orgUser.organizationId);
+    if (teacherIndex === -1) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    // Initialize if not exists
+    if (!users[teacherIndex].teacherPermissions) {
+        users[teacherIndex].teacherPermissions = {};
+    }
+
+    // Merge permissions
+    users[teacherIndex].teacherPermissions = {
+        ...users[teacherIndex].teacherPermissions,
+        ...permissions
+    };
+
+    await writeUsers(users);
+
+    res.json({ message: 'Permissions updated', permissions: users[teacherIndex].teacherPermissions });
+  } catch (error) {
+    console.error('Error updating permissions:', error);
+    res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
 
