@@ -1077,7 +1077,7 @@ window.openEditClassModal = async function(entry, dateStr) {
                       ${attHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                      ${showMakeupBtn ? `<button class="makeup-action-btn" title="Make up / Postpone" onclick="openMakeupPopup('${studentId}', '${entryData.id}', '${dateStr}')">⋯</button>` : ''}
+                      ${showMakeupBtn ? `<button type="button" class="makeup-action-btn" title="Make up / Postpone" onclick="event.stopPropagation(); openMakeupPopup('${studentId}', '${entryData.id}', '${dateStr}')">⋯</button>` : ''}
                       ${isSeries ? `<span style="cursor:pointer; color:#ef4444; font-weight:bold;" onclick="removeStudentTag('${studentId}')">×</span>` : ''}
                     </div>
                   </div>`;
