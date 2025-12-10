@@ -951,8 +951,7 @@ async function confirmTeacherPermission() {
         addStudent: document.getElementById('tsPerm_addStudent')?.checked || false,
         deleteStudent: document.getElementById('tsPerm_deleteStudent')?.checked || false,
         editScore: document.getElementById('tsPerm_editScore')?.checked || false,
-        editName: document.getElementById('tsPerm_editName')?.checked || false,
-        editId: document.getElementById('tsPerm_editId')?.checked || false,
+        editStudentProfile: document.getElementById('tsPerm_editStudentProfile')?.checked || false,
         editSharePwd: document.getElementById('tsPerm_editSharePwd')?.checked || false
     };
     
@@ -1010,12 +1009,8 @@ function switchTsPermissionTab(tab) {
                     <span>Edit Score</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_editName" ${perms.editName ? 'checked' : ''}>
-                    <span>Edit Student Name</span>
-                </label>
-                <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
-                    <input type="checkbox" id="tsPerm_editId" ${perms.editId ? 'checked' : ''}>
-                    <span>Edit Student ID</span>
+                    <input type="checkbox" id="tsPerm_editStudentProfile" ${perms.editStudentProfile ? 'checked' : ''}>
+                    <span>Edit Student Profile (Name, ID, etc.)</span>
                 </label>
                 <label class="checkbox-label" style="display:flex; gap:8px; align-items:center;">
                     <input type="checkbox" id="tsPerm_editSharePwd" ${perms.editSharePwd ? 'checked' : ''}>

@@ -393,6 +393,84 @@
         </div>
     </div>
 
+    <!-- Edit Student Profile Modal (Teacher) -->
+    <div id="editStudentModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>✏️ Edit Student Profile</h2>
+                <span class="modal-close" onclick="closeEditStudentProfile()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editStudentForm" onsubmit="saveStudentProfile(event)">
+                    <input type="hidden" id="editStudentId_Hidden">
+                    
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>Student Name <span style="color:red">*</span></label>
+                            <input type="text" id="editStudentName" required class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Student ID <span style="color:red">*</span></label>
+                            <input type="text" id="editStudentStudentId" required class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top:10px;">
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select id="editStudentGender" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                                <option value="">Select</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date of Birth (DD/MM/YYYY)</label>
+                            <input type="text" id="editStudentDOB" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;" placeholder="DD/MM/YYYY">
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top:10px;">
+                        <div class="form-group">
+                            <label>Contact Phone</label>
+                            <input type="text" id="editStudentPhone" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="editStudentEmail" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                    </div>
+
+                    <h4 style="margin-top:20px; border-bottom:1px solid #eee; padding-bottom:5px;">Emergency Contact</h4>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top:10px;">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="editStudentEmergName" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Relation</label>
+                            <select id="editStudentEmergRel" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                                <option value="">Select</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <label>Phone Number</label>
+                        <input type="text" id="editStudentEmergPhone" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+
+                    <div class="modal-actions" style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeEditStudentProfile()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="auth.js"></script>
     <script src="course-management.js"></script>
     <script src="course-management-timetable.js"></script>

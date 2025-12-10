@@ -174,8 +174,11 @@ function renderStudents() {
         const currentRank = rankInfo.rank;
         const currentRankIndex = rankInfo.rankIndex;
         
+        // Escape student data for safe usage in onclick
+        const safeStudent = JSON.stringify(student).replace(/"/g, '&quot;');
+
         return `
-        <div class="student-card" data-rank="${currentRankIndex}" data-student-id="${student.id}">
+        <div class="student-card" data-rank="${currentRankIndex}" data-student-id="${student.id}" onclick='openEditStudentProfile(${safeStudent})'>
             <h3>${escapeHtml(student.name)}</h3>
             <div class="student-id">ID: ${escapeHtml(student.studentId)}</div>
             <div class="rank-badge rank-${currentRankIndex}">${currentRank}</div>
@@ -195,7 +198,7 @@ function renderStudents() {
                     <span class="stat-label">Score</span>
                 </div>
             </div>
-            <div class="student-actions">
+            <div class="student-actions" onclick="event.stopPropagation()">
                 <input type="number" class="points-input" id="points-${student.id}" min="1" max="100" value="1" style="width: 60px; padding: 6px; text-align: center; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.2); color: white; font-weight: bold;">
                 <button class="btn btn-success btn-small" onclick="recordPoints('${student.id}')">
                     Add Points
@@ -475,13 +478,14 @@ async function deleteStudent(studentId) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to delete student');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to delete student');
         }
 
         showNotification('Student deleted successfully', 'success');
         loadStudents();
     } catch (error) {
-        showNotification('Failed to delete student', 'error');
+        showNotification(error.message, 'error');
     }
 }
 
@@ -2060,4 +2064,100 @@ async function submitCreateStudent(event) {
 window.openCreateStudentModal = openCreateStudentModal;
 window.closeCreateStudentModal = closeCreateStudentModal;
 window.submitCreateStudent = submitCreateStudent;
+
+
+
+// ==================== Edit Student Profile Functions ====================
+
+async function openEditStudentProfile(student) {
+    if (!currentUser) {
+        try {
+            const resp = await apiFetch('/auth/me');
+            if (resp.ok) currentUser = await resp.json();
+        } catch(e) {}
+    }
+
+    if (currentUser && currentUser.role === 'teacher') {
+        if (!currentUser.teacherPermissions || !currentUser.teacherPermissions.editStudentProfile) {
+            showNotification('Insufficient permissions: You are not allowed to edit student profiles.', 'error');
+            return;
+        }
+    }
+
+    const modal = document.getElementById('editStudentModal');
+    if (!modal) return;
+
+    document.getElementById('editStudentId_Hidden').value = student.id;
+    document.getElementById('editStudentName').value = student.name || '';
+    document.getElementById('editStudentStudentId').value = student.studentId || '';
+    document.getElementById('editStudentGender').value = student.gender || '';
+    
+    let dob = student.dateOfBirth || '';
+    if (dob.includes('-')) {
+        try {
+            const d = new Date(dob);
+            if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                dob = \\/\/\\;
+            }
+        } catch(e) {}
+    }
+    document.getElementById('editStudentDOB').value = dob;
+
+    document.getElementById('editStudentPhone').value = student.contactPhone || '';
+    document.getElementById('editStudentEmail').value = student.contactEmail || '';
+    document.getElementById('editStudentEmergName').value = student.emergencyContactName || '';
+    document.getElementById('editStudentEmergRel').value = student.emergencyContactRelation || '';
+    document.getElementById('editStudentEmergPhone').value = student.emergencyContactNumber || '';
+
+    modal.classList.add('show');
+}
+
+function closeEditStudentProfile() {
+    const modal = document.getElementById('editStudentModal');
+    if (modal) modal.classList.remove('show');
+}
+
+async function saveStudentProfile(event) {
+    event.preventDefault();
+    
+    const id = document.getElementById('editStudentId_Hidden').value;
+    if (!id) return;
+
+    const updateData = {
+        name: document.getElementById('editStudentName').value.trim(),
+        studentId: document.getElementById('editStudentStudentId').value.trim(),
+        gender: document.getElementById('editStudentGender').value,
+        dateOfBirth: document.getElementById('editStudentDOB').value.trim(),
+        contactPhone: document.getElementById('editStudentPhone').value.trim(),
+        contactEmail: document.getElementById('editStudentEmail').value.trim(),
+        emergencyContactName: document.getElementById('editStudentEmergName').value.trim(),
+        emergencyContactRelation: document.getElementById('editStudentEmergRel').value,
+        emergencyContactNumber: document.getElementById('editStudentEmergPhone').value.trim()
+    };
+
+    try {
+        const response = await apiFetch(\/students/\\, {
+            method: 'PUT',
+            body: JSON.stringify(updateData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to update student profile');
+        }
+
+        showNotification('Student profile updated successfully!', 'success');
+        closeEditStudentProfile();
+        loadStudents(); 
+    } catch (error) {
+        showNotification(error.message, 'error');
+    }
+}
+
+window.openEditStudentProfile = openEditStudentProfile;
+window.closeEditStudentProfile = closeEditStudentProfile;
+window.saveStudentProfile = saveStudentProfile;
 

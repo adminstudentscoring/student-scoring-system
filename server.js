@@ -4428,11 +4428,32 @@ app.put('/api/students/:id', authenticateUser, authorizeRole('organization', 'te
     }
 
     if (req.user.role === 'teacher') {
-      // Teachers can only update students assigned to them
       const users = await readUsers();
       const teacher = users.find(u => u.id === req.user.id);
-      if (!teacher || !teacher.assignedStudents || !teacher.assignedStudents.includes(id)) {
-        return res.status(403).json({ error: 'You can only update students assigned to you' });
+      
+      // Teachers can only update students assigned to them AND in their organization
+      if (!teacher || teacher.organizationId !== student.organizationId) {
+         return res.status(403).json({ error: 'You can only update students in your organization' });
+      }
+
+      // Check permissions
+      // If updating 'score', check editScore
+      if (updates.score !== undefined && (!teacher.teacherPermissions || !teacher.teacherPermissions.editScore)) {
+          return res.status(403).json({ error: 'Insufficient permissions: You are not allowed to edit scores.' });
+      }
+
+      // If updating profile fields (name, studentId, etc.), check editStudentProfile
+      // We define "profile fields" as anything NOT score/password for now, or specific list
+      const profileFields = ['name', 'studentId', 'gender', 'dateOfBirth', 'contactPhone', 'contactEmail', 'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber', 'remark', 'membership', 'membershipStartDate', 'membershipEndDate'];
+      const isUpdatingProfile = Object.keys(updates).some(key => profileFields.includes(key));
+      
+      if (isUpdatingProfile && (!teacher.teacherPermissions || !teacher.teacherPermissions.editStudentProfile)) {
+          return res.status(403).json({ error: 'Insufficient permissions: You are not allowed to edit student profiles.' });
+      }
+
+      // If updating access password, check editSharePwd
+      if (updates.accessPassword !== undefined && (!teacher.teacherPermissions || !teacher.teacherPermissions.editSharePwd)) {
+          return res.status(403).json({ error: 'Insufficient permissions: You are not allowed to edit share password.' });
       }
     }
 
@@ -4654,9 +4675,38 @@ app.get('/api/public/students/:id', async (req, res) => {
 });
 
 // Delete student
-app.delete('/api/students/:id', async (req, res) => {
+app.delete('/api/students/:id', authenticateUser, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Check permissions
+    if (req.user.role === 'teacher') {
+      const users = await readUsers();
+      const currentUser = users.find(u => u.id === req.user.id);
+      
+      if (!currentUser || !currentUser.organizationId) {
+        return res.status(403).json({ error: 'Teacher not associated with organization' });
+      }
+
+      // Check "Delete Student" permission
+      if (!currentUser.teacherPermissions || !currentUser.teacherPermissions.deleteStudent) {
+        return res.status(403).json({ error: 'Insufficient permissions: You are not allowed to delete students.' });
+      }
+
+      // Ensure the student belongs to the teacher's organization
+      const data = await readData();
+      const student = data.students.find(s => s.id === id);
+      
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      if (student.organizationId !== currentUser.organizationId) {
+        return res.status(403).json({ error: 'You can only delete students in your organization' });
+      }
+    } else if (req.user.role !== 'admin' && req.user.role !== 'organization') {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
 
     const data = await readData();
     const studentIndex = data.students.findIndex(s => s.id === id);
@@ -4665,13 +4715,33 @@ app.delete('/api/students/:id', async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    // Organization permission check (double check if role is organization)
+    if (req.user.role === 'organization') {
+        const users = await readUsers();
+        const orgUser = users.find(u => u.id === req.user.id);
+        if (data.students[studentIndex].organizationId !== orgUser.organizationId) {
+            return res.status(403).json({ error: 'You can only delete students in your organization' });
+        }
+    }
+
     data.students.splice(studentIndex, 1);
     data.lastUpdate = new Date().toISOString();
     await writeData(data);
 
+    // Also remove from organization's student list
+    const organizations = await readOrganizations();
+    for (const org of organizations) {
+        if (org.students && org.students.includes(id)) {
+            org.students = org.students.filter(sid => sid !== id);
+            await writeOrganizations(organizations);
+            break; 
+        }
+    }
+
     broadcast({ type: 'studentDeleted', studentId: id });
     res.json({ success: true });
   } catch (error) {
+    console.error('Error deleting student:', error);
     res.status(500).json({ error: 'Failed to delete student' });
   }
 });
