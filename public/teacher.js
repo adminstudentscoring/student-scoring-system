@@ -2100,7 +2100,7 @@ async function openEditStudentProfile(student) {
                 const day = String(d.getDate()).padStart(2, '0');
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const year = d.getFullYear();
-                dob = \\/\/\\;
+                dob = `${day}/${month}/${year}`;
             }
         } catch(e) {}
     }
@@ -2139,7 +2139,7 @@ async function saveStudentProfile(event) {
     };
 
     try {
-        const response = await apiFetch(\/students/\\, {
+        const response = await apiFetch(`/students/${id}`, {
             method: 'PUT',
             body: JSON.stringify(updateData)
         });
