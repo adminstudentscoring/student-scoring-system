@@ -1414,6 +1414,9 @@ window.cancelMakeupFlow = function() {
 
 function handleMakeupTargetSelect(entry, dateStr) {
   if (!makeupFlowState.active) return;
+  
+  console.log('[DEBUG] Makeup Target Selected:', { entry, dateStr, makeupFlowState });
+  
   performMakeupAssignment({
     studentId: makeupFlowState.studentId,
     fromEntryId: makeupFlowState.fromEntryId,
@@ -1425,19 +1428,29 @@ function handleMakeupTargetSelect(entry, dateStr) {
 }
 
 async function performMakeupAssignment(payload) {
+  console.log('[DEBUG] Sending makeup request:', payload);
   try {
     const response = await window.authUtils.authenticatedFetch('/organizations/timetable/makeup', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+    
+    console.log('[DEBUG] Makeup response status:', response ? response.status : 'No response');
+    
     if (response && response.ok) {
+      const result = await response.json();
+      console.log('[DEBUG] Makeup success result:', result);
+      
       if (window.showToast) window.showToast('Make-up set successfully', 'success');
       else alert('Make-up set successfully');
       cancelMakeupFlow();
       await loadTimetableData();
       return;
     }
-    throw new Error('Failed to set make-up');
+    
+    const errorData = await response.json();
+    console.error('[DEBUG] Makeup failed:', errorData);
+    throw new Error(errorData.error || 'Failed to set make-up');
   } catch (e) {
     console.error('Make-up error', e);
     if (window.showToast) window.showToast('Failed to set make-up', 'error');
