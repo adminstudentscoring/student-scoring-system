@@ -1440,16 +1440,20 @@ async function performMakeupAssignment(payload) {
     if (response && response.ok) {
       const result = await response.json();
       console.log('[DEBUG] Makeup success result:', result);
+      if (result.logs) console.log('[DEBUG SERVER LOGS]:\n', result.logs.join('\n'));
       
       if (window.showToast) window.showToast('Make-up set successfully', 'success');
       else alert('Make-up set successfully');
       cancelMakeupFlow();
+      console.log('[DEBUG] Reloading timetable data...');
       await loadTimetableData();
+      console.log('[DEBUG] Timetable data reloaded');
       return;
     }
     
     const errorData = await response.json();
     console.error('[DEBUG] Makeup failed:', errorData);
+    if (errorData.logs) console.error('[DEBUG SERVER LOGS]:\n', errorData.logs.join('\n'));
     throw new Error(errorData.error || 'Failed to set make-up');
   } catch (e) {
     console.error('Make-up error', e);

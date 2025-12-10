@@ -4006,35 +4006,40 @@ app.post('/api/organizations/timetable/:id/delete-instance', authenticateUser, a
 
 // Makeup Class Assignment
 app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  const logs = [];
+  const log = (msg) => {
+      console.log(msg);
+      logs.push(msg);
+  };
+
   try {
     const { studentId, fromEntryId, fromDate, toEntryId, toDate, studentName } = req.body;
     
-    console.log('[DEBUG SERVER] Makeup Request Received:', { studentId, fromEntryId, fromDate, toEntryId, toDate });
+    log(`[DEBUG SERVER] Makeup Request: ${JSON.stringify({ studentId, fromEntryId, fromDate, toEntryId, toDate })}`);
 
     if (!studentId || !toEntryId || !toDate) {
-      console.error('[DEBUG SERVER] Missing required fields');
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'Missing required fields', logs });
     }
     
     const timetableData = await readTimetable();
-    
-    // Create new enrollment
     if (!timetableData.enrollments) timetableData.enrollments = [];
     
+    // Convert IDs to strings for safe comparison
+    const targetStudentId = String(studentId);
+
     // 1. Add student to target class (toEntryId)
-    // Check if already enrolled in target
     const exists = timetableData.enrollments.find(e => 
       e.timetableEntryId === toEntryId && 
-      e.studentId === studentId && 
+      String(e.studentId) === targetStudentId && 
       e.date === toDate
     );
     
     if (!exists) {
-        console.log('[DEBUG SERVER] Creating new enrollment for target class');
+        log('[DEBUG SERVER] Creating new enrollment for target class');
         const newEnrollment = {
           id: Date.now().toString(),
           timetableEntryId: toEntryId,
-          studentId,
+          studentId: targetStudentId,
           date: toDate,
           type: 'single',
           notes: `Makeup from ${fromDate} (Class ID: ${fromEntryId})`,
@@ -4042,22 +4047,22 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
         };
         timetableData.enrollments.push(newEnrollment);
     } else {
-        console.log('[DEBUG SERVER] Student already enrolled in target class');
+        log('[DEBUG SERVER] Student already enrolled in target class');
     }
 
     // 2. Remove/Exclude student from source class (fromEntryId)
     if (fromEntryId && fromDate) {
       const fromEntry = timetableData.entries.find(e => e.id === fromEntryId);
-      console.log('[DEBUG SERVER] Processing source entry:', fromEntry ? fromEntry.id : 'Not Found');
+      log(`[DEBUG SERVER] Processing source entry: ${fromEntry ? fromEntry.id : 'Not Found'}`);
       
-      // If student is part of the recurring series, we need to add an exclusion
-      if (fromEntry && fromEntry.studentIds && fromEntry.studentIds.includes(studentId)) {
-        console.log('[DEBUG SERVER] Student is part of recurring series, adding exclusion');
+      const isInSeries = fromEntry && fromEntry.studentIds && fromEntry.studentIds.map(String).includes(targetStudentId);
+
+      if (isInSeries) {
+        log('[DEBUG SERVER] Student is part of recurring series, adding exclusion');
         
-        // Check if exclusion already exists
         const exclusionExists = timetableData.enrollments.find(e => 
           e.timetableEntryId === fromEntryId && 
-          e.studentId === studentId && 
+          String(e.studentId) === targetStudentId && 
           e.date === fromDate && 
           e.type === 'exclusion'
         );
@@ -4066,44 +4071,41 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
            timetableData.enrollments.push({
              id: Date.now().toString() + '_ex',
              timetableEntryId: fromEntryId,
-             studentId,
+             studentId: targetStudentId,
              date: fromDate,
              type: 'exclusion',
              notes: `Makeup to ${toDate}`,
              createdAt: new Date().toISOString()
            });
-           console.log('[DEBUG SERVER] Exclusion added');
+           log('[DEBUG SERVER] Exclusion added');
         } else {
-            console.log('[DEBUG SERVER] Exclusion already exists');
+            log('[DEBUG SERVER] Exclusion already exists');
         }
       } 
-      // If student was a 'single' enrollment in source, we should find and remove/move it
       else {
-         console.log('[DEBUG SERVER] Student is NOT in recurring series list, checking for single enrollment');
+         log('[DEBUG SERVER] Student is NOT in recurring series list, checking for single enrollment');
          const sourceEnrollmentIndex = timetableData.enrollments.findIndex(e => 
             e.timetableEntryId === fromEntryId && 
-            e.studentId === studentId && 
+            String(e.studentId) === targetStudentId && 
             e.date === fromDate && 
             e.type === 'single'
          );
          
          if (sourceEnrollmentIndex !== -1) {
-             console.log('[DEBUG SERVER] Found single enrollment, removing it');
-             // We can either delete it or mark it moved. Deleting is cleaner for "moved".
-             // But maybe keep record? Let's delete it since they are moved.
+             log('[DEBUG SERVER] Found single enrollment, removing it');
              timetableData.enrollments.splice(sourceEnrollmentIndex, 1);
          } else {
-             console.log('[DEBUG SERVER] No source enrollment found to remove');
+             log('[DEBUG SERVER] No source enrollment found to remove');
          }
       }
     }
     
     await writeTimetable(timetableData);
-    console.log('[DEBUG SERVER] Timetable saved successfully');
-    res.json({ success: true });
+    log('[DEBUG SERVER] Timetable saved successfully');
+    res.json({ success: true, logs });
   } catch (error) {
     console.error('Error processing makeup:', error);
-    res.status(500).json({ error: 'Failed to process makeup' });
+    res.status(500).json({ error: 'Failed to process makeup', logs });
   }
 });
 
