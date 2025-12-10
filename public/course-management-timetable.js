@@ -411,7 +411,14 @@ function renderEntryInCell(entry, day, date) {
     e.date === dateStr && 
     e.type === 'single'
   ).length;
-  const totalStudents = baseStudents + extraStudents;
+  
+  const excludedStudents = (timetableEnrollments || []).filter(e => 
+    e.timetableEntryId === entry.id && 
+    e.date === dateStr && 
+    e.type === 'exclusion'
+  ).length;
+
+  const totalStudents = Math.max(0, baseStudents + extraStudents - excludedStudents);
   
   const entryEl = document.createElement('div');
   entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
@@ -455,7 +462,13 @@ function renderEntryInCell(entry, day, date) {
         e.type === 'single'
       ).map(e => e.studentId);
       
-      const allIds = [...new Set([...s1, ...s2])];
+      const excludedIds = (timetableEnrollments || []).filter(e => 
+        e.timetableEntryId === entry.id && 
+        e.date === dateStr && 
+        e.type === 'exclusion'
+      ).map(e => e.studentId);
+      
+      const allIds = [...new Set([...s1, ...s2])].filter(id => !excludedIds.includes(id));
       const names = allIds.map(id => {
           const s = (window.students || []).find(stu => stu.id === id);
           return s ? s.name : 'Unknown';
@@ -1036,9 +1049,20 @@ window.openEditClassModal = async function(entry, dateStr) {
           <div class="edit-class-form-group">
             ${(() => {
               const linkedEnrollments = (timetableEnrollments || []).filter(e => e.timetableEntryId === entryData.id);
-              const linkedStudentIds = [...new Set(linkedEnrollments.map(e => e.studentId))];
+              // Filter enrollments for this specific date if dateStr exists
+              const activeEnrollments = dateStr 
+                 ? linkedEnrollments.filter(e => e.date === dateStr)
+                 : linkedEnrollments;
+                 
+              const linkedStudentIds = [...new Set(activeEnrollments.filter(e => e.type === 'single').map(e => e.studentId))];
+              
+              // Get excluded students for this date
+              const excludedStudentIds = dateStr
+                 ? linkedEnrollments.filter(e => e.date === dateStr && e.type === 'exclusion').map(e => e.studentId)
+                 : [];
+                 
               const seriesStudentIds = entryData.studentIds || [];
-              const allStudentIds = [...new Set([...seriesStudentIds, ...linkedStudentIds])];
+              const allStudentIds = [...new Set([...seriesStudentIds, ...linkedStudentIds])].filter(id => !excludedStudentIds.includes(id));
               
               return `
               <div style="display:flex; justify-content:space-between; align-items:center;">

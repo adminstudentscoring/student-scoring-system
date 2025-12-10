@@ -4018,7 +4018,8 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
     // Create new enrollment
     if (!timetableData.enrollments) timetableData.enrollments = [];
     
-    // Check if already enrolled in target (to avoid duplicates)
+    // 1. Add student to target class (toEntryId)
+    // Check if already enrolled in target
     const exists = timetableData.enrollments.find(e => 
       e.timetableEntryId === toEntryId && 
       e.studentId === studentId && 
@@ -4037,9 +4038,48 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
         };
         timetableData.enrollments.push(newEnrollment);
     }
-    
-    // Optional: We could try to mark the source attendance as 'Makeup' if we had access to attendance here
-    // But attendance is separate. For now, we just ensure they are in the new class.
+
+    // 2. Remove/Exclude student from source class (fromEntryId)
+    if (fromEntryId && fromDate) {
+      const fromEntry = timetableData.entries.find(e => e.id === fromEntryId);
+      
+      // If student is part of the recurring series, we need to add an exclusion
+      if (fromEntry && fromEntry.studentIds && fromEntry.studentIds.includes(studentId)) {
+        // Check if exclusion already exists
+        const exclusionExists = timetableData.enrollments.find(e => 
+          e.timetableEntryId === fromEntryId && 
+          e.studentId === studentId && 
+          e.date === fromDate && 
+          e.type === 'exclusion'
+        );
+
+        if (!exclusionExists) {
+           timetableData.enrollments.push({
+             id: Date.now().toString() + '_ex',
+             timetableEntryId: fromEntryId,
+             studentId,
+             date: fromDate,
+             type: 'exclusion',
+             notes: `Makeup to ${toDate}`,
+             createdAt: new Date().toISOString()
+           });
+        }
+      } 
+      // If student was a 'single' enrollment in source, we should find and remove/move it
+      else {
+         const sourceEnrollmentIndex = timetableData.enrollments.findIndex(e => 
+            e.timetableEntryId === fromEntryId && 
+            e.studentId === studentId && 
+            e.date === fromDate && 
+            e.type === 'single'
+         );
+         if (sourceEnrollmentIndex !== -1) {
+             // We can either delete it or mark it moved. Deleting is cleaner for "moved".
+             // But maybe keep record? Let's delete it since they are moved.
+             timetableData.enrollments.splice(sourceEnrollmentIndex, 1);
+         }
+      }
+    }
     
     await writeTimetable(timetableData);
     res.json({ success: true });
@@ -4075,8 +4115,8 @@ app.post('/api/organizations/timetable/postpone', authenticateUser, authorizeRol
       timetableData.enrollments[existingEnrollmentIndex].updatedAt = new Date().toISOString();
       timetableData.enrollments[existingEnrollmentIndex].notes = (timetableData.enrollments[existingEnrollmentIndex].notes || '') + ` (Postponed from ${date})`;
     } else {
-      // It's likely a series student, create a new enrollment for the future date
-      // Check if already enrolled in target date
+      // It's likely a series student
+      // 1. Create new enrollment for future date
       const exists = timetableData.enrollments.find(e => 
         e.timetableEntryId === timetableEntryId && 
         e.studentId === studentId && 
@@ -4094,6 +4134,26 @@ app.post('/api/organizations/timetable/postpone', authenticateUser, authorizeRol
           createdAt: new Date().toISOString()
         };
         timetableData.enrollments.push(newEnrollment);
+      }
+
+      // 2. Add exclusion for current date
+      const exclusionExists = timetableData.enrollments.find(e => 
+        e.timetableEntryId === timetableEntryId && 
+        e.studentId === studentId && 
+        e.date === date && 
+        e.type === 'exclusion'
+      );
+
+      if (!exclusionExists) {
+          timetableData.enrollments.push({
+             id: Date.now().toString() + '_ex',
+             timetableEntryId: timetableEntryId,
+             studentId,
+             date: date,
+             type: 'exclusion',
+             notes: `Postponed to ${newDate}`,
+             createdAt: new Date().toISOString()
+           });
       }
     }
     
