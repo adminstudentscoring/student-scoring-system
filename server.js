@@ -4004,6 +4004,107 @@ app.post('/api/organizations/timetable/:id/delete-instance', authenticateUser, a
   }
 });
 
+// Makeup Class Assignment
+app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { studentId, fromEntryId, fromDate, toEntryId, toDate, studentName } = req.body;
+    
+    if (!studentId || !toEntryId || !toDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const timetableData = await readTimetable();
+    
+    // Create new enrollment
+    if (!timetableData.enrollments) timetableData.enrollments = [];
+    
+    // Check if already enrolled in target (to avoid duplicates)
+    const exists = timetableData.enrollments.find(e => 
+      e.timetableEntryId === toEntryId && 
+      e.studentId === studentId && 
+      e.date === toDate
+    );
+    
+    if (!exists) {
+        const newEnrollment = {
+          id: Date.now().toString(),
+          timetableEntryId: toEntryId,
+          studentId,
+          date: toDate,
+          type: 'single',
+          notes: `Makeup from ${fromDate} (Class ID: ${fromEntryId})`,
+          createdAt: new Date().toISOString()
+        };
+        timetableData.enrollments.push(newEnrollment);
+    }
+    
+    // Optional: We could try to mark the source attendance as 'Makeup' if we had access to attendance here
+    // But attendance is separate. For now, we just ensure they are in the new class.
+    
+    await writeTimetable(timetableData);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error processing makeup:', error);
+    res.status(500).json({ error: 'Failed to process makeup' });
+  }
+});
+
+// Postpone Class
+app.post('/api/organizations/timetable/postpone', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const { timetableEntryId, date, studentId, newDate } = req.body;
+    
+    if (!timetableEntryId || !date || !studentId || !newDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const timetableData = await readTimetable();
+    if (!timetableData.enrollments) timetableData.enrollments = [];
+    
+    // Check if this is a single enrollment that we can just move
+    const existingEnrollmentIndex = timetableData.enrollments.findIndex(e => 
+      e.timetableEntryId === timetableEntryId && 
+      e.studentId === studentId && 
+      e.date === date &&
+      e.type === 'single'
+    );
+    
+    if (existingEnrollmentIndex !== -1) {
+      // Move existing enrollment
+      timetableData.enrollments[existingEnrollmentIndex].date = newDate;
+      timetableData.enrollments[existingEnrollmentIndex].updatedAt = new Date().toISOString();
+      timetableData.enrollments[existingEnrollmentIndex].notes = (timetableData.enrollments[existingEnrollmentIndex].notes || '') + ` (Postponed from ${date})`;
+    } else {
+      // It's likely a series student, create a new enrollment for the future date
+      // Check if already enrolled in target date
+      const exists = timetableData.enrollments.find(e => 
+        e.timetableEntryId === timetableEntryId && 
+        e.studentId === studentId && 
+        e.date === newDate
+      );
+      
+      if (!exists) {
+        const newEnrollment = {
+          id: Date.now().toString(),
+          timetableEntryId: timetableEntryId,
+          studentId,
+          date: newDate,
+          type: 'single',
+          notes: `Postponed from ${date}`,
+          createdAt: new Date().toISOString()
+        };
+        timetableData.enrollments.push(newEnrollment);
+      }
+    }
+    
+    await writeTimetable(timetableData);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error postponing class:', error);
+    res.status(500).json({ error: 'Failed to postpone class' });
+  }
+});
+
 // ==================== Teacher Management API ====================
 
 // Teacher selects students for Class View
