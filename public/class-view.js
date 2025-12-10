@@ -191,13 +191,34 @@ function getRankInfo(score) {
 // Render class view
 function renderClassView() {
     const container = document.getElementById('studentsSection');
+    if (!container) return;
 
-    if (selectedStudents.length === 0) {
-        container.innerHTML = '<div class="no-students">No students selected. Please select students from the main dashboard.</div>';
+    // Create grid container if not exists
+    if (!document.getElementById('studentsGridContainer')) {
+        container.innerHTML = '<div id="studentsGridContainer" class="students-grid-container"></div>';
+    }
+    const gridContainer = document.getElementById('studentsGridContainer');
+
+    // Filter students
+    const searchInput = document.getElementById('classViewSearch');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    const filteredStudents = selectedStudents.filter(student =>
+        !searchTerm || student.name.toLowerCase().includes(searchTerm)
+    );
+
+    // Empty state
+    if (filteredStudents.length === 0) {
+        if (selectedStudents.length === 0) {
+            container.innerHTML = '<div class="no-students">No students selected. Please select students from the main dashboard.</div>';
+        } else {
+            gridContainer.innerHTML = '<div class="no-students" style="width:100%; text-align:center; padding:20px; color:#aaa;">No matching students found.</div>';
+        }
         return;
     }
 
-    container.innerHTML = selectedStudents.map((student, index) => {
+    // Render cards
+    gridContainer.innerHTML = filteredStudents.map((student, index) => {
         const rankInfo = getRankInfo(student.score || 0);
         const currentRank = rankInfo.rank;
         const currentRankIndex = rankInfo.rankIndex;
@@ -804,3 +825,66 @@ loadChallenge();
 if (window.navigator.userAgent.indexOf('Electron') === -1) {
     window.resizeTo(350, 800);
 }
+
+
+// Filter logic
+document.getElementById('classViewSearch')?.addEventListener('input', renderClassView);
+
+// Batch Add Points logic
+document.getElementById('batchAddPointsBtn')?.addEventListener('click', async () => {
+    const input = document.getElementById('batchPointsInput');
+    if (!input) return;
+    
+    const points = parseInt(input.value, 10);
+    if (isNaN(points) || points < 1) {
+        alert('Please enter a valid positive number');
+        return;
+    }
+    
+    if (!confirm('Add ' + points + ' points to ALL visible students?')) return;
+    
+    // Get currently filtered/visible students
+    const searchInput = document.getElementById('classViewSearch');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    
+    const targets = selectedStudents.filter(student =>
+        !searchTerm || student.name.toLowerCase().includes(searchTerm)
+    );
+    
+    if (targets.length === 0) return;
+    
+    let successCount = 0;
+    
+    // Process in parallel chunks to avoid overwhelming server if many students
+    const chunks = [];
+    const chunkSize = 5;
+    for (let i = 0; i < targets.length; i += chunkSize) {
+        chunks.push(targets.slice(i, i + chunkSize));
+    }
+    
+    for (const chunk of chunks) {
+        await Promise.all(chunk.map(async (student) => {
+            try {
+                const response = await fetch('/api/students/' + student.id + '/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ points: points })
+                });
+                if (response.ok) successCount++;
+            } catch(e) { console.error(e); }
+        }));
+    }
+    
+    // Refresh (WebSocket will trigger reload anyway, but just in case)
+    loadChallenge();
+    
+    // Show quick toast/alert
+    // Since we don't have showNotification here easily accessible without more code copying, native alert or just relying on UI update is fine.
+    // Or we can create a simple temp toast.
+    const toast = document.createElement('div');
+    toast.textContent = 'Added ' + points + ' points to ' + successCount + ' students!';
+    toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#10b981; color:white; padding:10px 20px; border-radius:4px; z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+});
+
