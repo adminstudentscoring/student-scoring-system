@@ -4147,6 +4147,170 @@ app.post('/api/organizations/timetable/makeup', authenticateUser, authorizeRole(
   }
 });
 
+// Postpone Class - Drop current class and enroll in next week's same class
+app.post('/api/organizations/timetable/postpone', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  const logs = [];
+  const log = (msg) => {
+    console.log('[POSTPONE]', msg);
+    logs.push(String(msg));
+  };
+
+  try {
+    const { timetableEntryId, date, studentId } = req.body;
+
+    log(`Postpone request: student ${studentId} from entry ${timetableEntryId} on ${date}`);
+
+    if (!timetableEntryId || !date || !studentId) {
+      return res.status(400).json({ error: 'Missing required fields: timetableEntryId, date, studentId', logs });
+    }
+
+    // Check user authentication
+    if (!req.user || !req.user.organizationId) {
+      log('Error: User not authenticated or missing organizationId');
+      return res.status(403).json({ error: 'Authentication required', logs });
+    }
+
+    const enrollments = await readEnrollments();
+    const timetableData = await readTimetable();
+    log(`Loaded ${enrollments.length} enrollments, ${timetableData.entries.length} timetable entries`);
+
+    // Find the timetable entry
+    const entry = timetableData.entries.find(e => e.id === timetableEntryId);
+    if (!entry) {
+      return res.status(404).json({ error: 'Timetable entry not found', logs });
+    }
+
+    // Verify organization access
+    if (entry.organizationId !== req.user.organizationId) {
+      return res.status(403).json({ error: 'Access denied to this timetable entry', logs });
+    }
+
+    // Step 1: Drop student from current class
+    log('Step 1: Dropping student from current class');
+
+    let studentRemoved = false;
+    const originalEnrollmentIndex = enrollments.findIndex(e =>
+      String(e.studentId) === String(studentId) &&
+      e.timetableEntryId === timetableEntryId &&
+      e.date === date
+    );
+
+    if (originalEnrollmentIndex !== -1) {
+      const originalEnrollment = enrollments[originalEnrollmentIndex];
+      log(`Found and removing enrollment: ${originalEnrollment.id}`);
+      enrollments.splice(originalEnrollmentIndex, 1);
+      studentRemoved = true;
+    } else {
+      // Check if student is in entry.studentIds
+      if (entry.studentIds && entry.studentIds.includes(studentId)) {
+        const studentIndex = entry.studentIds.indexOf(studentId);
+        entry.studentIds.splice(studentIndex, 1);
+        log(`Removed student from entry.studentIds at index ${studentIndex}`);
+        studentRemoved = true;
+      }
+    }
+
+    if (!studentRemoved) {
+      log('Warning: Student was not found in current class, proceeding with new enrollment');
+    }
+
+    // Step 2: Find student's last enrollment (excluding the current one we just dropped)
+    log('Step 2: Finding student\'s last enrollment');
+
+    const studentEnrollments = enrollments.filter(e =>
+      String(e.studentId) === String(studentId) &&
+      e.date !== date // Exclude the one we just dropped
+    ).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
+
+    log(`Student has ${studentEnrollments.length} historical enrollments`);
+
+    let targetEntryId = timetableEntryId; // Default to same class
+    let targetDate = null;
+
+    if (studentEnrollments.length > 0) {
+      // Use the last enrollment's entry and calculate next week
+      const lastEnrollment = studentEnrollments[0];
+      targetEntryId = lastEnrollment.timetableEntryId;
+      const lastDate = new Date(lastEnrollment.date);
+      lastDate.setDate(lastDate.getDate() + 7); // Add one week
+      targetDate = lastDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+      log(`Using last enrollment: ${lastEnrollment.id} from ${lastEnrollment.date}, target date: ${targetDate}`);
+    } else {
+      // No historical enrollments, just postpone current class by one week
+      const currentDate = new Date(date);
+      currentDate.setDate(currentDate.getDate() + 7);
+      targetDate = currentDate.toISOString().split('T')[0];
+
+      log(`No historical enrollments found, postponing current class to: ${targetDate}`);
+    }
+
+    // Step 3: Create new enrollment for next week
+    log('Step 3: Creating new enrollment for next week');
+
+    // Check if already enrolled in target class on target date
+    const existingTargetEnrollment = enrollments.find(e =>
+      String(e.studentId) === String(studentId) &&
+      e.timetableEntryId === targetEntryId &&
+      e.date === targetDate
+    );
+
+    const targetEntry = timetableData.entries.find(e => e.id === targetEntryId);
+    const alreadyInTargetEntry = targetEntry && targetEntry.studentIds && targetEntry.studentIds.includes(studentId);
+
+    if (existingTargetEnrollment || alreadyInTargetEntry) {
+      log(`Student already enrolled in target class (enrollment: ${!!existingTargetEnrollment}, entry: ${!!alreadyInTargetEntry})`);
+    } else {
+      // Create new enrollment
+      const newEnrollment = {
+        id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        organizationId: req.user.organizationId,
+        studentId,
+        timetableEntryId: targetEntryId,
+        date: targetDate,
+        type: 'single',
+        notes: `Postponed from ${date} (${timetableEntryId})`,
+        createdAt: new Date().toISOString(),
+        postponedFrom: {
+          entryId: timetableEntryId,
+          date: date,
+          reason: 'student_postpone'
+        }
+      };
+
+      enrollments.push(newEnrollment);
+      log(`New enrollment created: ${newEnrollment.id} for ${targetDate}`);
+    }
+
+    // Step 4: Save changes
+    await writeEnrollments(enrollments);
+    log('Enrollments saved successfully');
+
+    await writeTimetable(timetableData);
+    log('Timetable data saved successfully');
+
+    log('Postpone process completed successfully');
+    res.json({
+      success: true,
+      message: 'Class postponed successfully',
+      logs,
+      data: {
+        droppedFromClass: timetableEntryId,
+        droppedFromDate: date,
+        enrolledToClass: targetEntryId,
+        enrolledToDate: targetDate,
+        studentRemoved,
+        newEnrollmentCreated: !existingTargetEnrollment && !alreadyInTargetEntry
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing postpone:', error);
+    log(`Error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to process postpone', logs });
+  }
+});
+
 // ==================== Teacher Management API ====================
 
 // Teacher selects students for Class View

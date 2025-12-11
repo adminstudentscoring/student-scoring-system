@@ -1470,7 +1470,7 @@ window.handlePostponeSelection = async function() {
 async function postponeEnrollment(ctx) {
   const newDate = addDays(ctx.dateStr, 7);
   try {
-    const response = await window.authUtils.authenticatedFetch('/organizations/timetable/postpone', {
+    const response = await window.authUtils.authenticatedFetch('/api/organizations/timetable/postpone', {
       method: 'POST',
       body: JSON.stringify({
         timetableEntryId: ctx.entryId,
