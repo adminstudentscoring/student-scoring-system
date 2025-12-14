@@ -93,8 +93,29 @@
     activeLeaderboardTab: 'infinite',
     rulesOverlayEl: null,
     rulesModalBodyEl: null,
-    keydownListenerAttached: false
+    keydownListenerAttached: false,
+    positionCounts: new Map()
   };
+
+  function getPositionKey() {
+    const positions = (state.queens || [])
+      .map(q => [q.row, q.col])
+      .sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]))
+      .map(pair => `${pair[0]},${pair[1]}`)
+      .join(';');
+    return `${state.boardSize}|${positions}`;
+  }
+
+  function resetPositionTracking() {
+    state.positionCounts = new Map();
+  }
+
+  function recordPositionAndCheckRepetition() {
+    const key = getPositionKey();
+    const nextCount = (state.positionCounts.get(key) || 0) + 1;
+    state.positionCounts.set(key, nextCount);
+    return nextCount >= 3 ? { key, count: nextCount } : null;
+  }
 
   function initRunningQueen() {
     const container = document.getElementById('runningQueenGame');
@@ -605,6 +626,7 @@
   function resetGameState(resetConfig = false) {
     stopTimer();
     hideInfiniteFailOverlay();
+    resetPositionTracking();
     if (resetConfig) {
       state.boardSize = DEFAULT_CONFIG.boardSize;
       state.queenCount = DEFAULT_CONFIG.queenCount;
@@ -639,9 +661,27 @@
     updateScoreboard();
   }
 
+  function handleClassicFailure(message) {
+    if (state.mode !== 'classic' || !state.gameActive) {
+      return;
+    }
+    stopTimer();
+    state.gameActive = false;
+    state.selectedQueenIndex = null;
+    state.lastMovedQueenIndex = null;
+    renderBoard();
+    appendLog(message, 'error');
+    updateMissionStatus('Failed');
+    showPopup(message, 'error');
+    SOUND_ENGINE.playFail();
+    if (state.startButton) state.startButton.disabled = false;
+    updateScoreboard();
+  }
+
   function startGame(container) {
     hideInfiniteFailOverlay();
     stopTimer();
+    resetPositionTracking();
     let boardSize = state.boardSize;
     let queenCount = state.queenCount;
     let totalRounds = state.totalRounds;
@@ -707,6 +747,8 @@
       if (state.restartButton) state.restartButton.disabled = true;
       return;
     }
+    // Track starting position (counts toward repetition rule)
+    recordPositionAndCheckRepetition();
 
     updateStatusDisplay();
     updateMissionStatus(state.mode === 'timed' ? 'Timed run ready' : 'Running');
@@ -780,6 +822,7 @@
 
   function restartGame(container) {
     stopTimer();
+    resetPositionTracking();
 
     if (state.mode === 'timed') {
       state.boardSize = 8;
@@ -822,6 +865,8 @@
       if (state.restartButton) state.restartButton.disabled = true;
       return;
     }
+    // Track starting position (counts toward repetition rule)
+    recordPositionAndCheckRepetition();
 
     state.totalRoundsEl.textContent = state.mode === 'classic'
       ? String(state.totalRounds)
@@ -1007,6 +1052,19 @@
       }
       updateScoreboard();
       state.lastMovedQueenIndex = queenIndex;
+      // Repetition rule: third time the same position appears -> immediate loss (includes starting position).
+      const repetition = recordPositionAndCheckRepetition();
+      if (repetition) {
+        const repetitionMessage = `Threefold repetition detected. Position repeated ${repetition.count} times.`;
+        if (state.mode === 'timed') {
+          handleTimedFailure(`Timed challenge failed: ${repetitionMessage}`);
+        } else if (state.mode === 'infinite') {
+          handleInfiniteFailure(`Infinite run ended: ${repetitionMessage}`);
+        } else {
+          handleClassicFailure(`Mission failed: ${repetitionMessage}`);
+        }
+        return;
+      }
       if (state.mode === 'classic' && state.totalSuccessCount >= state.goalSteps) {
         finalizeGame(true);
         return;
@@ -1040,6 +1098,13 @@
       renderBoard();
       updateScoreboard();
       state.lastMovedQueenIndex = queenIndex;
+      // In classic mode, unsafe moves snap back but still advance the turn;
+      // this can create repeated positions, so enforce threefold repetition here too.
+      const repetition = recordPositionAndCheckRepetition();
+      if (repetition) {
+        handleClassicFailure(`Mission failed: Threefold repetition detected. Position repeated ${repetition.count} times.`);
+        return;
+      }
     }
 
     advanceTurn();
