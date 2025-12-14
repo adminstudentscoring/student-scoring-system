@@ -187,6 +187,27 @@
     justify-content: center;
 }
 
+/* Match Running Queen's large action buttons for better visibility */
+.re-actions .re-primary,
+.re-actions .re-secondary {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.re-actions .re-primary:disabled,
+.re-actions .re-secondary:disabled {
+    cursor: not-allowed;
+}
+
 .re-actions .re-primary {
     background: linear-gradient(122deg, #5673ff, #6f87ff);
     color: #ffffff;
@@ -219,6 +240,12 @@
     opacity: 0.45;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+@media (max-width: 420px) {
+    .re-actions {
+        flex-direction: column;
+    }
 }
 
 .re-side-panel {
