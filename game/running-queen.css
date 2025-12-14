@@ -12,10 +12,16 @@
 .rq-wrapper {
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+        "config board"
+        "log    board";
     gap: 20px;
+    align-items: start;
 }
 
 .rq-config-panel {
+    grid-area: config;
     background: rgba(19, 24, 39, 0.95);
     border-radius: 18px;
     padding: 20px;
@@ -249,6 +255,7 @@
 }
 
 .rq-board-panel {
+    grid-area: board;
     background: rgba(19, 24, 39, 0.95);
     border-radius: 18px;
     padding: 20px;
@@ -510,6 +517,7 @@
 }
 
 .rq-log-panel {
+    grid-area: log;
     background: rgba(23, 28, 46, 0.92);
     border-radius: 16px;
     padding: 18px;
@@ -528,7 +536,8 @@
 
 .rq-log-list {
     flex: 1;
-    max-height: 260px;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -916,9 +925,11 @@
 @media (max-width: 1180px) {
     .rq-wrapper {
         grid-template-columns: 1fr;
-    }
-    .rq-board-panel {
-        order: 3;
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas:
+            "config"
+            "log"
+            "board";
     }
 }
 
