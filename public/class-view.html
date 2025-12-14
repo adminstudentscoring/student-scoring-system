@@ -88,6 +88,42 @@
             flex-direction: column;
         }
 
+        /* Scrollbar styling (Class View only) */
+        .class-view-content,
+        .students-section,
+        .students-grid-container {
+            scrollbar-width: thin; /* Firefox */
+            scrollbar-color: rgba(102, 126, 234, 0.75) rgba(255, 255, 255, 0.08); /* thumb track */
+        }
+
+        .class-view-content::-webkit-scrollbar,
+        .students-section::-webkit-scrollbar,
+        .students-grid-container::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .class-view-content::-webkit-scrollbar-track,
+        .students-section::-webkit-scrollbar-track,
+        .students-grid-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+        }
+
+        .class-view-content::-webkit-scrollbar-thumb,
+        .students-section::-webkit-scrollbar-thumb,
+        .students-grid-container::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.85) 0%, rgba(118, 75, 162, 0.85) 100%);
+            border-radius: 999px;
+            border: 2px solid rgba(0, 0, 0, 0.25);
+        }
+
+        .class-view-content::-webkit-scrollbar-thumb:hover,
+        .students-section::-webkit-scrollbar-thumb:hover,
+        .students-grid-container::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 1) 0%, rgba(118, 75, 162, 1) 100%);
+        }
+
         /* Challenge Section */
         .challenge-section {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
