@@ -532,7 +532,7 @@ async function updateStudentScore(studentId) {
 }
 
 // Reset all scores
-document.getElementById('resetBtn').addEventListener('click', async () => {
+document.getElementById('resetBtn')?.addEventListener('click', async () => {
     if (!confirm('Are you sure you want to reset ALL scores? This cannot be undone.')) {
         return;
     }
