@@ -832,13 +832,91 @@ async function readRunningQueenLeaderboard() {
     const raw = await fs.readFile(RUNNING_QUEEN_LEADERBOARD_FILE, 'utf8');
     const parsed = JSON.parse(raw || '[]');
     if (Array.isArray(parsed)) {
-      return parsed;
+      return dedupeRunningQueenLeaderboard(parsed);
     }
     return [];
   } catch (error) {
     console.error('Error reading Running Queen leaderboard:', error);
     return [];
   }
+}
+
+function isBetterRunningQueenEntry(candidate, current) {
+  if (!current) return true;
+  if ((candidate.score || 0) !== (current.score || 0)) return (candidate.score || 0) > (current.score || 0);
+  // Timed mode uses lower duration as tie-breaker (faster is better)
+  if (candidate.mode === 'timed' && current.mode === 'timed') {
+    if ((candidate.duration || 0) !== (current.duration || 0)) return (candidate.duration || 0) < (current.duration || 0);
+  }
+  // Otherwise prefer newer
+  return new Date(candidate.createdAt || 0) > new Date(current.createdAt || 0);
+}
+
+function normalizeRunningQueenEntry(entry, playerOverride = null) {
+  const mode = entry?.mode === 'infinite' ? 'infinite' : 'timed';
+  const queenCount = Number(entry?.queenCount);
+  const timerDurationMs = Number(entry?.timerDurationMs || entry?.timerDuration);
+  const player = playerOverride || null;
+  return {
+    players: player ? [player] : (Array.isArray(entry?.players) ? entry.players : []),
+    mode,
+    score: Number(entry?.score) || 0,
+    duration: Number(entry?.duration) || 0,
+    status: entry?.status || 'success',
+    queenCount: Number.isFinite(queenCount) && queenCount > 0 ? queenCount : null,
+    timerDurationMs: Number.isFinite(timerDurationMs) && timerDurationMs > 0 ? timerDurationMs : 0,
+    createdAt: entry?.createdAt || new Date().toISOString()
+  };
+}
+
+function getRunningQueenPlayerKey(player) {
+  // Prefer internal student id; fall back to studentId or name if needed.
+  if (player?.id) return String(player.id);
+  if (player?.studentId) return String(player.studentId);
+  return String(player?.name || 'unknown');
+}
+
+function dedupeRunningQueenLeaderboard(entries) {
+  const bestByKey = new Map();
+  const list = Array.isArray(entries) ? entries : [];
+
+  for (const entry of list) {
+    const players = Array.isArray(entry?.players) ? entry.players : [];
+    // If stored entry has multiple players, treat it as multiple per-player entries.
+    if (players.length > 0) {
+      for (const player of players) {
+        const normalizedPlayer = {
+          name: player?.name || 'Unknown',
+          studentId: player?.studentId || '',
+          id: player?.id || null
+        };
+        const normalized = normalizeRunningQueenEntry(entry, normalizedPlayer);
+        const key = `${normalized.mode}:${getRunningQueenPlayerKey(normalizedPlayer)}`;
+        const current = bestByKey.get(key);
+        if (isBetterRunningQueenEntry(normalized, current)) {
+          bestByKey.set(key, normalized);
+        }
+      }
+    } else {
+      // No players list; keep as-is under a generic key
+      const normalized = normalizeRunningQueenEntry(entry);
+      const key = `${normalized.mode}:unknown`;
+      const current = bestByKey.get(key);
+      if (isBetterRunningQueenEntry(normalized, current)) {
+        bestByKey.set(key, normalized);
+      }
+    }
+  }
+
+  const deduped = Array.from(bestByKey.values());
+  deduped.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if ((a.mode === 'timed' || b.mode === 'timed') && a.mode === b.mode) {
+      return (a.duration || 0) - (b.duration || 0);
+    }
+    return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+  });
+  return deduped;
 }
 
 async function writeRunningQueenLeaderboard(entries) {
@@ -852,30 +930,44 @@ async function writeRunningQueenLeaderboard(entries) {
 }
 
 async function addRunningQueenLeaderboardEntry(entry) {
-  const entries = await readRunningQueenLeaderboard();
-  const mode = entry.mode === 'infinite' ? 'infinite' : 'timed';
-  const queenCount = Number(entry.queenCount);
-  const timerDurationMs = Number(entry.timerDurationMs || entry.timerDuration);
-  const normalized = {
-    players: entry.players || [],
-    mode,
-    score: Number(entry.score) || 0,
-    duration: Number(entry.duration) || 0,
-    status: entry.status || 'success',
-    queenCount: Number.isFinite(queenCount) && queenCount > 0 ? queenCount : null,
-    timerDurationMs: Number.isFinite(timerDurationMs) && timerDurationMs > 0 ? timerDurationMs : 0,
-    createdAt: entry.createdAt || new Date().toISOString()
-  };
-  entries.push(normalized);
-  entries.sort((a, b) => {
+  // Start from current deduped leaderboard
+  const existing = await readRunningQueenLeaderboard();
+
+  const incomingPlayers = Array.isArray(entry?.players) ? entry.players : [];
+  const perPlayerEntries = incomingPlayers.map(player => {
+    const normalizedPlayer = {
+      name: player?.name || 'Unknown',
+      studentId: player?.studentId || '',
+      id: player?.id || null
+    };
+    return { normalizedPlayer, normalizedEntry: normalizeRunningQueenEntry(entry, normalizedPlayer) };
+  });
+
+  // Rebuild best map from existing (already deduped) + incoming
+  const bestByKey = new Map();
+  for (const existingEntry of existing) {
+    const player = Array.isArray(existingEntry.players) ? existingEntry.players[0] : null;
+    const key = `${existingEntry.mode}:${getRunningQueenPlayerKey(player)}`;
+    bestByKey.set(key, existingEntry);
+  }
+  for (const { normalizedPlayer, normalizedEntry } of perPlayerEntries) {
+    const key = `${normalizedEntry.mode}:${getRunningQueenPlayerKey(normalizedPlayer)}`;
+    const current = bestByKey.get(key);
+    if (isBetterRunningQueenEntry(normalizedEntry, current)) {
+      bestByKey.set(key, normalizedEntry);
+    }
+  }
+
+  const updated = Array.from(bestByKey.values());
+  updated.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     if ((a.mode === 'timed' || b.mode === 'timed') && a.mode === b.mode) {
-      return a.duration - b.duration;
+      return (a.duration || 0) - (b.duration || 0);
     }
-    return new Date(a.createdAt) - new Date(b.createdAt);
+    return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
   });
-  await writeRunningQueenLeaderboard(entries);
-  return entries;
+  await writeRunningQueenLeaderboard(updated);
+  return updated;
 }
 
 async function readRoyalExchangeLeaderboard() {
