@@ -577,14 +577,16 @@
             </div>
             
             <!-- Students List Section -->
-            <div class="students-section-header" style="padding: 10px 15px; display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2);">
-                <input type="text" id="classViewSearch" placeholder="Search student..." style="padding: 6px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; flex: 1;">
-                
-                <div style="display: flex; gap: 5px; align-items: center; border-left: 1px solid #555; padding-left: 10px;">
+            <div class="students-section-header" style="padding: 10px 15px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.2);">
+                <!-- Batch add (top) -->
+                <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end;">
                     <span style="color: #ccc; font-size: 0.9rem;">Batch:</span>
-                    <input type="number" id="batchPointsInput" value="1" min="1" style="width: 50px; padding: 6px; text-align: center; border-radius: 4px; border: 1px solid #444; background: #333; color: white;">
+                    <input type="number" id="batchPointsInput" value="1" min="1" style="width: 60px; padding: 6px; text-align: center; border-radius: 4px; border: 1px solid #444; background: #333; color: white;">
                     <button id="batchAddPointsBtn" class="btn-reset-challenge" style="background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5); color: #10b981;">Add to All</button>
                 </div>
+
+                <!-- Search (bottom) -->
+                <input type="text" id="classViewSearch" placeholder="Search student..." style="padding: 6px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; width: 100%;">
             </div>
             
             <div class="students-section" id="studentsSection">
