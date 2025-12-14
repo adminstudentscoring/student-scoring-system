@@ -77,7 +77,7 @@
     restartButton: null,
     scoreboardEl: null,
     highlightTimeout: null,
-    mode: 'classic',
+    mode: 'infinite',
     timedQueenCount: 4,
     infiniteQueenCount: 4,
     timerDuration: 120000,
@@ -90,7 +90,7 @@
     },
     leaderboardTabs: null,
     leaderboardOverlayEl: null,
-    activeLeaderboardTab: 'timed',
+    activeLeaderboardTab: 'infinite',
     rulesOverlayEl: null,
     rulesModalBodyEl: null,
     keydownListenerAttached: false
