@@ -175,6 +175,32 @@
     gap: 10px;
 }
 
+/* Make action buttons (Start/Restart/Reset) and fail overlay buttons (Retry/Cancel)
+   visually consistent with the top mode buttons for better visibility. */
+.rq-config-actions .rq-primary,
+.rq-config-actions .rq-secondary,
+.rq-fail-actions .rq-primary,
+.rq-fail-actions .rq-secondary {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.rq-config-actions .rq-primary:disabled,
+.rq-config-actions .rq-secondary:disabled,
+.rq-fail-actions .rq-primary:disabled,
+.rq-fail-actions .rq-secondary:disabled {
+    cursor: not-allowed;
+}
+
 .rq-primary {
     background: linear-gradient(122deg, #5a73ff, #7488ff);
     color: #fff;
@@ -893,6 +919,13 @@
     }
     .rq-board-panel {
         order: 3;
+    }
+}
+
+@media (max-width: 420px) {
+    .rq-config-actions,
+    .rq-fail-actions {
+        flex-direction: column;
     }
 }
 
