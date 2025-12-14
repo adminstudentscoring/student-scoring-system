@@ -144,10 +144,6 @@
             <div class="re-board-row-labels">${generateRowLabels()}</div>
             <div id="reBoard" class="re-board" role="grid" aria-label="Royal Exchange board"></div>
           </div>
-          <div class="re-actions">
-            <button type="button" id="reStartButton" class="re-primary">Start</button>
-            <button type="button" id="reRestartButton" class="re-secondary" disabled>Restart</button>
-          </div>
         </div>
         <div class="re-side-panel">
           <section class="re-section">
@@ -159,6 +155,10 @@
             <div id="reLogList" class="re-log-list" aria-live="polite"></div>
             <button type="button" id="reClearLogButton" class="re-secondary re-small">Clear Log</button>
           </section>
+          <div class="re-actions re-actions-side">
+            <button type="button" id="reStartButton" class="re-primary">Start</button>
+            <button type="button" id="reRestartButton" class="re-secondary" disabled>Restart</button>
+          </div>
         </div>
       </div>
       <div id="reLeaderboardOverlay" class="re-modal-overlay hidden" aria-hidden="true">

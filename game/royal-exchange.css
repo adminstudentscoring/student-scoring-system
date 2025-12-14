@@ -254,6 +254,20 @@
     gap: 18px;
 }
 
+/* Put Start/Restart in the right sidebar bottom area (as shown in UI request) */
+.re-actions.re-actions-side {
+    margin-top: auto;
+    width: 100%;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.re-actions.re-actions-side .re-primary,
+.re-actions.re-actions-side .re-secondary {
+    flex: none;
+    width: 100%;
+}
+
 .re-section {
     background: rgba(25, 30, 52, 0.9);
     border-radius: 16px;
