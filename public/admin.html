@@ -198,6 +198,111 @@
             background: #667eea;
             color: white;
         }
+
+        /* Subscription Setting (placeholder UI) */
+        .subtabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .subtab {
+            padding: 8px 16px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .subtab.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: #fff;
+        }
+        .subscription-layout {
+            display: grid;
+            grid-template-columns: 320px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+        .package-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .package-list-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .package-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 12px;
+            background: #fff;
+            cursor: pointer;
+            transition: box-shadow 0.15s ease, transform 0.15s ease;
+        }
+        .package-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
+        }
+        .package-item.active {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+        }
+        .package-item-title {
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        .package-item-meta {
+            font-size: 0.9rem;
+            color: #4b5563;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid #e5e7eb;
+            background: #f8fafc;
+            color: #334155;
+        }
+        .tag.active { border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.10); color: #047857; }
+        .tag.archived { border-color: rgba(239,68,68,0.25); background: rgba(239,68,68,0.08); color: #b91c1c; }
+        .tag.oneTime { border-color: rgba(245,158,11,0.25); background: rgba(245,158,11,0.10); color: #b45309; }
+        .form-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .form-grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+        .section-title {
+            margin: 0 0 10px;
+            color: #111827;
+            font-size: 1.05rem;
+        }
+        .help {
+            color: #6b7280;
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+        @media (max-width: 980px) {
+            .subscription-layout {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -255,7 +360,137 @@
         <div id="subscriptionSettingTab" class="tab-content">
             <section class="card">
                 <h2>💳 Subscription Setting</h2>
-                <p style="color:#666; margin:0;">This section is not enabled yet (coming soon).</p>
+                <div class="subtabs" id="subscriptionSubTabs">
+                    <button class="subtab active" onclick="switchSubscriptionSubTab('pricePackage', this)">Price & Package</button>
+                </div>
+
+                <div id="subscriptionPricePackage" class="subscription-subtab-content">
+                    <div class="subscription-layout">
+                        <!-- Left: Package list -->
+                        <div class="package-list">
+                            <div class="package-list-toolbar">
+                                <input id="subscriptionSearchInput" type="text" placeholder="Search package..." style="flex:1; padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
+                                <button class="btn btn-secondary" disabled title="Coming soon">New</button>
+                            </div>
+                            <div id="subscriptionPackageList"></div>
+                            <p class="help">Coming soon: create/edit/archive packages, versioning (Draft → Live), publish flow.</p>
+                        </div>
+
+                        <!-- Right: Package details -->
+                        <div>
+                            <div class="card" style="box-shadow:none; border:1px solid #e5e7eb;">
+                                <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                                    <div>
+                                        <h3 class="section-title" style="margin-bottom:4px;">Package</h3>
+                                        <div class="help" style="margin-top:0;">Manage pricing and entitlements (limits / available features). No backend yet.</div>
+                                    </div>
+                                    <div style="display:flex; gap:10px;">
+                                        <button class="btn btn-secondary" disabled title="Coming soon">Archive</button>
+                                        <button class="btn btn-primary" disabled title="Coming soon">Save</button>
+                                    </div>
+                                </div>
+
+                                <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
+
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label>Package Name</label>
+                                        <input id="pkgName" type="text" placeholder="e.g. Starter" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Package Code</label>
+                                        <input id="pkgCode" type="text" placeholder="e.g. starter_monthly" disabled>
+                                    </div>
+                                </div>
+
+                                <div class="form-grid-3">
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        <select id="pkgStatus" disabled>
+                                            <option value="active">Active</option>
+                                            <option value="inactive">Inactive</option>
+                                            <option value="archived">Archived</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Currency</label>
+                                        <select id="pkgCurrency" disabled>
+                                            <option value="HKD">HKD</option>
+                                            <option value="USD">USD</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Billing Type</label>
+                                        <select id="pkgBillingType" disabled>
+                                            <option value="monthly">Monthly</option>
+                                            <option value="yearly">Yearly</option>
+                                            <option value="one-time">One-time</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label>Price</label>
+                                        <input id="pkgPrice" type="number" min="0" step="0.01" placeholder="0.00" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Badge</label>
+                                        <select id="pkgBadge" disabled>
+                                            <option value="">None</option>
+                                            <option value="popular">Popular</option>
+                                            <option value="bestValue">Best value</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
+                                <h3 class="section-title">Limits</h3>
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label>Teacher seats</label>
+                                        <input id="limitTeachers" type="number" min="0" step="1" placeholder="e.g. 5" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Student seats</label>
+                                        <input id="limitStudents" type="number" min="0" step="1" placeholder="e.g. 300" disabled>
+                                    </div>
+                                </div>
+
+                                <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
+                                <h3 class="section-title">Available Features</h3>
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input id="featureClassView" type="checkbox" disabled>
+                                            <span>Class View</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input id="featureChallengeMode" type="checkbox" disabled>
+                                            <span>Challenge Mode</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input id="featureRunningQueen" type="checkbox" disabled>
+                                            <span>Running Queen</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input id="featureRoyalExchange" type="checkbox" disabled>
+                                            <span>Royal Exchange</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
         </div>
     </div>
@@ -321,6 +556,125 @@
             }
         }
 
+        function switchSubscriptionSubTab(tab, element) {
+            document.querySelectorAll('#subscriptionSubTabs .subtab').forEach(t => t.classList.remove('active'));
+            if (element) element.classList.add('active');
+            // Only one subtab for now; placeholder for future expansion
+            document.querySelectorAll('.subscription-subtab-content').forEach(c => c.classList.add('hidden'));
+            const target = document.getElementById(`subscription${tab.charAt(0).toUpperCase()}${tab.slice(1)}`);
+            if (target) target.classList.remove('hidden');
+        }
+
+        const subscriptionPackages = [
+            {
+                id: 'starter_monthly',
+                name: 'Starter',
+                code: 'starter_monthly',
+                status: 'active',
+                currency: 'HKD',
+                billingType: 'monthly',
+                price: 199,
+                badge: 'popular',
+                limits: { teacherSeats: 2, studentSeats: 80 },
+                features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: false }
+            },
+            {
+                id: 'pro_yearly',
+                name: 'Pro',
+                code: 'pro_yearly',
+                status: 'active',
+                currency: 'USD',
+                billingType: 'yearly',
+                price: 499,
+                badge: 'bestValue',
+                limits: { teacherSeats: 10, studentSeats: 600 },
+                features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: true }
+            },
+            {
+                id: 'lifetime_one_time',
+                name: 'Lifetime',
+                code: 'lifetime_one_time',
+                status: 'inactive',
+                currency: 'HKD',
+                billingType: 'one-time',
+                price: 9999,
+                badge: '',
+                limits: { teacherSeats: 999, studentSeats: 99999 },
+                features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: true }
+            }
+        ];
+        let activeSubscriptionPackageId = subscriptionPackages[0]?.id || null;
+
+        function formatMoney(currency, value) {
+            const n = Number(value) || 0;
+            return `${currency} ${n.toFixed(2)}`;
+        }
+
+        function renderSubscriptionPackageList() {
+            const listEl = document.getElementById('subscriptionPackageList');
+            if (!listEl) return;
+            const query = (document.getElementById('subscriptionSearchInput')?.value || '').trim().toLowerCase();
+            const filtered = subscriptionPackages.filter(p => !query || p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query));
+
+            if (!filtered.length) {
+                listEl.innerHTML = '<div class="help">No packages found.</div>';
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(p => {
+                const isActive = p.id === activeSubscriptionPackageId;
+                const statusTag = p.status === 'archived'
+                    ? '<span class="tag archived">Archived</span>'
+                    : (p.status === 'active' ? '<span class="tag active">Active</span>' : '<span class="tag">Inactive</span>');
+                const oneTimeTag = p.billingType === 'one-time' ? '<span class="tag oneTime">One-time</span>' : '';
+                return `
+                    <div class="package-item ${isActive ? 'active' : ''}" onclick="selectSubscriptionPackage('${p.id}')">
+                        <div class="package-item-title">${p.name}</div>
+                        <div class="package-item-meta">
+                            <span>${formatMoney(p.currency, p.price)}</span>
+                            <span>${p.billingType}</span>
+                            ${statusTag}
+                            ${oneTimeTag}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectSubscriptionPackage(id) {
+            activeSubscriptionPackageId = id;
+            renderSubscriptionPackageList();
+            renderSubscriptionPackageDetail();
+        }
+
+        function setValue(id, value) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (el.type === 'checkbox') {
+                el.checked = Boolean(value);
+            } else {
+                el.value = value ?? '';
+            }
+        }
+
+        function renderSubscriptionPackageDetail() {
+            const p = subscriptionPackages.find(x => x.id === activeSubscriptionPackageId);
+            if (!p) return;
+            setValue('pkgName', p.name);
+            setValue('pkgCode', p.code);
+            setValue('pkgStatus', p.status);
+            setValue('pkgCurrency', p.currency);
+            setValue('pkgBillingType', p.billingType);
+            setValue('pkgPrice', p.price);
+            setValue('pkgBadge', p.badge);
+            setValue('limitTeachers', p.limits?.teacherSeats);
+            setValue('limitStudents', p.limits?.studentSeats);
+            setValue('featureClassView', p.features?.classView);
+            setValue('featureChallengeMode', p.features?.challengeMode);
+            setValue('featureRunningQueen', p.features?.runningQueen);
+            setValue('featureRoyalExchange', p.features?.royalExchange);
+        }
+
         async function loadOrganizations() {
             try {
                 const response = await window.authUtils.authenticatedFetch('/admin/organizations');
@@ -369,6 +723,11 @@
                 document.getElementById('organizationsList').innerHTML = '<p>Failed to load</p>';
             }
         }
+
+        // Subscription Setting (placeholder) init
+        document.getElementById('subscriptionSearchInput')?.addEventListener('input', renderSubscriptionPackageList);
+        renderSubscriptionPackageList();
+        renderSubscriptionPackageDetail();
 
         let currentOrgModalId = null;
         let currentOrgSettingsMode = 'settings';
