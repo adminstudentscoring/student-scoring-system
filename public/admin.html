@@ -212,27 +212,52 @@
             </div>
         </header>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Total Organizations</h3>
-                <div class="number" id="totalOrgs">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Total Teachers</h3>
-                <div class="number" id="totalTeachers">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Total Students</h3>
-                <div class="number" id="totalStudents">-</div>
-            </div>
+        <div class="tabs">
+            <button class="tab active" onclick="switchAdminTab('dashboard', this)">🏠 Dashboard</button>
+            <button class="tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
+            <button class="tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
         </div>
 
-        <section class="card">
-            <h2>Organization List</h2>
-            <div id="organizationsList">
-                <p>Loading...</p>
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="tab-content active" style="display:block;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Organizations</h3>
+                    <div class="number" id="totalOrgs">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Teachers</h3>
+                    <div class="number" id="totalTeachers">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Students</h3>
+                    <div class="number" id="totalStudents">-</div>
+                </div>
             </div>
-        </section>
+
+            <section class="card">
+                <h2>Organization List</h2>
+                <div id="organizationsList">
+                    <p>Loading...</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Accounting Tab (placeholder) -->
+        <div id="accountingTab" class="tab-content">
+            <section class="card">
+                <h2>🧾 Accounting</h2>
+                <p style="color:#666; margin:0;">This section is not enabled yet (coming soon).</p>
+            </section>
+        </div>
+
+        <!-- Subscription Setting Tab (placeholder) -->
+        <div id="subscriptionSettingTab" class="tab-content">
+            <section class="card">
+                <h2>💳 Subscription Setting</h2>
+                <p style="color:#666; margin:0;">This section is not enabled yet (coming soon).</p>
+            </section>
+        </div>
     </div>
 
     <!-- Organization Settings Modal -->
@@ -278,6 +303,21 @@
                 document.getElementById('adminName').textContent = user.name || user.email;
             } catch (error) {
                 console.error('Error loading admin info:', error);
+            }
+        }
+
+        function switchAdminTab(tab, element) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => {
+                c.classList.remove('active');
+                c.style.display = 'none';
+            });
+
+            if (element) element.classList.add('active');
+            const target = document.getElementById(`${tab}Tab`);
+            if (target) {
+                target.classList.add('active');
+                target.style.display = 'block';
             }
         }
 
