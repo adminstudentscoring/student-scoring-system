@@ -14,7 +14,7 @@
       price: 199,
       badge: 'popular',
       limits: { teacherSeats: 2, studentSeats: 80 },
-      features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: false }
+      features: { classView: true, challengeMode: true }
     },
     {
       id: 'pro_yearly',
@@ -26,7 +26,7 @@
       price: 499,
       badge: 'bestValue',
       limits: { teacherSeats: 10, studentSeats: 600 },
-      features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: true }
+      features: { classView: true, challengeMode: true }
     },
     {
       id: 'lifetime_one_time',
@@ -38,7 +38,7 @@
       price: 9999,
       badge: '',
       limits: { teacherSeats: 999, studentSeats: 99999 },
-      features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: true }
+      features: { classView: true, challengeMode: true }
     }
   ];
 
@@ -108,8 +108,6 @@
     setValue('limitStudents', p.limits?.studentSeats);
     setValue('featureClassView', p.features?.classView);
     setValue('featureChallengeMode', p.features?.challengeMode);
-    setValue('featureRunningQueen', p.features?.runningQueen);
-    setValue('featureRoyalExchange', p.features?.royalExchange);
     isRenderingForm = false;
   }
 
@@ -326,7 +324,7 @@
     } else {
       // Clear form if nothing left
       ['pkgName','pkgCode','pkgStatus','pkgCurrency','pkgBillingType','pkgPrice','pkgBadge','limitTeachers','limitStudents'].forEach(id => setValue(id, ''));
-      ['featureClassView','featureChallengeMode','featureRunningQueen','featureRoyalExchange'].forEach(id => setValue(id, false));
+      ['featureClassView','featureChallengeMode'].forEach(id => setValue(id, false));
     }
     showToast('Archived.');
   }
@@ -357,8 +355,6 @@
 
     document.getElementById('featureClassView')?.addEventListener('change', (e) => update(p => { p.features.classView = Boolean(e.target.checked); }));
     document.getElementById('featureChallengeMode')?.addEventListener('change', (e) => update(p => { p.features.challengeMode = Boolean(e.target.checked); }));
-    document.getElementById('featureRunningQueen')?.addEventListener('change', (e) => update(p => { p.features.runningQueen = Boolean(e.target.checked); }));
-    document.getElementById('featureRoyalExchange')?.addEventListener('change', (e) => update(p => { p.features.royalExchange = Boolean(e.target.checked); }));
 
     // No further wiring needed: selectSubscriptionPackage already renders detail.
   }
