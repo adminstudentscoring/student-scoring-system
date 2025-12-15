@@ -850,9 +850,9 @@ document.getElementById('cancelSaveBtn')?.addEventListener('click', closeSaveMod
 (async () => {
     const settings = await loadClassViewSettings();
     applyChallengeModeEnabled(settings?.classViewMode?.enabled);
-    initWebSocket();
-    setupDragging();
-    loadStudents();
+initWebSocket();
+setupDragging();
+loadStudents();
     if (challengeEnabled) loadChallenge();
 })();
 
