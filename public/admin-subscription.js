@@ -62,6 +62,17 @@
     }
   }
 
+  function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText =
+      'position:fixed; bottom:20px; left:50%; transform:translateX(-50%);' +
+      `background:${type === 'error' ? '#ef4444' : '#10b981'}; color:white;` +
+      'padding:10px 16px; border-radius:10px; z-index:9999; box-shadow:0 10px 24px rgba(0,0,0,0.18);';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+  }
+
   let subscriptionPackages = loadPackagesFromStorage() || DEFAULT_PACKAGES;
   let activeSubscriptionPackageId = subscriptionPackages[0]?.id || null;
   let formListenersBound = false;
@@ -106,9 +117,11 @@
     const listEl = document.getElementById('subscriptionPackageList');
     if (!listEl) return;
     const query = (document.getElementById('subscriptionSearchInput')?.value || '').trim().toLowerCase();
-    const filtered = subscriptionPackages.filter(
-      p => !query || p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query)
-    );
+    const filtered = subscriptionPackages.filter(p => {
+      if (p.status === 'archived') return false; // archived packages are hidden
+      if (!query) return true;
+      return p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query);
+    });
 
     if (!filtered.length) {
       listEl.innerHTML = '<div class="help">No packages found.</div>';
@@ -185,6 +198,8 @@
   function initSubscriptionUi() {
     document.getElementById('subscriptionSearchInput')?.addEventListener('input', renderSubscriptionPackageList);
     document.getElementById('subscriptionNewBtn')?.addEventListener('click', createNewPackage);
+    document.getElementById('subscriptionSaveBtn')?.addEventListener('click', saveActivePackage);
+    document.getElementById('subscriptionArchiveBtn')?.addEventListener('click', archiveActivePackage);
     bindDetailFormListeners();
     renderSubscriptionPackageList();
     renderSubscriptionPackageDetail();
@@ -256,6 +271,64 @@
     savePackagesToStorage(subscriptionPackages);
     renderSubscriptionPackageList();
     renderSubscriptionPackageDetail();
+  }
+
+  function getActivePackage() {
+    return subscriptionPackages.find(p => p.id === activeSubscriptionPackageId) || null;
+  }
+
+  function saveActivePackage() {
+    const p = getActivePackage();
+    if (!p) {
+      showToast('No package selected.', 'error');
+      return;
+    }
+    const name = String(p.name || '').trim();
+    const code = String(p.code || '').trim();
+    if (!name) {
+      showToast('Package Name is required.', 'error');
+      return;
+    }
+    if (!code) {
+      showToast('Package Code is required.', 'error');
+      return;
+    }
+    const dupe = subscriptionPackages.some(x => x.id !== p.id && String(x.code || '').toLowerCase() === code.toLowerCase());
+    if (dupe) {
+      showToast('Package Code must be unique.', 'error');
+      return;
+    }
+    // Persist (most fields auto-save already; this is an explicit save + validation)
+    p.name = name;
+    p.code = code;
+    savePackagesToStorage(subscriptionPackages);
+    renderSubscriptionPackageList();
+    renderSubscriptionPackageDetail();
+    showToast('Saved.');
+  }
+
+  function archiveActivePackage() {
+    const p = getActivePackage();
+    if (!p) {
+      showToast('No package selected.', 'error');
+      return;
+    }
+    if (!confirm(`Archive "${p.name}"? It will be hidden from the list.`)) return;
+    p.status = 'archived';
+    savePackagesToStorage(subscriptionPackages);
+
+    // Select next visible package
+    const next = subscriptionPackages.find(x => x.status !== 'archived');
+    activeSubscriptionPackageId = next ? next.id : null;
+    renderSubscriptionPackageList();
+    if (activeSubscriptionPackageId) {
+      renderSubscriptionPackageDetail();
+    } else {
+      // Clear form if nothing left
+      ['pkgName','pkgCode','pkgStatus','pkgCurrency','pkgBillingType','pkgPrice','pkgBadge','limitTeachers','limitStudents'].forEach(id => setValue(id, ''));
+      ['featureClassView','featureChallengeMode','featureRunningQueen','featureRoyalExchange'].forEach(id => setValue(id, false));
+    }
+    showToast('Archived.');
   }
 
   function bindDetailFormListeners() {
