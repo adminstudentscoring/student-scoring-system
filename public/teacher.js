@@ -1,6 +1,10 @@
 // API_BASE is defined in auth.js, use window.authUtils.authenticatedFetch instead
 let students = [];
 let ws = null;
+let wsRetryCount = 0;
+let wsRetryTimer = null;
+let wsPollingTimer = null;
+let wsDisabled = false;
 let selectedClassStudentIds = new Set();
 let currentUser = null;
 let currentClassEntry = null;
@@ -23,22 +27,61 @@ async function apiFetch(url, options = {}) {
 
 // Initialize WebSocket connection
 function initWebSocket() {
+    if (wsDisabled) return;
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}`);
+    const wsUrl = `${protocol}//${window.location.host}`;
+    ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         handleWebSocketMessage(data);
     };
 
+    ws.onopen = () => {
+        // Connected: stop any fallback polling and reset retry state
+        wsRetryCount = 0;
+        if (wsRetryTimer) {
+            clearTimeout(wsRetryTimer);
+            wsRetryTimer = null;
+        }
+        if (wsPollingTimer) {
+            clearInterval(wsPollingTimer);
+            wsPollingTimer = null;
+        }
+    };
+
     ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        // Avoid noisy console spam in production when websocket isn't available
+        console.warn('WebSocket error:', error);
     };
 
     ws.onclose = () => {
-        console.log('WebSocket closed, reconnecting...');
-        setTimeout(initWebSocket, 3000);
+        if (wsDisabled) return;
+
+        // Retry with backoff; if still failing, fall back to polling to keep UI usable.
+        wsRetryCount += 1;
+
+        const MAX_RETRIES = 3;
+        if (wsRetryCount > MAX_RETRIES) {
+            wsDisabled = true;
+            console.warn('WebSocket unavailable. Falling back to polling.');
+            startWebSocketFallbackPolling();
+            return;
+        }
+
+        const delayMs = Math.min(15000, 1500 * Math.pow(2, wsRetryCount - 1)); // 1.5s, 3s, 6s
+        if (wsRetryTimer) clearTimeout(wsRetryTimer);
+        wsRetryTimer = setTimeout(initWebSocket, delayMs);
     };
+}
+
+function startWebSocketFallbackPolling() {
+    if (wsPollingTimer) return;
+    // Poll for updates (keeps Start Class & lists usable even without WS)
+    wsPollingTimer = setInterval(() => {
+        loadStudents();
+    }, 8000);
 }
 
 // Handle WebSocket messages
