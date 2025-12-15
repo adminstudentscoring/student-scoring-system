@@ -33,7 +33,6 @@ function getDefaultSettings() {
         },
         classViewMode: {
             enabled: true,
-            defaultDifficulty: 1,
             rewardRule: 'fixed', // 'fixed', 'percentage', 'custom'
             hpCalculation: 'byScore', // 'byScore', 'fixed', 'multiplier'
             hpMultiplier: 1
@@ -106,6 +105,20 @@ function getDefaultSettings() {
             }
         }
     };
+}
+
+function applyClassViewModeUiState() {
+    const hpCalculation = currentSettings?.classViewMode?.hpCalculation || 'byScore';
+    const hpMultiplierInput = document.getElementById('cvm_hpMultiplier');
+    if (!hpMultiplierInput) return;
+    const enabled = hpCalculation === 'multiplier';
+    hpMultiplierInput.disabled = !enabled;
+    hpMultiplierInput.style.opacity = enabled ? '1' : '0.6';
+}
+
+function onClassViewModeHpCalculationChange(value) {
+    updateSetting('classViewMode', 'hpCalculation', value);
+    applyClassViewModeUiState();
 }
 
 /**
@@ -208,6 +221,7 @@ function renderSettings() {
     `;
     
     document.getElementById('settingsContainer').innerHTML = html;
+    applyClassViewModeUiState();
 }
 
 function renderSettingsCategory(categoryId) {
@@ -395,6 +409,7 @@ function renderStudentPermissions(settings) {
  * Render Class-View Mode settings
  */
 function renderClassViewMode(settings) {
+    const multiplierEnabled = settings.hpCalculation === 'multiplier';
     return `
         <div class="settings-category">
             <h3>📊 Class-View Mode</h3>
@@ -406,11 +421,6 @@ function renderClassViewMode(settings) {
                 </label>
             </div>
             <div class="settings-group">
-                <label>Default Level Difficulty</label>
-                <input type="number" id="cvm_defaultDifficulty" value="${settings.defaultDifficulty || 1}" min="1" max="10" onchange="updateSetting('classViewMode', 'defaultDifficulty', parseInt(this.value))">
-                <div class="help-text">Set the default level when Class-View opens (1-10)</div>
-            </div>
-            <div class="settings-group">
                 <label>Reward Rule</label>
                 <select id="cvm_rewardRule" onchange="updateSetting('classViewMode', 'rewardRule', this.value)">
                     <option value="fixed" ${settings.rewardRule === 'fixed' ? 'selected' : ''}>Fixed Reward</option>
@@ -420,7 +430,7 @@ function renderClassViewMode(settings) {
             </div>
             <div class="settings-group">
                 <label>HP Calculation Method</label>
-                <select id="cvm_hpCalculation" onchange="updateSetting('classViewMode', 'hpCalculation', this.value)">
+                <select id="cvm_hpCalculation" onchange="onClassViewModeHpCalculationChange(this.value)">
                     <option value="byScore" ${settings.hpCalculation === 'byScore' ? 'selected' : ''}>Deduct by Score</option>
                     <option value="fixed" ${settings.hpCalculation === 'fixed' ? 'selected' : ''}>Fixed Deduction</option>
                     <option value="multiplier" ${settings.hpCalculation === 'multiplier' ? 'selected' : ''}>Multiplier Deduction</option>
@@ -428,7 +438,8 @@ function renderClassViewMode(settings) {
             </div>
             <div class="settings-group">
                 <label>HP Multiplier (when using multiplier deduction)</label>
-                <input type="number" id="cvm_hpMultiplier" value="${settings.hpMultiplier || 1}" min="0.1" step="0.1" onchange="updateSetting('classViewMode', 'hpMultiplier', parseFloat(this.value))">
+                <input type="number" id="cvm_hpMultiplier" value="${settings.hpMultiplier || 1}" min="0.1" step="0.1" onchange="updateSetting('classViewMode', 'hpMultiplier', parseFloat(this.value))" ${multiplierEnabled ? '' : 'disabled'} style="${multiplierEnabled ? '' : 'opacity:0.6;'}">
+                <div class="help-text">Only enabled when HP Calculation Method is set to Multiplier Deduction</div>
             </div>
             <div class="settings-actions">
                 <button class="btn btn-secondary" onclick="resetCategorySettings('classViewMode')">Reset to Default</button>

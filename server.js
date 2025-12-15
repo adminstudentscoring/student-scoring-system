@@ -2885,7 +2885,6 @@ app.get('/api/class-view/settings', authenticateUser, authorizeRole('organizatio
 
     const defaultClassViewMode = {
       enabled: true,
-      defaultDifficulty: 1,
       rewardRule: 'fixed',
       hpCalculation: 'byScore',
       hpMultiplier: 1
@@ -2949,7 +2948,6 @@ app.get('/api/organizations/settings', authenticateUser, authorizeRole('organiza
       },
       classViewMode: {
         enabled: true,
-        defaultDifficulty: 1,
         rewardRule: 'fixed',
         hpCalculation: 'byScore',
         hpMultiplier: 1
