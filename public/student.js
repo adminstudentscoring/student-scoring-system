@@ -148,6 +148,15 @@ window.openStudentGame = function(gameKey) {
         studentId: studentData.studentId || ''
     };
 
+    if (gameKey === 'chessCom') {
+        const url = 'https://www.chess.com/';
+        const win = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!win) {
+            alert('Popup blocked. Please allow popups to open Chess.com');
+        }
+        return;
+    }
+
     if (gameKey === 'runningQueen') {
         try {
             localStorage.setItem('runningQueenPlayers', JSON.stringify([player]));

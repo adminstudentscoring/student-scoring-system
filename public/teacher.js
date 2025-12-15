@@ -1108,6 +1108,13 @@ function showGameSelection() {
     const gameList = document.getElementById('gameList');
     if (gameList) {
         gameList.innerHTML = `
+            <div class="game-item" onclick="openChessCom()">
+                <div class="game-icon">♟️</div>
+                <div class="game-info">
+                    <h4>Chess.com</h4>
+                    <p>Open chess.com (external link)</p>
+                </div>
+            </div>
             <div class="game-item" onclick="startMonsterFight()">
                 <div class="game-icon">🐉</div>
                 <div class="game-info">
@@ -1139,6 +1146,18 @@ function showGameSelection() {
         `;
     }
 }
+
+function openChessCom() {
+    const url = 'https://www.chess.com/';
+    const win = window.open(url, 'ChessCom', 'noopener,noreferrer');
+    if (!win) {
+        showNotification('Popup blocked. Please allow popups to open Chess.com', 'error');
+        return;
+    }
+    showNotification('Chess.com opened in new window', 'success');
+}
+
+window.openChessCom = openChessCom;
 
 async function startMonsterFight() {
     if (selectedGameStudents.length === 0) {
