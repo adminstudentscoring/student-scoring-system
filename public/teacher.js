@@ -1449,6 +1449,7 @@ window.toggleGameStudent = toggleGameStudent;
 
 // Event listeners for Game Zone
 document.getElementById('gameZoneBtn')?.addEventListener('click', openGameZoneModal);
+document.getElementById('chessComSettingsBtn')?.addEventListener('click', openChessComSettingsModal);
 document.getElementById('gameZoneModalClose')?.addEventListener('click', closeGameZoneModal);
 document.getElementById('gameZoneSizeBtn')?.addEventListener('click', toggleGameZoneSize);
 document.getElementById('gameZoneFullscreenBtn')?.addEventListener('click', toggleGameZoneFullscreen);
@@ -1464,6 +1465,141 @@ document.getElementById('gameZoneModal')?.addEventListener('click', (e) => {
         closeGameZoneModal();
     }
 });
+
+// =========================
+// Chess.com Settings Modal
+// =========================
+const CHESS_COM_SETTINGS_KEY = 'teacherChessComSettings_v1';
+
+function loadChessComSettings() {
+    try {
+        const raw = localStorage.getItem(CHESS_COM_SETTINGS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveChessComSettings(data) {
+    try {
+        localStorage.setItem(CHESS_COM_SETTINGS_KEY, JSON.stringify(data));
+    } catch (e) {
+        // ignore
+    }
+}
+
+function getDefaultChessComId(student) {
+    // "學生的ID"：優先 student.studentId（顯示用 ID），否則 fallback to internal id
+    return (student && (student.studentId || student.id)) ? String(student.studentId || student.id) : '';
+}
+
+function openChessComSettingsModal() {
+    const modal = document.getElementById('chessComSettingsModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    const search = document.getElementById('chessComSettingsSearch');
+    if (search) search.value = '';
+    renderChessComSettingsList();
+    if (search) search.focus();
+}
+
+function closeChessComSettingsModal() {
+    const modal = document.getElementById('chessComSettingsModal');
+    if (!modal) return;
+    modal.classList.remove('show');
+}
+
+function renderChessComSettingsList() {
+    const listEl = document.getElementById('chessComSettingsList');
+    const countEl = document.getElementById('chessComSettingsCount');
+    if (!listEl) return;
+
+    const searchTerm = (document.getElementById('chessComSettingsSearch')?.value || '').toLowerCase().trim();
+    const settings = loadChessComSettings();
+
+    const filtered = (students || []).filter(s => {
+        if (!searchTerm) return true;
+        const name = String(s.name || '').toLowerCase();
+        const sid = String(s.studentId || '').toLowerCase();
+        const existing = settings[s.id] || {};
+        const chessId = String(existing.chessId || '').toLowerCase();
+        return name.includes(searchTerm) || sid.includes(searchTerm) || chessId.includes(searchTerm);
+    });
+
+    if (countEl) countEl.textContent = String(filtered.length);
+
+    if (!filtered.length) {
+        listEl.innerHTML = '<div style="color:#6b7280; padding:10px; text-align:center;">No matching students.</div>';
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(s => {
+        const entry = settings[s.id] || {};
+        const chessId = entry.chessId != null ? String(entry.chessId) : getDefaultChessComId(s);
+        const password = entry.password != null ? String(entry.password) : '';
+        return `
+            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                    <div>
+                        <div style="font-weight:800; color:#111827;">${escapeHtml(s.name || 'Unknown')}</div>
+                        <div style="color:#6b7280; font-size:0.9rem;">Student ID: ${escapeHtml(s.studentId || '')}</div>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                    <div>
+                        <label style="display:block; font-size:0.85rem; color:#4b5563; margin-bottom:6px;">Chess.com ID</label>
+                        <input
+                            type="text"
+                            class="chesscom-input"
+                            data-student-id="${escapeHtml(s.id)}"
+                            data-field="chessId"
+                            value="${escapeHtml(chessId)}"
+                            style="width:100%; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+                        />
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; color:#4b5563; margin-bottom:6px;">Chess.com Password</label>
+                        <input
+                            type="password"
+                            class="chesscom-input"
+                            data-student-id="${escapeHtml(s.id)}"
+                            data-field="password"
+                            value="${escapeHtml(password)}"
+                            placeholder="Teacher input"
+                            style="width:100%; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+                        />
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Event wiring
+document.getElementById('chessComSettingsModalClose')?.addEventListener('click', closeChessComSettingsModal);
+document.getElementById('chessComSettingsCloseBtn')?.addEventListener('click', closeChessComSettingsModal);
+document.getElementById('chessComSettingsSearch')?.addEventListener('input', renderChessComSettingsList);
+document.getElementById('chessComSettingsModal')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'chessComSettingsModal') {
+        closeChessComSettingsModal();
+    }
+});
+
+document.getElementById('chessComSettingsList')?.addEventListener('input', (e) => {
+    const target = e.target;
+    if (!target || !target.classList || !target.classList.contains('chesscom-input')) return;
+    const studentId = target.getAttribute('data-student-id');
+    const field = target.getAttribute('data-field');
+    if (!studentId || !field) return;
+
+    const settings = loadChessComSettings();
+    if (!settings[studentId]) settings[studentId] = {};
+    settings[studentId][field] = target.value;
+    saveChessComSettings(settings);
+});
+
 
 // Show points popup animation (global function)
 function showPointsPopup(buttonRect, points) {
