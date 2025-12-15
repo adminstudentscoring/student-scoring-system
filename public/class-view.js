@@ -3,11 +3,36 @@ let selectedStudents = [];
 let allStudents = [];
 let ws = null;
 let challengeData = null;
+let challengeEnabled = true;
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 let isResizing = false;
 let resizeStart = { x: 0, y: 0 };
 let windowStartSize = { width: 0, height: 0 };
+
+async function loadClassViewSettings() {
+    try {
+        let response;
+        if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
+            response = await window.authUtils.authenticatedFetch('/class-view/settings');
+        } else {
+            response = await fetch('/api/class-view/settings');
+        }
+        if (!response || !response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.warn('Unable to load class view settings, using defaults:', error);
+        return null;
+    }
+}
+
+function applyChallengeModeEnabled(enabled) {
+    challengeEnabled = enabled !== false; // default true
+    const challengeSection = document.getElementById('challengeSection');
+    if (challengeSection) {
+        challengeSection.style.display = challengeEnabled ? '' : 'none';
+    }
+}
 
 // Load auth.js utilities
 if (typeof window.authUtils === 'undefined') {
@@ -44,7 +69,7 @@ function handleWebSocketMessage(data) {
         case 'studentAdded':
         case 'studentUpdated':
         case 'answerRecorded':
-            if (data.challenge) {
+            if (challengeEnabled && data.challenge) {
                 challengeData = data.challenge;
                 updateChallengeDisplay();
             }
@@ -53,19 +78,22 @@ function handleWebSocketMessage(data) {
         case 'studentDeleted':
         case 'reset':
             loadStudents();
-            loadChallenge();
+            if (challengeEnabled) loadChallenge();
             break;
         case 'damageDealt':
+            if (!challengeEnabled) break;
             showAttackAnimation(data);
             updateChallengeHP(data.currentHP, data.maxHP);
             break;
         case 'levelCompleted':
+            if (!challengeEnabled) break;
             showLevelCompleteAnimation(data.level, data.reward);
             loadChallenge();
             loadStudents();
             break;
         case 'challengeReset':
         case 'challengeLoaded':
+            if (!challengeEnabled) break;
             challengeData = data.challenge;
             updateChallengeDisplay();
             break;
@@ -123,6 +151,7 @@ async function loadStudents() {
 // Update selected students on server
 async function updateSelectedStudentsOnServer(selectedIds) {
     try {
+        if (!challengeEnabled) return;
         if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
             await window.authUtils.authenticatedFetch('/challenge/selected-students', {
                 method: 'POST',
@@ -419,6 +448,7 @@ window.addEventListener('storage', async (e) => {
 // Challenge Mode Functions
 async function loadChallenge() {
     try {
+        if (!challengeEnabled) return;
         let response;
         if (typeof window.authUtils !== 'undefined' && window.authUtils.authenticatedFetch) {
              response = await window.authUtils.authenticatedFetch('/challenge');
@@ -612,6 +642,7 @@ document.getElementById('loadProgressBtn')?.addEventListener('click', openLoadMo
 // Reset challenge button (No confirmation)
 document.getElementById('resetChallengeBtn')?.addEventListener('click', async () => {
     try {
+        if (!challengeEnabled) return;
         const response = await fetch('/api/challenge/reset', {
             method: 'POST'
         });
@@ -780,7 +811,7 @@ async function loadProgress(filename) {
         
         showNotification('Progress loaded!', 'success');
         closeLoadModal();
-        loadChallenge();
+        if (challengeEnabled) loadChallenge();
     } catch (error) {
         showNotification('Failed to load progress', 'error');
     }
@@ -815,11 +846,15 @@ document.getElementById('loadModalClose')?.addEventListener('click', closeLoadMo
 document.getElementById('confirmSaveBtn')?.addEventListener('click', saveProgress);
 document.getElementById('cancelSaveBtn')?.addEventListener('click', closeSaveModal);
 
-// Initialize
-initWebSocket();
-setupDragging();
-loadStudents();
-loadChallenge();
+// Initialize (load settings first)
+(async () => {
+    const settings = await loadClassViewSettings();
+    applyChallengeModeEnabled(settings?.classViewMode?.enabled);
+    initWebSocket();
+    setupDragging();
+    loadStudents();
+    if (challengeEnabled) loadChallenge();
+})();
 
 // Set initial window size (narrow and tall)
 if (window.navigator.userAgent.indexOf('Electron') === -1) {
@@ -876,7 +911,7 @@ document.getElementById('batchAddPointsBtn')?.addEventListener('click', async ()
     }
     
     // Refresh (WebSocket will trigger reload anyway, but just in case)
-    loadChallenge();
+    if (challengeEnabled) loadChallenge();
     
     // Show quick toast/alert
     // Since we don't have showNotification here easily accessible without more code copying, native alert or just relying on UI update is fine.

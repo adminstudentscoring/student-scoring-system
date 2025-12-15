@@ -2862,6 +2862,59 @@ app.get('/api/organizations/teachers/:teacherId/students', authenticateUser, aut
 
 // ==================== Organization Settings API ====================
 
+// Get Class View settings (teacher/organization/admin)
+// - Organization admins configure these in Organization Dashboard -> Settings -> Class View Management
+// - Teachers (Class View page) read only the relevant subset to decide whether to enable Challenge mode
+app.get('/api/class-view/settings', authenticateUser, authorizeRole('organization', 'teacher', 'admin'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const organizations = await readOrganizations();
+
+    let organizationId = req.organizationFilter;
+    // Admin may not have organizationFilter; allow explicit orgId query (optional)
+    if (req.user.role === 'admin' && !organizationId) {
+      organizationId = req.query.orgId;
+    }
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization not specified' });
+    }
+
+    const organization = organizations.find(o => o.id === organizationId);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const defaultClassViewMode = {
+      enabled: true,
+      defaultDifficulty: 1,
+      rewardRule: 'fixed',
+      hpCalculation: 'byScore',
+      hpMultiplier: 1
+    };
+
+    const defaultChallengeLevels = {
+      levels: [
+        { level: 1, name: 'Slime', maxHP: 50, reward: 10, emoji: '🟢' },
+        { level: 2, name: 'Goblin', maxHP: 100, reward: 20, emoji: '👺' },
+        { level: 3, name: 'Orc', maxHP: 150, reward: 30, emoji: '👹' },
+        { level: 4, name: 'Dragon', maxHP: 250, reward: 40, emoji: '🐉' },
+        { level: 5, name: 'Demon', maxHP: 400, reward: 50, emoji: '😈' }
+      ]
+    };
+
+    const savedSettings = organization.settings || {};
+    const classViewMode = { ...defaultClassViewMode, ...(savedSettings.classViewMode || {}) };
+    const challengeLevels = savedSettings.challengeLevels || defaultChallengeLevels;
+
+    res.json({
+      classViewMode,
+      challengeLevels
+    });
+  } catch (error) {
+    console.error('Error getting class view settings:', error);
+    res.status(500).json({ error: 'Failed to get class view settings' });
+  }
+});
+
 // Get organization settings
 app.get('/api/organizations/settings', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {
