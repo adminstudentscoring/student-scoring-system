@@ -149,11 +149,7 @@ window.openStudentGame = function(gameKey) {
     };
 
     if (gameKey === 'chessCom') {
-        const url = 'https://www.chess.com/';
-        const win = window.open(url, '_blank', 'noopener,noreferrer');
-        if (!win) {
-            alert('Popup blocked. Please allow popups to open Chess.com');
-        }
+        openStudentChessComModal();
         return;
     }
 
@@ -176,6 +172,135 @@ window.openStudentGame = function(gameKey) {
         window.open('/game/game-window.html?game=royalExchange', '_blank');
     }
 };
+
+// =========================
+// Chess.com (Student modal)
+// =========================
+const STUDENT_CHESS_COM_LOGIN_URL = 'https://www.chess.com/login_and_go?returnUrl=https://www.chess.com/';
+const TEACHER_CHESS_COM_SETTINGS_KEY = 'teacherChessComSettings_v1';
+
+function getStudentInternalId() {
+    return String(studentData?.id || studentData?._id || studentId || studentData?.studentId || '');
+}
+
+function getDefaultChessComUsername() {
+    // Default to student's "Student ID" as requested
+    return String(studentData?.studentId || studentId || '');
+}
+
+function loadTeacherChessComSettings() {
+    try {
+        const raw = localStorage.getItem(TEACHER_CHESS_COM_SETTINGS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function showStudentToast(message) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#667eea; color:white; padding:10px 16px; border-radius:10px; z-index:9999; box-shadow:0 10px 24px rgba(0,0,0,0.18);';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2200);
+}
+
+async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+            return true;
+        } catch (err) {
+            return false;
+        }
+    }
+}
+
+function openStudentChessComModal() {
+    const modal = document.getElementById('studentChessComModal');
+    if (!modal) return;
+
+    const settings = loadTeacherChessComSettings();
+    const internalId = getStudentInternalId();
+    const entry = settings[internalId] || {};
+
+    const username = String(entry.chessId || getDefaultChessComUsername());
+    const password = String(entry.password || '');
+
+    const uEl = document.getElementById('studentChessComUsername');
+    const pEl = document.getElementById('studentChessComPassword');
+    if (uEl) uEl.value = username;
+    if (pEl) {
+        pEl.value = password;
+        pEl.type = 'password';
+    }
+    const toggleBtn = document.getElementById('studentChessComTogglePassword');
+    if (toggleBtn) toggleBtn.textContent = '👁';
+
+    modal.classList.add('show');
+}
+
+function closeStudentChessComModal() {
+    const modal = document.getElementById('studentChessComModal');
+    if (!modal) return;
+    modal.classList.remove('show');
+}
+
+document.getElementById('studentChessComModalClose')?.addEventListener('click', closeStudentChessComModal);
+document.getElementById('studentChessComClose')?.addEventListener('click', closeStudentChessComModal);
+document.getElementById('studentChessComModal')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'studentChessComModal') closeStudentChessComModal();
+});
+
+document.getElementById('studentChessComTogglePassword')?.addEventListener('click', () => {
+    const input = document.getElementById('studentChessComPassword');
+    const btn = document.getElementById('studentChessComTogglePassword');
+    if (!input || !btn) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    btn.textContent = input.type === 'password' ? '👁' : '🙈';
+});
+
+document.getElementById('studentChessComCopyUsername')?.addEventListener('click', async () => {
+    const username = document.getElementById('studentChessComUsername')?.value || '';
+    const ok = await copyToClipboard(username);
+    showStudentToast(ok ? 'Username copied' : 'Copy failed');
+});
+
+document.getElementById('studentChessComCopyPassword')?.addEventListener('click', async () => {
+    const password = document.getElementById('studentChessComPassword')?.value || '';
+    const ok = await copyToClipboard(password);
+    showStudentToast(ok ? 'Password copied' : 'Copy failed');
+});
+
+document.getElementById('studentChessComCopyBoth')?.addEventListener('click', async () => {
+    const username = document.getElementById('studentChessComUsername')?.value || '';
+    const password = document.getElementById('studentChessComPassword')?.value || '';
+    const ok = await copyToClipboard(`username: ${username}\npassword: ${password}`);
+    showStudentToast(ok ? 'Credentials copied' : 'Copy failed');
+});
+
+document.getElementById('studentChessComGo')?.addEventListener('click', async () => {
+    // Note: We cannot auto-fill chess.com inputs from here due to browser cross-origin security.
+    // Best-effort UX: open login page + offer copy.
+    const win = window.open(STUDENT_CHESS_COM_LOGIN_URL, '_blank', 'noopener,noreferrer');
+    if (!win) {
+        alert('Popup blocked. Please allow popups to open Chess.com');
+        return;
+    }
+    showStudentToast('Chess.com login opened. Use Copy buttons to paste credentials.');
+});
 
 // Allow Enter key for password
 document.getElementById('accessPasswordInput').addEventListener('keypress', function(e) {

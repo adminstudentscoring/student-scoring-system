@@ -205,6 +205,55 @@
         </div>
     </div>
 
+    <!-- Chess.com Modal -->
+    <div id="studentChessComModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+                <h2>♟️ Chess.com</h2>
+                <span class="modal-close" id="studentChessComModalClose">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="color:#666; margin-top:0;">
+                    You can go to the Chess.com login page and use the credentials below.
+                </p>
+
+                <div class="card" style="box-shadow:none; border:1px solid #eee;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                        <div class="form-group" style="margin:0;">
+                            <label>Chess.com Username</label>
+                            <input id="studentChessComUsername" type="text" readonly style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; background:#f8fafc;">
+                            <div style="margin-top:8px;">
+                                <button id="studentChessComCopyUsername" class="btn btn-secondary btn-small" type="button">Copy Username</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin:0;">
+                            <label>Chess.com Password</label>
+                            <div style="position:relative;">
+                                <input id="studentChessComPassword" type="password" readonly style="width:100%; padding:10px 44px 10px 10px; border:1px solid #ddd; border-radius:8px; background:#f8fafc;">
+                                <button id="studentChessComTogglePassword" type="button" title="Show/Hide password" aria-label="Toggle password visibility" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); border:1px solid #e5e7eb; background:#fff; border-radius:8px; width:32px; height:32px; cursor:pointer;">👁</button>
+                            </div>
+                            <div style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;">
+                                <button id="studentChessComCopyPassword" class="btn btn-secondary btn-small" type="button">Copy Password</button>
+                                <button id="studentChessComCopyBoth" class="btn btn-secondary btn-small" type="button">Copy Both</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="justify-content: space-between; margin-top: 18px;">
+                    <div style="color:#666; font-size:0.9rem;">
+                        Tip: Use Copy buttons, then paste into Chess.com login form.
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button id="studentChessComGo" class="btn btn-primary" type="button">一鍵前往</button>
+                        <button id="studentChessComClose" class="btn btn-secondary" type="button">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="student.js"></script>
 </body>
 </html>
