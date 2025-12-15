@@ -441,8 +441,9 @@ function renderClassViewMode(settings) {
                 <input type="number" id="cvm_hpMultiplier" value="${settings.hpMultiplier || 1}" min="0.1" step="0.1" onchange="updateSetting('classViewMode', 'hpMultiplier', parseFloat(this.value))" ${multiplierEnabled ? '' : 'disabled'} style="${multiplierEnabled ? '' : 'opacity:0.6;'}">
                 <div class="help-text">Only enabled when HP Calculation Method is set to Multiplier Deduction</div>
             </div>
-            <div class="settings-actions">
+            <div class="settings-actions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="resetCategorySettings('classViewMode')">Reset to Default</button>
+                <button class="btn btn-primary" onclick="saveSettings()">Save</button>
             </div>
         </div>
     `;
