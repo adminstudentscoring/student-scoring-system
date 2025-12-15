@@ -1,7 +1,9 @@
 // Admin - Subscription Setting (placeholder UI)
 // Extracted from public/admin.html for easier maintenance.
 (function () {
-  const subscriptionPackages = [
+  const STORAGE_KEY = 'adminSubscriptionPackages_v1';
+
+  const DEFAULT_PACKAGES = [
     {
       id: 'starter_monthly',
       name: 'Starter',
@@ -39,7 +41,31 @@
       features: { classView: true, challengeMode: true, runningQueen: true, royalExchange: true }
     }
   ];
+
+  function loadPackagesFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function savePackagesToStorage(packages) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(packages));
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  let subscriptionPackages = loadPackagesFromStorage() || DEFAULT_PACKAGES;
   let activeSubscriptionPackageId = subscriptionPackages[0]?.id || null;
+  let formListenersBound = false;
+  let isRenderingForm = false;
 
   function formatMoney(currency, value) {
     const n = Number(value) || 0;
@@ -59,6 +85,7 @@
   function renderSubscriptionPackageDetail() {
     const p = subscriptionPackages.find(x => x.id === activeSubscriptionPackageId);
     if (!p) return;
+    isRenderingForm = true;
     setValue('pkgName', p.name);
     setValue('pkgCode', p.code);
     setValue('pkgStatus', p.status);
@@ -72,6 +99,7 @@
     setValue('featureChallengeMode', p.features?.challengeMode);
     setValue('featureRunningQueen', p.features?.runningQueen);
     setValue('featureRoyalExchange', p.features?.royalExchange);
+    isRenderingForm = false;
   }
 
   function renderSubscriptionPackageList() {
@@ -140,6 +168,7 @@
     if (!pkg) return;
     if (pkg.status === 'archived') return;
     pkg.status = pkg.status === 'active' ? 'inactive' : 'active';
+    savePackagesToStorage(subscriptionPackages);
     renderSubscriptionPackageList();
     renderSubscriptionPackageDetail();
   }
@@ -155,8 +184,110 @@
 
   function initSubscriptionUi() {
     document.getElementById('subscriptionSearchInput')?.addEventListener('input', renderSubscriptionPackageList);
+    document.getElementById('subscriptionNewBtn')?.addEventListener('click', createNewPackage);
+    bindDetailFormListeners();
     renderSubscriptionPackageList();
     renderSubscriptionPackageDetail();
+  }
+
+  function slugify(input) {
+    return String(input || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 64) || 'package';
+  }
+
+  function ensureUniqueCode(baseCode) {
+    const existing = new Set(subscriptionPackages.map(p => String(p.code || '').toLowerCase()));
+    let code = baseCode;
+    let i = 2;
+    while (existing.has(code.toLowerCase())) {
+      code = `${baseCode}_${i++}`;
+    }
+    return code;
+  }
+
+  function ensureUniqueId(baseId) {
+    const existing = new Set(subscriptionPackages.map(p => String(p.id || '').toLowerCase()));
+    let id = baseId;
+    let i = 2;
+    while (existing.has(id.toLowerCase())) {
+      id = `${baseId}_${i++}`;
+    }
+    return id;
+  }
+
+  function createNewPackage() {
+    const name = prompt('New package name?', 'New Package');
+    if (!name) return;
+
+    const currency = (prompt('Currency (HKD or USD)?', 'HKD') || 'HKD').trim().toUpperCase();
+    const normalizedCurrency = currency === 'USD' ? 'USD' : 'HKD';
+
+    const billingTypeRaw = (prompt('Billing type (monthly / yearly / one-time)?', 'monthly') || 'monthly')
+      .trim()
+      .toLowerCase();
+    const normalizedBillingType = ['monthly', 'yearly', 'one-time'].includes(billingTypeRaw) ? billingTypeRaw : 'monthly';
+
+    const priceRaw = prompt(`Price (${normalizedCurrency})?`, '0');
+    const price = Math.max(0, Number(priceRaw) || 0);
+
+    const base = slugify(name);
+    const baseCode = ensureUniqueCode(`${base}_${normalizedBillingType}`);
+    const baseId = ensureUniqueId(baseCode);
+
+    const pkg = {
+      id: baseId,
+      name: String(name).trim(),
+      code: baseCode,
+      status: 'inactive',
+      currency: normalizedCurrency,
+      billingType: normalizedBillingType,
+      price,
+      badge: '',
+      limits: { teacherSeats: 0, studentSeats: 0 },
+      features: { classView: false, challengeMode: false, runningQueen: false, royalExchange: false }
+    };
+
+    subscriptionPackages = [pkg, ...subscriptionPackages];
+    activeSubscriptionPackageId = pkg.id;
+    savePackagesToStorage(subscriptionPackages);
+    renderSubscriptionPackageList();
+    renderSubscriptionPackageDetail();
+  }
+
+  function bindDetailFormListeners() {
+    if (formListenersBound) return;
+    formListenersBound = true;
+
+    const getActive = () => subscriptionPackages.find(p => p.id === activeSubscriptionPackageId);
+    const update = (fn) => {
+      if (isRenderingForm) return;
+      const p = getActive();
+      if (!p) return;
+      fn(p);
+      savePackagesToStorage(subscriptionPackages);
+      renderSubscriptionPackageList();
+    };
+
+    document.getElementById('pkgName')?.addEventListener('input', (e) => update(p => { p.name = e.target.value; }));
+    document.getElementById('pkgCode')?.addEventListener('input', (e) => update(p => { p.code = e.target.value; }));
+    document.getElementById('pkgStatus')?.addEventListener('change', (e) => update(p => { p.status = e.target.value; }));
+    document.getElementById('pkgCurrency')?.addEventListener('change', (e) => update(p => { p.currency = e.target.value; }));
+    document.getElementById('pkgBillingType')?.addEventListener('change', (e) => update(p => { p.billingType = e.target.value; }));
+    document.getElementById('pkgPrice')?.addEventListener('input', (e) => update(p => { p.price = Math.max(0, Number(e.target.value) || 0); }));
+    document.getElementById('pkgBadge')?.addEventListener('change', (e) => update(p => { p.badge = e.target.value; }));
+    document.getElementById('limitTeachers')?.addEventListener('input', (e) => update(p => { p.limits.teacherSeats = Math.max(0, parseInt(e.target.value || '0', 10) || 0); }));
+    document.getElementById('limitStudents')?.addEventListener('input', (e) => update(p => { p.limits.studentSeats = Math.max(0, parseInt(e.target.value || '0', 10) || 0); }));
+
+    document.getElementById('featureClassView')?.addEventListener('change', (e) => update(p => { p.features.classView = Boolean(e.target.checked); }));
+    document.getElementById('featureChallengeMode')?.addEventListener('change', (e) => update(p => { p.features.challengeMode = Boolean(e.target.checked); }));
+    document.getElementById('featureRunningQueen')?.addEventListener('change', (e) => update(p => { p.features.runningQueen = Boolean(e.target.checked); }));
+    document.getElementById('featureRoyalExchange')?.addEventListener('change', (e) => update(p => { p.features.royalExchange = Boolean(e.target.checked); }));
+
+    // No further wiring needed: selectSubscriptionPackage already renders detail.
   }
 
   // Expose for inline onclick in admin.html
@@ -167,6 +298,7 @@
   window.toggleSubscriptionPackageActive = toggleSubscriptionPackageActive;
   window.switchSubscriptionSubTab = switchSubscriptionSubTab;
   window.initSubscriptionUi = initSubscriptionUi;
+  window.createNewSubscriptionPackage = createNewPackage;
 
   // Auto-init when DOM is ready
   if (document.readyState === 'loading') {

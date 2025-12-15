@@ -479,7 +479,7 @@
                         <div class="package-list">
                             <div class="package-list-toolbar">
                                 <input id="subscriptionSearchInput" type="text" placeholder="Search package..." style="flex:1; padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
-                                <button class="btn btn-secondary" disabled title="Coming soon">New</button>
+                                <button id="subscriptionNewBtn" class="btn btn-primary" type="button">New</button>
                             </div>
                             <div id="subscriptionPackageList"></div>
                             <p class="help">Coming soon: create/edit/archive packages, versioning (Draft → Live), publish flow.</p>
@@ -504,18 +504,18 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label>Package Name</label>
-                                        <input id="pkgName" type="text" placeholder="e.g. Starter" disabled>
+                                        <input id="pkgName" type="text" placeholder="e.g. Starter">
                                     </div>
                                     <div class="form-group">
                                         <label>Package Code</label>
-                                        <input id="pkgCode" type="text" placeholder="e.g. starter_monthly" disabled>
+                                        <input id="pkgCode" type="text" placeholder="e.g. starter_monthly">
                                     </div>
                                 </div>
 
                                 <div class="form-grid-3">
                                     <div class="form-group">
                                         <label>Status</label>
-                                        <select id="pkgStatus" disabled>
+                                        <select id="pkgStatus">
                                             <option value="active">Active</option>
                                             <option value="inactive">Inactive</option>
                                             <option value="archived">Archived</option>
@@ -523,14 +523,14 @@
                                     </div>
                                     <div class="form-group">
                                         <label>Currency</label>
-                                        <select id="pkgCurrency" disabled>
+                                        <select id="pkgCurrency">
                                             <option value="HKD">HKD</option>
                                             <option value="USD">USD</option>
                                         </select>
                                     </div>
                                     <div class="form-group">
                                         <label>Billing Type</label>
-                                        <select id="pkgBillingType" disabled>
+                                        <select id="pkgBillingType">
                                             <option value="monthly">Monthly</option>
                                             <option value="yearly">Yearly</option>
                                             <option value="one-time">One-time</option>
@@ -541,11 +541,11 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label>Price</label>
-                                        <input id="pkgPrice" type="number" min="0" step="0.01" placeholder="0.00" disabled>
+                                        <input id="pkgPrice" type="number" min="0" step="0.01" placeholder="0.00">
                                     </div>
                                     <div class="form-group">
                                         <label>Badge</label>
-                                        <select id="pkgBadge" disabled>
+                                        <select id="pkgBadge">
                                             <option value="">None</option>
                                             <option value="popular">Popular</option>
                                             <option value="bestValue">Best value</option>
@@ -558,11 +558,11 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label>Teacher seats</label>
-                                        <input id="limitTeachers" type="number" min="0" step="1" placeholder="e.g. 5" disabled>
+                                        <input id="limitTeachers" type="number" min="0" step="1" placeholder="e.g. 5">
                                     </div>
                                     <div class="form-group">
                                         <label>Student seats</label>
-                                        <input id="limitStudents" type="number" min="0" step="1" placeholder="e.g. 300" disabled>
+                                        <input id="limitStudents" type="number" min="0" step="1" placeholder="e.g. 300">
                                     </div>
                                 </div>
 
@@ -571,13 +571,13 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label class="checkbox-label">
-                                            <input id="featureClassView" type="checkbox" disabled>
+                                            <input id="featureClassView" type="checkbox">
                                             <span>Class View</span>
                                         </label>
                                     </div>
                                     <div class="form-group">
                                         <label class="checkbox-label">
-                                            <input id="featureChallengeMode" type="checkbox" disabled>
+                                            <input id="featureChallengeMode" type="checkbox">
                                             <span>Challenge Mode</span>
                                         </label>
                                     </div>
@@ -585,13 +585,13 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label class="checkbox-label">
-                                            <input id="featureRunningQueen" type="checkbox" disabled>
+                                            <input id="featureRunningQueen" type="checkbox">
                                             <span>Running Queen</span>
                                         </label>
                                     </div>
                                     <div class="form-group">
                                         <label class="checkbox-label">
-                                            <input id="featureRoyalExchange" type="checkbox" disabled>
+                                            <input id="featureRoyalExchange" type="checkbox">
                                             <span>Royal Exchange</span>
                                         </label>
                                     </div>
