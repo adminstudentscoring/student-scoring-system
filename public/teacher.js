@@ -1561,15 +1561,25 @@ function renderChessComSettingsList() {
                     </div>
                     <div>
                         <label style="display:block; font-size:0.85rem; color:#4b5563; margin-bottom:6px;">Chess.com Password</label>
-                        <input
-                            type="password"
-                            class="chesscom-input"
-                            data-student-id="${escapeHtml(s.id)}"
-                            data-field="password"
-                            value="${escapeHtml(password)}"
-                            placeholder="Teacher input"
-                            style="width:100%; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
-                        />
+                        <div style="position:relative;">
+                            <input
+                                type="password"
+                                class="chesscom-input"
+                                data-student-id="${escapeHtml(s.id)}"
+                                data-field="password"
+                                value="${escapeHtml(password)}"
+                                placeholder="Teacher input"
+                                style="width:100%; padding:10px 44px 10px 10px; border:1px solid #e5e7eb; border-radius:10px;"
+                            />
+                            <button
+                                type="button"
+                                class="chesscom-toggle-password"
+                                data-student-id="${escapeHtml(s.id)}"
+                                title="Show/Hide password"
+                                aria-label="Toggle password visibility"
+                                style="position:absolute; right:10px; top:50%; transform:translateY(-50%); border:1px solid #e5e7eb; background:#f8fafc; border-radius:10px; width:32px; height:32px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#475569;"
+                            >👁</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1598,6 +1608,17 @@ document.getElementById('chessComSettingsList')?.addEventListener('input', (e) =
     if (!settings[studentId]) settings[studentId] = {};
     settings[studentId][field] = target.value;
     saveChessComSettings(settings);
+});
+
+document.getElementById('chessComSettingsList')?.addEventListener('click', (e) => {
+    const btn = e.target?.closest?.('.chesscom-toggle-password');
+    if (!btn) return;
+    const studentId = btn.getAttribute('data-student-id');
+    if (!studentId) return;
+    const input = document.querySelector(`#chessComSettingsList input.chesscom-input[data-student-id="${CSS.escape(studentId)}"][data-field="password"]`);
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    btn.textContent = input.type === 'password' ? '👁' : '🙈';
 });
 
 
