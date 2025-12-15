@@ -199,6 +199,48 @@
             color: white;
         }
 
+        /* Admin main tabs (beautified) */
+        .admin-tabs {
+            display: flex;
+            gap: 12px;
+            margin: 10px 0 22px;
+            padding: 10px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(10px);
+            flex-wrap: wrap;
+        }
+        .admin-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            background: rgba(255, 255, 255, 0.55);
+            color: #1f2937;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+        }
+        .admin-tab:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+            background: rgba(255, 255, 255, 0.75);
+        }
+        .admin-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #ffffff;
+            box-shadow: 0 14px 28px rgba(102, 126, 234, 0.35);
+        }
+        .admin-tab:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.35), 0 10px 22px rgba(0, 0, 0, 0.12);
+        }
+
         /* Subscription Setting (placeholder UI) */
         .subtabs {
             display: flex;
@@ -317,10 +359,10 @@
             </div>
         </header>
 
-        <div class="tabs">
-            <button class="tab active" onclick="switchAdminTab('dashboard', this)">🏠 Dashboard</button>
-            <button class="tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
-            <button class="tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
+        <div class="tabs admin-tabs">
+            <button class="tab admin-tab active" onclick="switchAdminTab('dashboard', this)">🏠 Dashboard</button>
+            <button class="tab admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
+            <button class="tab admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -542,7 +584,7 @@
         }
 
         function switchAdminTab(tab, element) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => {
                 c.classList.remove('active');
                 c.style.display = 'none';
