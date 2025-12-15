@@ -196,6 +196,7 @@
   function initSubscriptionUi() {
     document.getElementById('subscriptionSearchInput')?.addEventListener('input', renderSubscriptionPackageList);
     document.getElementById('subscriptionNewBtn')?.addEventListener('click', createNewPackage);
+    document.getElementById('subscriptionExportBtn')?.addEventListener('click', exportPackagesSnapshot);
     document.getElementById('subscriptionSaveBtn')?.addEventListener('click', saveActivePackage);
     document.getElementById('subscriptionArchiveBtn')?.addEventListener('click', archiveActivePackage);
     bindDetailFormListeners();
@@ -261,7 +262,7 @@
       price,
       badge: '',
       limits: { teacherSeats: 0, studentSeats: 0 },
-      features: { classView: false, challengeMode: false, runningQueen: false, royalExchange: false }
+      features: { classView: false, challengeMode: false }
     };
 
     subscriptionPackages = [pkg, ...subscriptionPackages];
@@ -269,6 +270,38 @@
     savePackagesToStorage(subscriptionPackages);
     renderSubscriptionPackageList();
     renderSubscriptionPackageDetail();
+  }
+
+  function exportPackagesSnapshot() {
+    try {
+      // Ensure latest state is persisted before export
+      savePackagesToStorage(subscriptionPackages);
+
+      const payload = {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        packages: subscriptionPackages
+      };
+      const json = JSON.stringify(payload, null, 2);
+
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `subscription-packages-${ts}.json`;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      URL.revokeObjectURL(url);
+      showToast('Packages exported.');
+    } catch (e) {
+      showToast('Failed to export packages.', 'error');
+    }
   }
 
   function getActivePackage() {
