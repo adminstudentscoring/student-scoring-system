@@ -88,6 +88,28 @@
         .tab-content.active {
             display: block;
         }
+        .student-game-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .student-game-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 180px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        @media (max-width: 520px) {
+            .student-game-btn {
+                width: 100%;
+                min-width: 0;
+            }
+        }
         .stat-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -197,10 +219,10 @@
         <div id="gameTab" class="tab-content">
             <h3>Game</h3>
             <p style="color:#666; margin-bottom: 16px;">Select a game to start. Your student name will be used for login/records.</p>
-            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <button class="btn btn-primary" onclick="openStudentGame('runningQueen')">♕ Running Queen</button>
-                <button class="btn btn-primary" onclick="openStudentGame('royalExchange')">♘ Royal Exchange</button>
-                <button class="btn btn-info" onclick="openStudentGame('chessCom')">♟️ Chess.com</button>
+            <div class="student-game-buttons">
+                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('runningQueen')">♕ Running Queen</button>
+                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('royalExchange')">♘ Royal Exchange</button>
+                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('chessCom')">♟️ Chess.com</button>
             </div>
         </div>
     </div>
@@ -246,7 +268,7 @@
                         Tip: Use Copy buttons, then paste into Chess.com login form.
                     </div>
                     <div style="display:flex; gap:10px;">
-                        <button id="studentChessComGo" class="btn btn-primary" type="button">一鍵前往</button>
+                        <button id="studentChessComGo" class="btn btn-primary" type="button">Go to Chess.com</button>
                         <button id="studentChessComClose" class="btn btn-secondary" type="button">Close</button>
                     </div>
                 </div>
