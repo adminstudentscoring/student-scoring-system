@@ -1748,6 +1748,18 @@ window.closeShareModal = function() {
 window.togglePasswordInput = function() {
     const enabled = document.getElementById('enablePasswordToggle').checked;
     document.getElementById('passwordGroup').style.display = enabled ? 'block' : 'none';
+
+    // If password protection is turned off, auto-clear (and persist) the password
+    // so the teacher doesn't need to click "Save Password".
+    if (!enabled) {
+        const pwdInput = document.getElementById('accessPassword');
+        const hadPassword = !!(pwdInput && pwdInput.value && pwdInput.value.trim());
+        if (pwdInput) pwdInput.value = '';
+        // Only call API when we are actually turning off an existing password
+        if (hadPassword && typeof window.saveAccessPassword === 'function') {
+            window.saveAccessPassword();
+        }
+    }
 };
 
 window.saveAccessPassword = async function() {
