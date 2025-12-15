@@ -276,6 +276,23 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
+        }
+        .package-list-toolbar .subscription-search {
+            flex: 1 1 180px;
+            min-width: 180px;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+        }
+        .package-list-actions {
+            display: inline-flex;
+            gap: 10px;
+            flex: 0 0 auto;
+            align-items: center;
+        }
+        .package-list-actions .btn {
+            white-space: nowrap;
         }
         .package-item {
             border: 1px solid #e5e7eb;
@@ -412,6 +429,23 @@
                 grid-template-columns: 1fr;
             }
         }
+        @media (max-width: 520px) {
+            .package-list-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .package-list-toolbar .subscription-search {
+                width: 100%;
+                min-width: 0;
+            }
+            .package-list-actions {
+                width: 100%;
+                display: flex;
+            }
+            .package-list-actions .btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -478,9 +512,11 @@
                         <!-- Left: Package list -->
                         <div class="package-list">
                             <div class="package-list-toolbar">
-                                <input id="subscriptionSearchInput" type="text" placeholder="Search package..." style="flex:1; padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
-                                <button id="subscriptionNewBtn" class="btn btn-primary" type="button">New</button>
-                                <button id="subscriptionExportBtn" class="btn btn-secondary" type="button">Save Packages</button>
+                                <input id="subscriptionSearchInput" class="subscription-search" type="text" placeholder="Search package...">
+                                <div class="package-list-actions">
+                                    <button id="subscriptionNewBtn" class="btn btn-primary" type="button">New</button>
+                                    <button id="subscriptionExportBtn" class="btn btn-secondary" type="button">Save Packages</button>
+                                </div>
                             </div>
                             <div id="subscriptionPackageList"></div>
                             <p class="help">Coming soon: create/edit/archive packages, versioning (Draft → Live), publish flow.</p>
