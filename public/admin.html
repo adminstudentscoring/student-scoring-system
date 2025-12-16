@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Student Scoring System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin-subscription-setting.css">
     <style>
         .admin-header {
             display: flex;
@@ -241,58 +242,7 @@
             box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.35), 0 10px 22px rgba(0, 0, 0, 0.12);
         }
 
-        /* Admin - Subscription Setting (left sidebar tabs; content will be rebuilt later) */
-        .admin-subscription-layout {
-            display: grid;
-            grid-template-columns: 260px minmax(0, 1fr);
-            gap: 16px;
-            margin-top: 12px;
-        }
-        .admin-subscription-sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .admin-subscription-side-tab {
-            width: 100%;
-            text-align: left;
-            padding: 12px 12px;
-            border-radius: 12px;
-            border: 1px solid #e5e7eb;
-            background: #ffffff;
-            color: #111827;
-            font-weight: 800;
-            cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-        }
-        .admin-subscription-side-tab:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
-            background: #f8fafc;
-        }
-        .admin-subscription-side-tab.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-color: rgba(255, 255, 255, 0.35);
-            color: #ffffff;
-            box-shadow: 0 14px 28px rgba(102, 126, 234, 0.28);
-        }
-        .admin-subscription-panel {
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            padding: 16px;
-            background: #ffffff;
-        }
-        .admin-subscription-panel.hidden {
-            display: none;
-        }
-        @media (max-width: 980px) {
-            .admin-subscription-layout {
-                grid-template-columns: 1fr;
-            }
-            .admin-subscription-side-tab {
-                text-align: center;
-            }
-        }
+        /* Admin - Subscription Setting styles extracted to admin-subscription-setting.css */
     </style>
 </head>
 <body>
@@ -363,7 +313,11 @@
                     <div>
                         <div id="adminSubscriptionPricePanel" class="admin-subscription-panel">
                             <h3 style="margin:0 0 8px; color:#111827;">Price Setting</h3>
-                            <p style="margin:0; color:#6b7280;">Content will be added later.</p>
+                            <div class="admin-subscription-toolbar">
+                                <div style="color:#6b7280; font-size:0.9rem;">Create and manage price definitions (no backend yet).</div>
+                                <button id="adminCreatePriceBtn" class="btn btn-primary" type="button">Create Price</button>
+                            </div>
+                            <div id="adminPriceList" class="admin-subscription-list"></div>
                         </div>
                         <div id="adminSubscriptionPackagePanel" class="admin-subscription-panel hidden">
                             <h3 style="margin:0 0 8px; color:#111827;">Package Setting</h3>
@@ -404,9 +358,68 @@
         </div>
     </div>
 
+    <!-- Admin - Create Price Modal -->
+    <div id="adminCreatePriceModal" class="admin-subscription-modal" aria-hidden="true">
+        <div class="admin-subscription-modal-content" role="dialog" aria-modal="true" aria-labelledby="adminCreatePriceTitle">
+            <div class="admin-subscription-modal-header">
+                <h3 id="adminCreatePriceTitle">Create Price</h3>
+                <button id="adminCreatePriceModalClose" class="admin-subscription-modal-close" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="admin-subscription-modal-body">
+                <div class="form-grid-2 admin-subscription-form-grid-2">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input id="adminPriceName" type="text" placeholder="e.g. Monthly Standard">
+                    </div>
+                    <div class="form-group">
+                        <label>Price</label>
+                        <input id="adminPriceAmount" type="number" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-grid-2 admin-subscription-form-grid-2" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Billing Type</label>
+                        <select id="adminPriceBillingType">
+                            <option value="monthly" selected>Monthly</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="one-time">One-time</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Price Code (auto)</label>
+                        <input id="adminPriceCode" type="text" readonly style="background:#f3f4f6;">
+                    </div>
+                </div>
+
+                <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
+                <h4 class="section-title" style="margin:0 0 10px;">Allowed Features</h4>
+                <div class="form-grid-2 admin-subscription-form-grid-2">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input id="adminPriceFeatureClassView" type="checkbox">
+                            <span>Class View</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input id="adminPriceFeatureChallengeMode" type="checkbox">
+                            <span>Challenge Mode</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-subscription-modal-actions">
+                <button id="adminCreatePriceCancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="adminCreatePriceSave" class="btn btn-primary" type="button">Create</button>
+            </div>
+        </div>
+    </div>
+
     <script src="auth.js"></script>
     <script src="admin-organization-settings.js"></script>
     <script src="admin-organization-tools.js"></script>
+    <script src="admin-subscription-setting.js"></script>
     <!-- Subscription Setting scripts (minimal tab switch for now) -->
     <script>
         // Check authentication
@@ -441,19 +454,7 @@
             }
         }
 
-        function switchAdminSubscriptionSideTab(tab, element) {
-            document.querySelectorAll('.admin-subscription-side-tab').forEach(t => t.classList.remove('active'));
-            if (element) element.classList.add('active');
-
-            const panels = {
-                price: document.getElementById('adminSubscriptionPricePanel'),
-                package: document.getElementById('adminSubscriptionPackagePanel'),
-                discount: document.getElementById('adminSubscriptionDiscountPanel')
-            };
-
-            Object.values(panels).forEach(p => p?.classList.add('hidden'));
-            panels[tab]?.classList.remove('hidden');
-        }
+        // Subscription Setting logic extracted to admin-subscription-setting.js
 
         async function loadOrganizations() {
             try {
