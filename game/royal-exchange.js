@@ -68,7 +68,9 @@
     currentDifficulty: 'normal',
     leaderboardLists: null,
     leaderboardTabs: null,
-    activeLeaderboardTab: 'normal'
+    activeLeaderboardTab: 'normal',
+    defeatOverlayEl: null,
+    defeatReasonEl: null
   };
 
   function initRoyalExchange() {
@@ -204,6 +206,27 @@
           </div>
         </div>
       </div>
+      <div id="reDefeatOverlay" class="re-modal-overlay hidden" aria-hidden="true">
+        <div class="re-modal" role="dialog" aria-modal="true" aria-labelledby="reDefeatTitle">
+          <div class="re-modal-header">
+            <div>
+              <h2 id="reDefeatTitle" class="re-modal-title">Defeat</h2>
+              <p class="re-modal-subtitle">Puzzle failed</p>
+            </div>
+            <button type="button" class="re-modal-close" data-modal-close="defeat" aria-label="Close defeat dialog">✕</button>
+          </div>
+          <div class="re-modal-body">
+            <section class="re-rules-section">
+              <h3>Reason</h3>
+              <p id="reDefeatReason" class="re-defeat-reason">Unknown reason.</p>
+            </section>
+          </div>
+          <div class="re-modal-footer re-defeat-footer">
+            <button type="button" id="reDefeatCancel" class="re-secondary">Cancel</button>
+            <button type="button" id="reDefeatRestart" class="re-primary">Restart</button>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -225,6 +248,8 @@
     };
     state.leaderboardTabs = container.querySelectorAll('.re-modal-tab');
     state.rulesOverlayEl = container.querySelector('#reRulesOverlay');
+    state.defeatOverlayEl = container.querySelector('#reDefeatOverlay');
+    state.defeatReasonEl = container.querySelector('#reDefeatReason');
   }
 
   function attachListeners(container) {
@@ -261,6 +286,8 @@
           closeLeaderboardModal();
         } else if (key === 'rules') {
           closeRulesModal();
+        } else if (key === 'defeat') {
+          closeDefeatModal();
         }
       });
     });
@@ -289,6 +316,28 @@
       state.rulesOverlayEl.addEventListener('click', event => {
         if (event.target === state.rulesOverlayEl) {
           closeRulesModal();
+        }
+      });
+    }
+
+    const defeatCancel = container.querySelector('#reDefeatCancel');
+    if (defeatCancel) {
+      defeatCancel.addEventListener('click', closeDefeatModal);
+    }
+    const defeatRestart = container.querySelector('#reDefeatRestart');
+    if (defeatRestart) {
+      defeatRestart.addEventListener('click', () => {
+        resetGame();
+        renderBoard();
+        updateStatus();
+        appendLog('Game reset.', 'info');
+        closeDefeatModal();
+      });
+    }
+    if (state.defeatOverlayEl) {
+      state.defeatOverlayEl.addEventListener('click', event => {
+        if (event.target === state.defeatOverlayEl) {
+          closeDefeatModal();
         }
       });
     }
@@ -458,9 +507,10 @@
     renderBoard();
 
     if (causesConflict()) {
-      appendLog(`${capitalize(piece.color)} ${piece.type} moved to ${formatCoordinate(piece)} causing an attack. Puzzle failed.`, 'error');
+      const reason = `${capitalize(piece.color)} ${piece.type} moved to ${formatCoordinate(piece)} causing an attack. Puzzle failed.`;
+      appendLog(reason, 'error');
       showToast('Conflict detected! Puzzle failed.', 'error');
-      failGame();
+      failGame(reason);
       return;
     }
 
@@ -475,11 +525,27 @@
     }
   }
 
-  function failGame() {
+  function failGame(reason) {
     state.gameActive = false;
     if (state.startButton) state.startButton.disabled = false;
     if (state.restartButton) state.restartButton.disabled = true;
     updateStatus('Failure');
+    openDefeatModal(reason);
+  }
+
+  function openDefeatModal(reason) {
+    if (!state.defeatOverlayEl) return;
+    if (state.defeatReasonEl) {
+      state.defeatReasonEl.textContent = reason || 'Unknown reason.';
+    }
+    state.defeatOverlayEl.classList.remove('hidden');
+    state.defeatOverlayEl.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeDefeatModal() {
+    if (!state.defeatOverlayEl) return;
+    state.defeatOverlayEl.classList.add('hidden');
+    state.defeatOverlayEl.setAttribute('aria-hidden', 'true');
   }
 
   function toggleTurn() {
@@ -675,6 +741,10 @@
     }
     if (state.rulesOverlayEl && !state.rulesOverlayEl.classList.contains('hidden')) {
       closeRulesModal();
+      handled = true;
+    }
+    if (state.defeatOverlayEl && !state.defeatOverlayEl.classList.contains('hidden')) {
+      closeDefeatModal();
       handled = true;
     }
     if (handled) {

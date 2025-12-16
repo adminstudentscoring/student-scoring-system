@@ -414,6 +414,17 @@
     justify-content: flex-end;
 }
 
+.re-defeat-reason {
+    margin: 0;
+    line-height: 1.6;
+    opacity: 0.9;
+}
+
+.re-defeat-footer {
+    justify-content: space-between;
+    gap: 10px;
+}
+
 .re-leaderboard-item {
     display: flex;
     gap: 12px;
@@ -597,6 +608,10 @@
     color: #111827;
     border: 1px solid #e5e7eb;
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.1);
+}
+
+.royal-exchange-root .re-defeat-reason {
+    color: #111827;
 }
 
 .royal-exchange-root .re-modal-close {
