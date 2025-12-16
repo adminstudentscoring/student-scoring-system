@@ -1,14 +1,1 @@
-[
-  {
-    "players": [
-      {
-        "name": "Wong Sir",
-        "studentId": "vcstudent001",
-        "id": "1762855338054"
-      }
-    ],
-    "steps": 9,
-    "duration": 36821,
-    "createdAt": "2025-11-13T11:13:52.459Z"
-  }
-]
+[]
