@@ -1,5 +1,6 @@
 (function () {
   const BOARD_SIZE = 8;
+  const API_BASE = window.API_BASE || '/api';
   const WHITE_START = {
     rook: { row: 7, col: 7 }, // h1
     knight: { row: 7, col: 6 }, // g1
@@ -79,6 +80,21 @@
     defeatOverlayEl: null,
     defeatReasonEl: null
   };
+
+  function apiRequest(path, options = {}) {
+    if (window.authUtils?.authenticatedFetch) {
+      return window.authUtils.authenticatedFetch(path, options);
+    }
+    const token = localStorage.getItem('authToken');
+    const headers = { ...(options.headers || {}) };
+    if (options.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (token && !headers.Authorization) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return fetch(`${API_BASE}${path}`, { ...options, headers });
+  }
 
   function initRoyalExchange() {
     const container = document.getElementById('royalExchangeGame');
@@ -791,8 +807,9 @@
   }
 
   function loadLeaderboard() {
-    fetch('/api/royal-exchange/leaderboard')
+    apiRequest('/royal-exchange/leaderboard')
       .then(response => {
+        if (!response) throw new Error('No response');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
       })
@@ -817,22 +834,30 @@
     Object.entries(state.leaderboardLists).forEach(([difficulty, container]) => {
       if (!container) return;
       const list = grouped[difficulty] || [];
+      const sorted = list.slice().sort((a, b) => {
+        const aSteps = Number(a?.steps) || 0;
+        const bSteps = Number(b?.steps) || 0;
+        if (aSteps !== bSteps) return aSteps - bSteps;
+        const aDur = Number(a?.duration) || 0;
+        const bDur = Number(b?.duration) || 0;
+        return aDur - bDur;
+      });
       if (loadError) {
         container.innerHTML = '<div class="re-leaderboard-empty">Unable to load leaderboard.</div>';
         return;
       }
-      if (list.length === 0) {
+      if (sorted.length === 0) {
         container.innerHTML = '<div class="re-leaderboard-empty">No records yet.</div>';
         return;
       }
-      container.innerHTML = list.map((entry, index) => `
+      container.innerHTML = sorted.map((entry, index) => `
         <div class="re-leaderboard-item">
           <div class="re-leaderboard-rank">#${index + 1}</div>
           <div class="re-leaderboard-info">
             <div class="re-leaderboard-names">${(entry.players || []).map(p => p.name).join(', ')}</div>
             <div class="re-leaderboard-meta">
-              <span>${entry.steps} moves</span>
-              <span>${formatDuration(entry.duration || 0)}</span>
+              <span>Moves: ${Number(entry.steps) || 0}</span>
+              <span>Time: ${formatDuration(Number(entry.duration) || 0)}</span>
               <span>${entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}</span>
             </div>
           </div>
@@ -859,9 +884,8 @@
   }
 
   function submitLeaderboardEntry(steps, duration) {
-    return fetch('/api/royal-exchange/leaderboard', {
+    return apiRequest('/royal-exchange/leaderboard', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         players: state.players,
         steps,
@@ -909,6 +933,15 @@
     const columnLetter = String.fromCharCode('a'.charCodeAt(0) + piece.col);
     const rowNumber = BOARD_SIZE - piece.row;
     return `${columnLetter}${rowNumber}`;
+  }
+
+  function formatDuration(ms) {
+    const safe = Number(ms) || 0;
+    const totalSeconds = Math.max(0, Math.floor(safe / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes <= 0) return `${seconds}s`;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
   function capitalize(text) {

@@ -1124,10 +1124,14 @@ async function addRoyalExchangeLeaderboardEntry(entry) {
     players: entry.players || [],
     steps: Number(entry.steps) || 0,
     duration: Number(entry.duration) || 0,
+    difficulty: entry.difficulty || 'normal',
     createdAt: entry.createdAt || new Date().toISOString()
   };
   entries.push(normalized);
   entries.sort((a, b) => {
+    if ((a.difficulty || 'normal') !== (b.difficulty || 'normal')) {
+      return String(a.difficulty || 'normal').localeCompare(String(b.difficulty || 'normal'));
+    }
     if (a.steps !== b.steps) return a.steps - b.steps;
     return a.duration - b.duration;
   });
@@ -8319,7 +8323,7 @@ app.get('/api/royal-exchange/leaderboard', async (req, res) => {
 
 app.post('/api/royal-exchange/leaderboard', async (req, res) => {
   try {
-    const { players, steps, duration } = req.body || {};
+    const { players, steps, duration, difficulty, createdAt } = req.body || {};
     if (!Array.isArray(players) || players.length === 0) {
       return res.status(400).json({ error: 'Players list is required' });
     }
@@ -8331,7 +8335,9 @@ app.post('/api/royal-exchange/leaderboard', async (req, res) => {
     const entries = await addRoyalExchangeLeaderboardEntry({
       players: normalizedPlayers,
       steps,
-      duration
+      duration,
+      difficulty,
+      createdAt
     });
     res.json({ success: true, entries });
   } catch (error) {
