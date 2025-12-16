@@ -446,6 +446,39 @@
     justify-items: center;
 }
 
+/* Mobile: reduce the board "frame" padding so the board doesn't become tiny on phones */
+@media (max-width: 520px) {
+    .rq-board-container {
+        padding: 22px 18px 38px 38px;
+    }
+
+    .rq-board-col-labels {
+        bottom: -20px;
+        font-size: 0.78rem;
+    }
+
+    .rq-board-row-labels {
+        left: -22px;
+        font-size: 0.78rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .rq-board-container {
+        padding: 18px 14px 34px 34px;
+    }
+
+    .rq-board-col-labels {
+        bottom: -18px;
+        font-size: 0.74rem;
+    }
+
+    .rq-board-row-labels {
+        left: -20px;
+        font-size: 0.74rem;
+    }
+}
+
 .rq-col-label,
 .rq-row-label {
     pointer-events: none;
