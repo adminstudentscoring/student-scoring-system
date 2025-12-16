@@ -506,110 +506,7 @@
             }
         }
 
-        /* Organization Subscription */
-        .org-subscription-layout {
-            display: grid;
-            grid-template-columns: 220px minmax(0, 1fr);
-            gap: 16px;
-            margin-top: 16px;
-        }
-        .org-subscription-sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .org-subscription-nav {
-            width: 100%;
-            text-align: left;
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-            background: #f8fafc;
-            cursor: pointer;
-            font-weight: 700;
-            transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-        }
-        .org-subscription-nav:hover {
-            background: #f0f4ff;
-            transform: translateY(-1px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-        }
-        .org-subscription-nav.active {
-            background: #e0e7ff;
-            border-color: #c7d2fe;
-        }
-        .org-subscription-panel {
-            min-height: 120px;
-        }
-        .org-plan-sections {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 18px;
-        }
-        .org-plan-section-title {
-            margin: 0 0 10px;
-            color: #111827;
-            font-size: 1.1rem;
-        }
-        .org-plan-card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 14px;
-        }
-        .org-plan-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            padding: 14px;
-            background: #ffffff;
-            box-shadow: 0 10px 22px rgba(0,0,0,0.06);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .org-plan-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 10px;
-        }
-        .org-plan-name {
-            font-weight: 800;
-            font-size: 1.05rem;
-            color: #111827;
-            margin: 0;
-        }
-        .org-plan-price {
-            font-weight: 800;
-            color: #667eea;
-            white-space: nowrap;
-        }
-        .org-plan-sub {
-            color: #6b7280;
-            font-size: 0.9rem;
-        }
-        .org-plan-badges {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .org-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 3px 10px;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 800;
-            border: 1px solid #e5e7eb;
-            background: #f8fafc;
-            color: #334155;
-        }
-        .org-badge.feature { border-color: rgba(102,126,234,0.25); background: rgba(102,126,234,0.10); color:#3b5bcc; }
-        .org-badge.limit { border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.10); color:#047857; }
-        @media (max-width: 980px) {
-            .org-subscription-layout {
-                grid-template-columns: 1fr;
-            }
-        }
+        /* Organization Subscription styles removed (will be rebuilt later) */
     </style>
 </head>
 <body>
@@ -728,24 +625,8 @@
             <p>Loading statistics...</p>
         </div>
 
-        <!-- Subscription Tab (placeholder) -->
-        <div id="subscriptionTab" class="tab-content">
-            <div class="card">
-                <h2>💳 Subscription</h2>
-                <div class="org-subscription-layout">
-                    <div class="org-subscription-sidebar">
-                        <button class="org-subscription-nav active" onclick="switchOrganizationSubscriptionTab('plan', this)">Subscription Plan</button>
-                    </div>
-                    <div class="org-subscription-content">
-                        <div id="orgSubscriptionPlan" class="org-subscription-panel">
-                            <div id="orgSubscriptionPlanContainer">
-                                <p style="color:#666; margin:0;">Loading subscription plans...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Subscription Tab (content removed; will be rebuilt later) -->
+        <div id="subscriptionTab" class="tab-content"></div>
 
         <!-- Settings Tab -->
         <div id="settingsTab" class="tab-content">
@@ -895,7 +776,6 @@
     </div>
 
     <script src="organization-settings.js"></script>
-    <script src="organization-subscription.js"></script>
     <script>
         // Check authentication
         if (!window.authUtils.requireRole('organization')) {
@@ -954,12 +834,7 @@
                 }
             }
 
-            // Load subscription when switching to subscription tab
-            if (tab === 'subscription') {
-                if (window.loadOrganizationSubscription) {
-                    window.loadOrganizationSubscription();
-                }
-            }
+            // Subscription content removed (will be rebuilt later)
         }
 
         async function createTeacher(event) {
