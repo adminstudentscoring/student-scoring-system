@@ -99,6 +99,31 @@ function renderDashboard() {
     }
 
     renderRanking();
+
+    // Deep link support: allow staff to share links that open a specific tab/game.
+    applyDeepLinkFromUrl();
+}
+
+function applyDeepLinkFromUrl() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const openTab = params.get('openTab');
+        const openGame = params.get('openGame');
+        const autoStart = params.get('autoStart') === '1';
+
+        if (openTab) {
+            window.switchTab(openTab);
+        }
+
+        if (openGame) {
+            // Ensure we are on the Game tab before starting.
+            window.switchTab('game');
+            // Auto-start should avoid popup blockers on mobile by opening in the same tab.
+            window.openStudentGame(openGame, { openMode: autoStart ? 'sameTab' : 'popup' });
+        }
+    } catch (e) {
+        // No-op
+    }
 }
 
 function renderRanking() {
@@ -140,13 +165,15 @@ window.switchTab = function(tab) {
     }
 };
 
-window.openStudentGame = function(gameKey) {
+window.openStudentGame = function(gameKey, options = {}) {
     if (!studentData) return;
     const player = {
         id: studentData.id || studentData._id || studentId || studentData.studentId || '',
         name: studentData.name || 'Student',
         studentId: studentData.studentId || ''
     };
+
+    const openMode = options && options.openMode ? options.openMode : 'popup';
 
     if (gameKey === 'chessCom') {
         openStudentChessComModal();
@@ -159,7 +186,11 @@ window.openStudentGame = function(gameKey) {
         } catch (e) {
             console.warn('Unable to persist runningQueenPlayers', e);
         }
-        window.open('/game/game-window.html?game=runningQueen', '_blank');
+        if (openMode === 'sameTab') {
+            window.location.href = '/game/game-window.html?game=runningQueen';
+        } else {
+            window.open('/game/game-window.html?game=runningQueen', '_blank');
+        }
         return;
     }
 
@@ -169,7 +200,11 @@ window.openStudentGame = function(gameKey) {
         } catch (e) {
             console.warn('Unable to persist royalExchangePlayers', e);
         }
-        window.open('/game/game-window.html?game=royalExchange', '_blank');
+        if (openMode === 'sameTab') {
+            window.location.href = '/game/game-window.html?game=royalExchange';
+        } else {
+            window.open('/game/game-window.html?game=royalExchange', '_blank');
+        }
     }
 };
 

@@ -291,6 +291,16 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
+                    <label>Share Destination:</label>
+                    <div id="shareDestinationTabs" style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-secondary btn-small share-dest-tab active" data-share-dest="dashboard">Dashboard</button>
+                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_runningQueen">Game: Running Queen</button>
+                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_royalExchange">Game: Royal Exchange</button>
+                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_chessCom">Game: Chess.com</button>
+                    </div>
+                    <small style="color:#666;">The link will open the student dashboard at the selected section.</small>
+                </div>
+                <div class="form-group">
                     <label>Public Link:</label>
                     <div style="display: flex; gap: 10px;">
                         <input type="text" id="shareLinkInput" readonly style="background: #f3f4f6; flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">

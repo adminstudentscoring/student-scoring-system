@@ -1725,6 +1725,63 @@ window.createParticleEffect = createParticleEffect;
 
 // Share Access Functions
 let currentShareStudentId = null;
+let currentShareDestination = 'dashboard';
+let currentShareStudentPublicLinkBase = '';
+
+function buildStudentPublicLink(baseLink, destination) {
+    try {
+        const url = new URL(baseLink, window.location.origin);
+        if (destination === 'dashboard') {
+            return url.toString();
+        }
+        if (destination === 'game_runningQueen') {
+            url.searchParams.set('openTab', 'game');
+            url.searchParams.set('openGame', 'runningQueen');
+            url.searchParams.set('autoStart', '1');
+            return url.toString();
+        }
+        if (destination === 'game_royalExchange') {
+            url.searchParams.set('openTab', 'game');
+            url.searchParams.set('openGame', 'royalExchange');
+            url.searchParams.set('autoStart', '1');
+            return url.toString();
+        }
+        if (destination === 'game_chessCom') {
+            url.searchParams.set('openTab', 'game');
+            url.searchParams.set('openGame', 'chessCom');
+            url.searchParams.set('autoStart', '1');
+            return url.toString();
+        }
+        return url.toString();
+    } catch (e) {
+        return baseLink;
+    }
+}
+
+function updateShareLinkInput() {
+    const input = document.getElementById('shareLinkInput');
+    if (!input || !currentShareStudentPublicLinkBase) return;
+    input.value = buildStudentPublicLink(currentShareStudentPublicLinkBase, currentShareDestination);
+}
+
+function initShareDestinationTabs() {
+    const container = document.getElementById('shareDestinationTabs');
+    if (!container) return;
+    if (container.dataset.initialized === '1') return;
+    container.dataset.initialized = '1';
+
+    container.querySelectorAll('.share-dest-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const dest = btn.getAttribute('data-share-dest') || 'dashboard';
+            currentShareDestination = dest;
+            container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
+            container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.add('btn-secondary'));
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-info');
+            updateShareLinkInput();
+        });
+    });
+}
 
 window.openShareModal = function(studentId) {
     currentShareStudentId = studentId;
@@ -1734,10 +1791,25 @@ window.openShareModal = function(studentId) {
     const modal = document.getElementById('shareAccessModal');
     if (modal) {
         modal.classList.add('show');
+
+        // Initialize destination tabs + default selection
+        initShareDestinationTabs();
+        currentShareDestination = 'dashboard';
+        const tabs = document.getElementById('shareDestinationTabs');
+        if (tabs) {
+            tabs.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
+            tabs.querySelectorAll('.share-dest-tab').forEach(b => b.classList.add('btn-secondary'));
+            const defaultBtn = tabs.querySelector('[data-share-dest="dashboard"]');
+            if (defaultBtn) {
+                defaultBtn.classList.remove('btn-secondary');
+                defaultBtn.classList.add('btn-info');
+            }
+        }
         
         // Set Link
         const link = `${window.location.origin}/student.html?id=${student.id}`;
-        document.getElementById('shareLinkInput').value = link;
+        currentShareStudentPublicLinkBase = link;
+        updateShareLinkInput();
         
         // Set Password State
         const hasPassword = !!student.accessPassword;
