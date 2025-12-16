@@ -324,7 +324,14 @@
                         </div>
                         <div id="adminSubscriptionPackagePanel" class="admin-subscription-panel hidden">
                             <h3 style="margin:0 0 8px; color:#111827;">Package Setting</h3>
-                            <p style="margin:0; color:#6b7280;">Content will be added later.</p>
+                            <div class="admin-subscription-toolbar">
+                                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%;">
+                                    <input id="adminPackageSearchInput" type="text" placeholder="Search package..." style="flex:1; min-width:200px; padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
+                                    <button id="adminDeleteSelectedPackagesBtn" class="btn btn-danger" type="button" disabled>Delete Selected</button>
+                                    <button id="adminCreatePackageBtn" class="btn btn-primary" type="button">Create Package</button>
+                                </div>
+                            </div>
+                            <div id="adminPackageList" class="admin-subscription-list"></div>
                         </div>
                         <div id="adminSubscriptionDiscountPanel" class="admin-subscription-panel hidden">
                             <h3 style="margin:0 0 8px; color:#111827;">Discount Setting</h3>
@@ -428,6 +435,72 @@
             <div class="admin-subscription-modal-actions">
                 <button id="adminCreatePriceCancel" class="btn btn-secondary" type="button">Cancel</button>
                 <button id="adminCreatePriceSave" class="btn btn-primary" type="button">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin - Create Package Modal -->
+    <div id="adminCreatePackageModal" class="admin-subscription-modal" aria-hidden="true">
+        <div class="admin-subscription-modal-content" role="dialog" aria-modal="true" aria-labelledby="adminCreatePackageTitle">
+            <div class="admin-subscription-modal-header">
+                <h3 id="adminCreatePackageTitle">Create Package</h3>
+                <button id="adminCreatePackageModalClose" class="admin-subscription-modal-close" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="admin-subscription-modal-body">
+                <div class="admin-subscription-form-grid-2">
+                    <div class="form-group">
+                        <label>Package Name</label>
+                        <input id="adminPackageName" type="text" placeholder="e.g. Starter Pack">
+                    </div>
+                    <div class="form-group">
+                        <label>Price Code</label>
+                        <select id="adminPackagePriceCode">
+                            <option value="">Loading...</option>
+                        </select>
+                        <div class="help">Choose a price definition created in Price Setting.</div>
+                    </div>
+                </div>
+
+                <div class="admin-subscription-form-grid-2" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Quantity</label>
+                        <input id="adminPackageQuantity" type="number" min="1" step="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Discount Type</label>
+                        <select id="adminPackageDiscountType">
+                            <option value="none" selected>None</option>
+                            <option value="percent">Percent (%)</option>
+                            <option value="fixed">Fixed Amount</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="admin-subscription-form-grid-2" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Discount Value</label>
+                        <input id="adminPackageDiscountValue" type="number" min="0" step="0.01" value="0" disabled>
+                        <div class="help">Enabled when Discount Type is Percent or Fixed.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Validity</label>
+                        <div class="admin-subscription-form-grid-2" style="gap:10px;">
+                            <div>
+                                <div class="help" style="margin-top:0;">From</div>
+                                <input id="adminPackageValidFrom" type="date">
+                            </div>
+                            <div>
+                                <div class="help" style="margin-top:0;">To</div>
+                                <input id="adminPackageValidTo" type="date">
+                            </div>
+                        </div>
+                        <div class="help">Leave empty for no validity limit.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-subscription-modal-actions">
+                <button id="adminCreatePackageCancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="adminCreatePackageSave" class="btn btn-primary" type="button">Save</button>
             </div>
         </div>
     </div>

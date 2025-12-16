@@ -25,6 +25,7 @@ const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE |
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
 const PACKAGES_FILE = path.join(__dirname, process.env.PACKAGES_FILE || path.join(DATA_DIR, 'packages.json'));
 const SUBSCRIPTION_PRICES_FILE = path.join(__dirname, process.env.SUBSCRIPTION_PRICES_FILE || path.join(DATA_DIR, 'subscription-prices.json'));
+const SUBSCRIPTION_PACKAGES_FILE = path.join(__dirname, process.env.SUBSCRIPTION_PACKAGES_FILE || path.join(DATA_DIR, 'subscription-packages.json'));
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
 const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
@@ -163,6 +164,13 @@ async function ensureDataDir() {
   } catch {
     await fs.writeFile(SUBSCRIPTION_PRICES_FILE, JSON.stringify({ prices: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
   }
+
+  // Ensure subscription packages file exists
+  try {
+    await fs.access(SUBSCRIPTION_PACKAGES_FILE);
+  } catch {
+    await fs.writeFile(SUBSCRIPTION_PACKAGES_FILE, JSON.stringify({ packages: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
 }
 
 // Read organizations data
@@ -285,6 +293,34 @@ async function writeSubscriptionPrices(prices) {
     return true;
   } catch (error) {
     console.error('Error writing subscription prices:', error);
+    return false;
+  }
+}
+
+// Read subscription packages data (Admin Subscription Setting -> Package Setting)
+async function readSubscriptionPackages() {
+  try {
+    const content = await fs.readFile(SUBSCRIPTION_PACKAGES_FILE, 'utf8');
+    const data = JSON.parse(content || '{}');
+    return Array.isArray(data.packages) ? data.packages : [];
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    console.error('Error reading subscription packages:', error);
+    return [];
+  }
+}
+
+// Write subscription packages data
+async function writeSubscriptionPackages(packages) {
+  try {
+    await fs.writeFile(
+      SUBSCRIPTION_PACKAGES_FILE,
+      JSON.stringify({ packages, lastUpdate: new Date().toISOString() }, null, 2),
+      'utf8'
+    );
+    return true;
+  } catch (error) {
+    console.error('Error writing subscription packages:', error);
     return false;
   }
 }
@@ -2664,6 +2700,138 @@ app.post('/api/admin/subscription/prices/bulk-delete', authenticateUser, authori
   } catch (error) {
     console.error('Error bulk deleting subscription prices:', error);
     res.status(500).json({ error: 'Failed to delete prices' });
+  }
+});
+
+function normalizeDiscountType(t) {
+  const v = String(t || 'none').toLowerCase();
+  return ['none', 'percent', 'fixed'].includes(v) ? v : 'none';
+}
+
+function normalizeDateOnly(d) {
+  const v = String(d || '').trim();
+  if (!v) return '';
+  // Expect YYYY-MM-DD from <input type="date">
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+  return v;
+}
+
+function normalizeSubscriptionPackagePayload(body) {
+  const name = String(body?.name || '').trim();
+  const priceId = String(body?.priceId || '').trim();
+  const priceCode = String(body?.priceCode || '').trim();
+  const quantity = Math.max(1, parseInt(body?.quantity ?? 1, 10) || 1);
+  const discountType = normalizeDiscountType(body?.discountType);
+  const discountValueRaw = Number(body?.discountValue ?? 0);
+  const discountValue = Number.isFinite(discountValueRaw) && discountValueRaw >= 0 ? discountValueRaw : 0;
+  const validFrom = normalizeDateOnly(body?.validFrom);
+  const validTo = normalizeDateOnly(body?.validTo);
+  return { name, priceId, priceCode, quantity, discountType, discountValue, validFrom, validTo };
+}
+
+app.get('/api/admin/subscription/packages', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const packages = await readSubscriptionPackages();
+    const filtered = !q
+      ? packages
+      : packages.filter(p =>
+          String(p.name || '').toLowerCase().includes(q) ||
+          String(p.priceCode || '').toLowerCase().includes(q)
+        );
+    res.json(filtered);
+  } catch (error) {
+    console.error('Error listing subscription packages:', error);
+    res.status(500).json({ error: 'Failed to load packages' });
+  }
+});
+
+app.post('/api/admin/subscription/packages', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const packages = await readSubscriptionPackages();
+    const payload = normalizeSubscriptionPackagePayload(req.body);
+    if (!payload.name) return res.status(400).json({ error: 'Package Name is required' });
+    if (!payload.priceId && !payload.priceCode) return res.status(400).json({ error: 'Price Code is required' });
+
+    // Validate referenced price (best-effort)
+    const prices = await readSubscriptionPrices();
+    const found = payload.priceId ? prices.find(p => p.id === payload.priceId) : prices.find(p => p.code === payload.priceCode);
+    if (!found) return res.status(400).json({ error: 'Selected Price Code not found' });
+
+    const now = new Date().toISOString();
+    const id = `spkg_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const pkg = {
+      id,
+      name: payload.name,
+      priceId: found.id,
+      priceCode: found.code,
+      quantity: payload.quantity,
+      discountType: payload.discountType,
+      discountValue: payload.discountType === 'none' ? 0 : payload.discountValue,
+      validFrom: payload.validFrom,
+      validTo: payload.validTo,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    packages.push(pkg);
+    await writeSubscriptionPackages(packages);
+    res.json(pkg);
+  } catch (error) {
+    console.error('Error creating subscription package:', error);
+    res.status(500).json({ error: 'Failed to create package' });
+  }
+});
+
+app.put('/api/admin/subscription/packages/:id', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const id = req.params.id;
+    const packages = await readSubscriptionPackages();
+    const idx = packages.findIndex(p => p.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Package not found' });
+
+    const payload = normalizeSubscriptionPackagePayload(req.body);
+    if (!payload.name) return res.status(400).json({ error: 'Package Name is required' });
+    if (!payload.priceId && !payload.priceCode) return res.status(400).json({ error: 'Price Code is required' });
+
+    const prices = await readSubscriptionPrices();
+    const found = payload.priceId ? prices.find(p => p.id === payload.priceId) : prices.find(p => p.code === payload.priceCode);
+    if (!found) return res.status(400).json({ error: 'Selected Price Code not found' });
+
+    packages[idx] = {
+      ...packages[idx],
+      name: payload.name,
+      priceId: found.id,
+      priceCode: found.code,
+      quantity: payload.quantity,
+      discountType: payload.discountType,
+      discountValue: payload.discountType === 'none' ? 0 : payload.discountValue,
+      validFrom: payload.validFrom,
+      validTo: payload.validTo,
+      updatedAt: new Date().toISOString()
+    };
+
+    await writeSubscriptionPackages(packages);
+    res.json(packages[idx]);
+  } catch (error) {
+    console.error('Error updating subscription package:', error);
+    res.status(500).json({ error: 'Failed to update package' });
+  }
+});
+
+app.post('/api/admin/subscription/packages/bulk-delete', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+    if (!ids.length) return res.status(400).json({ error: 'ids is required' });
+
+    const packages = await readSubscriptionPackages();
+    const set = new Set(ids);
+    const next = packages.filter(p => !set.has(p.id));
+    await writeSubscriptionPackages(next);
+    res.json({ ok: true, deletedCount: packages.length - next.length });
+  } catch (error) {
+    console.error('Error bulk deleting subscription packages:', error);
+    res.status(500).json({ error: 'Failed to delete packages' });
   }
 });
 
