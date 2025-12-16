@@ -978,8 +978,9 @@
     }
 
     if (state.lastMovedQueenIndex !== null && state.lastMovedQueenIndex === queenIndex) {
-      showPopup('Cannot move the same queen twice in a row.', 'error');
-      if (state.mode === 'timed') {
+      if (state.mode === 'classic') {
+        showPopup('Cannot move the same queen twice in a row.', 'error');
+      } else if (state.mode === 'timed') {
         handleTimedFailure('Timed challenge failed: same queen moved consecutively.');
       } else if (state.mode === 'infinite') {
         handleInfiniteFailure('Infinite run ended: same queen moved consecutively.');
@@ -988,8 +989,9 @@
     }
 
     if (!isValidQueenMove(queen.row, queen.col, targetRow, targetCol)) {
-      showPopup('Invalid queen move. Please use a straight or diagonal path.', 'error');
-      if (state.mode === 'timed') {
+      if (state.mode === 'classic') {
+        showPopup('Invalid queen move. Please use a straight or diagonal path.', 'error');
+      } else if (state.mode === 'timed') {
         handleTimedFailure('Timed challenge failed: invalid queen move.');
       } else if (state.mode === 'infinite') {
         handleInfiniteFailure('Infinite run ended: invalid queen move.');
@@ -1001,8 +1003,9 @@
     const colDelta = Math.abs(targetCol - queen.col);
     const moveDistance = Math.max(rowDelta, colDelta);
     if (moveDistance < 2) {
-      showPopup('Queens must move at least two squares.', 'error');
-      if (state.mode === 'timed') {
+      if (state.mode === 'classic') {
+        showPopup('Queens must move at least two squares.', 'error');
+      } else if (state.mode === 'timed') {
         handleTimedFailure('Timed challenge failed: move was less than two squares.');
       } else if (state.mode === 'infinite') {
         handleInfiniteFailure('Infinite run ended: move was less than two squares.');
@@ -1011,8 +1014,9 @@
     }
 
     if (!isPathClear(queen.row, queen.col, targetRow, targetCol)) {
-      showPopup('Path is blocked by another queen.', 'error');
-      if (state.mode === 'timed') {
+      if (state.mode === 'classic') {
+        showPopup('Path is blocked by another queen.', 'error');
+      } else if (state.mode === 'timed') {
         handleTimedFailure('Timed challenge failed: path blocked by another queen.');
       } else if (state.mode === 'infinite') {
         handleInfiniteFailure('Infinite run ended: path blocked by another queen.');
