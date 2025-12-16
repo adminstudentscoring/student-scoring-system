@@ -241,7 +241,58 @@
             box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.35), 0 10px 22px rgba(0, 0, 0, 0.12);
         }
 
-        /* Subscription Setting styles removed (will be rebuilt later) */
+        /* Admin - Subscription Setting (left sidebar tabs; content will be rebuilt later) */
+        .admin-subscription-layout {
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .admin-subscription-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .admin-subscription-side-tab {
+            width: 100%;
+            text-align: left;
+            padding: 12px 12px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #111827;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .admin-subscription-side-tab:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
+            background: #f8fafc;
+        }
+        .admin-subscription-side-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #ffffff;
+            box-shadow: 0 14px 28px rgba(102, 126, 234, 0.28);
+        }
+        .admin-subscription-panel {
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 16px;
+            background: #ffffff;
+        }
+        .admin-subscription-panel.hidden {
+            display: none;
+        }
+        @media (max-width: 980px) {
+            .admin-subscription-layout {
+                grid-template-columns: 1fr;
+            }
+            .admin-subscription-side-tab {
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -295,8 +346,37 @@
             </section>
         </div>
 
-        <!-- Subscription Setting Tab (content removed; will be rebuilt later) -->
-        <div id="subscriptionSettingTab" class="tab-content"></div>
+        <!-- Subscription Setting Tab -->
+        <div id="subscriptionSettingTab" class="tab-content">
+            <section class="card">
+                <h2>💳 Subscription Setting</h2>
+
+                <div class="admin-subscription-layout">
+                    <!-- Left sidebar tabs -->
+                    <div class="admin-subscription-sidebar">
+                        <button class="admin-subscription-side-tab active" type="button" onclick="switchAdminSubscriptionSideTab('price', this)">Price Setting</button>
+                        <button class="admin-subscription-side-tab" type="button" onclick="switchAdminSubscriptionSideTab('package', this)">Package Setting</button>
+                        <button class="admin-subscription-side-tab" type="button" onclick="switchAdminSubscriptionSideTab('discount', this)">Discount Setting</button>
+                    </div>
+
+                    <!-- Right content panels (placeholders for now) -->
+                    <div>
+                        <div id="adminSubscriptionPricePanel" class="admin-subscription-panel">
+                            <h3 style="margin:0 0 8px; color:#111827;">Price Setting</h3>
+                            <p style="margin:0; color:#6b7280;">Content will be added later.</p>
+                        </div>
+                        <div id="adminSubscriptionPackagePanel" class="admin-subscription-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Package Setting</h3>
+                            <p style="margin:0; color:#6b7280;">Content will be added later.</p>
+                        </div>
+                        <div id="adminSubscriptionDiscountPanel" class="admin-subscription-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Discount Setting</h3>
+                            <p style="margin:0; color:#6b7280;">Content will be added later.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
     </div>
 
     <!-- Organization Settings Modal -->
@@ -327,7 +407,7 @@
     <script src="auth.js"></script>
     <script src="admin-organization-settings.js"></script>
     <script src="admin-organization-tools.js"></script>
-    <!-- Subscription Setting scripts removed (will be rebuilt later) -->
+    <!-- Subscription Setting scripts (minimal tab switch for now) -->
     <script>
         // Check authentication
         if (!window.authUtils.requireRole('admin')) {
@@ -359,6 +439,20 @@
                 target.classList.add('active');
                 target.style.display = 'block';
             }
+        }
+
+        function switchAdminSubscriptionSideTab(tab, element) {
+            document.querySelectorAll('.admin-subscription-side-tab').forEach(t => t.classList.remove('active'));
+            if (element) element.classList.add('active');
+
+            const panels = {
+                price: document.getElementById('adminSubscriptionPricePanel'),
+                package: document.getElementById('adminSubscriptionPackagePanel'),
+                discount: document.getElementById('adminSubscriptionDiscountPanel')
+            };
+
+            Object.values(panels).forEach(p => p?.classList.add('hidden'));
+            panels[tab]?.classList.remove('hidden');
         }
 
         async function loadOrganizations() {
