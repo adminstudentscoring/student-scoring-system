@@ -1121,6 +1121,7 @@ async function writeRoyalExchangeLeaderboard(entries) {
 async function addRoyalExchangeLeaderboardEntry(entry) {
   const entries = await readRoyalExchangeLeaderboard();
   const normalized = {
+    success: entry.success === true,
     players: entry.players || [],
     steps: Number(entry.steps) || 0,
     duration: Number(entry.duration) || 0,
@@ -8314,7 +8315,11 @@ app.post('/api/running-queen/leaderboard', async (req, res) => {
 app.get('/api/royal-exchange/leaderboard', async (req, res) => {
   try {
     const entries = await readRoyalExchangeLeaderboard();
-    res.json({ entries });
+    // Only show successful completions. Keep legacy entries (without success field) visible.
+    const filtered = Array.isArray(entries)
+      ? entries.filter(entry => entry && (entry.success === true || typeof entry.success === 'undefined'))
+      : [];
+    res.json({ entries: filtered });
   } catch (error) {
     console.error('Error fetching Royal Exchange leaderboard:', error);
     res.status(500).json({ error: 'Failed to load leaderboard' });
@@ -8323,7 +8328,10 @@ app.get('/api/royal-exchange/leaderboard', async (req, res) => {
 
 app.post('/api/royal-exchange/leaderboard', async (req, res) => {
   try {
-    const { players, steps, duration, difficulty, createdAt } = req.body || {};
+    const { success, players, steps, duration, difficulty, createdAt } = req.body || {};
+    if (success !== true) {
+      return res.status(400).json({ error: 'Only successful completions can be recorded' });
+    }
     if (!Array.isArray(players) || players.length === 0) {
       return res.status(400).json({ error: 'Players list is required' });
     }
@@ -8333,6 +8341,7 @@ app.post('/api/royal-exchange/leaderboard', async (req, res) => {
       id: player.id || null
     }));
     const entries = await addRoyalExchangeLeaderboardEntry({
+      success: true,
       players: normalizedPlayers,
       steps,
       duration,

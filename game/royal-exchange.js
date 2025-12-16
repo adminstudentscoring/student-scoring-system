@@ -887,6 +887,7 @@
     return apiRequest('/royal-exchange/leaderboard', {
       method: 'POST',
       body: JSON.stringify({
+        success: true,
         players: state.players,
         steps,
         duration,
