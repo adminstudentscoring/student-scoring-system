@@ -307,6 +307,7 @@
                         <button class="admin-subscription-side-tab active" type="button" onclick="switchAdminSubscriptionSideTab('price', this)">Price Setting</button>
                         <button class="admin-subscription-side-tab" type="button" onclick="switchAdminSubscriptionSideTab('package', this)">Package Setting</button>
                         <button class="admin-subscription-side-tab" type="button" onclick="switchAdminSubscriptionSideTab('discount', this)">Discount Setting</button>
+                        <button class="admin-subscription-side-tab" type="button" onclick="switchAdminSubscriptionSideTab('preview', this)">Preview</button>
                     </div>
 
                     <!-- Right content panels (placeholders for now) -->
@@ -347,6 +348,15 @@
                                 </div>
                             </div>
                             <div id="adminSubscriptionAuditList" class="admin-subscription-list"></div>
+                        </div>
+
+                        <div id="adminSubscriptionPreviewPanel" class="admin-subscription-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Preview</h3>
+                            <div class="help" style="margin:0 0 12px;">
+                                This preview shows what organizations will see in Subscription Plan (Organization dashboard will be enabled later).
+                                Only <strong>Active + Live</strong> plans are shown here.
+                            </div>
+                            <div id="adminSubscriptionPreviewContent"></div>
                         </div>
                     </div>
                 </div>

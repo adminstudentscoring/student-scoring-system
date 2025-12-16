@@ -764,15 +764,130 @@
     const panels = {
       price: document.getElementById('adminSubscriptionPricePanel'),
       package: document.getElementById('adminSubscriptionPackagePanel'),
-      discount: document.getElementById('adminSubscriptionDiscountPanel')
+      discount: document.getElementById('adminSubscriptionDiscountPanel'),
+      preview: document.getElementById('adminSubscriptionPreviewPanel')
     };
 
     Object.values(panels).forEach(p => p?.classList.add('hidden'));
     panels[tab]?.classList.remove('hidden');
+
+    // Refresh preview when opening
+    if (tab === 'preview') {
+      renderSubscriptionPreview().catch(() => {});
+    }
   }
 
   // Expose for inline onclick in admin.html
   window.switchAdminSubscriptionSideTab = switchAdminSubscriptionSideTab;
+
+  function formatMoney(currency, value) {
+    const n = Number(value) || 0;
+    const c = String(currency || 'HKD');
+    return `${c} ${n.toFixed(2)}`;
+  }
+
+  function featuresToText(features) {
+    const enabled = Object.entries(features || {}).filter(([, v]) => !!v).map(([k]) => k);
+    return enabled.length ? enabled.join(', ') : 'None';
+  }
+
+  function calcPackagePricing(pkg, price) {
+    const currency = price?.currency || pkg?.currency || 'HKD';
+    const amount = Number(price?.amount || 0);
+    const qty = Math.max(1, Number(pkg?.quantity || 1));
+    const subtotal = amount * qty;
+    const discountType = String(pkg?.discountType || 'none');
+    const discountValue = Number(pkg?.discountValue || 0);
+    let discount = 0;
+    if (discountType === 'percent') {
+      const pct = Math.max(0, Math.min(100, Number.isFinite(discountValue) ? discountValue : 0));
+      discount = subtotal * (pct / 100);
+    } else if (discountType === 'fixed') {
+      discount = Math.max(0, Number.isFinite(discountValue) ? discountValue : 0);
+    }
+    discount = Math.min(subtotal, discount);
+    const total = Math.max(0, subtotal - discount);
+    return { currency, subtotal, discount, total };
+  }
+
+  async function renderSubscriptionPreview() {
+    const container = document.getElementById('adminSubscriptionPreviewContent');
+    if (!container) return;
+
+    // Always refresh latest data for preview
+    await loadAllPricesForSelect();
+    await loadAdminSubscriptionPackages();
+
+    const activeLive = adminSubscriptionPackages.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
+
+    const groups = {
+      monthly: [],
+      yearly: [],
+      'one-time': []
+    };
+
+    for (const pkg of activeLive) {
+      const price = allPricesForSelect.find(pr => pr.id === pkg.priceId) || allPricesForSelect.find(pr => pr.code === pkg.priceCode);
+      const billingType = String(price?.billingType || 'monthly');
+      if (!groups[billingType]) continue;
+      groups[billingType].push({ pkg, price });
+    }
+
+    const section = (title, items) => {
+      const cards = items.length
+        ? `
+          <div class="admin-subscription-plan-grid">
+            ${items
+              .slice()
+              .sort((a, b) => String(a.pkg?.name || '').localeCompare(String(b.pkg?.name || '')))
+              .map(({ pkg, price }) => {
+                const pricing = calcPackagePricing(pkg, price);
+                const hasDiscount = Number(pricing.discount) > 0.000001;
+                const points = [
+                  `Price code: ${price?.code || pkg.priceCode || '-'}`,
+                  `Billing: ${price?.billingType || '-'}`,
+                  `Teacher seats: ${price?.limits?.teacherSeats ?? '-'}`,
+                  `Student seats: ${price?.limits?.studentSeats ?? '-'}`,
+                  `Features: ${featuresToText(price?.features)}`,
+                  `Quantity: ${pkg.quantity}`,
+                  `Discount: ${pkg.discountType === 'percent' ? `${pkg.discountValue}%` : pkg.discountType === 'fixed' ? formatMoney(pricing.currency, pkg.discountValue) : 'None'}`,
+                  `Validity: ${pkg.validFrom || pkg.validTo ? `${pkg.validFrom || '—'} → ${pkg.validTo || '—'}` : 'No limit'}`
+                ];
+
+                return `
+                  <div class="admin-subscription-plan-card">
+                    <h4 class="admin-subscription-plan-name">${pkg.name}</h4>
+                    <div class="admin-subscription-plan-prices">
+                      ${hasDiscount ? `<span class="admin-subscription-plan-price-original">${formatMoney(pricing.currency, pricing.subtotal)}</span>` : ''}
+                      <span class="admin-subscription-plan-price-final">${formatMoney(pricing.currency, hasDiscount ? pricing.total : pricing.subtotal)}</span>
+                    </div>
+                    <ul class="admin-subscription-plan-points">
+                      ${points.map(t => `<li>${t}</li>`).join('')}
+                    </ul>
+                  </div>
+                `;
+              })
+              .join('')}
+          </div>
+        `
+        : `<div class="help" style="margin:0;">No active plans.</div>`;
+
+      return `
+        <section class="admin-subscription-preview-section">
+          <h4 class="admin-subscription-preview-title">${title}</h4>
+          ${cards}
+        </section>
+      `;
+    };
+
+    container.innerHTML = `
+      <div class="admin-subscription-preview-sections">
+        ${section('Monthly Plans', groups.monthly)}
+        ${section('Yearly Plans', groups.yearly)}
+        ${section('One-time Plans', groups['one-time'])}
+      </div>
+    `;
+  }
 
   // Auto-init
   if (document.readyState === 'loading') {

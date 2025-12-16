@@ -171,6 +171,79 @@
   color: #b45309;
 }
 
+/* Preview */
+.admin-subscription-preview-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-subscription-preview-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.admin-subscription-preview-title {
+  margin: 0 0 12px;
+  color: #111827;
+  font-weight: 900;
+  font-size: 1.05rem;
+}
+
+.admin-subscription-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.admin-subscription-plan-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-subscription-plan-name {
+  margin: 0;
+  font-weight: 900;
+  color: #111827;
+  text-align: center;
+  font-size: 1.05rem;
+}
+
+.admin-subscription-plan-prices {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-subscription-plan-price-original {
+  color: #6b7280;
+  text-decoration: line-through;
+  font-weight: 800;
+}
+
+.admin-subscription-plan-price-final {
+  color: #111827;
+  font-weight: 900;
+}
+
+.admin-subscription-plan-points {
+  margin: 0;
+  padding-left: 18px;
+  color: #374151;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* Modal */
 .admin-subscription-modal {
   display: none;
