@@ -290,7 +290,8 @@
     const discountValue = Number(document.getElementById('adminPackageDiscountValue')?.value || 0);
 
     const price = allPricesForSelect.find(p => p.id === priceId) || null;
-    const currency = price?.currency || '-';
+    // Backward-compat: older stored prices might not have currency. Default to HKD if a price is selected.
+    const currency = price ? (price.currency || 'HKD') : '-';
     const amount = Number(price?.amount || 0);
     const subtotal = amount * qty;
     let discount = 0;
