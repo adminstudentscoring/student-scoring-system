@@ -75,6 +75,30 @@
   background: #f8fafc;
 }
 
+.admin-subscription-row-left {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-subscription-row-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.admin-subscription-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: #667eea;
+  flex: 0 0 auto;
+}
+
 .admin-subscription-row-title {
   font-weight: 800;
   color: #111827;

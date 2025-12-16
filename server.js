@@ -24,6 +24,7 @@ const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
 const PACKAGES_FILE = path.join(__dirname, process.env.PACKAGES_FILE || path.join(DATA_DIR, 'packages.json'));
+const SUBSCRIPTION_PRICES_FILE = path.join(__dirname, process.env.SUBSCRIPTION_PRICES_FILE || path.join(DATA_DIR, 'subscription-prices.json'));
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
 const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
@@ -155,6 +156,13 @@ async function ensureDataDir() {
       } 
     }, null, 2), 'utf8');
   }
+
+  // Ensure subscription prices file exists
+  try {
+    await fs.access(SUBSCRIPTION_PRICES_FILE);
+  } catch {
+    await fs.writeFile(SUBSCRIPTION_PRICES_FILE, JSON.stringify({ prices: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
 }
 
 // Read organizations data
@@ -249,6 +257,34 @@ async function writePackages(packages) {
     return true;
   } catch (error) {
     console.error('Error writing packages:', error);
+    return false;
+  }
+}
+
+// Read subscription prices data (Admin Subscription Setting -> Price Setting)
+async function readSubscriptionPrices() {
+  try {
+    const content = await fs.readFile(SUBSCRIPTION_PRICES_FILE, 'utf8');
+    const data = JSON.parse(content || '{}');
+    return Array.isArray(data.prices) ? data.prices : [];
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    console.error('Error reading subscription prices:', error);
+    return [];
+  }
+}
+
+// Write subscription prices data
+async function writeSubscriptionPrices(prices) {
+  try {
+    await fs.writeFile(
+      SUBSCRIPTION_PRICES_FILE,
+      JSON.stringify({ prices, lastUpdate: new Date().toISOString() }, null, 2),
+      'utf8'
+    );
+    return true;
+  } catch (error) {
+    console.error('Error writing subscription prices:', error);
     return false;
   }
 }
@@ -2478,6 +2514,156 @@ app.post('/api/admin/organizations/batch-settings', authenticateUser, authorizeR
   } catch (error) {
     console.error('Error updating batch settings:', error);
     res.status(500).json({ error: 'Failed to update batch settings' });
+  }
+});
+
+// ----------------------------
+// Admin - Subscription Setting (Price Setting)
+// Remote storage (JSON file) to avoid localStorage usage on frontend.
+// ----------------------------
+function slugifySubscriptionCode(input) {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64) || 'price';
+}
+
+function ensureUniquePriceCode(existingPrices, baseCode, excludeId = null) {
+  const existing = new Set(
+    existingPrices
+      .filter(p => (excludeId ? p.id !== excludeId : true))
+      .map(p => String(p.code || '').toLowerCase())
+  );
+  let code = baseCode;
+  let i = 2;
+  while (existing.has(code.toLowerCase())) {
+    code = `${baseCode}_${i++}`;
+  }
+  return code;
+}
+
+function normalizeBillingType(bt) {
+  const v = String(bt || 'monthly').toLowerCase();
+  return ['monthly', 'yearly', 'one-time'].includes(v) ? v : 'monthly';
+}
+
+function normalizePricePayload(body, existingPrices, { excludeId = null } = {}) {
+  const name = String(body?.name || '').trim();
+  const amount = Number(body?.amount ?? body?.price ?? 0);
+  const billingType = normalizeBillingType(body?.billingType);
+  const features = {
+    classView: Boolean(body?.features?.classView),
+    challengeMode: Boolean(body?.features?.challengeMode)
+  };
+  const limits = {
+    teacherSeats: Math.max(0, parseInt(body?.limits?.teacherSeats ?? 0, 10) || 0),
+    studentSeats: Math.max(0, parseInt(body?.limits?.studentSeats ?? 0, 10) || 0)
+  };
+
+  let code = String(body?.code || '').trim();
+  if (!code) {
+    code = `${slugifySubscriptionCode(name)}_${billingType}`;
+  }
+  code = ensureUniquePriceCode(existingPrices, code, excludeId);
+
+  return { name, amount, billingType, code, features, limits };
+}
+
+app.get('/api/admin/subscription/prices', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const prices = await readSubscriptionPrices();
+    const filtered = !q
+      ? prices
+      : prices.filter(p =>
+          String(p.name || '').toLowerCase().includes(q) || String(p.code || '').toLowerCase().includes(q)
+        );
+    res.json(filtered);
+  } catch (error) {
+    console.error('Error listing subscription prices:', error);
+    res.status(500).json({ error: 'Failed to load prices' });
+  }
+});
+
+app.post('/api/admin/subscription/prices', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const prices = await readSubscriptionPrices();
+    const payload = normalizePricePayload(req.body, prices);
+
+    if (!payload.name) return res.status(400).json({ error: 'Name is required' });
+    if (!Number.isFinite(payload.amount) || payload.amount < 0) return res.status(400).json({ error: 'Price must be >= 0' });
+
+    const id = `price_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const now = new Date().toISOString();
+    const price = {
+      id,
+      ...payload,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    prices.push(price);
+    await writeSubscriptionPrices(prices);
+    res.json(price);
+  } catch (error) {
+    console.error('Error creating subscription price:', error);
+    res.status(500).json({ error: 'Failed to create price' });
+  }
+});
+
+app.put('/api/admin/subscription/prices/:id', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const id = req.params.id;
+    const prices = await readSubscriptionPrices();
+    const idx = prices.findIndex(p => p.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Price not found' });
+
+    const payload = normalizePricePayload(req.body, prices, { excludeId: id });
+    if (!payload.name) return res.status(400).json({ error: 'Name is required' });
+    if (!Number.isFinite(payload.amount) || payload.amount < 0) return res.status(400).json({ error: 'Price must be >= 0' });
+
+    prices[idx] = {
+      ...prices[idx],
+      ...payload,
+      updatedAt: new Date().toISOString()
+    };
+
+    await writeSubscriptionPrices(prices);
+    res.json(prices[idx]);
+  } catch (error) {
+    console.error('Error updating subscription price:', error);
+    res.status(500).json({ error: 'Failed to update price' });
+  }
+});
+
+app.delete('/api/admin/subscription/prices/:id', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const id = req.params.id;
+    const prices = await readSubscriptionPrices();
+    const next = prices.filter(p => p.id !== id);
+    await writeSubscriptionPrices(next);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error deleting subscription price:', error);
+    res.status(500).json({ error: 'Failed to delete price' });
+  }
+});
+
+app.post('/api/admin/subscription/prices/bulk-delete', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+    if (!ids.length) return res.status(400).json({ error: 'ids is required' });
+
+    const prices = await readSubscriptionPrices();
+    const set = new Set(ids);
+    const next = prices.filter(p => !set.has(p.id));
+    await writeSubscriptionPrices(next);
+    res.json({ ok: true, deletedCount: prices.length - next.length });
+  } catch (error) {
+    console.error('Error bulk deleting subscription prices:', error);
+    res.status(500).json({ error: 'Failed to delete prices' });
   }
 });
 

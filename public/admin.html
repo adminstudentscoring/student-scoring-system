@@ -314,8 +314,11 @@
                         <div id="adminSubscriptionPricePanel" class="admin-subscription-panel">
                             <h3 style="margin:0 0 8px; color:#111827;">Price Setting</h3>
                             <div class="admin-subscription-toolbar">
-                                <div style="color:#6b7280; font-size:0.9rem;">Create and manage price definitions (no backend yet).</div>
-                                <button id="adminCreatePriceBtn" class="btn btn-primary" type="button">Create Price</button>
+                                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%;">
+                                    <input id="adminPriceSearchInput" type="text" placeholder="Search price..." style="flex:1; min-width:200px; padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
+                                    <button id="adminDeleteSelectedPricesBtn" class="btn btn-danger" type="button" disabled>Delete Selected</button>
+                                    <button id="adminCreatePriceBtn" class="btn btn-primary" type="button">Create Price</button>
+                                </div>
                             </div>
                             <div id="adminPriceList" class="admin-subscription-list"></div>
                         </div>
@@ -393,6 +396,19 @@
                 </div>
 
                 <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
+                <h4 class="section-title" style="margin:0 0 10px;">Limits</h4>
+                <div class="form-grid-2 admin-subscription-form-grid-2">
+                    <div class="form-group">
+                        <label>Teacher seats</label>
+                        <input id="adminPriceTeacherSeats" type="number" min="0" step="1" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Student seats</label>
+                        <input id="adminPriceStudentSeats" type="number" min="0" step="1" placeholder="0">
+                    </div>
+                </div>
+
+                <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
                 <h4 class="section-title" style="margin:0 0 10px;">Allowed Features</h4>
                 <div class="form-grid-2 admin-subscription-form-grid-2">
                     <div class="form-group">
@@ -411,7 +427,7 @@
             </div>
             <div class="admin-subscription-modal-actions">
                 <button id="adminCreatePriceCancel" class="btn btn-secondary" type="button">Cancel</button>
-                <button id="adminCreatePriceSave" class="btn btn-primary" type="button">Create</button>
+                <button id="adminCreatePriceSave" class="btn btn-primary" type="button">Save</button>
             </div>
         </div>
     </div>
