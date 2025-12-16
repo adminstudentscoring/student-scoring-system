@@ -149,6 +149,29 @@
     transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 
+.re-target-label {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+}
+
+.re-target-white {
+    color: rgba(255, 255, 255, 0.62);
+    text-shadow: 0 2px 10px rgba(15, 23, 42, 0.6);
+}
+
+.re-target-black {
+    color: rgba(17, 24, 39, 0.46);
+    text-shadow: 0 2px 10px rgba(255, 255, 255, 0.55);
+}
+
 .re-cell.light {
     background: #f5d4a3;
 }
@@ -162,6 +185,8 @@
 }
 
 .re-piece {
+    position: relative;
+    z-index: 2;
     line-height: 1;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
 }

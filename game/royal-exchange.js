@@ -15,6 +15,13 @@
     black: { rook: WHITE_START.rook, knight: WHITE_START.knight, bishop: WHITE_START.bishop }
   };
 
+  const TARGET_LETTERS = {
+    rook: 'R',
+    knight: 'N',
+    bishop: 'B',
+    queen: 'Q'
+  };
+
   const PIECE_INFO = {
     white_rook: { color: 'white', type: 'rook', label: '♖', image: '/assets/pieces/white_Rook.png' },
     white_knight: { color: 'white', type: 'knight', label: '♘', image: '/assets/pieces/white_Knight.png' },
@@ -430,6 +437,7 @@
   function renderBoard() {
     if (!state.boardEl) return;
     state.boardEl.innerHTML = '';
+    const targetMarkers = getTargetMarkers();
     for (let row = 0; row < BOARD_SIZE; row += 1) {
       for (let col = 0; col < BOARD_SIZE; col += 1) {
         const cell = document.createElement('button');
@@ -437,6 +445,16 @@
         cell.className = `re-cell ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
         cell.dataset.row = String(row);
         cell.dataset.col = String(col);
+
+        const marker = targetMarkers.get(`${row}-${col}`);
+        if (marker) {
+          const markerSpan = document.createElement('span');
+          markerSpan.className = `re-target-label ${marker.color === 'white' ? 're-target-white' : 're-target-black'}`;
+          markerSpan.textContent = marker.letter;
+          markerSpan.setAttribute('aria-hidden', 'true');
+          cell.appendChild(markerSpan);
+        }
+
         const pieceIndex = state.pieces.findIndex(p => p.row === row && p.col === col);
         if (pieceIndex !== -1) {
           const piece = state.pieces[pieceIndex];
@@ -456,6 +474,26 @@
         state.boardEl.appendChild(cell);
       }
     }
+  }
+
+  function getTargetMarkers() {
+    const markers = new Map();
+    state.pieces.forEach(piece => {
+      const target = getTargetForPiece(piece);
+      if (!target) return;
+      const letter = TARGET_LETTERS[piece.type];
+      if (!letter) return;
+      markers.set(`${target.row}-${target.col}`, { letter, color: piece.color, type: piece.type });
+    });
+    return markers;
+  }
+
+  function getTargetForPiece(piece) {
+    if (!piece) return null;
+    if (piece.type === 'queen') {
+      return piece.color === 'white' ? { row: 7, col: 4 } : { row: 0, col: 3 };
+    }
+    return TARGETS[piece.color]?.[piece.type] || null;
   }
 
   function onCellClick(row, col) {
