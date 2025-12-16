@@ -95,6 +95,10 @@
         const studentSeats = Number(limits.studentSeats || 0);
         const checked = selectedIds.has(p.id) ? 'checked' : '';
 
+        const currency = String(p.currency || 'HKD');
+        const status = String(p.status || 'inactive');
+        const publishState = String(p.publishState || 'draft');
+
         return `
           <div class="admin-subscription-row">
             <div class="admin-subscription-row-left">
@@ -102,8 +106,10 @@
               <div style="min-width:0;">
                 <div class="admin-subscription-row-title">${p.name}</div>
                 <div class="admin-subscription-row-meta">
-                  <span><strong>${Number(p.amount || 0)}</strong></span>
+                  <span><strong>${currency} ${Number(p.amount || 0)}</strong></span>
                   <span>${p.billingType}</span>
+                  <span class="admin-subscription-tag ${publishState}">${publishState.toUpperCase()}</span>
+                  <span class="admin-subscription-tag ${status}">${status.toUpperCase()}</span>
                   <span>Teacher seats: ${teacherSeats}</span>
                   <span>Student seats: ${studentSeats}</span>
                   <span>Features: ${features}</span>
@@ -112,6 +118,7 @@
             </div>
             <div class="admin-subscription-row-actions">
               <button class="btn btn-secondary btn-small" type="button" data-action="edit" data-id="${p.id}">Edit</button>
+              <button class="btn btn-secondary btn-small" type="button" data-action="clone" data-id="${p.id}">Clone</button>
               <div class="admin-subscription-code" title="Price Code">${p.code}</div>
             </div>
           </div>
@@ -173,6 +180,9 @@
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
       .map(p => {
         const checked = selectedPackageIds.has(p.id) ? 'checked' : '';
+        const status = String(p.status || 'inactive');
+        const publishState = String(p.publishState || 'draft');
+        const expired = Boolean(p.expired);
         return `
           <div class="admin-subscription-row">
             <div class="admin-subscription-row-left">
@@ -181,14 +191,19 @@
                 <div class="admin-subscription-row-title">${p.name}</div>
                 <div class="admin-subscription-row-meta">
                   <span>Price: ${p.priceCode || '-'}</span>
+                  <span>${p.currency ? `Currency: ${p.currency}` : ''}</span>
                   <span>Qty: ${Number(p.quantity || 1)}</span>
                   <span>Discount: ${formatPackageDiscount(p)}</span>
                   <span>Validity: ${formatPackageValidity(p)}</span>
+                  ${expired ? '<span class="admin-subscription-tag expired">EXPIRED</span>' : ''}
+                  <span class="admin-subscription-tag ${publishState}">${publishState.toUpperCase()}</span>
+                  <span class="admin-subscription-tag ${status}">${status.toUpperCase()}</span>
                 </div>
               </div>
             </div>
             <div class="admin-subscription-row-actions">
               <button class="btn btn-secondary btn-small" type="button" data-action="edit-package" data-id="${p.id}">Edit</button>
+              <button class="btn btn-secondary btn-small" type="button" data-action="clone-package" data-id="${p.id}">Clone</button>
               <div class="admin-subscription-code" title="Package ID">${p.id}</div>
             </div>
           </div>
@@ -216,6 +231,8 @@
     activePackageEditId = null;
     document.getElementById('adminCreatePackageTitle').textContent = 'Create Package';
     document.getElementById('adminPackageName').value = '';
+    document.getElementById('adminPackageStatus').value = 'inactive';
+    document.getElementById('adminPackagePublishState').value = 'draft';
     document.getElementById('adminPackageQuantity').value = '1';
     document.getElementById('adminPackageDiscountType').value = 'none';
     document.getElementById('adminPackageDiscountValue').value = '0';
@@ -225,6 +242,7 @@
 
     setSelectOptions(document.getElementById('adminPackagePriceCode'), allPricesForSelect, '');
     modal.classList.add('show');
+    updatePackagePricePreview();
   }
 
   function openAdminEditPackageModal(id) {
@@ -236,6 +254,8 @@
     activePackageEditId = id;
     document.getElementById('adminCreatePackageTitle').textContent = 'Edit Package';
     document.getElementById('adminPackageName').value = p.name || '';
+    document.getElementById('adminPackageStatus').value = String(p.status || 'inactive');
+    document.getElementById('adminPackagePublishState').value = String(p.publishState || 'draft');
     document.getElementById('adminPackageQuantity').value = String(Number(p.quantity || 1));
     document.getElementById('adminPackageDiscountType').value = String(p.discountType || 'none');
     document.getElementById('adminPackageDiscountValue').value = String(Number(p.discountValue || 0));
@@ -245,6 +265,7 @@
 
     setSelectOptions(document.getElementById('adminPackagePriceCode'), allPricesForSelect, p.priceId || '');
     modal.classList.add('show');
+    updatePackagePricePreview();
   }
 
   function closeAdminCreatePackageModal() {
@@ -259,12 +280,45 @@
     if (!v) return;
     v.disabled = t === 'none';
     if (t === 'none') v.value = '0';
+    updatePackagePricePreview();
+  }
+
+  function updatePackagePricePreview() {
+    const priceId = String(document.getElementById('adminPackagePriceCode')?.value || '').trim();
+    const qty = Math.max(1, parseInt(document.getElementById('adminPackageQuantity')?.value || '1', 10) || 1);
+    const discountType = String(document.getElementById('adminPackageDiscountType')?.value || 'none');
+    const discountValue = Number(document.getElementById('adminPackageDiscountValue')?.value || 0);
+
+    const price = allPricesForSelect.find(p => p.id === priceId) || null;
+    const currency = price?.currency || '-';
+    const amount = Number(price?.amount || 0);
+    const subtotal = amount * qty;
+    let discount = 0;
+    if (discountType === 'percent') {
+      const pct = Math.max(0, Math.min(100, Number.isFinite(discountValue) ? discountValue : 0));
+      discount = subtotal * (pct / 100);
+    } else if (discountType === 'fixed') {
+      discount = Math.max(0, Number.isFinite(discountValue) ? discountValue : 0);
+    }
+    discount = Math.min(subtotal, discount);
+    const total = Math.max(0, subtotal - discount);
+
+    const setText = (id, v) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = v;
+    };
+    setText('adminPackagePreviewCurrency', currency);
+    setText('adminPackagePreviewSubtotal', currency === '-' ? '-' : `${currency} ${subtotal.toFixed(2)}`);
+    setText('adminPackagePreviewDiscount', currency === '-' ? '-' : `${currency} ${discount.toFixed(2)}`);
+    setText('adminPackagePreviewTotal', currency === '-' ? '-' : `${currency} ${total.toFixed(2)}`);
   }
 
   async function saveAdminPackage() {
     const name = String(document.getElementById('adminPackageName')?.value || '').trim();
     const priceId = String(document.getElementById('adminPackagePriceCode')?.value || '').trim();
     const quantity = Math.max(1, parseInt(document.getElementById('adminPackageQuantity')?.value || '1', 10) || 1);
+    const status = String(document.getElementById('adminPackageStatus')?.value || 'inactive');
+    const publishState = String(document.getElementById('adminPackagePublishState')?.value || 'draft');
     const discountType = String(document.getElementById('adminPackageDiscountType')?.value || 'none');
     const discountValue = Number(document.getElementById('adminPackageDiscountValue')?.value || 0);
     const validFrom = String(document.getElementById('adminPackageValidFrom')?.value || '').trim();
@@ -297,6 +351,8 @@
       priceId,
       priceCode: selectedPrice?.code || '',
       quantity,
+      status,
+      publishState,
       discountType,
       discountValue: discountType === 'none' ? 0 : discountValue,
       validFrom,
@@ -316,6 +372,23 @@
     await loadAdminSubscriptionPackages();
     renderAdminPackageList();
     closeAdminCreatePackageModal();
+  }
+
+  function openAdminClonePackageModal(id) {
+    const p = adminSubscriptionPackages.find(x => x.id === id);
+    if (!p) return;
+    openAdminCreatePackageModal();
+    document.getElementById('adminPackageName').value = `${p.name || 'Package'} Copy`;
+    document.getElementById('adminPackageQuantity').value = String(Number(p.quantity || 1));
+    document.getElementById('adminPackageDiscountType').value = String(p.discountType || 'none');
+    document.getElementById('adminPackageDiscountValue').value = String(Number(p.discountValue || 0));
+    document.getElementById('adminPackageDiscountValue').disabled = String(p.discountType || 'none') === 'none';
+    document.getElementById('adminPackageValidFrom').value = p.validFrom || '';
+    document.getElementById('adminPackageValidTo').value = p.validTo || '';
+    document.getElementById('adminPackageStatus').value = 'inactive';
+    document.getElementById('adminPackagePublishState').value = 'draft';
+    setSelectOptions(document.getElementById('adminPackagePriceCode'), allPricesForSelect, p.priceId || '');
+    updatePackagePricePreview();
   }
 
   async function deleteSelectedPackages() {
@@ -338,15 +411,64 @@
     renderAdminPackageList();
   }
 
+  async function loadSubscriptionAudit() {
+    const q = String(document.getElementById('adminSubscriptionAuditSearch')?.value || '').trim();
+    const entityType = String(document.getElementById('adminSubscriptionAuditEntityType')?.value || '').trim();
+    const qs = new URLSearchParams();
+    if (q) qs.set('q', q);
+    if (entityType) qs.set('entityType', entityType);
+    qs.set('limit', '120');
+    const resp = await apiFetch(`/admin/subscription/audit?${qs.toString()}`);
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to load audit log');
+    }
+    return await resp.json();
+  }
+
+  function renderSubscriptionAudit(items) {
+    const el = document.getElementById('adminSubscriptionAuditList');
+    if (!el) return;
+    if (!Array.isArray(items) || items.length === 0) {
+      el.innerHTML = '<div class="help">No audit records.</div>';
+      return;
+    }
+    el.innerHTML = items
+      .map(it => {
+        const when = it.at ? new Date(it.at).toLocaleString('en-US') : '';
+        const who = it.actor?.email || it.actor?.id || 'Unknown';
+        const type = String(it.entityType || '').toUpperCase();
+        const action = String(it.action || '').replace(/_/g, ' ').toUpperCase();
+        const id = it.entityId || '';
+        return `
+          <div class="admin-subscription-row">
+            <div style="min-width:0;">
+              <div class="admin-subscription-row-title">${action} <span class="admin-subscription-tag">${type}</span></div>
+              <div class="admin-subscription-row-meta">
+                <span>${when}</span>
+                <span>By: ${who}</span>
+                ${id ? `<span>ID: ${id}</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
   function openAdminCreatePriceModal() {
     const modal = document.getElementById('adminCreatePriceModal');
     if (!modal) return;
 
     activeEditId = null;
+    document.getElementById('adminCreatePriceTitle').textContent = 'Create Price';
     document.getElementById('adminPriceName').value = '';
     document.getElementById('adminPriceAmount').value = '';
     document.getElementById('adminPriceBillingType').value = 'monthly';
     document.getElementById('adminPriceCode').value = generatePriceCode('price', 'monthly');
+    document.getElementById('adminPriceCurrency').value = 'HKD';
+    document.getElementById('adminPriceStatus').value = 'inactive';
+    document.getElementById('adminPricePublishState').value = 'draft';
     document.getElementById('adminPriceTeacherSeats').value = '0';
     document.getElementById('adminPriceStudentSeats').value = '0';
     document.getElementById('adminPriceFeatureClassView').checked = false;
@@ -363,10 +485,14 @@
     if (!modal) return;
 
     activeEditId = id;
+    document.getElementById('adminCreatePriceTitle').textContent = 'Edit Price';
     document.getElementById('adminPriceName').value = p.name || '';
     document.getElementById('adminPriceAmount').value = String(Number(p.amount || 0));
     document.getElementById('adminPriceBillingType').value = p.billingType || 'monthly';
     document.getElementById('adminPriceCode').value = p.code || generatePriceCode(p.name || 'price', p.billingType || 'monthly');
+    document.getElementById('adminPriceCurrency').value = String(p.currency || 'HKD');
+    document.getElementById('adminPriceStatus').value = String(p.status || 'inactive');
+    document.getElementById('adminPricePublishState').value = String(p.publishState || 'draft');
     document.getElementById('adminPriceTeacherSeats').value = String(Number(p.limits?.teacherSeats || 0));
     document.getElementById('adminPriceStudentSeats').value = String(Number(p.limits?.studentSeats || 0));
     document.getElementById('adminPriceFeatureClassView').checked = Boolean(p.features?.classView);
@@ -394,6 +520,9 @@
     const amount = Number(document.getElementById('adminPriceAmount')?.value || 0);
     const billingType = String(document.getElementById('adminPriceBillingType')?.value || 'monthly');
     const code = String(document.getElementById('adminPriceCode')?.value || '').trim();
+    const currency = String(document.getElementById('adminPriceCurrency')?.value || 'HKD');
+    const status = String(document.getElementById('adminPriceStatus')?.value || 'inactive');
+    const publishState = String(document.getElementById('adminPricePublishState')?.value || 'draft');
     const teacherSeats = Math.max(0, parseInt(document.getElementById('adminPriceTeacherSeats')?.value || '0', 10) || 0);
     const studentSeats = Math.max(0, parseInt(document.getElementById('adminPriceStudentSeats')?.value || '0', 10) || 0);
 
@@ -419,6 +548,9 @@
       name,
       amount,
       billingType: ['monthly', 'yearly', 'one-time'].includes(billingType) ? billingType : 'monthly',
+      currency,
+      status,
+      publishState,
       code,
       limits: { teacherSeats, studentSeats },
       features
@@ -437,6 +569,24 @@
     await loadAdminPrices();
     renderAdminPriceList();
     closeAdminCreatePriceModal();
+  }
+
+  function openAdminClonePriceModal(id) {
+    const p = adminPrices.find(x => x.id === id);
+    if (!p) return;
+    openAdminCreatePriceModal();
+    document.getElementById('adminPriceName').value = `${p.name || 'Price'} Copy`;
+    document.getElementById('adminPriceAmount').value = String(Number(p.amount || 0));
+    document.getElementById('adminPriceBillingType').value = p.billingType || 'monthly';
+    document.getElementById('adminPriceCurrency').value = String(p.currency || 'HKD');
+    document.getElementById('adminPriceTeacherSeats').value = String(Number(p.limits?.teacherSeats || 0));
+    document.getElementById('adminPriceStudentSeats').value = String(Number(p.limits?.studentSeats || 0));
+    document.getElementById('adminPriceFeatureClassView').checked = Boolean(p.features?.classView);
+    document.getElementById('adminPriceFeatureChallengeMode').checked = Boolean(p.features?.challengeMode);
+    // Clones should start as Draft/Inactive
+    document.getElementById('adminPriceStatus').value = 'inactive';
+    document.getElementById('adminPricePublishState').value = 'draft';
+    syncAdminPriceCode();
   }
 
   function syncDeleteSelectedButton() {
@@ -514,10 +664,17 @@
 
     document.getElementById('adminPriceList')?.addEventListener('click', (e) => {
       const btn = e.target?.closest?.('button[data-action="edit"][data-id]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-id');
-      if (!id) return;
-      openAdminEditPriceModal(id);
+      if (btn) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        openAdminEditPriceModal(id);
+        return;
+      }
+      const cloneBtn = e.target?.closest?.('button[data-action="clone"][data-id]');
+      if (!cloneBtn) return;
+      const cloneId = cloneBtn.getAttribute('data-id');
+      if (!cloneId) return;
+      openAdminClonePriceModal(cloneId);
     });
 
     // Package Setting
@@ -549,10 +706,17 @@
 
     document.getElementById('adminPackageList')?.addEventListener('click', (e) => {
       const btn = e.target?.closest?.('button[data-action="edit-package"][data-id]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-id');
-      if (!id) return;
-      openAdminEditPackageModal(id);
+      if (btn) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        openAdminEditPackageModal(id);
+        return;
+      }
+      const cloneBtn = e.target?.closest?.('button[data-action="clone-package"][data-id]');
+      if (!cloneBtn) return;
+      const cloneId = cloneBtn.getAttribute('data-id');
+      if (!cloneId) return;
+      openAdminClonePackageModal(cloneId);
     });
 
     document.getElementById('adminCreatePackageModalClose')?.addEventListener('click', closeAdminCreatePackageModal);
@@ -561,12 +725,35 @@
       saveAdminPackage().catch(err => alert(err.message || 'Failed to save package'));
     });
     document.getElementById('adminPackageDiscountType')?.addEventListener('change', onPackageDiscountTypeChange);
+    document.getElementById('adminPackageDiscountValue')?.addEventListener('input', updatePackagePricePreview);
+    document.getElementById('adminPackageQuantity')?.addEventListener('input', updatePackagePricePreview);
+    document.getElementById('adminPackagePriceCode')?.addEventListener('change', updatePackagePricePreview);
 
     document.getElementById('adminCreatePackageModal')?.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'adminCreatePackageModal') {
         closeAdminCreatePackageModal();
       }
     });
+
+    // Audit Log (in Discount Setting panel)
+    const refreshAudit = async () => {
+      try {
+        const items = await loadSubscriptionAudit();
+        renderSubscriptionAudit(items);
+      } catch (e) {
+        renderSubscriptionAudit([]);
+      }
+    };
+    document.getElementById('adminSubscriptionAuditRefreshBtn')?.addEventListener('click', () => {
+      refreshAudit().catch(() => {});
+    });
+    document.getElementById('adminSubscriptionAuditSearch')?.addEventListener('input', () => {
+      refreshAudit().catch(() => {});
+    });
+    document.getElementById('adminSubscriptionAuditEntityType')?.addEventListener('change', () => {
+      refreshAudit().catch(() => {});
+    });
+    await refreshAudit();
   }
 
   function switchAdminSubscriptionSideTab(tab, element) {

@@ -335,7 +335,18 @@
                         </div>
                         <div id="adminSubscriptionDiscountPanel" class="admin-subscription-panel hidden">
                             <h3 style="margin:0 0 8px; color:#111827;">Discount Setting</h3>
-                            <p style="margin:0; color:#6b7280;">Content will be added later.</p>
+                            <div class="admin-subscription-toolbar">
+                                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%;">
+                                    <input id="adminSubscriptionAuditSearch" type="text" placeholder="Search audit..." style="flex:1; min-width:200px; padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
+                                    <select id="adminSubscriptionAuditEntityType" style="padding:10px; border:2px solid #e5e7eb; border-radius:10px;">
+                                        <option value="">All</option>
+                                        <option value="price">Price</option>
+                                        <option value="package">Package</option>
+                                    </select>
+                                    <button id="adminSubscriptionAuditRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+                                </div>
+                            </div>
+                            <div id="adminSubscriptionAuditList" class="admin-subscription-list"></div>
                         </div>
                     </div>
                 </div>
@@ -402,6 +413,30 @@
                     </div>
                 </div>
 
+                <div class="form-grid-2 admin-subscription-form-grid-2" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Currency</label>
+                        <select id="adminPriceCurrency">
+                            <option value="HKD" selected>HKD</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status / Publish</label>
+                        <div class="admin-subscription-form-grid-2" style="gap:10px;">
+                            <select id="adminPriceStatus">
+                                <option value="inactive" selected>Inactive</option>
+                                <option value="active">Active</option>
+                                <option value="archived">Archived</option>
+                            </select>
+                            <select id="adminPricePublishState">
+                                <option value="draft" selected>Draft</option>
+                                <option value="live">Live</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
                 <h4 class="section-title" style="margin:0 0 10px;">Limits</h4>
                 <div class="form-grid-2 admin-subscription-form-grid-2">
@@ -463,6 +498,24 @@
 
                 <div class="admin-subscription-form-grid-2" style="margin-top:12px;">
                     <div class="form-group">
+                        <label>Status</label>
+                        <select id="adminPackageStatus">
+                            <option value="inactive" selected>Inactive</option>
+                            <option value="active">Active</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Publish State</label>
+                        <select id="adminPackagePublishState">
+                            <option value="draft" selected>Draft</option>
+                            <option value="live">Live</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="admin-subscription-form-grid-2" style="margin-top:12px;">
+                    <div class="form-group">
                         <label>Quantity</label>
                         <input id="adminPackageQuantity" type="number" min="1" step="1" value="1">
                     </div>
@@ -496,6 +549,28 @@
                         </div>
                         <div class="help">Leave empty for no validity limit.</div>
                     </div>
+                </div>
+
+                <hr style="margin:16px 0; border:0; border-top:1px solid #e5e7eb;">
+                <h4 class="section-title" style="margin:0 0 10px;">Final Price Preview</h4>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#f8fafc;">
+                    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                        <div style="color:#6b7280;">Currency</div>
+                        <div id="adminPackagePreviewCurrency" style="font-weight:800; color:#111827;">-</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:6px;">
+                        <div style="color:#6b7280;">Subtotal</div>
+                        <div id="adminPackagePreviewSubtotal" style="font-weight:800; color:#111827;">-</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:6px;">
+                        <div style="color:#6b7280;">Discount</div>
+                        <div id="adminPackagePreviewDiscount" style="font-weight:800; color:#111827;">-</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:6px;">
+                        <div style="color:#6b7280;">Total</div>
+                        <div id="adminPackagePreviewTotal" style="font-weight:900; color:#111827;">-</div>
+                    </div>
+                    <div class="help" style="margin-top:8px;">Preview is calculated from selected price amount × quantity, then applies discount (clamped at 0).</div>
                 </div>
             </div>
             <div class="admin-subscription-modal-actions">

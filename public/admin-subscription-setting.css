@@ -123,6 +123,54 @@
   font-size: 0.85rem;
 }
 
+.admin-subscription-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #334155;
+}
+
+.admin-subscription-tag.live {
+  border-color: rgba(102, 126, 234, 0.28);
+  background: rgba(102, 126, 234, 0.10);
+  color: #3b5bcc;
+}
+
+.admin-subscription-tag.draft {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(148, 163, 184, 0.15);
+  color: #334155;
+}
+
+.admin-subscription-tag.active {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+}
+
+.admin-subscription-tag.inactive {
+  border-color: rgba(100, 116, 139, 0.35);
+  background: rgba(100, 116, 139, 0.10);
+  color: #334155;
+}
+
+.admin-subscription-tag.archived {
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.10);
+  color: #b91c1c;
+}
+
+.admin-subscription-tag.expired {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.10);
+  color: #b45309;
+}
+
 /* Modal */
 .admin-subscription-modal {
   display: none;

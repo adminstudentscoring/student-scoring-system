@@ -26,6 +26,7 @@ const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(
 const PACKAGES_FILE = path.join(__dirname, process.env.PACKAGES_FILE || path.join(DATA_DIR, 'packages.json'));
 const SUBSCRIPTION_PRICES_FILE = path.join(__dirname, process.env.SUBSCRIPTION_PRICES_FILE || path.join(DATA_DIR, 'subscription-prices.json'));
 const SUBSCRIPTION_PACKAGES_FILE = path.join(__dirname, process.env.SUBSCRIPTION_PACKAGES_FILE || path.join(DATA_DIR, 'subscription-packages.json'));
+const SUBSCRIPTION_AUDIT_FILE = path.join(__dirname, process.env.SUBSCRIPTION_AUDIT_FILE || path.join(DATA_DIR, 'subscription-audit.jsonl'));
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
 const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
@@ -170,6 +171,13 @@ async function ensureDataDir() {
     await fs.access(SUBSCRIPTION_PACKAGES_FILE);
   } catch {
     await fs.writeFile(SUBSCRIPTION_PACKAGES_FILE, JSON.stringify({ packages: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure subscription audit log file exists
+  try {
+    await fs.access(SUBSCRIPTION_AUDIT_FILE);
+  } catch {
+    await fs.writeFile(SUBSCRIPTION_AUDIT_FILE, '', 'utf8');
   }
 }
 
@@ -322,6 +330,50 @@ async function writeSubscriptionPackages(packages) {
   } catch (error) {
     console.error('Error writing subscription packages:', error);
     return false;
+  }
+}
+
+function normalizeSubscriptionStatus(v) {
+  const s = String(v || 'inactive').toLowerCase();
+  return ['active', 'inactive', 'archived'].includes(s) ? s : 'inactive';
+}
+
+function normalizePublishState(v) {
+  const s = String(v || 'draft').toLowerCase();
+  return ['draft', 'live'].includes(s) ? s : 'draft';
+}
+
+function normalizeCurrency(v) {
+  const c = String(v || 'HKD').toUpperCase();
+  return ['HKD', 'USD'].includes(c) ? c : 'HKD';
+}
+
+function dateOnlyTodayString() {
+  // YYYY-MM-DD in server local time
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function appendSubscriptionAudit(req, record) {
+  try {
+    const actor = req?.user
+      ? {
+          id: req.user.id || req.user.userId || null,
+          email: req.user.email || null,
+          role: req.user.role || null
+        }
+      : null;
+    const entry = {
+      at: new Date().toISOString(),
+      actor,
+      ...record
+    };
+    await fs.appendFile(SUBSCRIPTION_AUDIT_FILE, `${JSON.stringify(entry)}\n`, 'utf8');
+  } catch (e) {
+    // audit must not break main flows
   }
 }
 
@@ -2589,6 +2641,9 @@ function normalizePricePayload(body, existingPrices, { excludeId = null } = {}) 
   const name = String(body?.name || '').trim();
   const amount = Number(body?.amount ?? body?.price ?? 0);
   const billingType = normalizeBillingType(body?.billingType);
+  const currency = normalizeCurrency(body?.currency);
+  const status = normalizeSubscriptionStatus(body?.status);
+  const publishState = normalizePublishState(body?.publishState);
   const features = {
     classView: Boolean(body?.features?.classView),
     challengeMode: Boolean(body?.features?.challengeMode)
@@ -2604,7 +2659,7 @@ function normalizePricePayload(body, existingPrices, { excludeId = null } = {}) 
   }
   code = ensureUniquePriceCode(existingPrices, code, excludeId);
 
-  return { name, amount, billingType, code, features, limits };
+  return { name, amount, billingType, currency, status, publishState, code, features, limits };
 }
 
 app.get('/api/admin/subscription/prices', authenticateUser, authorizeRole('admin'), async (req, res) => {
@@ -2642,6 +2697,7 @@ app.post('/api/admin/subscription/prices', authenticateUser, authorizeRole('admi
 
     prices.push(price);
     await writeSubscriptionPrices(prices);
+    await appendSubscriptionAudit(req, { action: 'create', entityType: 'price', entityId: id, after: price });
     res.json(price);
   } catch (error) {
     console.error('Error creating subscription price:', error);
@@ -2656,6 +2712,7 @@ app.put('/api/admin/subscription/prices/:id', authenticateUser, authorizeRole('a
     const idx = prices.findIndex(p => p.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Price not found' });
 
+    const before = prices[idx];
     const payload = normalizePricePayload(req.body, prices, { excludeId: id });
     if (!payload.name) return res.status(400).json({ error: 'Name is required' });
     if (!Number.isFinite(payload.amount) || payload.amount < 0) return res.status(400).json({ error: 'Price must be >= 0' });
@@ -2667,6 +2724,7 @@ app.put('/api/admin/subscription/prices/:id', authenticateUser, authorizeRole('a
     };
 
     await writeSubscriptionPrices(prices);
+    await appendSubscriptionAudit(req, { action: 'update', entityType: 'price', entityId: id, before, after: prices[idx] });
     res.json(prices[idx]);
   } catch (error) {
     console.error('Error updating subscription price:', error);
@@ -2678,8 +2736,10 @@ app.delete('/api/admin/subscription/prices/:id', authenticateUser, authorizeRole
   try {
     const id = req.params.id;
     const prices = await readSubscriptionPrices();
+    const before = prices.find(p => p.id === id) || null;
     const next = prices.filter(p => p.id !== id);
     await writeSubscriptionPrices(next);
+    await appendSubscriptionAudit(req, { action: 'delete', entityType: 'price', entityId: id, before });
     res.json({ ok: true });
   } catch (error) {
     console.error('Error deleting subscription price:', error);
@@ -2694,8 +2754,10 @@ app.post('/api/admin/subscription/prices/bulk-delete', authenticateUser, authori
 
     const prices = await readSubscriptionPrices();
     const set = new Set(ids);
+    const deleted = prices.filter(p => set.has(p.id));
     const next = prices.filter(p => !set.has(p.id));
     await writeSubscriptionPrices(next);
+    await appendSubscriptionAudit(req, { action: 'bulk_delete', entityType: 'price', meta: { ids, deletedCount: deleted.length }, before: deleted });
     res.json({ ok: true, deletedCount: prices.length - next.length });
   } catch (error) {
     console.error('Error bulk deleting subscription prices:', error);
@@ -2726,13 +2788,29 @@ function normalizeSubscriptionPackagePayload(body) {
   const discountValue = Number.isFinite(discountValueRaw) && discountValueRaw >= 0 ? discountValueRaw : 0;
   const validFrom = normalizeDateOnly(body?.validFrom);
   const validTo = normalizeDateOnly(body?.validTo);
-  return { name, priceId, priceCode, quantity, discountType, discountValue, validFrom, validTo };
+  const status = normalizeSubscriptionStatus(body?.status);
+  const publishState = normalizePublishState(body?.publishState);
+  return { name, priceId, priceCode, quantity, discountType, discountValue, validFrom, validTo, status, publishState };
 }
 
 app.get('/api/admin/subscription/packages', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().toLowerCase();
     const packages = await readSubscriptionPackages();
+    const today = dateOnlyTodayString();
+    let mutated = false;
+    for (const pkg of packages) {
+      const expired = pkg.validTo && String(pkg.validTo) < today;
+      pkg.expired = Boolean(expired);
+      if (expired && normalizeSubscriptionStatus(pkg.status) === 'active') {
+        pkg.status = 'inactive';
+        pkg.updatedAt = new Date().toISOString();
+        mutated = true;
+      }
+    }
+    if (mutated) {
+      await writeSubscriptionPackages(packages);
+    }
     const filtered = !q
       ? packages
       : packages.filter(p =>
@@ -2765,17 +2843,22 @@ app.post('/api/admin/subscription/packages', authenticateUser, authorizeRole('ad
       name: payload.name,
       priceId: found.id,
       priceCode: found.code,
+      currency: normalizeCurrency(found.currency),
       quantity: payload.quantity,
+      status: payload.status,
+      publishState: payload.publishState,
       discountType: payload.discountType,
       discountValue: payload.discountType === 'none' ? 0 : payload.discountValue,
       validFrom: payload.validFrom,
       validTo: payload.validTo,
+      expired: payload.validTo ? String(payload.validTo) < dateOnlyTodayString() : false,
       createdAt: now,
       updatedAt: now
     };
 
     packages.push(pkg);
     await writeSubscriptionPackages(packages);
+    await appendSubscriptionAudit(req, { action: 'create', entityType: 'package', entityId: id, after: pkg });
     res.json(pkg);
   } catch (error) {
     console.error('Error creating subscription package:', error);
@@ -2790,6 +2873,7 @@ app.put('/api/admin/subscription/packages/:id', authenticateUser, authorizeRole(
     const idx = packages.findIndex(p => p.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Package not found' });
 
+    const before = packages[idx];
     const payload = normalizeSubscriptionPackagePayload(req.body);
     if (!payload.name) return res.status(400).json({ error: 'Package Name is required' });
     if (!payload.priceId && !payload.priceCode) return res.status(400).json({ error: 'Price Code is required' });
@@ -2803,15 +2887,20 @@ app.put('/api/admin/subscription/packages/:id', authenticateUser, authorizeRole(
       name: payload.name,
       priceId: found.id,
       priceCode: found.code,
+      currency: normalizeCurrency(found.currency),
       quantity: payload.quantity,
+      status: payload.status,
+      publishState: payload.publishState,
       discountType: payload.discountType,
       discountValue: payload.discountType === 'none' ? 0 : payload.discountValue,
       validFrom: payload.validFrom,
       validTo: payload.validTo,
+      expired: payload.validTo ? String(payload.validTo) < dateOnlyTodayString() : false,
       updatedAt: new Date().toISOString()
     };
 
     await writeSubscriptionPackages(packages);
+    await appendSubscriptionAudit(req, { action: 'update', entityType: 'package', entityId: id, before, after: packages[idx] });
     res.json(packages[idx]);
   } catch (error) {
     console.error('Error updating subscription package:', error);
@@ -2826,12 +2915,46 @@ app.post('/api/admin/subscription/packages/bulk-delete', authenticateUser, autho
 
     const packages = await readSubscriptionPackages();
     const set = new Set(ids);
+    const deleted = packages.filter(p => set.has(p.id));
     const next = packages.filter(p => !set.has(p.id));
     await writeSubscriptionPackages(next);
+    await appendSubscriptionAudit(req, { action: 'bulk_delete', entityType: 'package', meta: { ids, deletedCount: deleted.length }, before: deleted });
     res.json({ ok: true, deletedCount: packages.length - next.length });
   } catch (error) {
     console.error('Error bulk deleting subscription packages:', error);
     res.status(500).json({ error: 'Failed to delete packages' });
+  }
+});
+
+app.get('/api/admin/subscription/audit', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const entityType = String(req.query.entityType || '').trim().toLowerCase();
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit || '100', 10) || 100));
+
+    const raw = await fs.readFile(SUBSCRIPTION_AUDIT_FILE, 'utf8').catch(() => '');
+    const lines = raw.split('\n').filter(Boolean);
+    const parsed = [];
+    for (let i = lines.length - 1; i >= 0 && parsed.length < limit; i--) {
+      try {
+        const item = JSON.parse(lines[i]);
+        parsed.push(item);
+      } catch (e) {
+        // skip bad line
+      }
+    }
+
+    const filtered = parsed.filter(item => {
+      if (entityType && item.entityType !== entityType) return false;
+      if (!q) return true;
+      const blob = JSON.stringify(item).toLowerCase();
+      return blob.includes(q);
+    });
+
+    res.json(filtered);
+  } catch (error) {
+    console.error('Error reading subscription audit log:', error);
+    res.status(500).json({ error: 'Failed to load audit log' });
   }
 });
 
