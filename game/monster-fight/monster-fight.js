@@ -706,6 +706,8 @@ let gameSettings = {
     levelConfig: []
 };
 
+let hasAppliedDefaultLevelPreset = false;
+
 // Open game settings modal
 async function openGameSettings() {
     try {
@@ -924,9 +926,9 @@ function renderLevelConfigSettings() {
                 </div>
                 <div class="difficulty-presets">
                     <span>Quick Difficulty:</span>
-                    <button type="button" class="difficulty-button" onclick="applyDifficultyPreset('easy')">Easy</button>
-                    <button type="button" class="difficulty-button" onclick="applyDifficultyPreset('medium')">Medium</button>
-                    <button type="button" class="difficulty-button" onclick="applyDifficultyPreset('hard')">Hard</button>
+                    <button type="button" class="difficulty-button" data-difficulty="easy" onclick="applyDifficultyPreset('easy')">Easy</button>
+                    <button type="button" class="difficulty-button" data-difficulty="medium" onclick="applyDifficultyPreset('medium')">Medium</button>
+                    <button type="button" class="difficulty-button" data-difficulty="hard" onclick="applyDifficultyPreset('hard')">Hard</button>
                 </div>
             </div>
             <div id="level-config-list">
@@ -999,6 +1001,7 @@ function applyDifficultyPreset(presetKey) {
     }));
 
     gameSettings.levelConfig = normalized;
+    setDifficultyPresetActive(presetKey);
 
     const countInput = document.getElementById('level_count');
     if (countInput) {
@@ -1011,6 +1014,13 @@ function applyDifficultyPreset(presetKey) {
     }
 }
 
+function setDifficultyPresetActive(presetKey) {
+    document.querySelectorAll('.difficulty-button').forEach(btn => {
+        const key = btn.getAttribute('data-difficulty');
+        btn.classList.toggle('active', key === presetKey);
+    });
+}
+
 // Switch settings tab
 function switchSettingsTab(tab) {
     // Update tab buttons
@@ -1020,6 +1030,20 @@ function switchSettingsTab(tab) {
     // Update tab content
     document.querySelectorAll('.settings-tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(`settings-${tab}`).classList.add('active');
+
+    // Default Level Config preset: Easy
+    if (tab === 'levels') {
+        if (!hasAppliedDefaultLevelPreset) {
+            hasAppliedDefaultLevelPreset = true;
+            applyDifficultyPreset('easy');
+        } else {
+            // Ensure one button shows as active (fallback to easy)
+            const anyActive = document.querySelector('.difficulty-button.active');
+            if (!anyActive) {
+                setDifficultyPresetActive('easy');
+            }
+        }
+    }
 }
 
 // Toggle settings item
