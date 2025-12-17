@@ -801,6 +801,21 @@
     return `$${(total / qty).toFixed(2)} per Month`;
   }
 
+  function getPriceMonthlyEquivalent(amount, billingType) {
+    const n = Number(amount) || 0;
+    const bt = String(billingType || '');
+    if (bt === 'yearly') return n / 12;
+    return n; // monthly + one-time fall back to raw amount
+  }
+
+  function getPackageMonthlyEquivalent(pkg, price, pricing, hasDiscount) {
+    const bt = String(price?.billingType || 'monthly');
+    const finalTotal = hasDiscount ? Number(pricing.total) : Number(pricing.subtotal);
+    if (bt === 'one-time') return finalTotal;
+    const qty = Math.max(1, Number(pkg?.quantity) || 1);
+    return finalTotal / qty;
+  }
+
   function featuresToText(features) {
     const enabled = Object.entries(features || {}).filter(([, v]) => !!v).map(([k]) => k);
     return enabled.length ? enabled.join(', ') : 'None';
@@ -859,7 +874,16 @@
         <div class="admin-subscription-plan-grid">
           ${items
             .slice()
-            .sort((a, b) => String(a.pkg?.name || '').localeCompare(String(b.pkg?.name || '')))
+            .sort((a, b) => {
+              const pa = calcPackagePricing(a.pkg, a.price);
+              const pb = calcPackagePricing(b.pkg, b.price);
+              const ha = Number(pa.discount) > 0.000001;
+              const hb = Number(pb.discount) > 0.000001;
+              const va = getPackageMonthlyEquivalent(a.pkg, a.price, pa, ha);
+              const vb = getPackageMonthlyEquivalent(b.pkg, b.price, pb, hb);
+              if (va !== vb) return va - vb;
+              return String(a.pkg?.name || '').localeCompare(String(b.pkg?.name || ''));
+            })
             .map(({ pkg, price }) => {
               const pricing = calcPackagePricing(pkg, price);
               const hasDiscount = Number(pricing.discount) > 0.000001;
@@ -907,7 +931,12 @@
         <div class="admin-subscription-plan-grid">
           ${prices
             .slice()
-            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+            .sort((a, b) => {
+              const va = getPriceMonthlyEquivalent(a.amount, a.billingType);
+              const vb = getPriceMonthlyEquivalent(b.amount, b.billingType);
+              if (va !== vb) return va - vb;
+              return String(a.name || '').localeCompare(String(b.name || ''));
+            })
             .map(p => {
               const points = [
                 `Price code: ${p.code || '-'}`,
