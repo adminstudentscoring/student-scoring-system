@@ -40,6 +40,10 @@ const { hashPassword, comparePassword, generateToken } = require('./auth');
 const { authenticateUser, authorizeRole, optionalAuth } = require('./middleware/auth');
 const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUsersByOrganization } = require('./middleware/dataIsolation');
 
+// Billing (PayPal + Postgres)
+const billingDb = require('./billing/db');
+const paypal = require('./billing/paypal');
+
 // Note: requireOrganizationAccess will be created after readUsers function is defined
 
 // Middleware
@@ -316,6 +320,154 @@ async function readSubscriptionPackages() {
     console.error('Error reading subscription packages:', error);
     return [];
   }
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + Number(days || 0));
+  return d;
+}
+
+function resolveOrgIdFromUser(user) {
+  if (!user) return null;
+  return user.organizationId || user.orgId || user.id || null;
+}
+
+function computeEntitlementStatus(now, end, graceUntil) {
+  const t = now.getTime();
+  const endMs = end ? new Date(end).getTime() : 0;
+  const graceMs = graceUntil ? new Date(graceUntil).getTime() : 0;
+  if (!endMs) return 'inactive';
+  if (t <= endMs) return 'active';
+  if (graceMs && t <= graceMs) return 'grace';
+  return 'expired';
+}
+
+async function ensurePayPalProductId() {
+  const key = `paypal_product_id_${paypal.PAYPAL_ENV}`;
+  const existing = await billingDb.getMeta(key);
+  if (existing) return existing;
+  const productName = process.env.PAYPAL_PRODUCT_NAME || 'StudentScoring Subscription';
+  const productId = await paypal.createProductIfNeeded(productName);
+  await billingDb.setMeta(key, productId);
+  return productId;
+}
+
+async function ensurePayPalPlanForPrice(price) {
+  const productId = price.paypalProductId || (await ensurePayPalProductId());
+  const billingType = String(price.billingType || 'monthly');
+  const currency = String(price.currency || 'HKD').toUpperCase();
+  const amount = Number(price.amount || 0);
+  const planName = `${price.name} ${billingType.toUpperCase()} ${currency}`;
+
+  const expected = {
+    interval_unit: billingType === 'yearly' ? 'YEAR' : 'MONTH',
+    currency,
+    amount: Number(amount.toFixed(2))
+  };
+
+  // If existing plan matches, reuse.
+  if (price.paypalPlanId) {
+    const existingPlan = await paypal.getPlan(price.paypalPlanId);
+    if (existingPlan && planMatchesPayPalPlan(existingPlan, expected)) {
+      return { paypalProductId: productId, paypalPlanId: price.paypalPlanId, reused: true };
+    }
+  }
+
+  const planSpec = paypal.toPayPalPlanSpec({
+    productId,
+    name: planName,
+    billingType,
+    currency,
+    amount
+  });
+  const newPlanId = await paypal.createPlan(planSpec);
+  return { paypalProductId: productId, paypalPlanId: newPlanId, reused: false };
+}
+
+function planMatchesPayPalPlan(plan, expected) {
+  return paypal.planMatches(plan, expected);
+}
+
+async function upsertBillingSubscriptionFromPayPal({ orgId, priceId, paypalSubscriptionId, paypalPlanId, status, billingType, currency, currentPeriodEnd }) {
+  const graceUntil = currentPeriodEnd ? addDays(currentPeriodEnd, 7).toISOString() : null;
+  await billingDb.query(
+    `
+    INSERT INTO billing_subscriptions(org_id, price_id, paypal_subscription_id, paypal_plan_id, status, currency, billing_type, current_period_end, grace_until, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+    ON CONFLICT (paypal_subscription_id) DO UPDATE SET
+      org_id=EXCLUDED.org_id,
+      price_id=COALESCE(EXCLUDED.price_id, billing_subscriptions.price_id),
+      paypal_plan_id=COALESCE(EXCLUDED.paypal_plan_id, billing_subscriptions.paypal_plan_id),
+      status=EXCLUDED.status,
+      currency=COALESCE(EXCLUDED.currency, billing_subscriptions.currency),
+      billing_type=COALESCE(EXCLUDED.billing_type, billing_subscriptions.billing_type),
+      current_period_end=EXCLUDED.current_period_end,
+      grace_until=EXCLUDED.grace_until,
+      updated_at=NOW()
+  `,
+    [orgId, priceId || null, paypalSubscriptionId, paypalPlanId || null, status || null, currency || null, billingType || null, currentPeriodEnd || null, graceUntil]
+  );
+}
+
+async function upsertEntitlementFromPrice({ orgId, price, currentPeriodEnd }) {
+  const graceUntil = currentPeriodEnd ? addDays(currentPeriodEnd, 7).toISOString() : null;
+  const now = new Date();
+  const status = computeEntitlementStatus(now, currentPeriodEnd, graceUntil);
+  const limits = price?.limits || {};
+  const teacherSeats = Number(limits.teacherSeats || 0);
+  const studentSeats = Number(limits.studentSeats || 0);
+  const features = price?.features || {};
+
+  await billingDb.query(
+    `
+    INSERT INTO billing_entitlements(org_id, status, teacher_seats, student_seats, features, current_period_end, grace_until, updated_at)
+    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,NOW())
+    ON CONFLICT (org_id) DO UPDATE SET
+      status=EXCLUDED.status,
+      teacher_seats=EXCLUDED.teacher_seats,
+      student_seats=EXCLUDED.student_seats,
+      features=EXCLUDED.features,
+      current_period_end=EXCLUDED.current_period_end,
+      grace_until=EXCLUDED.grace_until,
+      updated_at=NOW()
+  `,
+    [orgId, status, teacherSeats, studentSeats, JSON.stringify(features), currentPeriodEnd || null, graceUntil]
+  );
+}
+
+async function refreshSubscriptionAndEntitlement(subscriptionId) {
+  const details = await paypal.getSubscription(subscriptionId);
+  const orgId = String(details.custom_id || '');
+  const planId = details.plan_id || details.plan?.id || null;
+  const status = details.status || null;
+
+  let currentPeriodEnd = null;
+  if (details?.billing_info?.next_billing_time) {
+    currentPeriodEnd = new Date(details.billing_info.next_billing_time).toISOString();
+  }
+
+  // Map plan_id back to our price
+  const prices = await readSubscriptionPrices();
+  const matchedPrice = prices.find(p => String(p.paypalPlanId || '') === String(planId || '')) || null;
+  const priceId = matchedPrice?.id || null;
+
+  await upsertBillingSubscriptionFromPayPal({
+    orgId,
+    priceId,
+    paypalSubscriptionId: subscriptionId,
+    paypalPlanId: planId,
+    status,
+    billingType: matchedPrice?.billingType || null,
+    currency: matchedPrice?.currency || null,
+    currentPeriodEnd
+  });
+
+  if (orgId && matchedPrice && currentPeriodEnd) {
+    await upsertEntitlementFromPrice({ orgId, price: matchedPrice, currentPeriodEnd });
+  }
+
+  return { orgId, priceId, status, currentPeriodEnd };
 }
 
 // Write subscription packages data
@@ -8414,6 +8566,168 @@ app.post('/api/royal-exchange/leaderboard', async (req, res) => {
   }
 });
 
+// ============================
+// Billing (PayPal subscriptions)
+// ============================
+
+// Admin: sync active+live prices to PayPal (auto-create Product/Plans, store paypalPlanId back into price records)
+app.post('/api/admin/billing/paypal/sync-prices', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const prices = await readSubscriptionPrices();
+    const activeLive = prices.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
+    const updates = [];
+    for (const price of activeLive) {
+      const { paypalProductId, paypalPlanId, reused } = await ensurePayPalPlanForPrice(price);
+      updates.push({ id: price.id, code: price.code, paypalPlanId, reused });
+      price.paypalProductId = paypalProductId;
+      price.paypalPlanId = paypalPlanId;
+    }
+    await writeSubscriptionPrices(prices);
+    res.json({ ok: true, updated: updates.length, updates });
+  } catch (error) {
+    console.error('PayPal sync-prices error:', error);
+    res.status(500).json({ error: error.message || 'Failed to sync prices' });
+  }
+});
+
+// Organization: create PayPal subscription for a selected priceId (active+live only)
+app.post('/api/organizations/billing/subscriptions', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const orgId = resolveOrgIdFromUser(req.user);
+    if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
+
+    const priceId = String(req.body?.priceId || '');
+    if (!priceId) return res.status(400).json({ error: 'priceId is required' });
+
+    const prices = await readSubscriptionPrices();
+    const price = prices.find(p => String(p.id) === priceId);
+    if (!price) return res.status(404).json({ error: 'Price not found' });
+    if (!(String(price.status) === 'active' && String(price.publishState) === 'live')) {
+      return res.status(400).json({ error: 'Price is not Active + Live' });
+    }
+
+    if (!price.paypalPlanId) {
+      const ensured = await ensurePayPalPlanForPrice(price);
+      price.paypalProductId = ensured.paypalProductId;
+      price.paypalPlanId = ensured.paypalPlanId;
+      await writeSubscriptionPrices(prices);
+    }
+
+    const { id, status, approvalUrl } = await paypal.createSubscription({
+      planId: price.paypalPlanId,
+      orgId,
+      returnPath: '/organization.html',
+      cancelPath: '/organization.html'
+    });
+
+    await upsertBillingSubscriptionFromPayPal({
+      orgId,
+      priceId: price.id,
+      paypalSubscriptionId: id,
+      paypalPlanId: price.paypalPlanId,
+      status,
+      billingType: price.billingType,
+      currency: price.currency,
+      currentPeriodEnd: null
+    });
+
+    res.json({ ok: true, subscriptionId: id, approvalUrl });
+  } catch (error) {
+    console.error('Create org subscription error:', error);
+    res.status(500).json({ error: error.message || 'Failed to create subscription' });
+  }
+});
+
+// Organization: read current entitlement status (computed)
+app.get('/api/organizations/billing/status', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const orgId = resolveOrgIdFromUser(req.user);
+    if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
+
+    const ent = await billingDb.query('SELECT * FROM billing_entitlements WHERE org_id=$1', [orgId]);
+    const sub = await billingDb.query(
+      'SELECT * FROM billing_subscriptions WHERE org_id=$1 ORDER BY updated_at DESC NULLS LAST LIMIT 1',
+      [orgId]
+    );
+
+    const entitlement = ent.rows[0] || null;
+    const subscription = sub.rows[0] || null;
+
+    const now = new Date();
+    const computedStatus = entitlement
+      ? computeEntitlementStatus(now, entitlement.current_period_end, entitlement.grace_until)
+      : 'inactive';
+
+    let graceDaysLeft = null;
+    if (entitlement?.grace_until) {
+      const ms = new Date(entitlement.grace_until).getTime() - now.getTime();
+      graceDaysLeft = Math.max(0, Math.ceil(ms / (24 * 3600 * 1000)));
+    }
+
+    res.json({
+      orgId,
+      status: computedStatus,
+      graceDaysLeft,
+      entitlement,
+      subscription
+    });
+  } catch (error) {
+    console.error('Get billing status error:', error);
+    res.status(500).json({ error: error.message || 'Failed to load billing status' });
+  }
+});
+
+// PayPal webhook (Sandbox/Live) - signature verification + store event + refresh subscription + update entitlement
+app.post('/api/webhooks/paypal', async (req, res) => {
+  try {
+    const eventBody = req.body;
+    const verify = await paypal.verifyWebhookSignature({ req, eventBody });
+    if (!verify.ok) {
+      console.warn('PayPal webhook signature failed:', verify.reason);
+      return res.status(400).json({ ok: false });
+    }
+
+    const eventId = String(eventBody?.id || '');
+    if (!eventId) {
+      return res.status(400).json({ ok: false, error: 'Missing event id' });
+    }
+
+    // Idempotency: ignore duplicates
+    await billingDb.query(
+      `
+      INSERT INTO billing_webhook_events(paypal_event_id, event_type, resource_type, resource_id, raw)
+      VALUES ($1,$2,$3,$4,$5::jsonb)
+      ON CONFLICT (paypal_event_id) DO NOTHING
+    `,
+      [
+        eventId,
+        eventBody?.event_type || null,
+        eventBody?.resource_type || null,
+        eventBody?.resource?.id || null,
+        JSON.stringify(eventBody)
+      ]
+    );
+
+    // Try to refresh subscription state when we can extract subscription id
+    const type = String(eventBody?.event_type || '');
+    let subscriptionId = null;
+    if (type.startsWith('BILLING.SUBSCRIPTION.')) {
+      subscriptionId = eventBody?.resource?.id || null;
+    } else if (eventBody?.resource?.billing_agreement_id) {
+      subscriptionId = eventBody.resource.billing_agreement_id;
+    }
+
+    if (subscriptionId) {
+      await refreshSubscriptionAndEntitlement(String(subscriptionId));
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('PayPal webhook error:', error);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Save game state
 app.post('/api/game/save', async (req, res) => {
   try {
@@ -9574,6 +9888,7 @@ app.put('/api/organizations/game-config', authenticateUser, authorizeRole('organ
 async function startServer() {
   await ensureDataDir();
   await initializeDataFile();
+  await billingDb.ensureBillingSchema();
   
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server });

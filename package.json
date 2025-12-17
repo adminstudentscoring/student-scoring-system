@@ -12,19 +12,25 @@
     "init-admin": "node scripts/init-admin.js",
     "migrate-students": "node scripts/migrate-students.js"
   },
-  "keywords": ["student", "scoring", "zoom", "education"],
+  "keywords": [
+    "student",
+    "scoring",
+    "zoom",
+    "education"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
+    "bcrypt": "^5.1.1",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "ws": "^8.14.2",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "bcrypt": "^5.1.1"
+    "pg": "^8.13.1",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
     "electron": "^27.0.0"
   }
-} 
+}
