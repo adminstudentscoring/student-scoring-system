@@ -185,6 +185,10 @@
   align-items: start;
 }
 
+.admin-subscription-preview-plan-only {
+  grid-template-columns: 1fr;
+}
+
 .admin-subscription-preview-section {
   border: 1px solid #e5e7eb;
   border-radius: 14px;

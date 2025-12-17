@@ -846,84 +846,8 @@
 
     // Always refresh latest data for preview
     await loadAllPricesForSelect();
-    await loadAdminSubscriptionPackages();
 
     const activeLivePrices = allPricesForSelect.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
-    const activeLivePackages = adminSubscriptionPackages.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
-
-    const priceById = new Map(activeLivePrices.map(p => [p.id, p]));
-    const priceByCode = new Map(activeLivePrices.map(p => [String(p.code || ''), p]));
-
-    const sale = [];
-    const oneTime = [];
-
-    for (const pkg of activeLivePackages) {
-      const price = priceById.get(pkg.priceId) || priceByCode.get(String(pkg.priceCode || '')) || null;
-      if (!price) continue; // only show packages that are linked to an active+live price
-      const billingType = String(price.billingType || 'monthly');
-      if (billingType === 'one-time') {
-        oneTime.push({ pkg, price });
-      } else {
-        sale.push({ pkg, price });
-      }
-    }
-
-    const renderPackageCards = (items) => {
-      if (!items.length) return `<div class="help" style="margin:0;">No plans.</div>`;
-      return `
-        <div class="admin-subscription-plan-grid">
-          ${items
-            .slice()
-            .sort((a, b) => {
-              const pa = calcPackagePricing(a.pkg, a.price);
-              const pb = calcPackagePricing(b.pkg, b.price);
-              const ha = Number(pa.discount) > 0.000001;
-              const hb = Number(pb.discount) > 0.000001;
-              const va = getPackageMonthlyEquivalent(a.pkg, a.price, pa, ha);
-              const vb = getPackageMonthlyEquivalent(b.pkg, b.price, pb, hb);
-              if (va !== vb) return va - vb;
-              return String(a.pkg?.name || '').localeCompare(String(b.pkg?.name || ''));
-            })
-            .map(({ pkg, price }) => {
-              const pricing = calcPackagePricing(pkg, price);
-              const hasDiscount = Number(pricing.discount) > 0.000001;
-              const billingType = String(price?.billingType || 'monthly');
-              const isOneTime = billingType === 'one-time';
-              const points = [
-                `Price code: ${price?.code || pkg.priceCode || '-'}`,
-                `Billing: ${price?.billingType || '-'}`,
-                `Teacher seats: ${price?.limits?.teacherSeats ?? '-'}`,
-                `Student seats: ${price?.limits?.studentSeats ?? '-'}`,
-                `Features: ${featuresToText(price?.features)}`,
-                `Quantity: ${pkg.quantity}`,
-                `Discount: ${pkg.discountType === 'percent' ? `${pkg.discountValue}%` : pkg.discountType === 'fixed' ? formatMoney(pricing.currency, pkg.discountValue) : 'None'}`,
-                `Validity: ${pkg.validFrom || pkg.validTo ? `${pkg.validFrom || '—'} → ${pkg.validTo || '—'}` : 'No limit'}`
-              ];
-
-              const originalDisplay = isOneTime
-                ? formatPricePerPeriod(pricing.currency, pricing.subtotal, billingType)
-                : formatMonthlyFromPackageTotal(pricing.subtotal, pkg.quantity);
-              const finalDisplay = isOneTime
-                ? formatPricePerPeriod(pricing.currency, hasDiscount ? pricing.total : pricing.subtotal, billingType)
-                : formatMonthlyFromPackageTotal(hasDiscount ? pricing.total : pricing.subtotal, pkg.quantity);
-
-              return `
-                <div class="admin-subscription-plan-card">
-                  <h4 class="admin-subscription-plan-name">${pkg.name}</h4>
-                  <div class="admin-subscription-plan-prices">
-                    ${hasDiscount ? `<span class="admin-subscription-plan-price-original">${originalDisplay}</span>` : ''}
-                    <span class="admin-subscription-plan-price-final">${finalDisplay}</span>
-                  </div>
-                  <ul class="admin-subscription-plan-points">
-                    ${points.map(t => `<li>${t}</li>`).join('')}
-                  </ul>
-                </div>
-              `;
-            })
-            .join('')}
-        </div>
-      `;
-    };
 
     const renderPriceCards = (prices) => {
       if (!prices.length) return `<div class="help" style="margin:0;">No active plans.</div>`;
@@ -970,10 +894,8 @@
     `;
 
     container.innerHTML = `
-      <div class="admin-subscription-preview-sections admin-subscription-preview-columns">
+      <div class="admin-subscription-preview-sections admin-subscription-preview-columns admin-subscription-preview-plan-only">
         ${column('Plan', renderPriceCards(activeLivePrices))}
-        ${column('Sale', renderPackageCards(sale))}
-        ${column('One-time', renderPackageCards(oneTime))}
       </div>
     `;
   }
