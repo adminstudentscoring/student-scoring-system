@@ -818,73 +818,124 @@
     await loadAllPricesForSelect();
     await loadAdminSubscriptionPackages();
 
-    const activeLive = adminSubscriptionPackages.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
+    const activeLivePrices = allPricesForSelect.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
+    const activeLivePackages = adminSubscriptionPackages.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
 
-    const groups = {
-      monthly: [],
-      yearly: [],
-      'one-time': []
-    };
+    const priceById = new Map(activeLivePrices.map(p => [p.id, p]));
+    const priceByCode = new Map(activeLivePrices.map(p => [String(p.code || ''), p]));
 
-    for (const pkg of activeLive) {
-      const price = allPricesForSelect.find(pr => pr.id === pkg.priceId) || allPricesForSelect.find(pr => pr.code === pkg.priceCode);
-      const billingType = String(price?.billingType || 'monthly');
-      if (!groups[billingType]) continue;
-      groups[billingType].push({ pkg, price });
+    const saleMonthly = [];
+    const saleYearly = [];
+    const oneTime = [];
+
+    for (const pkg of activeLivePackages) {
+      const price = priceById.get(pkg.priceId) || priceByCode.get(String(pkg.priceCode || '')) || null;
+      if (!price) continue; // only show packages that are linked to an active+live price
+      const billingType = String(price.billingType || 'monthly');
+      if (billingType === 'one-time') {
+        oneTime.push({ pkg, price });
+      } else if (billingType === 'yearly') {
+        saleYearly.push({ pkg, price });
+      } else {
+        saleMonthly.push({ pkg, price });
+      }
     }
 
-    const section = (title, items) => {
-      const cards = items.length
-        ? `
-          <div class="admin-subscription-plan-grid">
-            ${items
-              .slice()
-              .sort((a, b) => String(a.pkg?.name || '').localeCompare(String(b.pkg?.name || '')))
-              .map(({ pkg, price }) => {
-                const pricing = calcPackagePricing(pkg, price);
-                const hasDiscount = Number(pricing.discount) > 0.000001;
-                const points = [
-                  `Price code: ${price?.code || pkg.priceCode || '-'}`,
-                  `Billing: ${price?.billingType || '-'}`,
-                  `Teacher seats: ${price?.limits?.teacherSeats ?? '-'}`,
-                  `Student seats: ${price?.limits?.studentSeats ?? '-'}`,
-                  `Features: ${featuresToText(price?.features)}`,
-                  `Quantity: ${pkg.quantity}`,
-                  `Discount: ${pkg.discountType === 'percent' ? `${pkg.discountValue}%` : pkg.discountType === 'fixed' ? formatMoney(pricing.currency, pkg.discountValue) : 'None'}`,
-                  `Validity: ${pkg.validFrom || pkg.validTo ? `${pkg.validFrom || '—'} → ${pkg.validTo || '—'}` : 'No limit'}`
-                ];
-
-                return `
-                  <div class="admin-subscription-plan-card">
-                    <h4 class="admin-subscription-plan-name">${pkg.name}</h4>
-                    <div class="admin-subscription-plan-prices">
-                      ${hasDiscount ? `<span class="admin-subscription-plan-price-original">${formatMoney(pricing.currency, pricing.subtotal)}</span>` : ''}
-                      <span class="admin-subscription-plan-price-final">${formatMoney(pricing.currency, hasDiscount ? pricing.total : pricing.subtotal)}</span>
-                    </div>
-                    <ul class="admin-subscription-plan-points">
-                      ${points.map(t => `<li>${t}</li>`).join('')}
-                    </ul>
-                  </div>
-                `;
-              })
-              .join('')}
-          </div>
-        `
-        : `<div class="help" style="margin:0;">No active plans.</div>`;
-
+    const renderPackageCards = (items) => {
+      if (!items.length) return `<div class="help" style="margin:0;">No plans.</div>`;
       return `
-        <section class="admin-subscription-preview-section">
-          <h4 class="admin-subscription-preview-title">${title}</h4>
-          ${cards}
-        </section>
+        <div class="admin-subscription-plan-grid">
+          ${items
+            .slice()
+            .sort((a, b) => String(a.pkg?.name || '').localeCompare(String(b.pkg?.name || '')))
+            .map(({ pkg, price }) => {
+              const pricing = calcPackagePricing(pkg, price);
+              const hasDiscount = Number(pricing.discount) > 0.000001;
+              const points = [
+                `Price code: ${price?.code || pkg.priceCode || '-'}`,
+                `Billing: ${price?.billingType || '-'}`,
+                `Teacher seats: ${price?.limits?.teacherSeats ?? '-'}`,
+                `Student seats: ${price?.limits?.studentSeats ?? '-'}`,
+                `Features: ${featuresToText(price?.features)}`,
+                `Quantity: ${pkg.quantity}`,
+                `Discount: ${pkg.discountType === 'percent' ? `${pkg.discountValue}%` : pkg.discountType === 'fixed' ? formatMoney(pricing.currency, pkg.discountValue) : 'None'}`,
+                `Validity: ${pkg.validFrom || pkg.validTo ? `${pkg.validFrom || '—'} → ${pkg.validTo || '—'}` : 'No limit'}`
+              ];
+
+              return `
+                <div class="admin-subscription-plan-card">
+                  <h4 class="admin-subscription-plan-name">${pkg.name}</h4>
+                  <div class="admin-subscription-plan-prices">
+                    ${hasDiscount ? `<span class="admin-subscription-plan-price-original">${formatMoney(pricing.currency, pricing.subtotal)}</span>` : ''}
+                    <span class="admin-subscription-plan-price-final">${formatMoney(pricing.currency, hasDiscount ? pricing.total : pricing.subtotal)}</span>
+                  </div>
+                  <ul class="admin-subscription-plan-points">
+                    ${points.map(t => `<li>${t}</li>`).join('')}
+                  </ul>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
       `;
     };
 
+    const renderPriceCards = (prices) => {
+      if (!prices.length) return `<div class="help" style="margin:0;">No active plans.</div>`;
+      return `
+        <div class="admin-subscription-plan-grid">
+          ${prices
+            .slice()
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+            .map(p => {
+              const points = [
+                `Price code: ${p.code || '-'}`,
+                `Billing: ${p.billingType || '-'}`,
+                `Teacher seats: ${p?.limits?.teacherSeats ?? '-'}`,
+                `Student seats: ${p?.limits?.studentSeats ?? '-'}`,
+                `Features: ${featuresToText(p?.features)}`
+              ];
+              return `
+                <div class="admin-subscription-plan-card">
+                  <h4 class="admin-subscription-plan-name">${p.name}</h4>
+                  <div class="admin-subscription-plan-prices">
+                    <span class="admin-subscription-plan-price-final">${formatMoney(p.currency || 'HKD', Number(p.amount || 0))}</span>
+                  </div>
+                  <ul class="admin-subscription-plan-points">
+                    ${points.map(t => `<li>${t}</li>`).join('')}
+                  </ul>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      `;
+    };
+
+    const column = (title, innerHtml) => `
+      <section class="admin-subscription-preview-section">
+        <h4 class="admin-subscription-preview-title">${title}</h4>
+        ${innerHtml}
+      </section>
+    `;
+
     container.innerHTML = `
-      <div class="admin-subscription-preview-sections">
-        ${section('Monthly Plans', groups.monthly)}
-        ${section('Yearly Plans', groups.yearly)}
-        ${section('One-time Plans', groups['one-time'])}
+      <div class="admin-subscription-preview-sections admin-subscription-preview-columns">
+        ${column('Plan', renderPriceCards(activeLivePrices))}
+        ${column(
+          'Sale',
+          `
+            <div class="admin-subscription-preview-subsection">
+              <div class="admin-subscription-preview-subtitle">Monthly</div>
+              ${renderPackageCards(saleMonthly)}
+            </div>
+            <div class="admin-subscription-preview-subsection">
+              <div class="admin-subscription-preview-subtitle">Yearly</div>
+              ${renderPackageCards(saleYearly)}
+            </div>
+          `
+        )}
+        ${column('One-time', renderPackageCards(oneTime))}
       </div>
     `;
   }
