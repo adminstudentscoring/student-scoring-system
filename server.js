@@ -8638,6 +8638,29 @@ app.post('/api/organizations/billing/subscriptions', authenticateUser, authorize
   }
 });
 
+// Organization: after PayPal approve redirect, force-refresh subscription state from PayPal (fallback when webhook is delayed)
+app.post('/api/organizations/billing/subscriptions/refresh', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const orgId = resolveOrgIdFromUser(req.user);
+    if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
+
+    const subscriptionId = String(req.body?.subscriptionId || '');
+    if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId is required' });
+
+    const refreshed = await refreshSubscriptionAndEntitlement(subscriptionId);
+
+    // Security: ensure the subscription belongs to this org
+    if (refreshed.orgId && String(refreshed.orgId) !== String(orgId)) {
+      return res.status(403).json({ error: 'Subscription does not belong to this organization' });
+    }
+
+    res.json({ ok: true, refreshed });
+  } catch (error) {
+    console.error('Refresh subscription error:', error);
+    res.status(500).json({ error: error.message || 'Failed to refresh subscription' });
+  }
+});
+
 // Organization: read current entitlement status (computed)
 app.get('/api/organizations/billing/status', authenticateUser, authorizeRole('organization'), async (req, res) => {
   try {

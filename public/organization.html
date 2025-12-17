@@ -881,6 +881,9 @@
                 loadStudents();
                 // Re-initialize search functionality when switching to students tab
                 setTimeout(initStudentSearch, 100);
+
+                // If user just returned from PayPal approval, auto-refresh subscription state.
+                handlePayPalReturn().catch(() => {});
             } catch (error) {
                 console.error('Error loading user info:', error);
             }
@@ -938,6 +941,41 @@
 
         async function loadOrganizationSubscription() {
             await Promise.all([loadOrgSubscriptionStatus(), loadOrgSubscriptionPlans()]);
+        }
+
+        async function handlePayPalReturn() {
+            const params = new URLSearchParams(window.location.search);
+            // PayPal usually returns subscription_id for subscriptions.
+            const subscriptionId = params.get('subscription_id') || params.get('subscriptionId') || '';
+            if (!subscriptionId) return;
+            if (!subscriptionId.startsWith('I-')) return; // basic safety
+
+            // Ensure subscription tab is visible (best UX).
+            const subTabBtn = Array.from(document.querySelectorAll('.tab')).find(b => (b.textContent || '').includes('Subscription'));
+            if (subTabBtn) {
+                switchTab('subscription', subTabBtn);
+            } else {
+                switchTab('subscription');
+            }
+
+            try {
+                await window.authUtils.authenticatedFetch('/organizations/billing/subscriptions/refresh', {
+                    method: 'POST',
+                    body: JSON.stringify({ subscriptionId })
+                });
+            } catch (e) {
+                // ignore
+            }
+
+            // Remove query params so refresh doesn't repeat
+            try {
+                const clean = new URL(window.location.href);
+                clean.searchParams.delete('subscription_id');
+                clean.searchParams.delete('subscriptionId');
+                window.history.replaceState({}, document.title, clean.toString());
+            } catch (e) {}
+
+            await loadOrgSubscriptionStatus();
         }
 
         async function loadOrgSubscriptionStatus() {
