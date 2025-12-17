@@ -507,6 +507,64 @@
         }
 
         /* Organization Subscription styles removed (will be rebuilt later) */
+        /* Subscription (Organization) */
+        .org-subscription-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .org-subscription-banner {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px 14px;
+            background: #f8fafc;
+            color: #111827;
+        }
+        .org-subscription-banner.active { border-color: #bbf7d0; background: #f0fdf4; }
+        .org-subscription-banner.grace { border-color: #fde68a; background: #fffbeb; }
+        .org-subscription-banner.expired { border-color: #fecaca; background: #fef2f2; }
+
+        .org-plan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+        .org-plan-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            background: #ffffff;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.05);
+        }
+        .org-plan-title {
+            margin: 0;
+            font-weight: 900;
+            text-align: center;
+        }
+        .org-plan-price {
+            font-weight: 900;
+            text-align: center;
+            font-size: 1.05rem;
+        }
+        .org-plan-points {
+            margin: 0;
+            padding-left: 18px;
+            color: #374151;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .org-plan-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+        @media (max-width: 520px) {
+            .org-plan-actions { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
@@ -626,7 +684,21 @@
         </div>
 
         <!-- Subscription Tab (content removed; will be rebuilt later) -->
-        <div id="subscriptionTab" class="tab-content"></div>
+        <div id="subscriptionTab" class="tab-content">
+            <div class="org-subscription-wrap">
+                <section class="card">
+                    <h2>💳 Subscription</h2>
+                    <p style="color:#666; margin-top:6px;">Choose a plan and subscribe via PayPal (Sandbox). Active + Live plans are shown.</p>
+                    <div id="orgSubscriptionStatus" class="org-subscription-banner">Loading subscription status...</div>
+                </section>
+                <section class="card">
+                    <h2>Available Plans</h2>
+                    <div id="orgSubscriptionPlanList" class="org-plan-grid">
+                        <p>Loading...</p>
+                    </div>
+                </section>
+            </div>
+        </div>
 
         <!-- Settings Tab -->
         <div id="settingsTab" class="tab-content">
@@ -844,7 +916,122 @@
                 }
             }
 
-            // Subscription content removed (will be rebuilt later)
+            if (tab === 'subscription') {
+                loadOrganizationSubscription().catch(() => {});
+            }
+        }
+
+        function formatPricePerPeriod(amount, billingType) {
+            const n = Number(amount || 0);
+            const bt = String(billingType || 'monthly');
+            if (bt === 'yearly') return `$${n.toFixed(2)} per Year`;
+            return `$${n.toFixed(2)} per Month`;
+        }
+
+        function featuresToText(features) {
+            try {
+                return Object.entries(features || {}).filter(([, v]) => !!v).map(([k]) => k).join(', ') || 'None';
+            } catch {
+                return 'None';
+            }
+        }
+
+        async function loadOrganizationSubscription() {
+            await Promise.all([loadOrgSubscriptionStatus(), loadOrgSubscriptionPlans()]);
+        }
+
+        async function loadOrgSubscriptionStatus() {
+            const el = document.getElementById('orgSubscriptionStatus');
+            if (!el) return;
+            el.className = 'org-subscription-banner';
+            el.textContent = 'Loading subscription status...';
+
+            const resp = await window.authUtils.authenticatedFetch('/organizations/billing/status');
+            if (!resp) return;
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                el.textContent = data.error || 'Failed to load billing status.';
+                return;
+            }
+
+            const status = String(data.status || 'inactive');
+            el.classList.add(status);
+
+            const end = data?.entitlement?.current_period_end ? new Date(data.entitlement.current_period_end).toLocaleString() : null;
+            const graceUntil = data?.entitlement?.grace_until ? new Date(data.entitlement.grace_until).toLocaleString() : null;
+
+            if (status === 'active') {
+                el.innerHTML = `<strong>Status:</strong> Active${end ? ` (renews/valid until <strong>${end}</strong>)` : ''}`;
+            } else if (status === 'grace') {
+                el.innerHTML = `<strong>Status:</strong> Grace period${graceUntil ? ` (until <strong>${graceUntil}</strong>)` : ''}${data.graceDaysLeft != null ? ` • <strong>${data.graceDaysLeft}</strong> days left` : ''}`;
+            } else if (status === 'expired') {
+                el.innerHTML = `<strong>Status:</strong> Expired. Please subscribe to continue.`;
+            } else {
+                el.innerHTML = `<strong>Status:</strong> No active subscription.`;
+            }
+        }
+
+        async function loadOrgSubscriptionPlans() {
+            const el = document.getElementById('orgSubscriptionPlanList');
+            if (!el) return;
+            el.innerHTML = '<p>Loading...</p>';
+
+            const resp = await window.authUtils.authenticatedFetch('/organizations/billing/plans');
+            if (!resp) return;
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                el.innerHTML = `<p style="color:red;">${data.error || 'Failed to load plans.'}</p>`;
+                return;
+            }
+            const plans = Array.isArray(data.plans) ? data.plans : [];
+            if (!plans.length) {
+                el.innerHTML = '<p>No active plans.</p>';
+                return;
+            }
+
+            el.innerHTML = plans.map(p => {
+                const limits = p.limits || {};
+                return `
+                  <div class="org-plan-card">
+                    <h3 class="org-plan-title">${p.name}</h3>
+                    <div class="org-plan-price">${formatPricePerPeriod(p.amount, p.billingType)}</div>
+                    <ul class="org-plan-points">
+                      <li>Price code: ${p.code || '-'}</li>
+                      <li>Billing: ${p.billingType || '-'}</li>
+                      <li>Currency: ${p.currency || '-'}</li>
+                      <li>Teacher seats: ${limits.teacherSeats ?? '-'}</li>
+                      <li>Student seats: ${limits.studentSeats ?? '-'}</li>
+                      <li>Features: ${featuresToText(p.features)}</li>
+                    </ul>
+                    <div class="org-plan-actions">
+                      <button class="btn btn-primary" type="button" onclick="subscribeOrgPlan('${p.id}')">Subscribe</button>
+                    </div>
+                  </div>
+                `;
+            }).join('');
+        }
+
+        window.subscribeOrgPlan = async function(priceId) {
+            try {
+                const resp = await window.authUtils.authenticatedFetch('/organizations/billing/subscriptions', {
+                    method: 'POST',
+                    body: JSON.stringify({ priceId })
+                });
+                if (!resp) return;
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) {
+                    alert(data.error || 'Failed to create subscription.');
+                    return;
+                }
+                if (!data.approvalUrl) {
+                    alert('Subscription created, but approvalUrl is missing.');
+                    return;
+                }
+                // Redirect in same tab to avoid popup blocker on mobile
+                window.location.href = data.approvalUrl;
+            } catch (e) {
+                alert(e.message || 'Failed to create subscription.');
+            }
         }
 
         async function createTeacher(event) {

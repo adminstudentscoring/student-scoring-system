@@ -8677,6 +8677,42 @@ app.get('/api/organizations/billing/status', authenticateUser, authorizeRole('or
   }
 });
 
+// Organization: list available subscription plans (Active + Live prices only)
+app.get('/api/organizations/billing/plans', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const prices = await readSubscriptionPrices();
+    const activeLive = prices
+      .filter(p => String(p.status) === 'active' && String(p.publishState) === 'live')
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        amount: Number(p.amount || 0),
+        currency: String(p.currency || 'HKD').toUpperCase(),
+        billingType: String(p.billingType || 'monthly'),
+        limits: p.limits || {},
+        features: p.features || {}
+      }));
+
+    const monthlyEquivalent = (p) => {
+      const n = Number(p.amount || 0);
+      return p.billingType === 'yearly' ? n / 12 : n;
+    };
+
+    activeLive.sort((a, b) => {
+      const va = monthlyEquivalent(a);
+      const vb = monthlyEquivalent(b);
+      if (va !== vb) return va - vb;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+    res.json({ plans: activeLive });
+  } catch (error) {
+    console.error('Get org billing plans error:', error);
+    res.status(500).json({ error: error.message || 'Failed to load plans' });
+  }
+});
+
 // PayPal webhook (Sandbox/Live) - signature verification + store event + refresh subscription + update entitlement
 app.post('/api/webhooks/paypal', async (req, res) => {
   try {
