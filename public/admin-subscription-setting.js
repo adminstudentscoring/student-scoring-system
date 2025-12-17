@@ -786,6 +786,15 @@
     return `${c} ${n.toFixed(2)}`;
   }
 
+  function formatPricePerPeriod(currency, value, billingType) {
+    const n = Number(value) || 0;
+    const bt = String(billingType || '');
+    const amountText = `$${n.toFixed(2)}`;
+    if (bt === 'yearly') return `${amountText} per Year`;
+    if (bt === 'one-time') return `${amountText} one-time`;
+    return `${amountText} per Month`;
+  }
+
   function featuresToText(features) {
     const enabled = Object.entries(features || {}).filter(([, v]) => !!v).map(([k]) => k);
     return enabled.length ? enabled.join(', ') : 'None';
@@ -824,8 +833,7 @@
     const priceById = new Map(activeLivePrices.map(p => [p.id, p]));
     const priceByCode = new Map(activeLivePrices.map(p => [String(p.code || ''), p]));
 
-    const saleMonthly = [];
-    const saleYearly = [];
+    const sale = [];
     const oneTime = [];
 
     for (const pkg of activeLivePackages) {
@@ -834,10 +842,8 @@
       const billingType = String(price.billingType || 'monthly');
       if (billingType === 'one-time') {
         oneTime.push({ pkg, price });
-      } else if (billingType === 'yearly') {
-        saleYearly.push({ pkg, price });
       } else {
-        saleMonthly.push({ pkg, price });
+        sale.push({ pkg, price });
       }
     }
 
@@ -851,6 +857,7 @@
             .map(({ pkg, price }) => {
               const pricing = calcPackagePricing(pkg, price);
               const hasDiscount = Number(pricing.discount) > 0.000001;
+              const billingType = String(price?.billingType || 'monthly');
               const points = [
                 `Price code: ${price?.code || pkg.priceCode || '-'}`,
                 `Billing: ${price?.billingType || '-'}`,
@@ -866,8 +873,8 @@
                 <div class="admin-subscription-plan-card">
                   <h4 class="admin-subscription-plan-name">${pkg.name}</h4>
                   <div class="admin-subscription-plan-prices">
-                    ${hasDiscount ? `<span class="admin-subscription-plan-price-original">${formatMoney(pricing.currency, pricing.subtotal)}</span>` : ''}
-                    <span class="admin-subscription-plan-price-final">${formatMoney(pricing.currency, hasDiscount ? pricing.total : pricing.subtotal)}</span>
+                    ${hasDiscount ? `<span class="admin-subscription-plan-price-original">${formatPricePerPeriod(pricing.currency, pricing.subtotal, billingType)}</span>` : ''}
+                    <span class="admin-subscription-plan-price-final">${formatPricePerPeriod(pricing.currency, hasDiscount ? pricing.total : pricing.subtotal, billingType)}</span>
                   </div>
                   <ul class="admin-subscription-plan-points">
                     ${points.map(t => `<li>${t}</li>`).join('')}
@@ -899,7 +906,7 @@
                 <div class="admin-subscription-plan-card">
                   <h4 class="admin-subscription-plan-name">${p.name}</h4>
                   <div class="admin-subscription-plan-prices">
-                    <span class="admin-subscription-plan-price-final">${formatMoney(p.currency || 'HKD', Number(p.amount || 0))}</span>
+                    <span class="admin-subscription-plan-price-final">${formatPricePerPeriod(p.currency || 'HKD', Number(p.amount || 0), p.billingType)}</span>
                   </div>
                   <ul class="admin-subscription-plan-points">
                     ${points.map(t => `<li>${t}</li>`).join('')}
@@ -922,19 +929,7 @@
     container.innerHTML = `
       <div class="admin-subscription-preview-sections admin-subscription-preview-columns">
         ${column('Plan', renderPriceCards(activeLivePrices))}
-        ${column(
-          'Sale',
-          `
-            <div class="admin-subscription-preview-subsection">
-              <div class="admin-subscription-preview-subtitle">Monthly</div>
-              ${renderPackageCards(saleMonthly)}
-            </div>
-            <div class="admin-subscription-preview-subsection">
-              <div class="admin-subscription-preview-subtitle">Yearly</div>
-              ${renderPackageCards(saleYearly)}
-            </div>
-          `
-        )}
+        ${column('Sale', renderPackageCards(sale))}
         ${column('One-time', renderPackageCards(oneTime))}
       </div>
     `;
