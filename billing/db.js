@@ -1,0 +1,95 @@
+const { Pool } = require('pg');
+
+function createPool() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is required for billing database');
+  }
+
+  const isRailwayInternal = connectionString.includes('railway.internal');
+  const ssl = isRailwayInternal ? false : { rejectUnauthorized: false };
+
+  return new Pool({ connectionString, ssl });
+}
+
+const pool = createPool();
+
+async function query(text, params) {
+  return pool.query(text, params);
+}
+
+async function ensureBillingSchema() {
+  // Keep this migration minimal and idempotent.
+  await query(`
+    CREATE TABLE IF NOT EXISTS billing_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS billing_webhook_events (
+      id BIGSERIAL PRIMARY KEY,
+      paypal_event_id TEXT UNIQUE NOT NULL,
+      event_type TEXT,
+      resource_type TEXT,
+      resource_id TEXT,
+      raw JSONB NOT NULL,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS billing_subscriptions (
+      id BIGSERIAL PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      price_id TEXT,
+      paypal_subscription_id TEXT UNIQUE NOT NULL,
+      paypal_plan_id TEXT,
+      status TEXT,
+      currency TEXT,
+      billing_type TEXT,
+      current_period_end TIMESTAMPTZ,
+      grace_until TIMESTAMPTZ,
+      cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS billing_subscriptions_org_id_idx ON billing_subscriptions(org_id);
+
+    CREATE TABLE IF NOT EXISTS billing_entitlements (
+      org_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      teacher_seats INTEGER NOT NULL DEFAULT 0,
+      student_seats INTEGER NOT NULL DEFAULT 0,
+      features JSONB NOT NULL DEFAULT '{}'::jsonb,
+      current_period_end TIMESTAMPTZ,
+      grace_until TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+}
+
+async function getMeta(key) {
+  const res = await query('SELECT value FROM billing_meta WHERE key=$1', [key]);
+  return res.rows[0]?.value || null;
+}
+
+async function setMeta(key, value) {
+  await query(
+    `
+    INSERT INTO billing_meta(key, value, updated_at)
+    VALUES ($1, $2, NOW())
+    ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
+  `,
+    [key, value]
+  );
+}
+
+module.exports = {
+  pool,
+  query,
+  ensureBillingSchema,
+  getMeta,
+  setMeta
+};
+
+
