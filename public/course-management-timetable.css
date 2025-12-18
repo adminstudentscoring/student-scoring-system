@@ -688,6 +688,48 @@
   display: block;
 }
 
+/* Compact time row: Start / Duration / End in one line */
+.edit-class-modal .cm-time-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 1fr;
+  gap: 14px;
+  align-items: end;
+}
+.edit-class-modal .cm-time-row .edit-class-form-group {
+  margin-bottom: 0;
+}
+.edit-class-modal .cm-time-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.edit-class-modal .cm-time-sep {
+  font-weight: 800;
+  color: #6b7280;
+}
+
+/* Override global width:100% for selects inside the inline time picker */
+.edit-class-modal .cm-time-inline select {
+  width: 76px !important;
+  padding: 10px 10px;
+}
+
+/* Keep Duration compact but readable */
+.edit-class-modal #editClassDuration {
+  width: 100%;
+  padding: 10px 10px;
+}
+
+@media (max-width: 768px) {
+  .edit-class-modal .cm-time-row {
+    grid-template-columns: 1fr;
+  }
+  .edit-class-modal .cm-time-inline select {
+    width: 88px !important;
+  }
+}
+
 /* Tag Selector Styles */
 .tag-selector-container {
   border: 2px solid #e0e0e0;

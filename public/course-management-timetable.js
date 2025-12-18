@@ -1117,14 +1117,14 @@ window.openEditClassModal = async function(entry, dateStr) {
               <div class="error-message" id="errorClassroom"></div>
             </div>
           </div>
-          <div class="form-row">
+          <div class="form-row cm-time-row">
             <div class="edit-class-form-group">
               <label for="editClassStartTime">Start Time <span style="color: #ef4444;">*</span></label>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <div class="cm-time-inline">
                 <select id="editClassStartHour" required onchange="onTimetableTimeChanged('start')">
                   ${hourOptions.map(h => `<option value="${h}" ${h === startParts.h ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
-                <span style="font-weight:700;">:</span>
+                <span class="cm-time-sep">:</span>
                 <select id="editClassStartMin" required onchange="onTimetableTimeChanged('start')">
                   ${minuteOptions.map(m => `<option value="${m}" ${m === startParts.m ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}
                 </select>
@@ -1145,11 +1145,11 @@ window.openEditClassModal = async function(entry, dateStr) {
             </div>
             <div class="edit-class-form-group">
               <label for="editClassEndTime">End Time <span style="color: #ef4444;">*</span></label>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <div class="cm-time-inline">
                 <select id="editClassEndHour" required onchange="onTimetableTimeChanged('end')">
                   ${hourOptions.map(h => `<option value="${h}" ${h === endParts.h ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
-                <span style="font-weight:700;">:</span>
+                <span class="cm-time-sep">:</span>
                 <select id="editClassEndMin" required onchange="onTimetableTimeChanged('end')">
                   ${minuteOptions.map(m => `<option value="${m}" ${m === endParts.m ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}
                 </select>
