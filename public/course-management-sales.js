@@ -1042,6 +1042,7 @@ window.selectSalesStudent = function(studentId) {
       <h3>
         <button class="student-name-link" onclick="openStudentDetailsOverlay(event)">${escapeHtml(student.name)}</button>
         <span class="student-id-badge">${escapeHtml(student.studentId)}</span>
+        <button class="btn btn-sm btn-secondary" style="margin-left:8px; padding:6px 10px;" onclick="openSalesEditStudent(event, '${student.id}')">Edit</button>
       </h3>
       <div class="student-balance">Balance: $${balance.toFixed(2)}</div>
     </div>
@@ -1065,6 +1066,35 @@ window.selectSalesStudent = function(studentId) {
   renderSalesCart();
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+};
+
+// Edit Student shortcut from Sales selected card
+window.openSalesEditStudent = function(event, studentId) {
+  if (event) event.stopPropagation();
+  const student = (window.students || []).find(s => String(s.id) === String(studentId));
+  if (!student) {
+    if (typeof showToast === 'function') showToast('Student not found.', 'error');
+    return;
+  }
+  if (typeof window.openEditStudentModal === 'function') {
+    window.openEditStudentModal(student);
+    return;
+  }
+  alert('Edit Student modal is not available on this page.');
+};
+
+// Helpers so other modules can refresh the Sales selected card safely
+window.getSalesSelectedStudentId = function() {
+  return salesState?.selectedStudent?.id || null;
+};
+window.refreshSalesSelectedStudentIfVisible = function(studentId) {
+  // Only refresh if Sales DOM is present (avoid errors when Sales tab is not rendered)
+  const card = document.getElementById('selectedStudentCard');
+  const search = document.getElementById('salesStudentSearch');
+  if (!card || !search) return;
+  if (typeof window.selectSalesStudent === 'function') {
+    window.selectSalesStudent(String(studentId));
+  }
 };
 
 // ==================== Create New Student (Sales) ====================

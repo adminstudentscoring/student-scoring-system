@@ -1884,6 +1884,18 @@
                 loadStudents();
                 // Re-initialize search functionality when switching to students tab
                 setTimeout(initStudentSearch, 100);
+
+                // If Sales currently has this student selected, refresh the Sales card UI
+                try {
+                    const selectedId = typeof window.getSalesSelectedStudentId === 'function' ? window.getSalesSelectedStudentId() : null;
+                    if (selectedId && String(selectedId) === String(studentId)) {
+                        if (typeof window.refreshSalesSelectedStudentIfVisible === 'function') {
+                            window.refreshSalesSelectedStudentIfVisible(studentId);
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
             } catch (error) {
                 console.error('Error updating student:', error);
                 showToast('Error: ' + error.message, 'error');
