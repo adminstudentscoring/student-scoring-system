@@ -246,23 +246,45 @@
   position: absolute;
   left: 2px;
   right: 2px;
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 13px;
   color: #111827;
   overflow: hidden;
   transition: all 0.2s;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
   z-index: 10;
   box-sizing: border-box;
+  isolation: isolate;
+}
+
+/* Make content readable on any course color:
+   keep a left color stripe and put content on a light translucent panel */
+.timetable-entry::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.0) 0px,
+    rgba(255,255,255,0.0) 10px,
+    rgba(255,255,255,0.88) 10px,
+    rgba(255,255,255,0.88) 100%
+  );
+}
+.timetable-entry > * {
+  position: relative;
+  z-index: 1;
 }
 
 .timetable-entry-class-name {
   font-size: 15px;
   font-weight: 900;
   line-height: 1.15;
+  letter-spacing: 0.2px;
 }
 
 .timetable-entry-time,
@@ -272,19 +294,37 @@
   line-height: 1.15;
 }
 
+.timetable-entry-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.06);
+  width: fit-content;
+  margin-top: 6px;
+  font-weight: 700;
+}
+
+.timetable-entry-teacher {
+  margin-top: 6px;
+  font-weight: 800;
+  color: #111827;
+}
+
 .timetable-entry-count {
   font-size: 12px;
   font-weight: 700;
-  margin-top: 2px;
+  margin-top: 4px;
   line-height: 1.15;
-  opacity: 0.95;
+  color: #374151;
 }
 
 .timetable-entry-students {
-  margin-top: 4px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   font-size: 12px;
   line-height: 1.15;
 }
@@ -296,14 +336,20 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid rgba(0,0,0,0.06);
 }
 
-.timetable-entry-student.paid .timetable-entry-student-name {
-  color: #111827;
+.timetable-entry-student-name { color: #111827; }
+.timetable-entry-student.unpaid {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.22);
 }
 .timetable-entry-student.unpaid .timetable-entry-student-name {
-  color: #dc2626;
-  font-weight: 800;
+  color: #b91c1c;
+  font-weight: 900;
 }
 
 .attendance-dot {
@@ -311,56 +357,51 @@
   height: 10px;
   border-radius: 50%;
   flex: 0 0 10px;
-  border: 1px solid rgba(0,0,0,0.25);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  border: 1px solid rgba(0,0,0,0.18);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
 .attendance-dot.present { background: #22c55e; }
 .attendance-dot.absent { background: #ef4444; }
-.attendance-dot.unknown { background: rgba(255,255,255,0.55); }
+.attendance-dot.unknown { background: rgba(17, 24, 39, 0.16); }
 
 .timetable-entry:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
   z-index: 20;
 }
 
 .timetable-entry-small {
-  font-size: 10px;
-  padding: 2px 4px;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 10px;
 }
 
-.timetable-entry-class-name {
-  font-weight: 600;
+/* Scope "small entry" overrides to avoid overriding normal entries */
+.timetable-entry-small .timetable-entry-class-name {
+  font-size: 12px;
+  font-weight: 900;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.timetable-entry-time {
+.timetable-entry-small .timetable-entry-time {
   font-size: 10px;
-  opacity: 0.9;
-  margin-top: 2px;
+  margin-top: 4px;
+  padding: 1px 6px;
 }
-
-.timetable-entry-teacher {
+.timetable-entry-small .timetable-entry-teacher,
+.timetable-entry-small .timetable-entry-classroom,
+.timetable-entry-small .timetable-entry-count {
   font-size: 10px;
-  opacity: 0.8;
-  margin-top: 2px;
+  margin-top: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.timetable-entry-classroom {
+.timetable-entry-small .timetable-entry-students {
   font-size: 10px;
-  opacity: 0.7;
-  margin-top: 2px;
-}
-
-.timetable-entry-students {
-  font-size: 10px;
-  opacity: 0.6;
-  margin-top: 2px;
+  margin-top: 4px;
+  gap: 3px;
 }
 
 /* Day View Styles */
