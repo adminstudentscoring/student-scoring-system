@@ -1041,9 +1041,11 @@ window.selectSalesStudent = function(studentId) {
     <div class="selected-student-info">
       <h3>
         <button class="student-name-link" onclick="openStudentDetailsOverlay(event)">${escapeHtml(student.name)}</button>
-        <span class="student-id-badge">${escapeHtml(student.studentId)}</span>
         <button class="btn btn-sm btn-secondary" style="margin-left:8px; padding:6px 10px;" onclick="openSalesEditStudent(event, '${student.id}')">Edit</button>
       </h3>
+      <div style="margin-top:6px;">
+        <span class="student-id-badge">${escapeHtml(student.studentId)}</span>
+      </div>
       <div class="student-balance">Balance: $${balance.toFixed(2)}</div>
     </div>
     <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
