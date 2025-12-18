@@ -173,6 +173,24 @@ async function getSubscription(subscriptionId) {
   return resp.json();
 }
 
+async function cancelSubscription({ subscriptionId, reason = 'Customer requested cancellation' }) {
+  const resp = await paypalRequest(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+
+  // PayPal commonly returns 204 No Content on success.
+  if (resp.status === 204) {
+    return { ok: true };
+  }
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(`PayPal cancel subscription failed HTTP ${resp.status}: ${txt}`);
+  }
+  // Some environments may return JSON, but we don't rely on it.
+  return { ok: true };
+}
+
 function getWebhookHeaders(req) {
   const lower = {};
   for (const [k, v] of Object.entries(req.headers || {})) {
@@ -227,6 +245,7 @@ module.exports = {
   planMatches,
   createSubscription,
   getSubscription,
+  cancelSubscription,
   verifyWebhookSignature
 };
 

@@ -437,14 +437,30 @@ async function upsertEntitlementFromPrice({ orgId, price, currentPeriodEnd }) {
 }
 
 async function refreshSubscriptionAndEntitlement(subscriptionId) {
+  // Load existing row as fallback (important for cancelled subscriptions where next_billing_time may be missing).
+  const existingRowRes = await billingDb.query(
+    'SELECT * FROM billing_subscriptions WHERE paypal_subscription_id=$1 LIMIT 1',
+    [subscriptionId]
+  );
+  const existingRow = existingRowRes.rows[0] || null;
+
   const details = await paypal.getSubscription(subscriptionId);
-  const orgId = String(details.custom_id || '');
+  const orgId = String(details.custom_id || existingRow?.org_id || '');
   const planId = details.plan_id || details.plan?.id || null;
   const status = details.status || null;
 
   let currentPeriodEnd = null;
   if (details?.billing_info?.next_billing_time) {
     currentPeriodEnd = new Date(details.billing_info.next_billing_time).toISOString();
+  } else if (existingRow?.current_period_end) {
+    currentPeriodEnd = new Date(existingRow.current_period_end).toISOString();
+  } else {
+    // If PayPal does not provide a next billing time for terminal states,
+    // treat it as ended "now" so our grace logic can kick in.
+    const s = String(status || '').toUpperCase();
+    if (['CANCELLED', 'SUSPENDED', 'EXPIRED'].includes(s)) {
+      currentPeriodEnd = new Date().toISOString();
+    }
   }
 
   // Map plan_id back to our price
@@ -8658,6 +8674,52 @@ app.post('/api/organizations/billing/subscriptions/refresh', authenticateUser, a
   } catch (error) {
     console.error('Refresh subscription error:', error);
     res.status(500).json({ error: error.message || 'Failed to refresh subscription' });
+  }
+});
+
+// Organization: cancel PayPal subscription (stop auto-renew; PayPal decides whether it remains active until period end)
+app.post('/api/organizations/billing/subscriptions/cancel', authenticateUser, authorizeRole('organization'), async (req, res) => {
+  try {
+    const orgId = resolveOrgIdFromUser(req.user);
+    if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
+
+    let subscriptionId = String(req.body?.subscriptionId || '');
+    if (!subscriptionId) {
+      const latest = await billingDb.query(
+        'SELECT paypal_subscription_id FROM billing_subscriptions WHERE org_id=$1 ORDER BY updated_at DESC NULLS LAST LIMIT 1',
+        [orgId]
+      );
+      subscriptionId = String(latest.rows[0]?.paypal_subscription_id || '');
+    }
+    if (!subscriptionId) return res.status(404).json({ error: 'No subscription found for this organization' });
+
+    // Security: verify subscription belongs to this org (via PayPal custom_id when available)
+    const pre = await paypal.getSubscription(subscriptionId);
+    const customOrg = String(pre?.custom_id || '');
+    if (customOrg && customOrg !== String(orgId)) {
+      return res.status(403).json({ error: 'Subscription does not belong to this organization' });
+    }
+
+    const reason = String(req.body?.reason || 'Customer requested cancellation');
+    await paypal.cancelSubscription({ subscriptionId, reason });
+
+    // Mark local intent (useful for UI even if PayPal keeps it active until period end)
+    await billingDb.query(
+      'UPDATE billing_subscriptions SET cancel_at_period_end=TRUE, updated_at=NOW() WHERE paypal_subscription_id=$1',
+      [subscriptionId]
+    );
+
+    const refreshed = await refreshSubscriptionAndEntitlement(subscriptionId);
+
+    // Security: ensure the subscription belongs to this org
+    if (refreshed.orgId && String(refreshed.orgId) !== String(orgId)) {
+      return res.status(403).json({ error: 'Subscription does not belong to this organization' });
+    }
+
+    res.json({ ok: true, refreshed });
+  } catch (error) {
+    console.error('Cancel subscription error:', error);
+    res.status(500).json({ error: error.message || 'Failed to cancel subscription' });
   }
 });
 

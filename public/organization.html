@@ -524,6 +524,19 @@
         .org-subscription-banner.grace { border-color: #fde68a; background: #fffbeb; }
         .org-subscription-banner.expired { border-color: #fecaca; background: #fef2f2; }
 
+        .org-subscription-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .org-subscription-hint {
+            margin: 8px 0 0;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
         .org-plan-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -688,8 +701,12 @@
             <div class="org-subscription-wrap">
                 <section class="card">
                     <h2>💳 Subscription</h2>
-                    <p style="color:#666; margin-top:6px;">Choose a plan and subscribe via PayPal (Sandbox). Active + Live plans are shown.</p>
+                    <p style="color:#666; margin-top:6px;">Choose a plan and subscribe via PayPal. Active + Live plans are shown.</p>
                     <div id="orgSubscriptionStatus" class="org-subscription-banner">Loading subscription status...</div>
+                    <div id="orgSubscriptionActions" class="org-subscription-actions" style="display:none;">
+                        <button id="orgCancelSubscriptionBtn" class="btn btn-danger" type="button" onclick="cancelOrgSubscription()">Cancel Subscription</button>
+                    </div>
+                    <p id="orgSubscriptionHint" class="org-subscription-hint" style="display:none;"></p>
                 </section>
                 <section class="card">
                     <h2>Available Plans</h2>
@@ -865,6 +882,7 @@
         }
 
         let currentUser = null;
+        let orgBillingStatusCache = null;
 
         // Load user info
         async function loadUserInfo() {
@@ -992,14 +1010,17 @@
                 return;
             }
 
+            orgBillingStatusCache = data;
+
             const status = String(data.status || 'inactive');
             el.classList.add(status);
 
             const end = data?.entitlement?.current_period_end ? new Date(data.entitlement.current_period_end).toLocaleString() : null;
             const graceUntil = data?.entitlement?.grace_until ? new Date(data.entitlement.grace_until).toLocaleString() : null;
+            const cancelAtPeriodEnd = !!data?.subscription?.cancel_at_period_end;
 
             if (status === 'active') {
-                el.innerHTML = `<strong>Status:</strong> Active${end ? ` (renews/valid until <strong>${end}</strong>)` : ''}`;
+                el.innerHTML = `<strong>Status:</strong> Active${end ? ` (renews/valid until <strong>${end}</strong>)` : ''}${cancelAtPeriodEnd ? ` • <strong>Cancellation requested</strong>` : ''}`;
             } else if (status === 'grace') {
                 el.innerHTML = `<strong>Status:</strong> Grace period${graceUntil ? ` (until <strong>${graceUntil}</strong>)` : ''}${data.graceDaysLeft != null ? ` • <strong>${data.graceDaysLeft}</strong> days left` : ''}`;
             } else if (status === 'expired') {
@@ -1007,6 +1028,41 @@
             } else {
                 el.innerHTML = `<strong>Status:</strong> No active subscription.`;
             }
+
+            updateOrgSubscriptionActions();
+        }
+
+        function getOrgPaypalSubscriptionId() {
+            const sub = orgBillingStatusCache?.subscription || null;
+            return String(sub?.paypal_subscription_id || '');
+        }
+
+        function updateOrgSubscriptionActions() {
+            const actions = document.getElementById('orgSubscriptionActions');
+            const hint = document.getElementById('orgSubscriptionHint');
+            const cancelBtn = document.getElementById('orgCancelSubscriptionBtn');
+            if (!actions || !hint || !cancelBtn) return;
+
+            const status = String(orgBillingStatusCache?.status || 'inactive');
+            const subId = getOrgPaypalSubscriptionId();
+            const cancelAtPeriodEnd = !!orgBillingStatusCache?.subscription?.cancel_at_period_end;
+
+            const showCancel = !!subId && (status === 'active' || status === 'grace');
+            actions.style.display = showCancel ? 'flex' : 'none';
+
+            if (!showCancel) {
+                hint.style.display = 'none';
+                hint.textContent = '';
+                return;
+            }
+
+            cancelBtn.disabled = cancelAtPeriodEnd;
+            cancelBtn.textContent = cancelAtPeriodEnd ? 'Cancellation Requested' : 'Cancel Subscription';
+
+            hint.style.display = 'block';
+            hint.textContent = cancelAtPeriodEnd
+                ? 'Auto-renew has been cancelled. You can continue using your plan until the end of the current period.'
+                : 'Cancel stops auto-renew. You can continue using your plan until the end of the current period (PayPal behavior).';
         }
 
         async function loadOrgSubscriptionPlans() {
@@ -1027,8 +1083,12 @@
                 return;
             }
 
+            const currentStatus = String(orgBillingStatusCache?.status || 'inactive');
+            const hasActive = currentStatus === 'active' || currentStatus === 'grace';
+
             el.innerHTML = plans.map(p => {
                 const limits = p.limits || {};
+                const disableSubscribe = hasActive;
                 return `
                   <div class="org-plan-card">
                     <h3 class="org-plan-title">${p.name}</h3>
@@ -1042,7 +1102,7 @@
                       <li>Features: ${featuresToText(p.features)}</li>
                     </ul>
                     <div class="org-plan-actions">
-                      <button class="btn btn-primary" type="button" onclick="subscribeOrgPlan('${p.id}')">Subscribe</button>
+                      <button class="btn ${disableSubscribe ? 'btn-secondary' : 'btn-primary'}" type="button" ${disableSubscribe ? 'disabled title="You already have an active subscription. Cancel it first if you want to change plan."' : `onclick="subscribeOrgPlan('${p.id}')"`}>${disableSubscribe ? 'Subscribed' : 'Subscribe'}</button>
                     </div>
                   </div>
                 `;
@@ -1069,6 +1129,35 @@
                 window.location.href = data.approvalUrl;
             } catch (e) {
                 alert(e.message || 'Failed to create subscription.');
+            }
+        }
+
+        window.cancelOrgSubscription = async function() {
+            const subscriptionId = getOrgPaypalSubscriptionId();
+            if (!subscriptionId) {
+                alert('No active subscription to cancel.');
+                return;
+            }
+
+            if (!confirm('Cancel subscription?\n\nThis will stop auto-renew. You can continue using your plan until the end of the current period (PayPal behavior).')) {
+                return;
+            }
+
+            try {
+                const resp = await window.authUtils.authenticatedFetch('/organizations/billing/subscriptions/cancel', {
+                    method: 'POST',
+                    body: JSON.stringify({ subscriptionId, reason: 'Organization requested cancellation' })
+                });
+                if (!resp) return;
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) {
+                    alert(data.error || 'Failed to cancel subscription.');
+                    return;
+                }
+                await loadOrgSubscriptionStatus();
+                await loadOrgSubscriptionPlans();
+            } catch (e) {
+                alert(e.message || 'Failed to cancel subscription.');
             }
         }
 
