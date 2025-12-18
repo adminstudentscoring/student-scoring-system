@@ -1074,6 +1074,19 @@ window.openEditClassModal = async function(entry, dateStr) {
 
   // Generate time options (15-minute intervals from 08:00 to 20:00)
   const timeOptions = generateTimeOptions();
+  const timeParts = (t) => {
+    const [h, m] = String(t || '00:00').split(':').map(Number);
+    return { h: Number.isFinite(h) ? h : 0, m: Number.isFinite(m) ? m : 0 };
+  };
+  const startParts = timeParts(entryData.startTime || '08:00');
+  const endParts = timeParts(entryData.endTime || '09:00');
+  const hourOptions = Array.from({ length: 19 }, (_, i) => i + 5); // 05..23
+  const minuteOptions = [0, 15, 30, 45];
+  const formatHM = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  const toMinutes = (h, m) => Number(h) * 60 + Number(m);
+  const durationOptions = Array.from({ length: 32 }, (_, i) => (i + 1) * 15); // 15..480
+  const initialDurationMin = Math.max(15, toMinutes(endParts.h, endParts.m) - toMinutes(startParts.h, startParts.m));
+  const initialDuration = durationOptions.includes(initialDurationMin) ? initialDurationMin : 60;
 
   // Create modal
   const modal = document.createElement('div');
@@ -1107,16 +1120,40 @@ window.openEditClassModal = async function(entry, dateStr) {
           <div class="form-row">
             <div class="edit-class-form-group">
               <label for="editClassStartTime">Start Time <span style="color: #ef4444;">*</span></label>
-              <select id="editClassStartTime" required>
-                ${timeOptions.map(time => `<option value="${time}" ${time === entryData.startTime ? 'selected' : ''}>${time}</option>`).join('')}
-              </select>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <select id="editClassStartHour" required onchange="onTimetableTimeChanged('start')">
+                  ${hourOptions.map(h => `<option value="${h}" ${h === startParts.h ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
+                </select>
+                <span style="font-weight:700;">:</span>
+                <select id="editClassStartMin" required onchange="onTimetableTimeChanged('start')">
+                  ${minuteOptions.map(m => `<option value="${m}" ${m === startParts.m ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}
+                </select>
+              </div>
               <div class="error-message" id="errorStartTime"></div>
             </div>
             <div class="edit-class-form-group">
-              <label for="editClassEndTime">End Time <span style="color: #ef4444;">*</span></label>
-              <select id="editClassEndTime" required>
-                ${timeOptions.map(time => `<option value="${time}" ${time === entryData.endTime ? 'selected' : ''}>${time}</option>`).join('')}
+              <label for="editClassDuration">Duration</label>
+              <select id="editClassDuration" onchange="onTimetableDurationChanged()">
+                ${durationOptions.map(d => {
+                  const h = Math.floor(d / 60);
+                  const m = d % 60;
+                  const label = h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
+                  return `<option value="${d}" ${d === initialDuration ? 'selected' : ''}>${label}</option>`;
+                }).join('')}
               </select>
+              <div class="error-message" id="errorDuration"></div>
+            </div>
+            <div class="edit-class-form-group">
+              <label for="editClassEndTime">End Time <span style="color: #ef4444;">*</span></label>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <select id="editClassEndHour" required onchange="onTimetableTimeChanged('end')">
+                  ${hourOptions.map(h => `<option value="${h}" ${h === endParts.h ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
+                </select>
+                <span style="font-weight:700;">:</span>
+                <select id="editClassEndMin" required onchange="onTimetableTimeChanged('end')">
+                  ${minuteOptions.map(m => `<option value="${m}" ${m === endParts.m ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}
+                </select>
+              </div>
               <div class="error-message" id="errorEndTime"></div>
             </div>
           </div>
@@ -1291,6 +1328,13 @@ window.openEditClassModal = async function(entry, dateStr) {
   setTimeout(() => {
     modal.classList.add('show');
   }, 10);
+
+  // Initialize duration/end-time sync
+  setTimeout(() => {
+    try {
+      window.onTimetableDurationChanged && window.onTimetableDurationChanged(true);
+    } catch (e) {}
+  }, 30);
   
   // Store selected courses and teachers
   window.selectedCourseIds = new Set(entryData.courseIds || []);
@@ -1302,13 +1346,88 @@ window.openEditClassModal = async function(entry, dateStr) {
 // Generate time options
 function generateTimeOptions() {
   const options = [];
-  for (let hour = 8; hour <= 20; hour++) {
+  // 15-minute intervals from 05:00 to 23:45
+  for (let hour = 5; hour <= 23; hour++) {
     for (let min = 0; min < 60; min += 15) {
       options.push(`${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
     }
   }
   return options;
 }
+
+function clampToLastQuarterHour(totalMinutes) {
+  const min = Math.max(5 * 60, Math.min(totalMinutes, 23 * 60 + 45));
+  const snapped = Math.round(min / 15) * 15;
+  return Math.max(5 * 60, Math.min(snapped, 23 * 60 + 45));
+}
+
+function getTimeFromSplit(prefix) {
+  const hEl = document.getElementById(`editClass${prefix}Hour`);
+  const mEl = document.getElementById(`editClass${prefix}Min`);
+  if (hEl && mEl) {
+    const h = Number(hEl.value);
+    const m = Number(mEl.value);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  const legacy = document.getElementById(`editClass${prefix}Time`);
+  return legacy ? legacy.value : '08:00';
+}
+
+function setTimeToSplit(prefix, timeStr) {
+  const hEl = document.getElementById(`editClass${prefix}Hour`);
+  const mEl = document.getElementById(`editClass${prefix}Min`);
+  if (!hEl || !mEl) return;
+  const [hh, mm] = String(timeStr || '08:00').split(':').map(Number);
+  if (Number.isFinite(hh)) hEl.value = String(hh);
+  if (Number.isFinite(mm)) mEl.value = String(mm);
+}
+
+function minutesFromTimeStr(t) {
+  const [h, m] = String(t || '00:00').split(':').map(Number);
+  return (Number(h) || 0) * 60 + (Number(m) || 0);
+}
+
+// Keep End Time in sync with Start + Duration, and keep Duration in sync when End is edited.
+window.onTimetableDurationChanged = function(isInit = false) {
+  const start = getTimeFromSplit('Start');
+  const durEl = document.getElementById('editClassDuration');
+  const d = Number(durEl?.value || 60);
+  const startMin = minutesFromTimeStr(start);
+  const endMin = clampToLastQuarterHour(startMin + d);
+  const hh = Math.floor(endMin / 60);
+  const mm = endMin % 60;
+  setTimeToSplit('End', `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
+
+  if (!isInit) {
+    // clear end-time errors
+    const err = document.getElementById('errorEndTime');
+    if (err) err.textContent = '';
+  }
+};
+
+window.onTimetableTimeChanged = function(which) {
+  const start = getTimeFromSplit('Start');
+  const end = getTimeFromSplit('End');
+  const startMin = minutesFromTimeStr(start);
+  const endMin = minutesFromTimeStr(end);
+
+  const durEl = document.getElementById('editClassDuration');
+  if (which === 'start') {
+    // Move end according to duration
+    window.onTimetableDurationChanged(false);
+    return;
+  }
+
+  // which === 'end': update duration if valid, otherwise auto-fix end = start + 60m
+  if (endMin <= startMin) {
+    if (durEl) durEl.value = '60';
+    window.onTimetableDurationChanged(false);
+    return;
+  }
+  const diff = endMin - startMin;
+  const snapped = Math.round(diff / 15) * 15;
+  if (durEl) durEl.value = String(Math.max(15, Math.min(snapped, 480)));
+};
 
 // Toggle recurring options
 window.toggleRecurringOptions = function() {
@@ -1705,8 +1824,12 @@ window.saveClassEntry = async function(event, entryId) {
   // Get form values
   const className = document.getElementById('editClassName').value.trim();
   const classroom = document.getElementById('editClassClassroom').value.trim() || null;
-  const startTime = document.getElementById('editClassStartTime').value;
-  const endTime = document.getElementById('editClassEndTime').value;
+  const startTime = (document.getElementById('editClassStartHour') && document.getElementById('editClassStartMin'))
+    ? getTimeFromSplit('Start')
+    : document.getElementById('editClassStartTime')?.value;
+  const endTime = (document.getElementById('editClassEndHour') && document.getElementById('editClassEndMin'))
+    ? getTimeFromSplit('End')
+    : document.getElementById('editClassEndTime')?.value;
   const isRecurring = document.getElementById('editClassIsRecurring').value === 'true';
   const date = isRecurring ? null : document.getElementById('editClassDate').value;
   const dayOfWeek = isRecurring ? Array.from(window.selectedDays || []) : null;
@@ -1748,7 +1871,7 @@ window.saveClassEntry = async function(event, entryId) {
   const endMinutes = endHour * 60 + endMin;
   
   if (startMinutes >= endMinutes) {
-    showClassFieldError('editClassEndTime', 'End time must be after start time');
+    showClassFieldError(document.getElementById('editClassEndHour') ? 'editClassEndHour' : 'editClassEndTime', 'End time must be after start time');
     hasError = true;
   }
 
