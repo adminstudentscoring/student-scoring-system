@@ -6,6 +6,7 @@
     <title>Admin Dashboard - Student Scoring System</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="admin-subscription-setting.css">
+    <link rel="stylesheet" href="admin-game-setting.css">
     <style>
         .admin-header {
             display: flex;
@@ -261,6 +262,7 @@
             <button class="tab admin-tab active" onclick="switchAdminTab('dashboard', this)">🏠 Dashboard</button>
             <button class="tab admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
             <button class="tab admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
+            <button class="tab admin-tab" onclick="switchAdminTab('gameSetting', this)">🎮 Game Setting</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -357,6 +359,52 @@
                                 Only <strong>Active + Live</strong> plans are shown here.
                             </div>
                             <div id="adminSubscriptionPreviewContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Game Setting Tab (placeholder) -->
+        <div id="gameSettingTab" class="tab-content">
+            <section class="card">
+                <h2>🎮 Game Setting</h2>
+                <p style="color:#666; margin-top:6px;">(Placeholder) This section will be used to configure game settings later.</p>
+
+                <div class="admin-game-setting-layout" style="margin-top:12px;">
+                    <div class="admin-game-setting-sidebar">
+                        <button class="admin-game-setting-side-tab active" type="button" onclick="switchAdminGameSettingSideTab('runningQueen', this)">Running Queen</button>
+                        <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('royalExchange', this)">Royal Exchange</button>
+                        <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('monsterFight', this)">Monster Fight</button>
+                        <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('puzzleMonsterFight', this)">Puzzle Monster Fight</button>
+                        <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('chessCom', this)">Chess.com</button>
+                        <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('noBlunder', this)">No Blunder</button>
+                    </div>
+
+                    <div>
+                        <div id="adminGameSettingRunningQueenPanel" class="admin-game-setting-panel">
+                            <h3 style="margin:0 0 8px; color:#111827;">Running Queen</h3>
+                            <p style="color:#6b7280; margin:0;">No settings yet.</p>
+                        </div>
+                        <div id="adminGameSettingRoyalExchangePanel" class="admin-game-setting-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Royal Exchange</h3>
+                            <p style="color:#6b7280; margin:0;">No settings yet.</p>
+                        </div>
+                        <div id="adminGameSettingMonsterFightPanel" class="admin-game-setting-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Monster Fight</h3>
+                            <p style="color:#6b7280; margin:0;">No settings yet.</p>
+                        </div>
+                        <div id="adminGameSettingPuzzleMonsterFightPanel" class="admin-game-setting-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Puzzle Monster Fight</h3>
+                            <p style="color:#6b7280; margin:0;">No settings yet.</p>
+                        </div>
+                        <div id="adminGameSettingChessComPanel" class="admin-game-setting-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Chess.com</h3>
+                            <p style="color:#6b7280; margin:0;">No settings yet.</p>
+                        </div>
+                        <div id="adminGameSettingNoBlunderPanel" class="admin-game-setting-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">No Blunder</h3>
+                            <p style="color:#6b7280; margin:0;">No settings yet.</p>
                         </div>
                     </div>
                 </div>
@@ -594,6 +642,7 @@
     <script src="admin-organization-settings.js"></script>
     <script src="admin-organization-tools.js"></script>
     <script src="admin-subscription-setting.js"></script>
+    <script src="admin-game-setting.js"></script>
     <!-- Subscription Setting scripts (minimal tab switch for now) -->
     <script>
         // Check authentication

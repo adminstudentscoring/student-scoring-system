@@ -1,0 +1,68 @@
+.admin-game-setting-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-game-setting-sidebar {
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-game-setting-side-tab {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+  color: #111827;
+  transition: all 0.15s ease;
+}
+
+.admin-game-setting-side-tab:hover {
+  background: #eef2ff;
+  border-color: rgba(102, 126, 234, 0.35);
+}
+
+.admin-game-setting-side-tab.active {
+  background: rgba(102, 126, 234, 0.12);
+  border-color: rgba(102, 126, 234, 0.45);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.06);
+}
+
+.admin-game-setting-panel {
+  min-height: 240px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+}
+
+.admin-game-setting-panel.hidden {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .admin-game-setting-layout {
+    grid-template-columns: 1fr;
+  }
+  .admin-game-setting-sidebar {
+    position: relative;
+    top: 0;
+  }
+}
+
+
