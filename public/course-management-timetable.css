@@ -250,7 +250,7 @@
   border-radius: 12px;
   cursor: pointer;
   font-size: 13px;
-  color: #ffffff;
+  color: #111827;
   overflow: hidden;
   transition: all 0.2s;
   border: 1px solid rgba(0, 0, 0, 0.10);
@@ -279,17 +279,17 @@
   gap: 6px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(17, 24, 39, 0.10);
   width: fit-content;
   margin-top: 6px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.98);
+  color: #111827;
 }
 
 .timetable-entry-teacher {
   margin-top: 6px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.98);
+  color: #111827;
 }
 
 .timetable-entry-count {
@@ -297,7 +297,8 @@
   font-weight: 700;
   margin-top: 4px;
   line-height: 1.15;
-  color: rgba(255, 255, 255, 0.9);
+  color: #111827;
+  opacity: 0.92;
 }
 
 .timetable-entry-students {
@@ -342,7 +343,7 @@
 }
 .attendance-dot.present { background: #22c55e; }
 .attendance-dot.absent { background: #ef4444; }
-.attendance-dot.unknown { background: rgba(17, 24, 39, 0.16); }
+.attendance-dot.unknown { background: rgba(17, 24, 39, 0.22); }
 
 .timetable-entry:hover {
   transform: translateY(-2px);
