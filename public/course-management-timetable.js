@@ -587,6 +587,19 @@ function renderEntryInCell(entry, day, date) {
   `;
   entryEl.setAttribute('data-entry-id', entry.id);
   entryEl.setAttribute('data-date', dateStr);
+  entryEl.onmouseenter = () => {
+    try {
+      entryEl.classList.add('is-expanded');
+      // keep at least original height so it doesn't "jump" smaller
+      entryEl.style.minHeight = `${height}px`;
+    } catch (e) {}
+  };
+  entryEl.onmouseleave = () => {
+    try {
+      entryEl.classList.remove('is-expanded');
+      entryEl.style.minHeight = '';
+    } catch (e) {}
+  };
   entryEl.onclick = (e) => {
     e.stopPropagation();
     if (makeupFlowState.active) {
@@ -847,6 +860,18 @@ function renderEntryInDayCell(entry, date) {
   `;
   entryEl.setAttribute('data-entry-id', entry.id);
   entryEl.setAttribute('data-date', dateStr);
+  entryEl.onmouseenter = () => {
+    try {
+      entryEl.classList.add('is-expanded');
+      entryEl.style.minHeight = `${height}px`;
+    } catch (e) {}
+  };
+  entryEl.onmouseleave = () => {
+    try {
+      entryEl.classList.remove('is-expanded');
+      entryEl.style.minHeight = '';
+    } catch (e) {}
+  };
   entryEl.onclick = (e) => {
     e.stopPropagation();
     if (!isReadOnly) {
