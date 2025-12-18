@@ -1193,6 +1193,13 @@ function showGameSelection() {
                     <p>New game (stub). Designed for rapid iteration.</p>
                 </div>
             </div>
+            <div class="game-item" onclick="startHopeMate()">
+                <div class="game-icon">✨</div>
+                <div class="game-info">
+                    <h4>Hope Mate</h4>
+                    <p>New game (stub). Single-player training mode (coming soon).</p>
+                </div>
+            </div>
         `;
     }
 }
@@ -1451,6 +1458,77 @@ async function startNoBlunder() {
 }
 
 window.startNoBlunder = startNoBlunder;
+
+async function startHopeMate() {
+    if (selectedGameStudents.length === 0) {
+        showNotification('Please select at least one student', 'error');
+        return;
+    }
+
+    const playerDetails = selectedGameStudents.map(id => {
+        const student = students.find(s => s.id === id) || {};
+        return {
+            id,
+            name: student.name || 'Unknown',
+            studentId: student.studentId || ''
+        };
+    });
+
+    window.hopeMatePlayers = playerDetails;
+    window.currentGameKey = 'hopeMate';
+    try {
+        localStorage.setItem('hopeMatePlayers', JSON.stringify(playerDetails));
+    } catch (error) {
+        console.warn('Unable to persist Hope Mate players to localStorage:', error);
+    }
+
+    showGameArea();
+
+    const gameAreaContent = document.getElementById('gameAreaContent');
+    if (gameAreaContent) {
+        gameAreaContent.innerHTML = `
+            <div id="hopeMateRoot" class="hope-mate-root">
+                <h2>✨ Hope Mate</h2>
+                <p>Loading game...</p>
+            </div>
+        `;
+
+        // Ensure CSS is loaded (only once)
+        if (!document.getElementById('hopeMateCss')) {
+            const link = document.createElement('link');
+            link.id = 'hopeMateCss';
+            link.rel = 'stylesheet';
+            link.href = '/game/hope-mate.css';
+            document.head.appendChild(link);
+        }
+
+        const ensureScriptLoaded = () => {
+            if (window.initHopeMate) {
+                window.initHopeMate();
+            } else {
+                console.error('initHopeMate function not found');
+            }
+        };
+
+        if (!window.hopeMateLoaded) {
+            const script = document.createElement('script');
+            script.src = '/game/hope-mate.js';
+            script.onload = () => {
+                window.hopeMateLoaded = true;
+                ensureScriptLoaded();
+            };
+            script.onerror = (error) => {
+                console.error('Error loading hope-mate.js:', error);
+                showNotification('Failed to load Hope Mate scripts', 'error');
+            };
+            document.body.appendChild(script);
+        } else {
+            ensureScriptLoaded();
+        }
+    }
+}
+
+window.startHopeMate = startHopeMate;
 
 async function startPuzzleMonsterFight() {
     if (selectedGameStudents.length === 0) {

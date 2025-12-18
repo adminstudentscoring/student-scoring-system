@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/game/running-queen.css">
     <link rel="stylesheet" href="/game/royal-exchange.css">
     <link rel="stylesheet" href="/game/no-blunder.css">
+    <link rel="stylesheet" href="/game/hope-mate.css">
     <style>
         body {
             margin: 0;
@@ -151,6 +152,27 @@
                         window.initNoBlunder();
                     } else {
                         showError('No Blunder script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'hopeMate') {
+                    content.innerHTML = `
+                        <div id="hopeMateRoot" class="hope-mate-root">
+                            <h2>✨ Hope Mate</h2>
+                            <p>Loading game...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('hopeMatePlayers');
+                        if (storedPlayers) {
+                            window.hopeMatePlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore hope mate players from storage:', error);
+                    }
+                    await loadScript('/game/hope-mate.js');
+                    if (window.initHopeMate) {
+                        window.initHopeMate();
+                    } else {
+                        showError('Hope Mate script loaded but init function missing.');
                     }
                 } else {
                     content.innerHTML = `

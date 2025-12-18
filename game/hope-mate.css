@@ -1,0 +1,37 @@
+.hope-mate-root {
+  padding: 14px;
+}
+
+.hope-mate-card {
+  max-width: 720px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.08);
+}
+
+.hope-mate-title {
+  margin: 0 0 6px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.hope-mate-subtitle {
+  margin: 0 0 14px;
+  color: #6b7280;
+}
+
+.hope-mate-meta {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  color: #111827;
+}
+
+
