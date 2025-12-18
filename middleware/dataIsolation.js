@@ -3,6 +3,8 @@
  * Ensures users can only access data from their organization
  */
 
+const billingAccess = require('../billing/access');
+
 /**
  * Middleware factory to filter data by organization
  * Requires readUsers function to be passed in
@@ -36,12 +38,30 @@ function createRequireOrganizationAccess(readUsersFn) {
     
     // Organization users can only access their own organization's data
     if (req.user.role === 'organization' && organizationId) {
+      try {
+        const snap = await billingAccess.getOrgAccessSnapshot(organizationId);
+        if (!snap.allowAll && !billingAccess.isBillingAllowedPath(req.path)) {
+          return res.status(402).json({ error: 'Trial ended. Please subscribe to continue.' });
+        }
+      } catch (e) {
+        console.error('Org access gate error:', e);
+        return res.status(500).json({ error: 'Failed to verify subscription status' });
+      }
       req.organizationFilter = organizationId;
       return next();
     }
     
     // Teachers can only access their organization's data
     if (req.user.role === 'teacher' && organizationId) {
+      try {
+        const snap = await billingAccess.getOrgAccessSnapshot(organizationId);
+        if (!snap.allowAll && !billingAccess.isBillingAllowedPath(req.path)) {
+          return res.status(402).json({ error: 'Trial ended. Please ask your organization to subscribe.' });
+        }
+      } catch (e) {
+        console.error('Org access gate error:', e);
+        return res.status(500).json({ error: 'Failed to verify subscription status' });
+      }
       req.organizationFilter = organizationId;
       return next();
     }

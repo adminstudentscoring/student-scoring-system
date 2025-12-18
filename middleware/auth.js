@@ -1,4 +1,5 @@
 const { verifyToken, extractTokenFromHeader } = require('../auth');
+const billingAccess = require('../billing/access');
 
 /**
  * Authentication middleware
@@ -36,7 +37,30 @@ function authorizeRole(...allowedRoles) {
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
-    
+
+    // Subscription/trial gate for organization users:
+    // - Trial active OR subscription active/grace => allow all
+    // - Otherwise, allow billing endpoints only, so user can subscribe
+    if (req.user.role === 'organization') {
+      const orgId = req.user.organizationId || req.user.orgId || req.user.id || null;
+      if (!orgId) {
+        return res.status(403).json({ error: 'User organization not found' });
+      }
+
+      billingAccess
+        .getOrgAccessSnapshot(orgId)
+        .then((snap) => {
+          if (snap.allowAll) return next();
+          if (billingAccess.isBillingAllowedPath(req.path)) return next();
+          return res.status(402).json({ error: 'Trial ended. Please subscribe to continue.' });
+        })
+        .catch((e) => {
+          console.error('Org access gate error:', e);
+          return res.status(500).json({ error: 'Failed to verify subscription status' });
+        });
+      return;
+    }
+
     next();
   };
 }

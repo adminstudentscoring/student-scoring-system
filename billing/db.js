@@ -65,6 +65,13 @@ async function ensureBillingSchema() {
       grace_until TIMESTAMPTZ,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS billing_trials (
+      org_id TEXT PRIMARY KEY,
+      trial_start TIMESTAMPTZ NOT NULL,
+      trial_end TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 }
 

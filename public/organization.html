@@ -893,15 +893,23 @@
                 const user = await response.json();
                 currentUser = user;
                 document.getElementById('orgName').textContent = user.name || user.email;
-                
-                // Load data
+
+                // Check trial/subscription gate before loading other modules (so expired trial users stay on Subscription only)
+                const gate = await bootstrapOrganizationAccessGate();
+
+                // If user just returned from PayPal approval, auto-refresh subscription state.
+                handlePayPalReturn().catch(() => {});
+
+                if (gate.restricted) {
+                    // Do not load other data modules.
+                    return;
+                }
+
+                // Load data (unrestricted users)
                 loadTeachers();
                 loadStudents();
                 // Re-initialize search functionality when switching to students tab
                 setTimeout(initStudentSearch, 100);
-
-                // If user just returned from PayPal approval, auto-refresh subscription state.
-                handlePayPalReturn().catch(() => {});
             } catch (error) {
                 console.error('Error loading user info:', error);
             }
@@ -961,6 +969,52 @@
             await Promise.all([loadOrgSubscriptionStatus(), loadOrgSubscriptionPlans()]);
         }
 
+        async function bootstrapOrganizationAccessGate() {
+            // Returns: { restricted: boolean }
+            try {
+                const resp = await window.authUtils.authenticatedFetch('/organizations/billing/status');
+                if (!resp) return { restricted: false };
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) return { restricted: false };
+
+                orgBillingStatusCache = data;
+
+                const subscriptionStatus = String(data.status || 'inactive');
+                const hasPaid = subscriptionStatus === 'active' || subscriptionStatus === 'grace';
+                const trialActive = !!data?.trial?.active;
+
+                const restricted = !hasPaid && !trialActive;
+
+                if (restricted) {
+                    // Hide all tabs except Subscription
+                    document.querySelectorAll('.tabs .tab').forEach(btn => {
+                        const label = (btn.textContent || '');
+                        if (label.includes('Subscription')) return;
+                        btn.style.display = 'none';
+                    });
+
+                    // Force Subscription tab
+                    const subTabBtn = Array.from(document.querySelectorAll('.tab')).find(b => (b.textContent || '').includes('Subscription'));
+                    if (subTabBtn) {
+                        switchTab('subscription', subTabBtn);
+                    } else {
+                        switchTab('subscription');
+                    }
+
+                    // Ensure subscription UI is loaded and show message
+                    await loadOrgSubscriptionStatus();
+                    await loadOrgSubscriptionPlans();
+                } else {
+                    // Ensure Subscription tab still has up-to-date status when user later opens it
+                    updateOrgSubscriptionActions();
+                }
+
+                return { restricted };
+            } catch (e) {
+                return { restricted: false };
+            }
+        }
+
         async function handlePayPalReturn() {
             const params = new URLSearchParams(window.location.search);
             // PayPal usually returns subscription_id for subscriptions.
@@ -1018,6 +1072,9 @@
             const end = data?.entitlement?.current_period_end ? new Date(data.entitlement.current_period_end).toLocaleString() : null;
             const graceUntil = data?.entitlement?.grace_until ? new Date(data.entitlement.grace_until).toLocaleString() : null;
             const cancelAtPeriodEnd = !!data?.subscription?.cancel_at_period_end;
+            const trialActive = !!data?.trial?.active;
+            const trialEnd = data?.trial?.trialEnd ? new Date(data.trial.trialEnd).toLocaleString() : null;
+            const trialDaysLeft = data?.trial?.daysLeft != null ? Number(data.trial.daysLeft) : null;
 
             if (status === 'active') {
                 el.innerHTML = `<strong>Status:</strong> Active${end ? ` (renews/valid until <strong>${end}</strong>)` : ''}${cancelAtPeriodEnd ? ` • <strong>Cancellation requested</strong>` : ''}`;
@@ -1026,7 +1083,13 @@
             } else if (status === 'expired') {
                 el.innerHTML = `<strong>Status:</strong> Expired. Please subscribe to continue.`;
             } else {
-                el.innerHTML = `<strong>Status:</strong> No active subscription.`;
+                if (trialActive) {
+                    el.innerHTML = `<strong>Status:</strong> Trial${trialEnd ? ` (until <strong>${trialEnd}</strong>)` : ''}${trialDaysLeft != null ? ` • <strong>${trialDaysLeft}</strong> days left` : ''}`;
+                } else if (data?.trial) {
+                    el.innerHTML = `<strong>Status:</strong> Trial ended. Please subscribe to continue.`;
+                } else {
+                    el.innerHTML = `<strong>Status:</strong> No active subscription.`;
+                }
             }
 
             updateOrgSubscriptionActions();

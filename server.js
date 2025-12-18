@@ -43,6 +43,7 @@ const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUse
 // Billing (PayPal + Postgres)
 const billingDb = require('./billing/db');
 const paypal = require('./billing/paypal');
+const billingAccess = require('./billing/access');
 
 // Note: requireOrganizationAccess will be created after readUsers function is defined
 
@@ -1626,6 +1627,14 @@ app.post('/api/auth/register', async (req, res) => {
     
     users.push(newUser);
     await writeUsers(users);
+
+    // Provision 14-day trial for newly registered organization
+    try {
+      await billingAccess.ensureTrialForOrg(organizationId, 14);
+    } catch (e) {
+      // Trial provisioning should not block registration
+      console.warn('Trial provisioning failed:', e.message || e);
+    }
     
     // Generate token
     const token = generateToken(newUser);
@@ -8734,9 +8743,11 @@ app.get('/api/organizations/billing/status', authenticateUser, authorizeRole('or
       'SELECT * FROM billing_subscriptions WHERE org_id=$1 ORDER BY updated_at DESC NULLS LAST LIMIT 1',
       [orgId]
     );
+    const trial = await billingDb.query('SELECT * FROM billing_trials WHERE org_id=$1', [orgId]);
 
     const entitlement = ent.rows[0] || null;
     const subscription = sub.rows[0] || null;
+    const trialRow = trial.rows[0] || null;
 
     const now = new Date();
     const computedStatus = entitlement
@@ -8749,10 +8760,26 @@ app.get('/api/organizations/billing/status', authenticateUser, authorizeRole('or
       graceDaysLeft = Math.max(0, Math.ceil(ms / (24 * 3600 * 1000)));
     }
 
+    let trialActive = false;
+    let trialDaysLeft = null;
+    if (trialRow?.trial_end) {
+      const ms = new Date(trialRow.trial_end).getTime() - now.getTime();
+      trialDaysLeft = Math.max(0, Math.ceil(ms / (24 * 3600 * 1000)));
+      trialActive = ms >= 0;
+    }
+
     res.json({
       orgId,
       status: computedStatus,
       graceDaysLeft,
+      trial: trialRow
+        ? {
+            trialStart: trialRow.trial_start || null,
+            trialEnd: trialRow.trial_end || null,
+            active: trialActive,
+            daysLeft: trialDaysLeft
+          }
+        : null,
       entitlement,
       subscription
     });
