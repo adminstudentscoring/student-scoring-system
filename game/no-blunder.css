@@ -1,0 +1,66 @@
+/* No Blunder - dedicated styles (English UI text) */
+
+.no-blunder-root {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.no-blunder-card {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+  padding: 18px;
+}
+
+.no-blunder-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.no-blunder-title h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #111827;
+}
+
+.no-blunder-subtitle {
+  margin: 6px 0 0;
+  color: #6b7280;
+}
+
+.no-blunder-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.no-blunder-players {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.no-blunder-player {
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #f9fafb;
+}
+
+.no-blunder-player .name {
+  font-weight: 900;
+  color: #111827;
+}
+
+.no-blunder-player .id {
+  color: #6b7280;
+  font-size: 0.92rem;
+}
+
+

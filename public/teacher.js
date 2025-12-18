@@ -1186,6 +1186,13 @@ function showGameSelection() {
                     <p>Knight-based jewel puzzle with elemental monsters</p>
                 </div>
             </div>
+            <div class="game-item" onclick="startNoBlunder()">
+                <div class="game-icon">🛡️</div>
+                <div class="game-info">
+                    <h4>No Blunder</h4>
+                    <p>New game (stub). Designed for rapid iteration.</p>
+                </div>
+            </div>
         `;
     }
 }
@@ -1373,6 +1380,77 @@ async function startRoyalExchange() {
 }
 
 window.startRoyalExchange = startRoyalExchange;
+
+async function startNoBlunder() {
+    if (selectedGameStudents.length === 0) {
+        showNotification('Please select at least one student', 'error');
+        return;
+    }
+
+    const playerDetails = selectedGameStudents.map(id => {
+        const student = students.find(s => s.id === id) || {};
+        return {
+            id,
+            name: student.name || 'Unknown',
+            studentId: student.studentId || ''
+        };
+    });
+
+    window.noBlunderPlayers = playerDetails;
+    window.currentGameKey = 'noBlunder';
+    try {
+        localStorage.setItem('noBlunderPlayers', JSON.stringify(playerDetails));
+    } catch (error) {
+        console.warn('Unable to persist no blunder players to localStorage:', error);
+    }
+
+    showGameArea();
+
+    const gameAreaContent = document.getElementById('gameAreaContent');
+    if (gameAreaContent) {
+        gameAreaContent.innerHTML = `
+            <div id="noBlunderRoot" class="no-blunder-root">
+                <h2>🛡️ No Blunder</h2>
+                <p>Loading game...</p>
+            </div>
+        `;
+
+        // Ensure CSS is loaded (only once)
+        if (!document.getElementById('noBlunderCss')) {
+            const link = document.createElement('link');
+            link.id = 'noBlunderCss';
+            link.rel = 'stylesheet';
+            link.href = '/game/no-blunder.css';
+            document.head.appendChild(link);
+        }
+
+        const ensureScriptLoaded = () => {
+            if (window.initNoBlunder) {
+                window.initNoBlunder();
+            } else {
+                console.error('initNoBlunder function not found');
+            }
+        };
+
+        if (!window.noBlunderLoaded) {
+            const script = document.createElement('script');
+            script.src = '/game/no-blunder.js';
+            script.onload = () => {
+                window.noBlunderLoaded = true;
+                ensureScriptLoaded();
+            };
+            script.onerror = (error) => {
+                console.error('Error loading no-blunder.js:', error);
+                showNotification('Failed to load No Blunder scripts', 'error');
+            };
+            document.body.appendChild(script);
+        } else {
+            ensureScriptLoaded();
+        }
+    }
+}
+
+window.startNoBlunder = startNoBlunder;
 
 async function startPuzzleMonsterFight() {
     if (selectedGameStudents.length === 0) {

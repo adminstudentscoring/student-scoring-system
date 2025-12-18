@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/game/game-styles.css">
     <link rel="stylesheet" href="/game/running-queen.css">
     <link rel="stylesheet" href="/game/royal-exchange.css">
+    <link rel="stylesheet" href="/game/no-blunder.css">
     <style>
         body {
             margin: 0;
@@ -129,6 +130,27 @@
                         window.initPuzzleMonsterFight();
                     } else {
                         showError('Puzzle Monster Fight script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'noBlunder') {
+                    content.innerHTML = `
+                        <div id="noBlunderRoot" class="no-blunder-root">
+                            <h2>🛡️ No Blunder</h2>
+                            <p>Loading game...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('noBlunderPlayers');
+                        if (storedPlayers) {
+                            window.noBlunderPlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore no blunder players from storage:', error);
+                    }
+                    await loadScript('/game/no-blunder.js');
+                    if (window.initNoBlunder) {
+                        window.initNoBlunder();
+                    } else {
+                        showError('No Blunder script loaded but init function missing.');
                     }
                 } else {
                     content.innerHTML = `
