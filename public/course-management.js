@@ -171,8 +171,8 @@ function renderCourseManagement() {
               
               <div id="emptyStudentState" class="empty-student-state">
                 <div class="empty-icon">🎓</div>
-                <div class="empty-text">Walk-In</div>
-                <button class="btn btn-sm btn-outline">Orders</button>
+                <div class="empty-text">Create New Student</div>
+                <button class="btn btn-primary" type="button" onclick="openSalesCreateStudentModal()">Create New Student</button>
               </div>
             </div>
             

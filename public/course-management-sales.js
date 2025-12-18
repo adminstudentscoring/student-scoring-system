@@ -1067,6 +1067,132 @@ window.selectSalesStudent = function(studentId) {
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
 
+// ==================== Create New Student (Sales) ====================
+window.openSalesCreateStudentModal = function() {
+  // Remove existing modal if any
+  const existing = document.getElementById('salesCreateStudentModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'salesCreateStudentModal';
+  modal.className = 'edit-student-modal';
+  modal.innerHTML = `
+    <div class="edit-student-modal-content">
+      <div class="edit-student-modal-header">
+        <h2>Create New Student</h2>
+      </div>
+      <div class="edit-student-modal-body">
+        <form id="salesCreateStudentForm">
+          <div class="form-row">
+            <div class="edit-student-form-group">
+              <label for="salesCreateStudentName">Student Name <span style="color: #ef4444;">*</span></label>
+              <input type="text" id="salesCreateStudentName" value="" required>
+              <div class="error-message"></div>
+            </div>
+            <div class="edit-student-form-group">
+              <label for="salesCreateStudentId">Student ID <span style="color: #ef4444;">*</span></label>
+              <input type="text" id="salesCreateStudentId" value="" required>
+              <div class="error-message"></div>
+            </div>
+          </div>
+          <div class="edit-student-modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeSalesCreateStudentModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Show modal
+  setTimeout(() => modal.classList.add('show'), 10);
+
+  // Submit handler
+  const form = modal.querySelector('#salesCreateStudentForm');
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await createStudentFromSalesModal();
+    });
+  }
+
+  // Focus first field
+  setTimeout(() => {
+    const el = document.getElementById('salesCreateStudentName');
+    if (el) el.focus();
+  }, 50);
+};
+
+window.closeSalesCreateStudentModal = function() {
+  const modal = document.getElementById('salesCreateStudentModal');
+  if (!modal) return;
+  modal.classList.remove('show');
+  setTimeout(() => modal.remove(), 300);
+};
+
+async function createStudentFromSalesModal() {
+  // Clear previous errors
+  document.querySelectorAll('#salesCreateStudentModal .edit-student-form-group').forEach(g => g.classList.remove('has-error'));
+  document.querySelectorAll('#salesCreateStudentModal .error-message').forEach(e => (e.textContent = ''));
+
+  const name = String(document.getElementById('salesCreateStudentName')?.value || '').trim();
+  const studentId = String(document.getElementById('salesCreateStudentId')?.value || '').trim();
+
+  let hasError = false;
+  if (!name) {
+    if (typeof showFieldError === 'function') showFieldError('salesCreateStudentName', 'Student name is required');
+    hasError = true;
+  }
+  if (!studentId) {
+    if (typeof showFieldError === 'function') showFieldError('salesCreateStudentId', 'Student ID is required');
+    hasError = true;
+  }
+  if (hasError) {
+    if (typeof showToast === 'function') showToast('Please fix the errors in the form', 'error');
+    return;
+  }
+
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/students', {
+      method: 'POST',
+      body: JSON.stringify({ name, studentId })
+    });
+
+    if (!response) return;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const msg = data?.error || 'Failed to create student';
+      if (typeof showFieldError === 'function' && String(msg).toLowerCase().includes('student id')) {
+        showFieldError('salesCreateStudentId', msg);
+      }
+      if (typeof showToast === 'function') showToast(msg, 'error');
+      return;
+    }
+
+    // Refresh local students cache for Sales search
+    try {
+      const r = await window.authUtils.authenticatedFetch('/students');
+      if (r && r.ok) {
+        const list = await r.json().catch(() => []);
+        window.students = Array.isArray(list) ? list : (list.students || []);
+      }
+    } catch (e) {
+      // ignore cache refresh errors
+    }
+
+    if (typeof showToast === 'function') showToast('Student created successfully!', 'success');
+    closeSalesCreateStudentModal();
+
+    // Auto-select created student in Sales
+    if (data?.id && typeof window.selectSalesStudent === 'function') {
+      window.selectSalesStudent(String(data.id));
+    }
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.message || 'Failed to create student', 'error');
+  }
+}
+
 // Open Student Details Overlay (Class/Payment History)
 window.openStudentDetailsOverlay = function(event) {
   if (event) event.stopPropagation();
