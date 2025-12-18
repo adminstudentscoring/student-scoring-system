@@ -249,7 +249,7 @@
   padding: 4px 6px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px;
   color: #111827;
   overflow: hidden;
   transition: all 0.2s;
@@ -258,6 +258,65 @@
   z-index: 10;
   box-sizing: border-box;
 }
+
+.timetable-entry-class-name {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.timetable-entry-time,
+.timetable-entry-teacher,
+.timetable-entry-classroom {
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.timetable-entry-count {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+  line-height: 1.15;
+  opacity: 0.95;
+}
+
+.timetable-entry-students {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.timetable-entry-student {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timetable-entry-student.paid .timetable-entry-student-name {
+  color: #111827;
+}
+.timetable-entry-student.unpaid .timetable-entry-student-name {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.attendance-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 10px;
+  border: 1px solid rgba(0,0,0,0.25);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.attendance-dot.present { background: #22c55e; }
+.attendance-dot.absent { background: #ef4444; }
+.attendance-dot.unknown { background: rgba(255,255,255,0.55); }
 
 .timetable-entry:hover {
   transform: translateY(-2px);

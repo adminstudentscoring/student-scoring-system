@@ -7,6 +7,9 @@ let timetableEnrollments = [];
 let timetableMetadata = { classNames: [], classrooms: [] };
 // Note: courses variable is shared from course-management.js
 let teachers = [];
+let timetableOrders = [];
+let timetableOrdersById = {};
+let attendanceCache = {}; // key: `${entryId}|${dateStr}` -> { loaded, loading, rows }
 window.timetableSettings = {};
 let currentView = 'week'; // 'day', 'week', 'month'
 let currentDate = new Date();
@@ -22,8 +25,43 @@ window.loadTimetableManagement = function(userRole = 'organization') {
       loadTimetableData();
       loadTimetableCourses();
       loadTimetableTeachers();
+      loadTimetableStudents();
+      loadTimetableOrders();
   });
 };
+
+async function loadTimetableStudents() {
+  try {
+    if (window.students && Array.isArray(window.students) && window.students.length > 0) return;
+    const response = await window.authUtils.authenticatedFetch('/students');
+    if (!response || !response.ok) return;
+    const data = await response.json().catch(() => []);
+    window.students = Array.isArray(data) ? data : (data.students || []);
+    renderTimetable();
+  } catch (e) {
+    // ignore
+  }
+}
+
+async function loadTimetableOrders() {
+  // Orders are used for paid/unpaid coloring (organization only).
+  // Teachers may not have permission; fail silently.
+  try {
+    timetableOrders = [];
+    timetableOrdersById = {};
+    const response = await window.authUtils.authenticatedFetch('/organizations/orders');
+    if (!response || !response.ok) return;
+    const data = await response.json().catch(() => []);
+    timetableOrders = Array.isArray(data) ? data : [];
+    timetableOrdersById = {};
+    for (const o of timetableOrders) {
+      if (o && o.id) timetableOrdersById[String(o.id)] = o;
+    }
+    renderTimetable();
+  } catch (e) {
+    // ignore
+  }
+}
 
 async function loadTimetableSettings() {
     try {
@@ -63,6 +101,114 @@ async function loadTimetableData() {
     console.error('Error loading timetable:', error);
     showTimetableError('Failed to load timetable');
   }
+}
+
+function getOrderStatusById(orderId) {
+  if (!orderId) return null;
+  const o = timetableOrdersById[String(orderId)];
+  return o ? String(o.status || '') : null;
+}
+
+function getEnrollmentFor(entryId, dateStr, studentId) {
+  const sid = String(studentId);
+  const eid = String(entryId);
+  const d = String(dateStr);
+  return (
+    (timetableEnrollments || []).find(
+      (e) => String(e.timetableEntryId) === eid && String(e.date) === d && String(e.studentId) === sid
+    ) || null
+  );
+}
+
+function getAttendanceKey(entryId, dateStr) {
+  return `${String(entryId)}|${String(dateStr)}`;
+}
+
+function ensureAttendanceLoaded(entryId, dateStr) {
+  const key = getAttendanceKey(entryId, dateStr);
+  if (attendanceCache[key]?.loaded || attendanceCache[key]?.loading) return;
+  attendanceCache[key] = { loaded: false, loading: true, rows: [] };
+
+  window.authUtils
+    .authenticatedFetch(
+      `/attendance?timetableEntryId=${encodeURIComponent(entryId)}&date=${encodeURIComponent(dateStr)}`
+    )
+    .then(async (resp) => {
+      if (!resp || !resp.ok) return [];
+      return resp.json().catch(() => []);
+    })
+    .then((rows) => {
+      attendanceCache[key] = { loaded: true, loading: false, rows: Array.isArray(rows) ? rows : [] };
+      // Re-render only affected blocks (best-effort)
+      const selector = `.timetable-entry[data-entry-id="${CSS.escape(String(entryId))}"][data-date="${CSS.escape(
+        String(dateStr)
+      )}"]`;
+      document.querySelectorAll(selector).forEach((el) => {
+        try {
+          const payload = JSON.parse(el.getAttribute('data-students-payload') || 'null');
+          if (!payload) return;
+          const next = buildStudentsListEl(payload.entryId, payload.dateStr, payload.studentIds);
+          const old = el.querySelector('.timetable-entry-students');
+          if (old) old.replaceWith(next);
+        } catch (e) {
+          // ignore
+        }
+      });
+    })
+    .catch(() => {
+      attendanceCache[key] = { loaded: true, loading: false, rows: [] };
+    });
+}
+
+function attendanceStatusFor(entryId, dateStr, studentId) {
+  const key = getAttendanceKey(entryId, dateStr);
+  const rows = attendanceCache[key]?.rows || [];
+  const r = rows.find((x) => String(x.studentId) === String(studentId));
+  const s = String(r?.status || '').toLowerCase();
+  if (s === 'present') return 'present';
+  if (s === 'absent') return 'absent';
+  return 'unknown';
+}
+
+function paymentStatusFor(entryId, dateStr, studentId) {
+  const enrollment = getEnrollmentFor(entryId, dateStr, studentId);
+  if (!enrollment || !enrollment.orderId) return 'paid'; // default to paid/neutral
+  const status = getOrderStatusById(enrollment.orderId);
+  if (!status) return 'paid';
+  return status === 'paid' ? 'paid' : 'unpaid';
+}
+
+function buildStudentsListEl(entryId, dateStr, studentIds) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'timetable-entry-students';
+
+  const ids = Array.isArray(studentIds) ? studentIds : [];
+  if (!ids.length) return wrapper;
+
+  for (const id of ids) {
+    const student = (window.students || []).find((s) => String(s.id) === String(id));
+    const name = student?.name ? String(student.name) : 'Unknown';
+
+    const paid = paymentStatusFor(entryId, dateStr, id);
+    const att = attendanceStatusFor(entryId, dateStr, id);
+
+    const row = document.createElement('div');
+    row.className = `timetable-entry-student ${paid === 'unpaid' ? 'unpaid' : 'paid'}`;
+
+    const dot = document.createElement('span');
+    dot.className = `attendance-dot ${att}`;
+    dot.title = att === 'unknown' ? 'Attendance: not marked' : `Attendance: ${att}`;
+
+    const label = document.createElement('span');
+    label.className = 'timetable-entry-student-name';
+    label.textContent = name;
+
+    row.appendChild(dot);
+    row.appendChild(label);
+    wrapper.appendChild(row);
+  }
+
+  return wrapper;
 }
 
 // Load courses - use shared courses from course-management.js if available
@@ -440,6 +586,7 @@ function renderEntryInCell(entry, day, date) {
     background: ${courseColor};
   `;
   entryEl.setAttribute('data-entry-id', entry.id);
+  entryEl.setAttribute('data-date', dateStr);
   entryEl.onclick = (e) => {
     e.stopPropagation();
     if (makeupFlowState.active) {
@@ -459,6 +606,7 @@ function renderEntryInCell(entry, day, date) {
   
   if (height >= 45 && teacherNames) {
     content += `<div class="timetable-entry-teacher">${escapeHtml(teacherNames)}</div>`;
+    content += `<div class="timetable-entry-count">${totalStudents} students</div>`;
   }
   
   if (height >= 60 && entry.classroom) {
@@ -466,17 +614,22 @@ function renderEntryInCell(entry, day, date) {
   }
   
   if (height >= 75 && totalStudents > 0) {
-      // Get student names
-      const names = allStudentIds.map(id => {
-          const s = (window.students || []).find(stu => String(stu.id) === id);
-          return s ? s.name : 'Unknown';
-      });
-      
-      content += `<div class="timetable-entry-students" style="font-size:10px; white-space: normal; line-height: 1.1; margin-top:2px; overflow: hidden;">${escapeHtml(names.join(', '))}</div>`;
+    // Preload attendance (async) and render list (may start with unknown dots)
+    ensureAttendanceLoaded(entry.id, dateStr);
+    entryEl.setAttribute('data-students-payload', JSON.stringify({ entryId: entry.id, dateStr, studentIds: allStudentIds }));
+    content += `<div class="timetable-entry-students"></div>`;
   }
   
   entryEl.innerHTML = content;
   cell.appendChild(entryEl);
+
+  // Replace placeholder students list with DOM-built list
+  if (height >= 75 && totalStudents > 0) {
+    const placeholder = entryEl.querySelector('.timetable-entry-students');
+    if (placeholder) {
+      placeholder.replaceWith(buildStudentsListEl(entry.id, dateStr, allStudentIds));
+    }
+  }
 }
 
 // Helper functions
@@ -688,6 +841,7 @@ function renderEntryInDayCell(entry, date) {
     background: ${courseColor};
   `;
   entryEl.setAttribute('data-entry-id', entry.id);
+  entryEl.setAttribute('data-date', dateStr);
   entryEl.onclick = (e) => {
     e.stopPropagation();
     if (!isReadOnly) {
@@ -703,6 +857,7 @@ function renderEntryInDayCell(entry, date) {
   
   if (height >= 45 && teacherNames) {
     content += `<div class="timetable-entry-teacher">${escapeHtml(teacherNames)}</div>`;
+    content += `<div class="timetable-entry-count">${totalStudents} students</div>`;
   }
   
   if (height >= 60 && entry.classroom) {
@@ -710,25 +865,35 @@ function renderEntryInDayCell(entry, date) {
   }
   
   if (height >= 75 && totalStudents > 0) {
-      // Get student names
-      const s1 = entry.studentIds || [];
+      const s1 = (entry.studentIds || []).map(String);
       const s2 = (timetableEnrollments || []).filter(e => 
-        e.timetableEntryId === entry.id && 
-        e.date === dateStr && 
+        String(e.timetableEntryId) === String(entry.id) && 
+        String(e.date) === String(dateStr) && 
         e.type === 'single'
-      ).map(e => e.studentId);
-      
+      ).map(e => String(e.studentId));
       const allIds = [...new Set([...s1, ...s2])];
-      const names = allIds.map(id => {
-          const s = (window.students || []).find(stu => stu.id === id);
-          return s ? s.name : 'Unknown';
-      });
-      
-      content += `<div class="timetable-entry-students" style="font-size:10px; white-space: normal; line-height: 1.1; margin-top:2px; overflow: hidden;">${escapeHtml(names.join(', '))}</div>`;
+
+      ensureAttendanceLoaded(entry.id, dateStr);
+      entryEl.setAttribute('data-students-payload', JSON.stringify({ entryId: entry.id, dateStr, studentIds: allIds }));
+      content += `<div class="timetable-entry-students"></div>`;
   }
   
   entryEl.innerHTML = content;
   cell.appendChild(entryEl);
+
+  if (height >= 75 && totalStudents > 0) {
+    try {
+      const payload = JSON.parse(entryEl.getAttribute('data-students-payload') || 'null');
+      if (payload) {
+        const placeholder = entryEl.querySelector('.timetable-entry-students');
+        if (placeholder) {
+          placeholder.replaceWith(buildStudentsListEl(payload.entryId, payload.dateStr, payload.studentIds));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
 }
 
 // Render month view
