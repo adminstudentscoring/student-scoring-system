@@ -349,6 +349,32 @@
   transform: translateY(-2px);
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
   z-index: 20;
+  overflow: visible;
+}
+
+/* Hover-only student list: show full roster as a popover when the block is small */
+.timetable-entry-students.hover-only {
+  display: none;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: calc(100% + 6px);
+  z-index: 30;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.98);
+  border: 1px solid rgba(0,0,0,0.10);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+  max-height: 220px;
+  overflow: auto;
+}
+.timetable-entry:hover .timetable-entry-students.hover-only {
+  display: flex;
+}
+
+/* Keep chips readable in the hover popover */
+.timetable-entry-students.hover-only .timetable-entry-student {
+  background: #ffffff;
 }
 
 .timetable-entry-small {

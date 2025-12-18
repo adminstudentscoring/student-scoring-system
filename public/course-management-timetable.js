@@ -613,21 +613,26 @@ function renderEntryInCell(entry, day, date) {
     content += `<div class="timetable-entry-classroom">${escapeHtml(entry.classroom)}</div>`;
   }
   
-  if (height >= 75 && totalStudents > 0) {
-    // Preload attendance (async) and render list (may start with unknown dots)
+  if (totalStudents > 0) {
+    // Always prepare full student list, even if block is too small.
+    // - If height < 75: list is hover-only popover
+    // - Else: list is in-flow, and hover will expand by overflow:visible
     ensureAttendanceLoaded(entry.id, dateStr);
     entryEl.setAttribute('data-students-payload', JSON.stringify({ entryId: entry.id, dateStr, studentIds: allStudentIds }));
-    content += `<div class="timetable-entry-students"></div>`;
+    const hoverOnly = height < 75;
+    content += `<div class="timetable-entry-students${hoverOnly ? ' hover-only' : ''}"></div>`;
   }
   
   entryEl.innerHTML = content;
   cell.appendChild(entryEl);
 
   // Replace placeholder students list with DOM-built list
-  if (height >= 75 && totalStudents > 0) {
+  if (totalStudents > 0) {
     const placeholder = entryEl.querySelector('.timetable-entry-students');
     if (placeholder) {
-      placeholder.replaceWith(buildStudentsListEl(entry.id, dateStr, allStudentIds));
+      const listEl = buildStudentsListEl(entry.id, dateStr, allStudentIds);
+      if (height < 75) listEl.classList.add('hover-only');
+      placeholder.replaceWith(listEl);
     }
   }
 }
@@ -864,7 +869,7 @@ function renderEntryInDayCell(entry, date) {
     content += `<div class="timetable-entry-classroom">${escapeHtml(entry.classroom)}</div>`;
   }
   
-  if (height >= 75 && totalStudents > 0) {
+  if (totalStudents > 0) {
       const s1 = (entry.studentIds || []).map(String);
       const s2 = (timetableEnrollments || []).filter(e => 
         String(e.timetableEntryId) === String(entry.id) && 
@@ -875,19 +880,22 @@ function renderEntryInDayCell(entry, date) {
 
       ensureAttendanceLoaded(entry.id, dateStr);
       entryEl.setAttribute('data-students-payload', JSON.stringify({ entryId: entry.id, dateStr, studentIds: allIds }));
-      content += `<div class="timetable-entry-students"></div>`;
+      const hoverOnly = height < 75;
+      content += `<div class="timetable-entry-students${hoverOnly ? ' hover-only' : ''}"></div>`;
   }
   
   entryEl.innerHTML = content;
   cell.appendChild(entryEl);
 
-  if (height >= 75 && totalStudents > 0) {
+  if (totalStudents > 0) {
     try {
       const payload = JSON.parse(entryEl.getAttribute('data-students-payload') || 'null');
       if (payload) {
         const placeholder = entryEl.querySelector('.timetable-entry-students');
         if (placeholder) {
-          placeholder.replaceWith(buildStudentsListEl(payload.entryId, payload.dateStr, payload.studentIds));
+          const listEl = buildStudentsListEl(payload.entryId, payload.dateStr, payload.studentIds);
+          if (height < 75) listEl.classList.add('hover-only');
+          placeholder.replaceWith(listEl);
         }
       }
     } catch (e) {
@@ -1297,8 +1305,8 @@ window.openEditClassModal = async function(entry, dateStr) {
                   
                   const showMakeupBtn = dateStr && (!status || status === 'unmarked' || status === 'absent');
                   return `<div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap:10px;">
-                    <div style="display:flex; align-items:center;">
-                      <div>
+                    <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                      <div style="min-width:0;">
                           <strong>${name}</strong> <span style="color:#666;">(${dispId})</span>
                           ${!isSeries ? '<span style="font-size:11px; color:#999; margin-left:5px; background:#f3f4f6; padding:2px 6px; border-radius:4px;">Session</span>' : ''}
                       </div>
