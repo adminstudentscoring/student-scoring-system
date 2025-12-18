@@ -902,7 +902,7 @@ function renderEntryInDayCell(entry, date) {
         e.type === 'single'
       ).map(e => String(e.studentId));
       const allIds = [...new Set([...s1, ...s2])];
-
+      
       ensureAttendanceLoaded(entry.id, dateStr);
       entryEl.setAttribute('data-students-payload', JSON.stringify({ entryId: entry.id, dateStr, studentIds: allIds }));
       const hoverOnly = height < 75;
@@ -1156,7 +1156,7 @@ window.openEditClassModal = async function(entry, dateStr) {
               <div class="cm-time-inline">
                 <select id="editClassStartHour" required onchange="onTimetableTimeChanged('start')">
                   ${hourOptions.map(h => `<option value="${h}" ${h === startParts.h ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
-                </select>
+              </select>
                 <span class="cm-time-sep">:</span>
                 <select id="editClassStartMin" required onchange="onTimetableTimeChanged('start')">
                   ${minuteOptions.map(m => `<option value="${m}" ${m === startParts.m ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}
@@ -1181,7 +1181,7 @@ window.openEditClassModal = async function(entry, dateStr) {
               <div class="cm-time-inline">
                 <select id="editClassEndHour" required onchange="onTimetableTimeChanged('end')">
                   ${hourOptions.map(h => `<option value="${h}" ${h === endParts.h ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}
-                </select>
+              </select>
                 <span class="cm-time-sep">:</span>
                 <select id="editClassEndMin" required onchange="onTimetableTimeChanged('end')">
                   ${minuteOptions.map(m => `<option value="${m}" ${m === endParts.m ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}
