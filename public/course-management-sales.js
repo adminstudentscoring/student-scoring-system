@@ -1184,6 +1184,16 @@ async function createStudentFromSalesModal() {
     if (typeof showToast === 'function') showToast('Student created successfully!', 'success');
     closeSalesCreateStudentModal();
 
+    // Also refresh Student Management list (Organization tab) if available
+    // organization.html exposes window.refreshStudentList() which calls its internal loadStudents()
+    try {
+      if (typeof window.refreshStudentList === 'function') {
+        window.refreshStudentList();
+      }
+    } catch (e) {
+      // ignore
+    }
+
     // Auto-select created student in Sales
     if (data?.id && typeof window.selectSalesStudent === 'function') {
       window.selectSalesStudent(String(data.id));
