@@ -78,7 +78,8 @@
     leaderboardTabs: null,
     activeLeaderboardTab: 'normal',
     defeatOverlayEl: null,
-    defeatReasonEl: null
+    defeatReasonEl: null,
+    suppressNextClick: false
   };
 
   function apiRequest(path, options = {}) {
@@ -490,6 +491,8 @@
         state.boardEl.appendChild(cell);
       }
     }
+
+    enablePointerDrag();
   }
 
   function getTargetMarkers() {
@@ -513,6 +516,10 @@
   }
 
   function onCellClick(row, col) {
+    if (state.suppressNextClick) {
+      state.suppressNextClick = false;
+      return;
+    }
     if (!state.gameActive) return;
     const pieceIndex = state.pieces.findIndex(p => p.row === row && p.col === col);
     if (state.selectedPieceIndex === null) {
@@ -540,6 +547,156 @@
     }
 
     attemptMove(state.selectedPieceIndex, row, col);
+  }
+
+  function enablePointerDrag() {
+    if (!state.boardEl) return;
+    const DRAG_THRESHOLD_PX = 4;
+
+    let drag = null; // { pieceIndex, originRow, originCol, startX, startY, started, ghostEl, overCellEl }
+
+    const clearOver = () => {
+      if (drag?.overCellEl) {
+        drag.overCellEl.classList.remove('re-drop-target');
+        drag.overCellEl = null;
+      }
+    };
+
+    const cleanup = () => {
+      clearOver();
+      if (drag?.ghostEl) drag.ghostEl.remove();
+      drag = null;
+      document.body.classList.remove('re-dragging');
+    };
+
+    const getCellUnderPoint = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      return el?.closest?.('.re-cell') || null;
+    };
+
+    const moveGhost = (x, y) => {
+      if (!drag?.ghostEl) return;
+      drag.ghostEl.style.left = `${x}px`;
+      drag.ghostEl.style.top = `${y}px`;
+    };
+
+    const startGhostFromCell = (cellEl) => {
+      const img = cellEl.querySelector('.re-piece-image');
+      const src = img?.getAttribute('src');
+      const ghost = document.createElement('div');
+      ghost.className = 're-drag-ghost';
+      if (src) {
+        const gi = document.createElement('img');
+        gi.src = src;
+        gi.alt = '';
+        ghost.appendChild(gi);
+      }
+      document.body.appendChild(ghost);
+      drag.ghostEl = ghost;
+      document.body.classList.add('re-dragging');
+    };
+
+    const onPointerMove = (e) => {
+      if (!drag) return;
+      const x = e.clientX;
+      const y = e.clientY;
+      const dx = x - drag.startX;
+      const dy = y - drag.startY;
+      if (!drag.started && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+        drag.started = true;
+        const originCell = state.boardEl.querySelector(`.re-cell[data-row="${drag.originRow}"][data-col="${drag.originCol}"]`);
+        if (originCell) startGhostFromCell(originCell);
+      }
+      if (!drag.started) return;
+
+      moveGhost(x, y);
+      const cell = getCellUnderPoint(x, y);
+      if (cell !== drag.overCellEl) {
+        clearOver();
+        if (cell) {
+          cell.classList.add('re-drop-target');
+          drag.overCellEl = cell;
+        }
+      }
+      e.preventDefault?.();
+    };
+
+    const onPointerUp = (e) => {
+      if (!drag) return;
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
+
+      state.suppressNextClick = true;
+      setTimeout(() => { state.suppressNextClick = false; }, 0);
+
+      if (!drag.started) {
+        const { originRow, originCol } = drag;
+        cleanup();
+        onCellClick(originRow, originCol);
+        return;
+      }
+
+      const cell = getCellUnderPoint(e.clientX, e.clientY);
+      if (cell) {
+        const targetRow = Number(cell.getAttribute('data-row'));
+        const targetCol = Number(cell.getAttribute('data-col'));
+        if (Number.isFinite(targetRow) && Number.isFinite(targetCol)) {
+          // If dropping onto occupied square:
+          const targetPieceIndex = state.pieces.findIndex(p => p.row === targetRow && p.col === targetCol);
+          const movingPiece = state.pieces[drag.pieceIndex];
+          if (movingPiece) {
+            if (targetPieceIndex !== -1) {
+              const targetPiece = state.pieces[targetPieceIndex];
+              if (targetPiece && targetPiece.color === movingPiece.color) {
+                state.selectedPieceIndex = targetPieceIndex;
+                renderBoard();
+              } else {
+                showToast('Capturing is not allowed in this puzzle.', 'warning');
+              }
+            } else {
+              attemptMove(drag.pieceIndex, targetRow, targetCol);
+            }
+          }
+        }
+      }
+
+      cleanup();
+      e.preventDefault?.();
+    };
+
+    state.boardEl.querySelectorAll('.re-cell').forEach((cell) => {
+      cell.addEventListener('pointerdown', (e) => {
+        if (!state.gameActive) return;
+        if (e.button !== undefined && e.button !== 0) return;
+        const row = Number(cell.getAttribute('data-row'));
+        const col = Number(cell.getAttribute('data-col'));
+        if (!Number.isFinite(row) || !Number.isFinite(col)) return;
+        const pieceIndex = state.pieces.findIndex(p => p.row === row && p.col === col);
+        if (pieceIndex === -1) return;
+        const piece = state.pieces[pieceIndex];
+        if (!piece || piece.color !== state.currentTurn) {
+          // Don't start drag on the wrong side; let click show warning as usual.
+          return;
+        }
+
+        drag = {
+          pieceIndex,
+          originRow: row,
+          originCol: col,
+          startX: e.clientX,
+          startY: e.clientY,
+          started: false,
+          ghostEl: null,
+          overCellEl: null
+        };
+
+        window.addEventListener('pointermove', onPointerMove, true);
+        window.addEventListener('pointerup', onPointerUp, true);
+        window.addEventListener('pointercancel', onPointerUp, true);
+        e.preventDefault?.();
+      });
+    });
   }
 
   function attemptMove(pieceIndex, targetRow, targetCol) {

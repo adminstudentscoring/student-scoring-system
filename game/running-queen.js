@@ -60,6 +60,7 @@
     currentPlayerIndex: 0,
     queens: [],
     selectedQueenIndex: null,
+    suppressNextClick: false,
     violationOccurred: false,
     gameActive: false,
     highlight: null,
@@ -935,6 +936,7 @@
           image.src = '/assets/pieces/white_Queen.png';
           queenSpan.appendChild(image);
           cell.appendChild(queenSpan);
+          cell.classList.add('has-queen');
           if (state.selectedQueenIndex === queenIndex) {
             cell.classList.add('selected');
           }
@@ -948,9 +950,15 @@
         state.boardEl.appendChild(cell);
       }
     }
+
+    enablePointerDrag();
   }
 
   function onCellClick(row, col) {
+    if (state.suppressNextClick) {
+      state.suppressNextClick = false;
+      return;
+    }
     if (!state.gameActive) return;
     const queenIndex = state.queens.findIndex(q => q.row === row && q.col === col);
     if (queenIndex !== -1) {
@@ -968,6 +976,140 @@
     }
 
     attemptMove(state.selectedQueenIndex, row, col);
+  }
+
+  function enablePointerDrag() {
+    if (!state.boardEl) return;
+
+    const DRAG_THRESHOLD_PX = 4;
+    let drag = null; // { queenIndex, originRow, originCol, startX, startY, started, ghostEl, overCellEl }
+
+    const clearOver = () => {
+      if (drag?.overCellEl) {
+        drag.overCellEl.classList.remove('rq-drop-target');
+        drag.overCellEl = null;
+      }
+    };
+
+    const cleanup = () => {
+      clearOver();
+      if (drag?.ghostEl) drag.ghostEl.remove();
+      drag = null;
+      document.body.classList.remove('rq-dragging');
+    };
+
+    const getCellUnderPoint = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      return el?.closest?.('.rq-cell') || null;
+    };
+
+    const moveGhost = (x, y) => {
+      if (!drag?.ghostEl) return;
+      drag.ghostEl.style.left = `${x}px`;
+      drag.ghostEl.style.top = `${y}px`;
+    };
+
+    const startGhostFromCell = (cellEl) => {
+      const img = cellEl.querySelector('.rq-queen-image');
+      const src = img?.getAttribute('src') || '/assets/pieces/white_Queen.png';
+      const ghost = document.createElement('div');
+      ghost.className = 'rq-drag-ghost';
+      const gi = document.createElement('img');
+      gi.src = src;
+      gi.alt = '';
+      ghost.appendChild(gi);
+      document.body.appendChild(ghost);
+      drag.ghostEl = ghost;
+      document.body.classList.add('rq-dragging');
+    };
+
+    const onPointerMove = (e) => {
+      if (!drag) return;
+      const x = e.clientX;
+      const y = e.clientY;
+      const dx = x - drag.startX;
+      const dy = y - drag.startY;
+      if (!drag.started && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+        drag.started = true;
+        // Start visual drag
+        const originCell = state.boardEl.querySelector(`.rq-cell[data-row="${drag.originRow}"][data-col="${drag.originCol}"]`);
+        if (originCell) startGhostFromCell(originCell);
+      }
+      if (!drag.started) return;
+
+      moveGhost(x, y);
+      const cell = getCellUnderPoint(x, y);
+      if (cell !== drag.overCellEl) {
+        clearOver();
+        if (cell) {
+          cell.classList.add('rq-drop-target');
+          drag.overCellEl = cell;
+        }
+      }
+      e.preventDefault?.();
+    };
+
+    const onPointerUp = (e) => {
+      if (!drag) return;
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
+
+      // Suppress the subsequent click event triggered by pointerup
+      state.suppressNextClick = true;
+      setTimeout(() => { state.suppressNextClick = false; }, 0);
+
+      if (!drag.started) {
+        // Treat as normal click selection
+        const { originRow, originCol } = drag;
+        cleanup();
+        onCellClick(originRow, originCol);
+        return;
+      }
+
+      const cell = getCellUnderPoint(e.clientX, e.clientY);
+      if (cell) {
+        const targetRow = Number(cell.getAttribute('data-row'));
+        const targetCol = Number(cell.getAttribute('data-col'));
+        if (Number.isFinite(targetRow) && Number.isFinite(targetCol)) {
+          if (!(targetRow === drag.originRow && targetCol === drag.originCol)) {
+            attemptMove(drag.queenIndex, targetRow, targetCol);
+          }
+        }
+      }
+
+      cleanup();
+      e.preventDefault?.();
+    };
+
+    // Attach per-cell pointerdown (cells are rebuilt on each render)
+    state.boardEl.querySelectorAll('.rq-cell').forEach((cell) => {
+      cell.addEventListener('pointerdown', (e) => {
+        if (!state.gameActive) return;
+        if (e.button !== undefined && e.button !== 0) return;
+        const row = Number(cell.getAttribute('data-row'));
+        const col = Number(cell.getAttribute('data-col'));
+        if (!Number.isFinite(row) || !Number.isFinite(col)) return;
+        const queenIndex = state.queens.findIndex(q => q.row === row && q.col === col);
+        if (queenIndex === -1) return;
+
+        drag = {
+          queenIndex,
+          originRow: row,
+          originCol: col,
+          startX: e.clientX,
+          startY: e.clientY,
+          started: false,
+          ghostEl: null,
+          overCellEl: null
+        };
+
+        window.addEventListener('pointermove', onPointerMove, true);
+        window.addEventListener('pointerup', onPointerUp, true);
+        window.addEventListener('pointercancel', onPointerUp, true);
+        e.preventDefault?.();
+      });
+    });
   }
 
   function attemptMove(queenIndex, targetRow, targetCol) {
