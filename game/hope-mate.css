@@ -277,6 +277,25 @@
   min-width: 140px;
 }
 
+/* Stage progress */
+.hm-stage-progress {
+  margin: 10px 0;
+}
+
+.hm-stage-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(229, 231, 235, 0.9);
+  overflow: hidden;
+  border: 1px solid rgba(229, 231, 235, 0.9);
+}
+
+.hm-stage-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.95), rgba(118, 75, 162, 0.95));
+  width: 0%;
+}
+
 .hm-modal-header {
   display: flex;
   align-items: center;

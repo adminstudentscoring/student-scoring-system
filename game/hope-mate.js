@@ -58,7 +58,8 @@
     players: 'hopeMatePlayers',
     level: 'hopeMateLevel',
     best: (studentId) => `hopeMateBestScore_${String(studentId || 'unknown')}`,
-    total: (studentId) => `hopeMateTotalScore_${String(studentId || 'unknown')}`
+    total: (studentId) => `hopeMateTotalScore_${String(studentId || 'unknown')}`,
+    stage: (studentId, stageKey) => `hopeMateStage_${String(stageKey || 'unknown')}_${String(studentId || 'unknown')}`
   };
 
   function safeJsonParse(raw) {
@@ -482,6 +483,7 @@
   function randomPuzzle(cfg) {
     const level = Number(cfg?.level) || 1;
     const blackExtraCount = Number(cfg?.blackExtraCount) || 0;
+    const fixedWhitePieces = Array.isArray(cfg?.whitePieces) ? cfg.whitePieces.filter(Boolean) : null;
     const maxTries = BOARD_SIZE === 8 ? 2000 : 4000;
 
     for (let attempt = 0; attempt < maxTries; attempt++) {
@@ -510,9 +512,10 @@
       }
       if (boardBase[blackKingIdx] !== 'k') continue;
 
-      // Pick two random white pieces (duplicates allowed)
-      const w1 = sample(PIECE_POOL_WHITE);
-      const w2 = sample(PIECE_POOL_WHITE);
+      // Pick white pieces (fixed for Stage, random for Practice)
+      const whitePieces = fixedWhitePieces && fixedWhitePieces.length > 0
+        ? fixedWhitePieces.map(p => String(p).toUpperCase())
+        : [sample(PIECE_POOL_WHITE), sample(PIECE_POOL_WHITE)];
 
       // Verify solvable (must exist at least one checkmate)
       const squares = [];
@@ -524,53 +527,81 @@
       let hasMate = false;
       let sampleSolution = null;
 
-      const tryPair = (idx1, idx2) => {
-        // Try both assignments if pieces differ
-        const assignmentOptions = (w1 === w2)
-          ? [[{ piece: w1, idx: idx1 }, { piece: w2, idx: idx2 }]]
-          : [
-              [{ piece: w1, idx: idx1 }, { piece: w2, idx: idx2 }],
-              [{ piece: w1, idx: idx2 }, { piece: w2, idx: idx1 }]
-            ];
-
-        for (const placements of assignmentOptions) {
-          const c = validateWhitePlacementConstraints(boardBase, blackKingIdx, placements);
-          if (!c.ok) continue;
-
-          const b = cloneBoard(boardBase);
-          b[placements[0].idx] = placements[0].piece;
-          b[placements[1].idx] = placements[1].piece;
-
-          if (isCheckmate(b)) {
-            hasMate = true;
-            sampleSolution = placements;
-            return true;
-          }
+      const tryPlacements = (placements) => {
+        const c = validateWhitePlacementConstraints(boardBase, blackKingIdx, placements);
+        if (!c.ok) return false;
+        const b = cloneBoard(boardBase);
+        for (const pl of placements) b[pl.idx] = pl.piece;
+        if (isCheckmate(b)) {
+          hasMate = true;
+          sampleSolution = placements;
+          return true;
         }
         return false;
       };
 
-      if (BOARD_SIZE <= 5 && blackExtraCount <= 2) {
-        // Exhaustive for small boards
+      const pieceCount = whitePieces.length;
+
+      const trySingle = (idx1) => {
+        return tryPlacements([{ piece: whitePieces[0], idx: idx1 }]);
+      };
+
+      const tryPair = (idx1, idx2) => {
+        const p1 = whitePieces[0];
+        const p2 = whitePieces[1];
+        const assignmentOptions = (p1 === p2)
+          ? [[{ piece: p1, idx: idx1 }, { piece: p2, idx: idx2 }]]
+          : [
+              [{ piece: p1, idx: idx1 }, { piece: p2, idx: idx2 }],
+              [{ piece: p1, idx: idx2 }, { piece: p2, idx: idx1 }]
+            ];
+        for (const placements of assignmentOptions) {
+          if (tryPlacements(placements)) return true;
+        }
+        return false;
+      };
+
+      if (pieceCount === 1) {
+        // Exhaustive is cheap even on 8x8.
         for (let i = 0; i < squares.length; i++) {
-          for (let j = i + 1; j < squares.length; j++) {
-            if (tryPair(squares[i], squares[j])) break;
+          if (trySingle(squares[i])) break;
+        }
+      } else if (pieceCount === 2) {
+        if (BOARD_SIZE <= 5 && blackExtraCount <= 2) {
+          for (let i = 0; i < squares.length; i++) {
+            for (let j = i + 1; j < squares.length; j++) {
+              if (tryPair(squares[i], squares[j])) break;
+            }
+            if (hasMate) break;
           }
-          if (hasMate) break;
+        } else {
+          const samples = Math.min(2400, squares.length * 5);
+          for (let t = 0; t < samples; t++) {
+            const idx1 = squares[randInt(squares.length)];
+            let idx2 = squares[randInt(squares.length)];
+            let guard = 0;
+            while (idx2 === idx1 && guard < 20) {
+              idx2 = squares[randInt(squares.length)];
+              guard += 1;
+            }
+            if (idx2 === idx1) continue;
+            if (tryPair(idx1, idx2)) break;
+          }
         }
       } else {
-        // Random sampling for 8x8 to keep generation fast
-        const samples = Math.min(2000, squares.length * 4);
+        // Basic random sampling for >2 (future stages). Not exhaustive to keep generation bounded.
+        const samples = Math.min(5000, squares.length * 10);
         for (let t = 0; t < samples; t++) {
-          const idx1 = squares[randInt(squares.length)];
-          let idx2 = squares[randInt(squares.length)];
-          let guard = 0;
-          while (idx2 === idx1 && guard < 20) {
-            idx2 = squares[randInt(squares.length)];
-            guard += 1;
+          const picks = [];
+          const used = new Set();
+          while (picks.length < pieceCount) {
+            const idx = squares[randInt(squares.length)];
+            if (used.has(idx)) continue;
+            used.add(idx);
+            picks.push(idx);
           }
-          if (idx2 === idx1) continue;
-          if (tryPair(idx1, idx2)) break;
+          const placements = picks.map((idx, i) => ({ piece: whitePieces[i], idx }));
+          if (tryPlacements(placements)) break;
         }
       }
 
@@ -582,7 +613,7 @@
         blackExtraCount,
         black: boardBase.slice(),
         blackKingIdx,
-        whitePieces: [w1, w2],
+        whitePieces,
         // store one known solution (optional, for debug later)
         sampleSolution
       };
@@ -595,13 +626,20 @@
   // UI / Game State
   // ---------------------------
   const state = {
-    screen: 'home', // 'home' | 'stageSelect' | 'practiceSelect' | 'practiceGame'
+    screen: 'home', // 'home' | 'stageSelect' | 'stageGame' | 'practiceSelect' | 'practiceGame'
     practiceLevel: 1,
+    stageKey: null,
+    stageProgress: {
+      solved: 0,
+      target: 10,
+      puzzleSolved: false
+    },
     puzzle: null,
     board: null,
-    placed: [null, null], // indices for the 2 white pieces
+    placed: [], // indices for each white piece slot
     selectedPieceSlot: 0,
     attemptsFailed: false,
+    puzzleSolved: false,
     sessionScore: 0,
     totalScore: 0,
     bestScore: 0,
@@ -646,6 +684,29 @@
     const sid = player?.id || 'unknown';
     localStorage.setItem(STORAGE.total(sid), String(state.totalScore));
     localStorage.setItem(STORAGE.best(sid), String(state.bestScore));
+  }
+
+  function loadStageProgress(stageKey) {
+    const player = getSinglePlayer();
+    const sid = player?.id || 'unknown';
+    const raw = localStorage.getItem(STORAGE.stage(sid, stageKey));
+    try {
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveStageProgress(stageKey, data) {
+    const player = getSinglePlayer();
+    const sid = player?.id || 'unknown';
+    try {
+      localStorage.setItem(STORAGE.stage(sid, stageKey), JSON.stringify(data));
+    } catch {
+      // ignore
+    }
   }
 
   function getAuthToken() {
@@ -733,17 +794,20 @@
 
   function newPuzzle() {
     state.attemptsFailed = false;
-    state.placed = [null, null];
+    state.placed = [];
     state.selectedPieceSlot = 0;
+    state.puzzleSolved = false;
+    state.stageProgress.puzzleSolved = false;
     const cfg = getPracticeConfig(state.practiceLevel);
     setBoardSize(cfg.boardSize);
     state.puzzle = randomPuzzle(cfg);
     state.board = state.puzzle.black.slice();
+    state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
   }
 
   function resetPlacements() {
     if (!state.puzzle) return;
-    state.placed = [null, null];
+    state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
     state.selectedPieceSlot = 0;
     state.board = state.puzzle.black.slice();
     render();
@@ -751,13 +815,14 @@
 
   function placePiece(slot, idx) {
     if (!state.puzzle) return;
-    const piece = state.puzzle.whitePieces[slot];
+    const pieces = Array.isArray(state.puzzle.whitePieces) ? state.puzzle.whitePieces : [];
+    if (!(slot >= 0 && slot < pieces.length)) return;
+    const piece = pieces[slot];
     if (!piece) return;
     if (state.puzzle.black[idx]) return; // occupied by black
-    // prevent placing on square used by other slot
-    const otherSlot = slot === 0 ? 1 : 0;
-    if (state.placed[otherSlot] === idx) {
-      // Swap positions if dropping onto the other placed piece
+    // If dropping onto another placed piece, swap.
+    const otherSlot = state.placed.findIndex(v => v === idx);
+    if (otherSlot !== -1 && otherSlot !== slot) {
       const curIdx = state.placed[slot];
       state.placed[slot] = idx;
       state.placed[otherSlot] = curIdx;
@@ -766,13 +831,17 @@
       render();
       return;
     }
+    // prevent placing on square used by any other slot
+    if (state.placed.some((v, i) => i !== slot && v === idx)) return;
 
     // Apply placement constraints early for feedback
     const placements = [];
     placements.push({ piece, idx });
-    if (state.placed[otherSlot] != null) {
-      placements.push({ piece: state.puzzle.whitePieces[otherSlot], idx: state.placed[otherSlot] });
-    }
+    state.placed.forEach((placedIdx, i) => {
+      if (i === slot) return;
+      if (placedIdx == null) return;
+      placements.push({ piece: pieces[i], idx: placedIdx });
+    });
     const c = validateWhitePlacementConstraints(state.puzzle.black, state.puzzle.blackKingIdx, placements);
     if (!c.ok) {
       setStatus(c.reason, 'error');
@@ -788,10 +857,11 @@
   function rebuildBoardFromPlacements() {
     if (!state.puzzle) return;
     const b = state.puzzle.black.slice();
-    for (let s = 0; s < 2; s++) {
+    const pieces = Array.isArray(state.puzzle.whitePieces) ? state.puzzle.whitePieces : [];
+    for (let s = 0; s < pieces.length; s++) {
       const idx = state.placed[s];
       if (idx == null) continue;
-      b[idx] = state.puzzle.whitePieces[s];
+      b[idx] = pieces[s];
     }
     state.board = b;
   }
@@ -810,7 +880,11 @@
 
   function confirm() {
     if (!state.puzzle || !state.board) return;
-    if (state.placed[0] == null || state.placed[1] == null) {
+    if (state.puzzleSolved || state.stageProgress.puzzleSolved) {
+      openResult('correct', 'Already confirmed. Use Next to continue.');
+      return;
+    }
+    if (!Array.isArray(state.placed) || state.placed.some(v => v == null)) {
       setStatus('Place both pieces before confirming.', 'error');
       openResult('incorrect', 'Please place both pieces before confirming.');
       return;
@@ -818,30 +892,49 @@
 
     const mate = isCheckmate(state.board);
     if (mate) {
-      const gained = state.attemptsFailed ? 0 : 1;
-      state.sessionScore += gained;
-      state.totalScore += gained;
-      state.bestScore = Math.max(state.bestScore, state.sessionScore);
-      saveScores();
-      const msg = gained ? 'Correct! Checkmate. +1 point.' : 'Correct! Checkmate. (No points because you already failed this puzzle.)';
-      setStatus(msg, 'success');
-      openResult('correct', msg);
-      if (gained === 1) {
-        const player = getSinglePlayer();
-        if (player?.id) {
-          // Fire-and-forget: submit total score, then refresh leaderboard.
-          submitHopeMateTotalScore(String(player.id), state.totalScore)
-            .then((entries) => {
-              state.leaderboard.entries = entries;
-              state.leaderboard.loading = false;
-              state.leaderboard.error = null;
-              render();
-            })
-            .catch((e) => {
-              state.leaderboard.error = e?.message || 'Failed to submit score';
-              state.leaderboard.loading = false;
-              render();
-            });
+      if (state.screen === 'stageGame') {
+        // Stage: progress only, no score.
+        state.stageProgress.puzzleSolved = true;
+        const nextSolved = Math.min(state.stageProgress.target, (Number(state.stageProgress.solved) || 0) + 1);
+        state.stageProgress.solved = nextSolved;
+        const msg = nextSolved >= state.stageProgress.target
+          ? `Correct! Stage complete (${nextSolved}/${state.stageProgress.target}).`
+          : `Correct! Progress: ${nextSolved}/${state.stageProgress.target}.`;
+        setStatus(msg, 'success');
+        openResult('correct', msg);
+        // Auto-save stage progress (including completion)
+        saveStageProgress(state.stageKey, {
+          solved: state.stageProgress.solved,
+          target: state.stageProgress.target,
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        const gained = state.attemptsFailed ? 0 : 1;
+        state.sessionScore += gained;
+        state.totalScore += gained;
+        state.bestScore = Math.max(state.bestScore, state.sessionScore);
+        saveScores();
+        state.puzzleSolved = true;
+        const msg = gained ? 'Correct! Checkmate. +1 point.' : 'Correct! Checkmate. (No points because you already failed this puzzle.)';
+        setStatus(msg, 'success');
+        openResult('correct', msg);
+        if (gained === 1) {
+          const player = getSinglePlayer();
+          if (player?.id) {
+            // Fire-and-forget: submit total score, then refresh leaderboard.
+            submitHopeMateTotalScore(String(player.id), state.totalScore)
+              .then((entries) => {
+                state.leaderboard.entries = entries;
+                state.leaderboard.loading = false;
+                state.leaderboard.error = null;
+                render();
+              })
+              .catch((e) => {
+                state.leaderboard.error = e?.message || 'Failed to submit score';
+                state.leaderboard.loading = false;
+                render();
+              });
+          }
         }
       }
       render();
@@ -871,17 +964,27 @@
     render();
   }
 
+  function startStageRookPuzzle() {
+    // Stage 1: fixed single rook, 8x8 board, random black king + 2 or 3 black pieces.
+    setBoardSize(8);
+    const blackExtraCount = Math.random() < 0.5 ? 2 : 3;
+    const cfg = { level: 1, boardSize: 8, blackExtraCount, whitePieces: ['R'] };
+    state.attemptsFailed = false;
+    state.puzzleSolved = false;
+    state.stageProgress.puzzleSolved = false;
+    state.selectedPieceSlot = 0;
+    state.puzzle = randomPuzzle(cfg);
+    state.board = state.puzzle.black.slice();
+    state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
+    setStatus('New puzzle generated. Place the rook, then Confirm.', 'info');
+    render();
+  }
+
   function onSquareClick(idx) {
     // If clicking a placed white piece, select it (so user can quickly adjust without changing slots)
-    const slot0 = state.placed[0];
-    const slot1 = state.placed[1];
-    if (slot0 === idx) {
-      state.selectedPieceSlot = 0;
-      render();
-      return;
-    }
-    if (slot1 === idx) {
-      state.selectedPieceSlot = 1;
+    const slot = state.placed.findIndex(v => v === idx);
+    if (slot !== -1) {
+      state.selectedPieceSlot = slot;
       render();
       return;
     }
@@ -1008,6 +1111,8 @@
         // Only left mouse / primary touch
         if (e.button !== undefined && e.button !== 0) return;
         const slot = Number(el.getAttribute('data-slot'));
+        const slotMax = Array.isArray(state.puzzle?.whitePieces) ? state.puzzle.whitePieces.length : 0;
+        if (!(slot >= 0 && slot < slotMax)) return;
         startDragFromSlotEl(el, slot, e);
       });
     });
@@ -1018,8 +1123,8 @@
         if (e.button !== undefined && e.button !== 0) return;
         const idx = Number(sq.getAttribute('data-idx'));
         if (!Number.isFinite(idx)) return;
-        const slot = state.placed[0] === idx ? 0 : (state.placed[1] === idx ? 1 : null);
-        if (slot === null) return; // only allow dragging placed white pieces
+        const slot = state.placed.findIndex(v => v === idx);
+        if (slot === -1) return; // only allow dragging placed white pieces
 
         // Use the piece visual in this square as ghost.
         const img = sq.querySelector('.hm-piece-img');
@@ -1173,6 +1278,17 @@
         btn.addEventListener('click', () => {
           const key = btn.getAttribute('data-stage') || '';
           const stage = STAGES.find(s => s.key === key);
+          if (key === 'rook') {
+            state.stageKey = 'rook';
+            // Load progress
+            const saved = loadStageProgress('rook');
+            const solved = Number(saved?.solved) || 0;
+            state.stageProgress.solved = Math.max(0, Math.min(state.stageProgress.target, solved));
+            state.stageProgress.puzzleSolved = false;
+            state.screen = 'stageGame';
+            startStageRookPuzzle();
+            return;
+          }
           alert(`${stage?.label || 'Stage'} is not implemented yet.`);
         });
       });
@@ -1224,6 +1340,153 @@
           refreshLeaderboard();
         });
       });
+      return;
+    }
+
+    // stageGame (Stage 1 implemented: rook)
+    if (state.screen === 'stageGame') {
+      const stageTitle = state.stageKey === 'rook' ? 'Stage 1 — Rook' : 'Stage';
+      const progressPct = Math.round((state.stageProgress.solved / state.stageProgress.target) * 100);
+      const pieces = state.puzzle ? state.puzzle.whitePieces : [];
+
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">${escapeHtml(stageTitle)} — Solve ${state.stageProgress.target} puzzles to complete the stage.</div>
+            </div>
+            <div class="hope-mate-meta">
+              <div><strong>Student:</strong> ${escapeHtml(playerName)}</div>
+              <div><strong>Progress:</strong> ${state.stageProgress.solved}/${state.stageProgress.target}</div>
+            </div>
+          </div>
+
+          <div class="hm-stage-progress">
+            <div class="hm-stage-progress-bar">
+              <div class="hm-stage-progress-fill" style="width:${progressPct}%;"></div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmStageBackBtn2" class="btn btn-secondary" type="button">Stages</button>
+              <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
+            </div>
+          </div>
+
+          <div id="hopeMateStatus" class="hope-mate-status is-info">${escapeHtml(lastStatus.text || 'Generating puzzle...')}</div>
+
+          <div class="hope-mate-main">
+            <div class="hope-mate-left">
+              <div class="hm-piece-tray">
+                <div class="hm-piece-tray-title">Your piece</div>
+                <div class="hm-slots">
+                  ${pieces.map((p, idx) => `
+                    <button class="hm-slot ${state.selectedPieceSlot === idx ? 'active' : ''}" type="button" data-slot="${idx}" aria-label="Piece slot ${idx + 1}">
+                      <span class="hm-slot-badge">${idx + 1}</span>
+                      <span class="hm-slot-piece">${renderPieceVisual(p, pieceName(p))}</span>
+                    </button>
+                  `).join('')}
+                </div>
+                <div class="hm-piece-tray-hint">Place the rook to create checkmate. No partial feedback is shown.</div>
+
+                <div class="hm-piece-tray-footer" aria-label="Stage actions">
+                  <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
+                  <button id="hopeMateCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="hope-mate-board-wrap">
+              <div class="hm-board-container">
+                <div class="hm-board-shell" style="--hm-board-size:${BOARD_SIZE}">
+                  <div class="hm-board-col-labels" aria-hidden="true">
+                    ${FILES.map(f => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join('')}
+                  </div>
+                  <div class="hm-board-row-labels" aria-hidden="true">
+                    ${[...RANKS].reverse().map(r => `<div class="hm-row-label">${r}</div>`).join('')}
+                  </div>
+                  <div id="hopeMateBoard" class="hm-board" role="grid" aria-label="Hope Mate board">
+                    ${renderBoard(state.board || buildEmptyBoard())}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${state.ui.resultOpen ? `
+          <div class="hm-modal-backdrop" id="hmResultBackdrop" role="presentation">
+            <div class="hm-modal hm-result-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Result">
+              <div class="hm-modal-header">
+                <div class="hm-modal-title">${state.ui.resultKind === 'correct' ? 'Correct' : 'Incorrect'}</div>
+                <button id="hmResultClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
+              </div>
+              <div class="hm-modal-body">
+                <div class="hm-result-message">${escapeHtml(state.ui.resultMessage || '')}</div>
+                <div class="hm-result-actions">
+                  ${state.ui.resultKind === 'correct'
+                    ? `<button id="hmResultNext" class="btn btn-primary" type="button">${state.stageProgress.solved >= state.stageProgress.target ? 'Finish' : 'Next'}</button>`
+                    : `<button id="hmResultRedo" class="btn btn-primary" type="button">Redo</button>`
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      `;
+
+      document.querySelectorAll('.hm-slot').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const slot = Number(btn.getAttribute('data-slot'));
+          if (Number.isFinite(slot)) {
+            state.selectedPieceSlot = slot;
+            render();
+          }
+        });
+      });
+      document.getElementById('hmStageBackBtn2')?.addEventListener('click', () => {
+        state.screen = 'stageSelect';
+        render();
+      });
+      document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
+      document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
+      document.getElementById('hopeMateCancelBtn')?.addEventListener('click', () => {
+        state.screen = 'stageSelect';
+        render();
+      });
+
+      document.getElementById('hmResultClose')?.addEventListener('click', closeResult);
+      document.getElementById('hmResultBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'hmResultBackdrop') closeResult();
+      });
+      document.getElementById('hmResultRedo')?.addEventListener('click', () => {
+        closeResult();
+        resetPlacements();
+        setStatus('Redo: place the rook again, then Confirm.', 'info');
+      });
+      document.getElementById('hmResultNext')?.addEventListener('click', () => {
+        closeResult();
+        if (state.stageProgress.solved >= state.stageProgress.target) {
+          setStatus('Stage completed! Returning to stage list.', 'success');
+          state.screen = 'stageSelect';
+          render();
+          return;
+        }
+        // Next stage puzzle
+        state.stageProgress.puzzleSolved = false;
+        startStageRookPuzzle();
+      });
+
+      // Bind board interactions + drag
+      document.querySelectorAll('.hm-square').forEach((el) => {
+        el.addEventListener('click', () => {
+          const idx = Number(el.getAttribute('data-idx'));
+          if (Number.isFinite(idx)) onSquareClick(idx);
+        });
+      });
+      enableDragAndDrop();
       return;
     }
 
@@ -1433,6 +1696,7 @@
     state.screen = 'home';
     state.puzzle = null;
     state.board = buildEmptyBoard();
+    state.placed = [];
     render();
   }
 
