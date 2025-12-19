@@ -406,6 +406,7 @@
     const send = opts?.send || (() => {});
     const getSession = opts?.getSession || (() => null);
     const getIdentity = opts?.getIdentity || (() => ({ role: 'student', id: '' }));
+    const getPlayerLabelById = opts?.getPlayerLabelById || ((id) => String(id || ''));
 
     const UI = {
       selected: null,
@@ -532,6 +533,11 @@
       const flip = role === 'student' && myColor === 'b';
       const castling = String(state?.castling || 'KQkq');
       const ep = state?.ep ? String(state.ep) : '';
+      const cfg = session?.config || {};
+      const whiteId = String(cfg.whiteStudentId || '');
+      const blackId = String(cfg.blackStudentId || '');
+      const whiteName = getPlayerLabelById(whiteId) || 'White';
+      const blackName = getPlayerLabelById(blackId) || 'Black';
 
       // derive clocks locally between syncs
       const now = Date.now();
@@ -543,6 +549,15 @@
         if (turn === 'w') wMs = Math.max(0, wMs - elapsed);
         else bMs = Math.max(0, bMs - elapsed);
       }
+
+      const topColor = myColor === 'b' ? 'w' : 'b';
+      const bottomColor = myColor === 'b' ? 'b' : 'w';
+      const topName = topColor === 'w' ? whiteName : blackName;
+      const bottomName = bottomColor === 'w' ? whiteName : blackName;
+      const topMs = topColor === 'w' ? wMs : bMs;
+      const bottomMs = bottomColor === 'w' ? wMs : bMs;
+      const activeTop = !state?.gameOver && turn === topColor;
+      const activeBottom = !state?.gameOver && turn === bottomColor;
 
       const squaresHtml = [];
       for (let r = 0; r < 8; r++) {
@@ -574,17 +589,29 @@
 
       rootEl.innerHTML = `
         <div class="nc-root">
-          <div class="nc-top">
-            <div class="nc-pill"><span style="opacity:.7;">Turn</span> <strong>${turn === 'w' ? 'White' : 'Black'}</strong></div>
-            <div class="nc-pill nc-clock">
-              <span style="opacity:.7;">White</span> <strong>${formatMs(wMs)}</strong>
-              <span style="opacity:.7;">| Black</span> <strong>${formatMs(bMs)}</strong>
+          <div class="nc-layout">
+            <div class="nc-timers">
+              <div class="nc-timer ${activeTop ? 'active' : ''}">
+                <div class="nc-timer-label"><span>${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
+                <div class="nc-timer-time">${escapeHtml(formatMs(topMs))}</div>
+              </div>
+              <div class="nc-timer ${activeBottom ? 'active' : ''}">
+                <div class="nc-timer-label"><span>${escapeHtml(String(bottomName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
+                <div class="nc-timer-time">${escapeHtml(formatMs(bottomMs))}</div>
+              </div>
             </div>
-            <div class="nc-pill"><span style="opacity:.7;">You</span> <strong>${role === 'teacher' ? 'Teacher (spectator)' : (myColor ? (myColor === 'w' ? 'White' : 'Black') : 'Spectator')}</strong></div>
-          </div>
 
-          <div class="nc-board" id="ncBoard">
-            ${squaresHtml.join('')}
+            <div>
+              <div class="nc-name-row">
+                <div class="nc-player-name">${escapeHtml(String(topName || ''))}</div>
+              </div>
+              <div class="nc-board" id="ncBoard">
+                ${squaresHtml.join('')}
+              </div>
+              <div class="nc-name-row" style="margin-top:8px;">
+                <div class="nc-player-name">${escapeHtml(String(bottomName || ''))}</div>
+              </div>
+            </div>
           </div>
 
           <div class="nc-status">

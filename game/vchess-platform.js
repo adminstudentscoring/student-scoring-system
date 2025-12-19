@@ -507,13 +507,6 @@
             <button id="vcpLeaveSessionBtnX" class="vcp-modal-close" type="button" aria-label="Close">×</button>
           </div>
           <div class="vcp-modal-body">
-            <div class="vcp-list-item" style="margin-bottom:12px;">
-              <div style="font-weight:900; color:#111827;">Time control</div>
-              <div class="vcp-muted" style="margin-top:6px;">
-                ${escapeHtml(String(cfg.minutes || 3))} min + ${escapeHtml(String(cfg.incrementSec || 0))} sec increment
-              </div>
-            </div>
-
             <div id="ncMount"></div>
             <div class="vcp-btn-row" style="margin-top:12px;">
               <button id="vcpLeaveSessionBtn" class="btn btn-secondary" type="button">Leave</button>
@@ -544,7 +537,8 @@
             rootEl: mount,
             send: wsSend,
             getSession: () => STATE.activeSession,
-            getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' })
+            getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' }),
+            getPlayerLabelById: (id) => studentLabelById(id)
           });
         }
         if (STATE.ncApp?.applyState && STATE.activeSession?.chessState) {

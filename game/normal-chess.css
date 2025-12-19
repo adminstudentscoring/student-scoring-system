@@ -4,12 +4,17 @@
   gap: 12px;
 }
 
-.nc-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+.nc-layout {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 520px) {
+  .nc-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .nc-pill {
@@ -26,6 +31,71 @@
 
 .nc-clock {
   font-variant-numeric: tabular-nums;
+}
+
+.nc-timers {
+  display: grid;
+  gap: 10px;
+}
+
+.nc-timer {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.nc-timer.active {
+  border-color: rgba(16, 185, 129, 0.65);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+.nc-timer-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  border: 1px solid #d1d5db;
+  flex: 0 0 auto;
+}
+
+.nc-timer.active .nc-dot {
+  background: #10b981;
+  border-color: #059669;
+}
+
+.nc-timer-time {
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  font-size: 18px;
+  color: #111827;
+  text-align: center;
+}
+
+.nc-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.nc-player-name {
+  font-weight: 950;
+  color: #111827;
+  font-size: 13px;
 }
 
 .nc-board {
