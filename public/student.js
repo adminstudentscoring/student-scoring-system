@@ -205,6 +205,21 @@ window.openStudentGame = function(gameKey, options = {}) {
         } else {
             window.open('/game/game-window.html?game=royalExchange', '_blank');
         }
+        return;
+    }
+
+    if (gameKey === 'hopeMate') {
+        try {
+            localStorage.setItem('hopeMatePlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist hopeMatePlayers', e);
+        }
+        if (openMode === 'sameTab') {
+            window.location.href = '/game/game-window.html?game=hopeMate';
+        } else {
+            window.open('/game/game-window.html?game=hopeMate', '_blank');
+        }
+        return;
     }
 };
 
