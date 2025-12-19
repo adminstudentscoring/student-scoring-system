@@ -120,7 +120,24 @@
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.hope-mate-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.hm-left-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+
+.hm-left-actions .btn {
+  min-width: 120px;
 }
 
 .hm-piece-tray {

@@ -1168,8 +1168,6 @@
             <button id="hmPracticeLevelsBtn" class="btn btn-secondary" type="button">Levels</button>
             <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Leaderboard</button>
             <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
-            <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
-            <button id="hopeMateNextBtn" class="btn btn-secondary" type="button">Next</button>
           </div>
         </div>
 
@@ -1184,6 +1182,11 @@
                 ${slotLabel(1)}
               </div>
               <div class="hm-piece-tray-hint">You can change placement before Confirm. No partial feedback is shown.</div>
+            </div>
+
+            <div class="hm-left-actions" aria-label="Practice actions">
+              <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
+              <button id="hopeMateNextBtn" class="btn btn-secondary" type="button">Next</button>
             </div>
           </div>
 
