@@ -484,33 +484,78 @@
     const level = Number(cfg?.level) || 1;
     const blackExtraCount = Number(cfg?.blackExtraCount) || 0;
     const fixedWhitePieces = Array.isArray(cfg?.whitePieces) ? cfg.whitePieces.filter(Boolean) : null;
-    const maxTries = BOARD_SIZE === 8 ? 2000 : 4000;
+    const maxTries = BOARD_SIZE === 8
+      ? ((fixedWhitePieces && fixedWhitePieces.length === 1) ? 20000 : 3000)
+      : 4000;
 
     for (let attempt = 0; attempt < maxTries; attempt++) {
       const boardBase = buildEmptyBoard();
 
-      // Place black king
-      const blackKingIdx = randInt(BOARD_SIZE * BOARD_SIZE);
-      boardBase[blackKingIdx] = 'k';
+      const isStageRook = BOARD_SIZE === 8
+        && fixedWhitePieces
+        && fixedWhitePieces.length === 1
+        && String(fixedWhitePieces[0]).toUpperCase() === 'R'
+        && (blackExtraCount === 2 || blackExtraCount === 3);
 
-      // Extra black pieces (no extra king)
-      for (let i = 0; i < blackExtraCount; i++) {
-        const bp = sample(PIECE_POOL_BLACK);
-        // Avoid placing black pawn on rank 1 (y=0), because it would have no forward move.
-        let bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
-        let guard = 0;
-        while (guard < 40 && (bIdx === blackKingIdx || boardBase[bIdx] || (bp === 'p' && idxToXY(bIdx).y === 0))) {
-          bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
-          guard += 1;
+      let blackKingIdx = null;
+
+      if (isStageRook) {
+        // Stage 1 generator: bias to corners with two black knights as blockers.
+        // This dramatically increases solvable rate while still validating checkmate existence.
+        const corners = [
+          { x: 0, y: 0 },
+          { x: 7, y: 0 },
+          { x: 0, y: 7 },
+          { x: 7, y: 7 }
+        ];
+        const corner = corners[randInt(corners.length)];
+        blackKingIdx = xyToIdx(corner.x, corner.y);
+        boardBase[blackKingIdx] = 'k';
+
+        const sx = corner.x === 0 ? 1 : -1;
+        const sy = corner.y === 0 ? 1 : -1;
+        const trap1 = xyToIdx(corner.x + sx, corner.y);        // side square
+        const trap2 = xyToIdx(corner.x + sx, corner.y + sy);   // diagonal inboard
+        // Leave the file square (corner.x, corner.y + sy) empty so rook can give check.
+        boardBase[trap1] = 'n';
+        boardBase[trap2] = 'n';
+
+        if (blackExtraCount === 3) {
+          const bp = sample(PIECE_POOL_BLACK);
+          let bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+          let guard = 0;
+          while (guard < 80 && (boardBase[bIdx] || (bp === 'p' && idxToXY(bIdx).y === 0))) {
+            bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+            guard += 1;
+          }
+          if (!boardBase[bIdx]) {
+            boardBase[bIdx] = bp;
+          }
         }
-        if (bIdx === blackKingIdx || boardBase[bIdx]) {
-          // Retry full attempt if we cannot place all black pieces cleanly
-          boardBase[blackKingIdx] = null;
-          break;
+      } else {
+        // Generic random black setup
+        blackKingIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+        boardBase[blackKingIdx] = 'k';
+
+        // Extra black pieces (no extra king)
+        for (let i = 0; i < blackExtraCount; i++) {
+          const bp = sample(PIECE_POOL_BLACK);
+          // Avoid placing black pawn on rank 1 (y=0), because it would have no forward move.
+          let bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+          let guard = 0;
+          while (guard < 40 && (bIdx === blackKingIdx || boardBase[bIdx] || (bp === 'p' && idxToXY(bIdx).y === 0))) {
+            bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+            guard += 1;
+          }
+          if (bIdx === blackKingIdx || boardBase[bIdx]) {
+            // Retry full attempt if we cannot place all black pieces cleanly
+            boardBase[blackKingIdx] = null;
+            break;
+          }
+          boardBase[bIdx] = bp;
         }
-        boardBase[bIdx] = bp;
+        if (boardBase[blackKingIdx] !== 'k') continue;
       }
-      if (boardBase[blackKingIdx] !== 'k') continue;
 
       // Pick white pieces (fixed for Stage, random for Practice)
       const whitePieces = fixedWhitePieces && fixedWhitePieces.length > 0
@@ -967,17 +1012,30 @@
   function startStageRookPuzzle() {
     // Stage 1: fixed single rook, 8x8 board, random black king + 2 or 3 black pieces.
     setBoardSize(8);
-    const blackExtraCount = Math.random() < 0.5 ? 2 : 3;
-    const cfg = { level: 1, boardSize: 8, blackExtraCount, whitePieces: ['R'] };
     state.attemptsFailed = false;
     state.puzzleSolved = false;
     state.stageProgress.puzzleSolved = false;
     state.selectedPieceSlot = 0;
-    state.puzzle = randomPuzzle(cfg);
-    state.board = state.puzzle.black.slice();
-    state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
-    setStatus('New puzzle generated. Place the rook, then Confirm.', 'info');
-    render();
+
+    let lastError = null;
+    for (let i = 0; i < 6; i++) {
+      const blackExtraCount = Math.random() < 0.6 ? 2 : 3;
+      const cfg = { level: 1, boardSize: 8, blackExtraCount, whitePieces: ['R'] };
+      try {
+        state.puzzle = randomPuzzle(cfg);
+        state.board = state.puzzle.black.slice();
+        state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
+        setStatus('New puzzle generated. Place the rook, then Confirm.', 'info');
+        render();
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    console.error('Stage 1 puzzle generation failed:', lastError);
+    setStatus('Unable to generate a solvable puzzle. Please try again.', 'error');
+    openResult('incorrect', 'Unable to generate a solvable puzzle. Please click Cancel and try again.');
   }
 
   function onSquareClick(idx) {
