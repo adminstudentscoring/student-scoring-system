@@ -783,7 +783,6 @@
         const visual = piece ? renderPieceVisual(piece, pieceName(piece)) : '';
         squaresHtml.push(`
           <div class="hm-square ${isDark ? 'dark' : 'light'}" data-idx="${idx}" aria-label="${coord}">
-            <div class="hm-coord">${coord}</div>
             <div class="hm-piece">${visual}</div>
           </div>
         `);
@@ -894,8 +893,18 @@
           </div>
 
           <div class="hope-mate-board-wrap">
-            <div id="hopeMateBoard" class="hm-board" role="grid" aria-label="Hope Mate 5x5 board">
-              ${renderBoard(state.board || buildEmptyBoard())}
+            <div class="hm-board-container">
+              <div class="hm-board-shell">
+                <div class="hm-board-col-labels" aria-hidden="true">
+                  ${FILES.map(f => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join('')}
+                </div>
+                <div class="hm-board-row-labels" aria-hidden="true">
+                  ${[...RANKS].reverse().map(r => `<div class="hm-row-label">${r}</div>`).join('')}
+                </div>
+                <div id="hopeMateBoard" class="hm-board" role="grid" aria-label="Hope Mate 5x5 board">
+                  ${renderBoard(state.board || buildEmptyBoard())}
+                </div>
+              </div>
             </div>
           </div>
         </div>
