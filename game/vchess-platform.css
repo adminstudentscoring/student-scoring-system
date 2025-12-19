@@ -115,6 +115,10 @@
   background: #ffffff;
 }
 
+.vcp-online-item.no-select {
+  grid-template-columns: 1fr;
+}
+
 .vcp-online-item-name {
   font-weight: 950;
   color: #111827;

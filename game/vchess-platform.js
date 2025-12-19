@@ -84,6 +84,52 @@
     STATE.teacherMessages = STATE.teacherMessages.slice(0, 6);
   }
 
+  function renderHeaderBadge() {
+    const name = String(STATE.me?.name || 'Unknown');
+    const sid = String(STATE.me?.studentId || '');
+    const uid = String(STATE.me?.id || '');
+    const idLabel = sid ? `Student ID: ${sid}` : (uid ? `ID: ${uid}` : '');
+    return `${escapeHtml(name)}${idLabel ? ` (${escapeHtml(idLabel)})` : ''}${STATE.wsReady ? '' : ' (disconnected)'}`;
+  }
+
+  function renderOnlineListItem(s, { selectable }) {
+    const safeId = escapeHtml(String(s?.id || ''));
+    const safeName = escapeHtml(String(s?.name || 'Unknown'));
+    const safeStudentId = escapeHtml(String(s?.studentId || ''));
+    const safeStatus = escapeHtml(String(s?.status || 'online'));
+
+    if (selectable) {
+      const checked = STATE.selected.has(String(s?.id)) ? 'checked' : '';
+      const disabled = String(s?.status) === 'in-game' ? 'disabled' : '';
+      return `
+        <div class="vcp-online-item" role="listitem">
+          <div>
+            <input type="checkbox" data-student-id="${safeId}" ${checked} ${disabled} aria-label="Select ${safeName}" />
+          </div>
+          <div>
+            <div class="vcp-online-item-name">${safeName}</div>
+            <div class="vcp-online-item-meta">
+              <div class="vcp-online-item-studentid">${safeStudentId}</div>
+              <span class="vcp-status-pill ${safeStatus}">${safeStatus}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="vcp-online-item no-select" role="listitem">
+        <div>
+          <div class="vcp-online-item-name">${safeName}</div>
+          <div class="vcp-online-item-meta">
+            <div class="vcp-online-item-studentid">${safeStudentId}</div>
+            <span class="vcp-status-pill ${safeStatus}">${safeStatus}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function connectWs() {
     const token = getAuthToken();
     if (!token) {
@@ -150,7 +196,7 @@
             <div class="vcp-title">V.Chess Platform</div>
             <div class="vcp-subtitle">Teacher Lobby</div>
           </div>
-          <div class="vcp-badge">Role: Teacher${STATE.wsReady ? '' : ' (disconnected)'}</div>
+          <div class="vcp-badge">${renderHeaderBadge()}</div>
         </div>
         ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
@@ -166,24 +212,7 @@
               </div>
 
               <div class="vcp-online-list" role="list">
-                ${STATE.students.map((s) => {
-                  const checked = STATE.selected.has(s.id) ? 'checked' : '';
-                  const disabled = s.status === 'in-game' ? 'disabled' : '';
-                  return `
-                    <div class="vcp-online-item" role="listitem">
-                      <div>
-                        <input type="checkbox" data-student-id="${escapeHtml(s.id)}" ${checked} ${disabled} aria-label="Select ${escapeHtml(s.name || 'student')}" />
-                      </div>
-                      <div>
-                        <div class="vcp-online-item-name">${escapeHtml(s.name || 'Unknown')}</div>
-                        <div class="vcp-online-item-meta">
-                          <div class="vcp-online-item-studentid">${escapeHtml(s.studentId || '')}</div>
-                          <span class="vcp-status-pill ${escapeHtml(s.status)}">${escapeHtml(s.status)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
+                ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: true })).join('')}
                 ${STATE.students.length === 0 ? `
                   <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
                 ` : ''}
@@ -237,35 +266,38 @@
             <div class="vcp-title">V.Chess Platform</div>
             <div class="vcp-subtitle">Student Lobby</div>
           </div>
-          <div class="vcp-badge">Role: Student${STATE.wsReady ? '' : ' (disconnected)'}</div>
+          <div class="vcp-badge">${renderHeaderBadge()}</div>
         </div>
         ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
         <div class="vcp-section">
-          <div style="font-weight:900; color:#111827; margin-bottom:6px;">You are signed in as</div>
-          <div class="vcp-muted">
-            <strong>${escapeHtml(player?.name || 'Student')}</strong>
-            ${player?.studentId ? ` (Student ID: ${escapeHtml(player.studentId)})` : ''}
-          </div>
-        </div>
-
-        <div class="vcp-section">
-          <div class="vcp-row">
-            <div>
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Waiting for invites…</div>
+          <div class="vcp-layout">
+            <div class="vcp-sidebar" aria-label="Online list sidebar">
+              <div style="font-weight:900; color:#111827;">Online list</div>
               <div class="vcp-muted">Your status: <span class="vcp-status-pill ${escapeHtml(STATE.status)}">${escapeHtml(STATE.status)}</span></div>
+
+              <div class="vcp-sidebar-actions">
+                <button id="vcpStudentRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+              </div>
+
+              <div class="vcp-online-list" role="list">
+                ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: false })).join('')}
+                ${STATE.students.length === 0 ? `
+                  <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
+                ` : ''}
+              </div>
             </div>
-            <div class="vcp-btn-row">
-              <button id="vcpStudentRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-            </div>
-          </div>
-          <div class="vcp-muted">
-            You will receive invites here in realtime.
-          </div>
-          <div class="vcp-list">
-            <div class="vcp-list-item">
-              <div style="font-weight:900; color:#111827;">Incoming invites</div>
-              <div class="vcp-muted" style="margin-top:6px;">${STATE.invites.length ? `${STATE.invites.length} pending` : 'No invites yet.'}</div>
+
+            <div class="vcp-main">
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Waiting for invites…</div>
+              <div class="vcp-muted">You will receive invites here in realtime.</div>
+
+              <div class="vcp-list">
+                <div class="vcp-list-item">
+                  <div style="font-weight:900; color:#111827;">Incoming invites</div>
+                  <div class="vcp-muted" style="margin-top:6px;">${STATE.invites.length ? `${STATE.invites.length} pending` : 'No invites yet.'}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -276,7 +308,7 @@
     `;
 
     document.getElementById('vcpStudentRefreshBtn')?.addEventListener('click', () => {
-      // noop for now; server pushes invites and presence automatically
+      wsSend({ type: 'vcp_get_presence' });
       markActivity();
     });
 
@@ -499,6 +531,8 @@
       STATE.wsReady = true;
       STATE.lastError = null;
       STATE.role = String(msg?.kind || STATE.role);
+      if (msg?.userId) STATE.me.id = String(msg.userId);
+      if (msg?.studentId) STATE.me.studentId = String(msg.studentId);
       STATE.me.name = String(msg?.name || STATE.me.name);
       if (STATE.role === 'student' && msg?.status) STATE.status = String(msg.status);
       render();
@@ -513,8 +547,8 @@
       return;
     }
     if (type === 'vcp_presence_snapshot') {
+      STATE.students = Array.isArray(msg?.students) ? msg.students : [];
       if (STATE.role === 'teacher') {
-        STATE.students = Array.isArray(msg?.students) ? msg.students : [];
         // Ensure selected IDs still exist
         const ids = new Set(STATE.students.map(s => String(s.id)));
         STATE.selected = new Set(Array.from(STATE.selected).filter(id => ids.has(String(id))));

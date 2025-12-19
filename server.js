@@ -10745,7 +10745,7 @@ async function startServer() {
 
         if (kind === 'teacher') {
           vcpOrgTeachersSet(orgId).add(ws);
-          wsSend(ws, { type: 'vcp_ready', kind, orgId, name });
+          wsSend(ws, { type: 'vcp_ready', kind, orgId, name, userId: String(decoded?.id || '') });
           wsSend(ws, { type: 'vcp_presence_snapshot', students: vcpSnapshotForOrg(orgId) });
         } else {
           // Student presence
@@ -10771,7 +10771,7 @@ async function startServer() {
           presence.lastActivityTs = Date.now();
           presence.connections.add(ws);
           map.set(studentId, presence);
-          wsSend(ws, { type: 'vcp_ready', kind, orgId, name, status: presence.status });
+          wsSend(ws, { type: 'vcp_ready', kind, orgId, name, status: presence.status, userId: studentId, studentId: studentPublicId });
           vcpBroadcastPresence(orgId);
         }
         return;
@@ -10800,7 +10800,7 @@ async function startServer() {
       }
 
       if (type === 'vcp_get_presence') {
-        if (kind !== 'teacher') return;
+        // Allow both teacher and student to refresh presence snapshot.
         wsSend(ws, { type: 'vcp_presence_snapshot', students: vcpSnapshotForOrg(orgId) });
         return;
       }
