@@ -128,24 +128,28 @@
   flex-direction: column;
 }
 
-.hm-left-actions {
-  margin-top: auto;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding-top: 10px;
-}
-
-.hm-left-actions .btn {
-  min-width: 120px;
-}
-
 .hm-piece-tray {
   padding: 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(229, 231, 235, 0.9);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.hm-piece-tray-footer {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
+.hm-piece-tray-footer .btn {
+  min-width: 120px;
 }
 
 .hm-piece-tray-title {
