@@ -68,4 +68,109 @@
   background: #ffffff;
 }
 
+.vcp-btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.vcp-online-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.vcp-online-table th,
+.vcp-online-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
+}
+
+.vcp-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #111827;
+}
+
+.vcp-status-pill.online { background: #ecfdf5; border-color: #a7f3d0; }
+.vcp-status-pill.idle { background: #fffbeb; border-color: #fde68a; }
+.vcp-status-pill.in-game { background: #eff6ff; border-color: #bfdbfe; }
+
+.vcp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.vcp-modal {
+  width: min(680px, 100%);
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+
+.vcp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.vcp-modal-title {
+  font-weight: 950;
+  color: #111827;
+}
+
+.vcp-modal-close {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.vcp-modal-body {
+  padding: 14px;
+}
+
+.vcp-form-row {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.vcp-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+}
+
+.vcp-help {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+
 

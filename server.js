@@ -39,7 +39,7 @@ const EXPENSES_FILE = path.join(__dirname, process.env.EXPENSES_FILE || path.joi
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Import authentication utilities
-const { hashPassword, comparePassword, generateToken } = require('./auth');
+const { hashPassword, comparePassword, generateToken, verifyToken } = require('./auth');
 const { authenticateUser, authorizeRole, optionalAuth } = require('./middleware/auth');
 const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUsersByOrganization } = require('./middleware/dataIsolation');
 
@@ -10543,10 +10543,390 @@ async function startServer() {
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server });
 
+  // ============================
+  // V.Chess Platform (WebSocket realtime)
+  // ============================
+  const VCP_IDLE_MS = 3 * 60 * 1000;
+  const vcp = {
+    studentsByOrg: new Map(), // orgId -> Map(studentUserId -> presence)
+    teachersByOrg: new Map(), // orgId -> Set(ws)
+    invites: new Map(), // inviteId -> invite
+    sessions: new Map() // sessionId -> session
+  };
+
+  function wsSend(ws, payload) {
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+    } catch {}
+  }
+
+  function vcpOrgStudentsMap(orgId) {
+    const key = String(orgId || '');
+    if (!vcp.studentsByOrg.has(key)) vcp.studentsByOrg.set(key, new Map());
+    return vcp.studentsByOrg.get(key);
+  }
+
+  function vcpOrgTeachersSet(orgId) {
+    const key = String(orgId || '');
+    if (!vcp.teachersByOrg.has(key)) vcp.teachersByOrg.set(key, new Set());
+    return vcp.teachersByOrg.get(key);
+  }
+
+  function vcpSnapshotForOrg(orgId) {
+    const students = Array.from(vcpOrgStudentsMap(orgId).values()).map((p) => ({
+      id: p.id,
+      name: p.name,
+      studentId: p.studentId || '',
+      status: p.status,
+      lastActivity: p.lastActivity,
+      inGame: !!p.inGame
+    }));
+    // Stable sort: in-game, online, idle
+    const order = { 'in-game': 0, online: 1, idle: 2 };
+    students.sort((a, b) => {
+      const oa = order[a.status] ?? 9;
+      const ob = order[b.status] ?? 9;
+      if (oa !== ob) return oa - ob;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+    return students;
+  }
+
+  function vcpBroadcastPresence(orgId) {
+    const payload = { type: 'vcp_presence_snapshot', students: vcpSnapshotForOrg(orgId) };
+    for (const tws of vcpOrgTeachersSet(orgId)) wsSend(tws, payload);
+  }
+
+  async function resolveOrgIdFromToken(decoded) {
+    const orgId = decoded?.organizationId || null;
+    if (orgId) return String(orgId);
+    // Student tokens might not carry orgId; fallback to student record lookup.
+    if (String(decoded?.role || '') === 'student') {
+      const data = await readData();
+      const students = Array.isArray(data?.students) ? data.students : [];
+      const sid = String(decoded?.id || '');
+      const s = students.find(st => String(st?.id) === sid);
+      if (s?.organizationId) return String(s.organizationId);
+    }
+    return '';
+  }
+
+  async function resolveUserName(decoded) {
+    const name = String(decoded?.name || '').trim();
+    if (name) return name;
+    try {
+      const users = await readUsers();
+      const u = users.find(x => String(x?.id) === String(decoded?.id));
+      if (u?.name) return String(u.name);
+    } catch {}
+    return 'Unknown';
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function updateStudentPresence(orgId, student) {
+    const map = vcpOrgStudentsMap(orgId);
+    map.set(String(student.id), student);
+    vcpBroadcastPresence(orgId);
+  }
+
+  function setStudentStatus(orgId, studentId, status, inGame = false) {
+    const map = vcpOrgStudentsMap(orgId);
+    const cur = map.get(String(studentId));
+    if (!cur) return;
+    cur.status = status;
+    cur.inGame = !!inGame;
+    map.set(String(studentId), cur);
+  }
+
+  // Periodic idle checker
+  const vcpIdleTicker = setInterval(() => {
+    const now = Date.now();
+    for (const [orgId, smap] of vcp.studentsByOrg.entries()) {
+      let changed = false;
+      for (const st of smap.values()) {
+        if (!st || st.inGame) continue;
+        const last = Number(st.lastActivityTs || 0);
+        const shouldIdle = last && (now - last) >= VCP_IDLE_MS;
+        if (shouldIdle && st.status !== 'idle') {
+          st.status = 'idle';
+          st.lastActivity = nowIso();
+          changed = true;
+        }
+        if (!shouldIdle && st.status === 'idle') {
+          st.status = 'online';
+          st.lastActivity = nowIso();
+          changed = true;
+        }
+      }
+      if (changed) vcpBroadcastPresence(orgId);
+    }
+  }, 15000);
+  vcpIdleTicker.unref?.();
+
   wss.on('connection', (ws) => {
-    console.log('Client connected');
+    ws.vcp = null; // { kind, orgId, userId, name }
+
+    ws.on('message', async (raw) => {
+      let msg = null;
+      try {
+        msg = JSON.parse(String(raw || ''));
+      } catch {
+        return;
+      }
+      const type = String(msg?.type || '');
+
+      if (type === 'vcp_hello') {
+        const token = String(msg?.token || '');
+        const decoded = verifyToken(token);
+        if (!decoded) {
+          wsSend(ws, { type: 'vcp_error', error: 'Unauthorized' });
+          return;
+        }
+        const role = String(decoded?.role || '');
+        const kind = role === 'teacher' ? 'teacher' : role === 'student' ? 'student' : '';
+        if (!kind) {
+          wsSend(ws, { type: 'vcp_error', error: 'Role not supported' });
+          return;
+        }
+
+        const orgId = await resolveOrgIdFromToken(decoded);
+        if (!orgId) {
+          wsSend(ws, { type: 'vcp_error', error: 'Organization not found' });
+          return;
+        }
+
+        const name = await resolveUserName(decoded);
+        ws.vcp = { kind, orgId, userId: String(decoded?.id || ''), name, role };
+
+        if (kind === 'teacher') {
+          vcpOrgTeachersSet(orgId).add(ws);
+          wsSend(ws, { type: 'vcp_ready', kind, orgId, name });
+          wsSend(ws, { type: 'vcp_presence_snapshot', students: vcpSnapshotForOrg(orgId) });
+        } else {
+          // Student presence
+          const studentId = String(decoded?.id || '');
+          const studentPublicId = String(decoded?.studentId || '');
+          const map = vcpOrgStudentsMap(orgId);
+          const existing = map.get(studentId);
+          const presence = existing || {
+            id: studentId,
+            name,
+            studentId: studentPublicId,
+            status: 'online',
+            inGame: false,
+            lastActivity: nowIso(),
+            lastActivityTs: Date.now(),
+            connections: new Set()
+          };
+          presence.name = name;
+          presence.studentId = presence.studentId || studentPublicId;
+          presence.status = 'online';
+          presence.inGame = false;
+          presence.lastActivity = nowIso();
+          presence.lastActivityTs = Date.now();
+          presence.connections.add(ws);
+          map.set(studentId, presence);
+          wsSend(ws, { type: 'vcp_ready', kind, orgId, name, status: presence.status });
+          vcpBroadcastPresence(orgId);
+        }
+        return;
+      }
+
+      // Require hello first
+      if (!ws.vcp) {
+        wsSend(ws, { type: 'vcp_error', error: 'Not initialized' });
+        return;
+      }
+
+      const { kind, orgId, userId, name } = ws.vcp;
+
+      if (type === 'vcp_activity') {
+        if (kind !== 'student') return;
+        const map = vcpOrgStudentsMap(orgId);
+        const p = map.get(String(userId));
+        if (!p) return;
+        p.lastActivityTs = Date.now();
+        p.lastActivity = nowIso();
+        if (!p.inGame && p.status !== 'online') p.status = 'online';
+        map.set(String(userId), p);
+        // Throttle: do not broadcast every activity; only if status changed
+        if (String(msg?.statusChanged) === 'true') vcpBroadcastPresence(orgId);
+        return;
+      }
+
+      if (type === 'vcp_get_presence') {
+        if (kind !== 'teacher') return;
+        wsSend(ws, { type: 'vcp_presence_snapshot', students: vcpSnapshotForOrg(orgId) });
+        return;
+      }
+
+      if (type === 'vcp_invite_create') {
+        if (kind !== 'teacher') return;
+        const mode = String(msg?.mode || '');
+        const studentIds = Array.isArray(msg?.studentIds) ? msg.studentIds.map(x => String(x)) : [];
+        const config = msg?.config || {};
+
+        if (mode !== 'chess') {
+          wsSend(ws, { type: 'vcp_error', error: 'Only Normal Chess is supported for now' });
+          return;
+        }
+        if (studentIds.length !== 2) {
+          wsSend(ws, { type: 'vcp_error', error: 'Normal Chess requires exactly 2 students' });
+          return;
+        }
+
+        const smap = vcpOrgStudentsMap(orgId);
+        const p1 = smap.get(studentIds[0]);
+        const p2 = smap.get(studentIds[1]);
+        if (!p1 || !p2) {
+          wsSend(ws, { type: 'vcp_error', error: 'One or more students are not online' });
+          return;
+        }
+        if (p1.inGame || p2.inGame) {
+          wsSend(ws, { type: 'vcp_error', error: 'One or more students are already in-game' });
+          return;
+        }
+
+        const minutes = Math.max(1, Math.min(60, Number(config?.minutes) || 3));
+        const incrementSec = Math.max(0, Math.min(60, Number(config?.incrementSec) || 2));
+        const whiteStudentId = String(config?.whiteStudentId || studentIds[0]);
+        const blackStudentId = String(config?.blackStudentId || studentIds[1]);
+        if (![studentIds[0], studentIds[1]].includes(whiteStudentId) || ![studentIds[0], studentIds[1]].includes(blackStudentId) || whiteStudentId === blackStudentId) {
+          wsSend(ws, { type: 'vcp_error', error: 'Invalid color assignment' });
+          return;
+        }
+
+        const inviteId = `vcp_inv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        const invite = {
+          id: inviteId,
+          orgId,
+          teacher: { id: String(userId), name: String(name || 'Teacher') },
+          mode: 'chess',
+          studentIds: [studentIds[0], studentIds[1]],
+          config: { minutes, incrementSec, whiteStudentId, blackStudentId },
+          createdAt: nowIso(),
+          status: 'pending',
+          responses: {}
+        };
+        vcp.invites.set(inviteId, invite);
+
+        // Send invite to students
+        const payload = { type: 'vcp_invite', invite };
+        for (const sid of invite.studentIds) {
+          const pres = smap.get(String(sid));
+          if (!pres) continue;
+          for (const sWs of pres.connections) wsSend(sWs, payload);
+        }
+        wsSend(ws, { type: 'vcp_invite_sent', inviteId });
+        return;
+      }
+
+      if (type === 'vcp_invite_respond') {
+        if (kind !== 'student') return;
+        const inviteId = String(msg?.inviteId || '');
+        const response = String(msg?.response || '');
+        const invite = vcp.invites.get(inviteId);
+        if (!invite || String(invite.orgId) !== String(orgId)) return;
+        if (!invite.studentIds.includes(String(userId))) return;
+        if (!['accept', 'decline'].includes(response)) return;
+
+        invite.responses[String(userId)] = response;
+        // Notify teachers in org (simple broadcast)
+        for (const tws of vcpOrgTeachersSet(orgId)) wsSend(tws, { type: 'vcp_invite_update', inviteId, studentId: String(userId), response });
+
+        if (response === 'decline') {
+          invite.status = 'declined';
+          vcp.invites.set(inviteId, invite);
+          return;
+        }
+
+        // If both accepted -> start session
+        const r1 = invite.responses[invite.studentIds[0]];
+        const r2 = invite.responses[invite.studentIds[1]];
+        if (r1 === 'accept' && r2 === 'accept') {
+          invite.status = 'accepted';
+          vcp.invites.set(inviteId, invite);
+
+          const sessionId = `vcp_sess_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+          const session = {
+            id: sessionId,
+            orgId,
+            teacherId: invite.teacher.id,
+            mode: invite.mode,
+            studentIds: invite.studentIds.slice(),
+            config: invite.config,
+            createdAt: nowIso(),
+            status: 'active'
+          };
+          vcp.sessions.set(sessionId, session);
+
+          // Mark students in-game
+          for (const sid of session.studentIds) {
+            setStudentStatus(orgId, sid, 'in-game', true);
+          }
+          vcpBroadcastPresence(orgId);
+
+          const startPayload = { type: 'vcp_session_start', session };
+          // Notify teacher sockets
+          for (const tws of vcpOrgTeachersSet(orgId)) {
+            if (tws?.vcp?.kind === 'teacher' && String(tws.vcp.userId) === String(session.teacherId)) wsSend(tws, startPayload);
+          }
+          // Notify students
+          const smap = vcpOrgStudentsMap(orgId);
+          for (const sid of session.studentIds) {
+            const pres = smap.get(String(sid));
+            if (!pres) continue;
+            for (const sWs of pres.connections) wsSend(sWs, startPayload);
+          }
+        }
+        return;
+      }
+
+      if (type === 'vcp_leave_session') {
+        const sessionId = String(msg?.sessionId || '');
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) return;
+        if (kind === 'student') {
+          // Mark student back online
+          setStudentStatus(orgId, String(userId), 'online', false);
+          const smap = vcpOrgStudentsMap(orgId);
+          const pres = smap.get(String(userId));
+          if (pres) {
+            pres.lastActivityTs = Date.now();
+            pres.lastActivity = nowIso();
+            smap.set(String(userId), pres);
+          }
+          vcpBroadcastPresence(orgId);
+          // Notify teacher that student left
+          for (const tws of vcpOrgTeachersSet(orgId)) wsSend(tws, { type: 'vcp_session_update', sessionId, studentId: String(userId), action: 'left' });
+        }
+        return;
+      }
+    });
+
     ws.on('close', () => {
-      console.log('Client disconnected');
+      if (!ws.vcp) return;
+      const { kind, orgId, userId } = ws.vcp;
+      if (kind === 'teacher') {
+        try { vcpOrgTeachersSet(orgId).delete(ws); } catch {}
+        return;
+      }
+      if (kind === 'student') {
+        const smap = vcpOrgStudentsMap(orgId);
+        const p = smap.get(String(userId));
+        if (p && p.connections) {
+          try { p.connections.delete(ws); } catch {}
+          if (p.connections.size <= 0) {
+            smap.delete(String(userId));
+            vcpBroadcastPresence(orgId);
+          } else {
+            smap.set(String(userId), p);
+          }
+        }
+      }
     });
   });
 
