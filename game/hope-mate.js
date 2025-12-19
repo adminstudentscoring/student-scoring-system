@@ -1016,8 +1016,8 @@
 
   function renderBoard(board) {
     const squaresHtml = [];
-    for (let y = SIZE - 1; y >= 0; y--) {
-      for (let x = 0; x < SIZE; x++) {
+    for (let y = BOARD_SIZE - 1; y >= 0; y--) {
+      for (let x = 0; x < BOARD_SIZE; x++) {
         const idx = xyToIdx(x, y);
         const coord = `${FILES[x]}${RANKS[y]}`;
         const isDark = (x + y) % 2 === 1;
