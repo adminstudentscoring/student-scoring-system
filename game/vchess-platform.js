@@ -11,7 +11,8 @@
     // Invites / sessions
     invites: [], // student-only: [{invite}]
     teacherMessages: [],
-    activeSession: null // {id, mode, config, studentIds}
+    activeSession: null, // {id, mode, config, studentIds}
+    lastError: null
   };
 
   function getRoot() {
@@ -151,6 +152,7 @@
           </div>
           <div class="vcp-badge">Role: Teacher${STATE.wsReady ? '' : ' (disconnected)'}</div>
         </div>
+        ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
         <div class="vcp-section">
           <div class="vcp-layout">
@@ -237,6 +239,7 @@
           </div>
           <div class="vcp-badge">Role: Student${STATE.wsReady ? '' : ' (disconnected)'}</div>
         </div>
+        ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
         <div class="vcp-section">
           <div style="font-weight:900; color:#111827; margin-bottom:6px;">You are signed in as</div>
@@ -494,6 +497,7 @@
     const type = String(msg?.type || '');
     if (type === 'vcp_ready') {
       STATE.wsReady = true;
+      STATE.lastError = null;
       STATE.role = String(msg?.kind || STATE.role);
       STATE.me.name = String(msg?.name || STATE.me.name);
       if (STATE.role === 'student' && msg?.status) STATE.status = String(msg.status);
@@ -501,8 +505,10 @@
       return;
     }
     if (type === 'vcp_error') {
-      console.error('VCP error:', msg?.error);
-      setTeacherMessage(String(msg?.error || 'Error'), 'error');
+      const details = msg?.role ? `${String(msg?.error || 'Error')} (role=${String(msg.role)})` : String(msg?.error || 'Error');
+      console.error('VCP error:', details);
+      STATE.lastError = details;
+      setTeacherMessage(details, 'error');
       render();
       return;
     }

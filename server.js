@@ -10730,7 +10730,7 @@ async function startServer() {
         const role = String(decoded?.role || '');
         const kind = role === 'teacher' ? 'teacher' : role === 'student' ? 'student' : '';
         if (!kind) {
-          wsSend(ws, { type: 'vcp_error', error: 'Role not supported' });
+          wsSend(ws, { type: 'vcp_error', error: 'Role not supported', role });
           return;
         }
 
