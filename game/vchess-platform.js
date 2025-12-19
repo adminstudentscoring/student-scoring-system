@@ -12,7 +12,8 @@
     invites: [], // student-only: [{invite}]
     teacherMessages: [],
     activeSession: null, // {id, mode, config, studentIds}
-    lastError: null
+    lastError: null,
+    pendingInvite: null // teacher-only: { inviteId, studentIds, config, createdAt, responses }
   };
 
   let reconnectTimer = null;
@@ -87,6 +88,14 @@
     const now = new Date().toLocaleTimeString();
     STATE.teacherMessages.unshift({ text: String(text), kind, at: now });
     STATE.teacherMessages = STATE.teacherMessages.slice(0, 6);
+  }
+
+  function studentLabelById(id) {
+    const s = STATE.students.find((x) => String(x.id) === String(id));
+    if (!s) return String(id || '');
+    const nm = String(s.name || 'Unknown');
+    const sid = String(s.studentId || '');
+    return sid ? `${nm} (${sid})` : nm;
   }
 
   function renderHeaderBadge() {
@@ -275,6 +284,33 @@
             </div>
 
             <div class="vcp-main">
+              ${STATE.pendingInvite ? `
+                <div class="vcp-list-item" style="border-style:solid; margin-bottom:12px;">
+                  <div style="font-weight:950; color:#111827;">Pending invite</div>
+                  <div class="vcp-muted" style="margin-top:6px;">
+                    Waiting for students to accept…
+                  </div>
+                  <div class="vcp-muted" style="margin-top:6px;">
+                    Time: <strong>${escapeHtml(String(STATE.pendingInvite.config?.minutes || 3))} min</strong> + <strong>${escapeHtml(String(STATE.pendingInvite.config?.incrementSec || 0))} sec</strong>
+                  </div>
+                  <div class="vcp-muted" style="margin-top:6px;">
+                    White: <strong>${escapeHtml(studentLabelById(STATE.pendingInvite.config?.whiteStudentId))}</strong><br>
+                    Black: <strong>${escapeHtml(studentLabelById(STATE.pendingInvite.config?.blackStudentId))}</strong>
+                  </div>
+                  <div class="vcp-muted" style="margin-top:8px;">
+                    ${STATE.pendingInvite.studentIds.map((sid) => {
+                      const r = STATE.pendingInvite.responses?.[String(sid)] || 'pending';
+                      const pill = r === 'accept' ? 'online' : r === 'decline' ? 'idle' : 'in-game';
+                      const text = r === 'accept' ? 'accepted' : r === 'decline' ? 'declined' : 'pending';
+                      return `${escapeHtml(studentLabelById(sid))}: <span class="vcp-status-pill ${pill}">${text}</span>`;
+                    }).join('<br>')}
+                  </div>
+                  <div class="vcp-btn-row" style="margin-top:10px; justify-content:flex-end;">
+                    <button id="vcpDismissInviteBtn" class="btn btn-secondary" type="button">Dismiss</button>
+                  </div>
+                </div>
+              ` : ''}
+
               <div style="font-weight:900; color:#111827; margin-bottom:6px;">Recent events</div>
               <div class="vcp-muted">
                 ${STATE.teacherMessages.length ? STATE.teacherMessages.map(m => `${escapeHtml(m.at)} — ${escapeHtml(m.text)}`).join('<br>') : 'No events yet.'}
@@ -304,6 +340,11 @@
     document.getElementById('vcpChooseModeBtn')?.addEventListener('click', () => {
       if (Array.from(STATE.selected).length !== 2) return;
       openChooseModeModal();
+    });
+
+    document.getElementById('vcpDismissInviteBtn')?.addEventListener('click', () => {
+      STATE.pendingInvite = null;
+      render();
     });
 
     bindTeacherModalEvents();
@@ -512,8 +553,10 @@
       const ids = Array.from(STATE.selected);
       if (ids.length !== 2) return;
       const white = String(document.getElementById('vcpWhiteSelect')?.value || ids[0]);
-      const minutes = Number(document.getElementById('vcpMinutes')?.value || 3) || 3;
-      const inc = Number(document.getElementById('vcpInc')?.value || 0) || 0;
+      const minutesRaw = Number(document.getElementById('vcpMinutes')?.value || 3) || 3;
+      const incRaw = Number(document.getElementById('vcpInc')?.value || 0) || 0;
+      const minutes = Math.max(1, Math.min(60, minutesRaw));
+      const inc = Math.max(0, Math.min(60, incRaw));
       const black = white === ids[0] ? ids[1] : ids[0];
       wsSend({
         type: 'vcp_invite_create',
@@ -521,8 +564,15 @@
         studentIds: ids,
         config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black }
       });
+      STATE.pendingInvite = {
+        inviteId: null,
+        studentIds: ids.slice(),
+        config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black },
+        createdAt: Date.now(),
+        responses: {}
+      };
       closeChooseModeModal();
-      setTeacherMessage('Invite sent.', 'success');
+      setTeacherMessage('Invite sent. Waiting for students…', 'success');
     });
   }
 
@@ -530,6 +580,8 @@
     const current = STATE.invites[0]?.invite || null;
     if (!current) return '';
     const cfg = current.config || {};
+    const myId = String(STATE.me?.id || '');
+    const myColor = String(cfg.whiteStudentId) === myId ? 'White' : String(cfg.blackStudentId) === myId ? 'Black' : '';
     return `
       <div class="vcp-modal-backdrop" id="vcpInviteBackdrop" role="presentation">
         <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Invite">
@@ -541,6 +593,12 @@
             <div class="vcp-muted" style="margin-bottom:10px;">
               <strong>${escapeHtml(current.teacher?.name || 'Teacher')}</strong> invited you to <strong>Normal Chess</strong>.
             </div>
+            ${myColor ? `
+              <div class="vcp-list-item" style="margin-bottom:10px;">
+                <div style="font-weight:900; color:#111827;">Your side</div>
+                <div class="vcp-muted" style="margin-top:6px;">You will play as <strong>${escapeHtml(myColor)}</strong>.</div>
+              </div>
+            ` : ''}
             <div class="vcp-list-item">
               <div style="font-weight:900; color:#111827;">Time control</div>
               <div class="vcp-muted" style="margin-top:6px;">
@@ -575,7 +633,7 @@
     document.getElementById('vcpAcceptBtn')?.addEventListener('click', () => {
       wsSend({ type: 'vcp_invite_respond', inviteId: current.id, response: 'accept' });
       close();
-      STATE.status = 'in-game';
+      // Server will mark "in-game" only after both students accepted and session starts.
       render();
     });
   }
@@ -625,9 +683,20 @@
       render();
       return;
     }
+    if (type === 'vcp_invite_sent') {
+      if (STATE.role === 'teacher' && STATE.pendingInvite && !STATE.pendingInvite.inviteId) {
+        STATE.pendingInvite.inviteId = String(msg?.inviteId || '');
+        render();
+      }
+      return;
+    }
     if (type === 'vcp_invite_update') {
       if (STATE.role === 'teacher') {
         setTeacherMessage(`Invite update: ${msg.studentId} ${msg.response}`, 'info');
+        if (STATE.pendingInvite && String(STATE.pendingInvite.inviteId) === String(msg?.inviteId || '')) {
+          STATE.pendingInvite.responses[String(msg.studentId)] = String(msg.response);
+          if (String(msg.response) === 'decline') setTeacherMessage('Invite declined.', 'error');
+        }
         render();
       }
       return;
@@ -635,7 +704,10 @@
     if (type === 'vcp_session_start') {
       STATE.activeSession = msg.session || null;
       if (STATE.role === 'student') STATE.status = 'in-game';
-      if (STATE.role === 'teacher') setTeacherMessage('Session started.', 'success');
+      if (STATE.role === 'teacher') {
+        STATE.pendingInvite = null;
+        setTeacherMessage('Session started.', 'success');
+      }
       render();
       return;
     }
