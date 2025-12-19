@@ -405,17 +405,41 @@
     return Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 && !(a.x === b.x && a.y === b.y);
   }
 
-  function validateWhitePlacementConstraints(blackKingIdx, placements /* array of {piece, idx} */) {
+  function validateWhitePlacementConstraints(baseBoard, blackKingIdx, placements /* array of {piece, idx} */) {
+    // baseBoard should include black pieces already.
+    const working = Array.isArray(baseBoard) ? cloneBoard(baseBoard) : buildEmptyBoard();
+
     for (const pl of placements) {
+      if (!pl || pl.idx == null || !pl.piece) continue;
+
       if (pl.piece === 'K') {
-        if (isAdjacent(pl.idx, blackKingIdx)) return { ok: false, reason: 'White king cannot be adjacent to the black king.' };
+        // White king cannot be adjacent to black king.
+        if (isAdjacent(pl.idx, blackKingIdx)) {
+          return { ok: false, reason: 'White king cannot be adjacent to the black king.' };
+        }
       }
+
       if (pl.piece === 'P') {
         // Pawn cannot be placed on bottom rank (rank 1)
         const { y } = idxToXY(pl.idx);
         if (y === 0) return { ok: false, reason: 'White pawn cannot be placed on rank 1.' };
       }
+
+      // Place piece for line-of-sight attack validation (pieces can block attacks).
+      if (working[pl.idx]) {
+        return { ok: false, reason: 'Cannot place a piece on an occupied square.' };
+      }
+      working[pl.idx] = pl.piece;
     }
+
+    // If white king exists in placements, it cannot be placed on a square attacked by black.
+    const wk = placements.find(p => p && p.piece === 'K');
+    if (wk && wk.idx != null) {
+      if (isSquareAttacked(working, wk.idx, 'black')) {
+        return { ok: false, reason: 'White king cannot be placed on a square attacked by black.' };
+      }
+    }
+
     return { ok: true };
   }
 
@@ -471,7 +495,7 @@
               ];
 
           for (const placements of assignmentOptions) {
-            const c = validateWhitePlacementConstraints(blackKingIdx, placements);
+      const c = validateWhitePlacementConstraints(boardBase, blackKingIdx, placements);
             if (!c.ok) continue;
 
             const b = cloneBoard(boardBase);
@@ -627,7 +651,7 @@
     if (state.placed[otherSlot] != null) {
       placements.push({ piece: state.puzzle.whitePieces[otherSlot], idx: state.placed[otherSlot] });
     }
-    const c = validateWhitePlacementConstraints(state.puzzle.blackKingIdx, placements);
+    const c = validateWhitePlacementConstraints(state.puzzle.black, state.puzzle.blackKingIdx, placements);
     if (!c.ok) {
       setStatus(c.reason, 'error');
       return;
