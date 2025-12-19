@@ -732,8 +732,15 @@
       error: null,
       entries: []
     },
+    challengeLeaderboard: {
+      durationSec: 60, // 60/120/180
+      loading: false,
+      error: null,
+      entries: []
+    },
     ui: {
       leaderboardOpen: false,
+      challengeLeaderboardOpen: false,
       resultOpen: false,
       resultKind: null, // 'correct' | 'incorrect'
       resultMessage: ''
@@ -890,6 +897,53 @@
     }
   }
 
+  async function fetchHopeMateChallengeLeaderboard(durationSec) {
+    const apiBase = window.API_BASE || '/api';
+    const sec = Number(durationSec);
+    const resp = await fetch(`${apiBase}/hope-mate/challenge-leaderboard?durationSec=${encodeURIComponent(String(sec))}`, {
+      headers: buildAuthHeaders(),
+      credentials: 'include'
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error(`Failed to load leaderboard (${resp.status}): ${txt}`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    return Array.isArray(data.entries) ? data.entries : [];
+  }
+
+  async function submitHopeMateChallengeEntry(studentId, durationSec, totalSolved, bestLevel, bestTimeLeftSec) {
+    const apiBase = window.API_BASE || '/api';
+    const resp = await fetch(`${apiBase}/hope-mate/challenge-leaderboard`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ studentId, durationSec, totalSolved, bestLevel, bestTimeLeftSec })
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error(`Failed to submit leaderboard (${resp.status}): ${txt}`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    return Array.isArray(data.entries) ? data.entries : [];
+  }
+
+  async function refreshChallengeLeaderboard(durationSec = null) {
+    if (durationSec != null) state.challengeLeaderboard.durationSec = Number(durationSec) || 60;
+    state.challengeLeaderboard.loading = true;
+    state.challengeLeaderboard.error = null;
+    try {
+      const entries = await fetchHopeMateChallengeLeaderboard(state.challengeLeaderboard.durationSec);
+      state.challengeLeaderboard.entries = entries;
+    } catch (e) {
+      state.challengeLeaderboard.error = e?.message || 'Failed to load leaderboard';
+      state.challengeLeaderboard.entries = [];
+    } finally {
+      state.challengeLeaderboard.loading = false;
+      render();
+    }
+  }
+
   function openLeaderboard() {
     state.ui.leaderboardOpen = true;
     render();
@@ -900,9 +954,21 @@
     render();
   }
 
+  function openChallengeLeaderboard(durationSec = null) {
+    state.ui.challengeLeaderboardOpen = true;
+    if (durationSec != null) state.challengeLeaderboard.durationSec = Number(durationSec) || 60;
+    render();
+  }
+
+  function closeChallengeLeaderboard() {
+    state.ui.challengeLeaderboardOpen = false;
+    render();
+  }
+
   function openResult(kind, message) {
     // Avoid stacking overlays
     state.ui.leaderboardOpen = false;
+    state.ui.challengeLeaderboardOpen = false;
     state.ui.resultOpen = true;
     state.ui.resultKind = kind;
     state.ui.resultMessage = String(message || '');
@@ -1032,6 +1098,28 @@
         if (state.challenge.solvedInLevel >= 2) {
           state.challenge.solvedInLevel = 0;
           state.challenge.level = Math.min(10, Number(state.challenge.level || 1) + 1);
+        }
+
+        // Submit Challenge leaderboard entry (best-per-student, per duration)
+        const player = getSinglePlayer();
+        if (player?.id) {
+          submitHopeMateChallengeEntry(
+            String(player.id),
+            Number(state.challenge.durationSec || 60) || 60,
+            Number(state.challenge.totalSolved || 0) || 0,
+            Number(state.challenge.level || 1) || 1,
+            Number(state.challenge.timeLeftSec || 0) || 0
+          ).then((entries) => {
+            // If user is viewing this duration, refresh list immediately
+            if (state.ui.challengeLeaderboardOpen && Number(state.challengeLeaderboard.durationSec) === Number(state.challenge.durationSec)) {
+              state.challengeLeaderboard.entries = entries;
+              state.challengeLeaderboard.loading = false;
+              state.challengeLeaderboard.error = null;
+              render();
+            }
+          }).catch(() => {
+            // ignore (do not interrupt gameplay)
+          });
         }
       }
 
@@ -1291,6 +1379,62 @@
     const player = getSinglePlayer();
     const playerName = player ? player.name : 'Unknown';
 
+    const challengeLeaderboardHtml = () => {
+      if (!state.ui.challengeLeaderboardOpen) return '';
+      const sec = Number(state.challengeLeaderboard.durationSec || 60) || 60;
+      const tabs = [
+        { sec: 60, label: '1 min' },
+        { sec: 120, label: '2 min' },
+        { sec: 180, label: '3 min' }
+      ];
+      return `
+        <div class="hm-modal-backdrop" id="hmChallengeLeaderboardBackdrop" role="presentation">
+          <div class="hm-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Challenge Leaderboard">
+            <div class="hm-modal-header">
+              <div class="hm-modal-title">Challenge Leaderboard</div>
+              <button id="hmChallengeLeaderboardClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="hm-modal-body">
+              <div class="hm-actions" style="justify-content:flex-start; gap:8px; margin-bottom:10px;">
+                ${tabs.map(t => `
+                  <button class="btn btn-secondary" type="button" data-hm-clb-sec="${t.sec}" ${t.sec === sec ? 'style="border-color: rgba(102,126,234,0.65); background: rgba(102,126,234,0.10);"' : ''}>
+                    ${t.label}
+                  </button>
+                `).join('')}
+              </div>
+              ${state.challengeLeaderboard.loading ? `<div class="hm-muted">Loading...</div>` : ''}
+              ${state.challengeLeaderboard.error ? `<div class="hm-muted">${escapeHtml(state.challengeLeaderboard.error)}</div>` : ''}
+              <div class="hm-leaderboard-list">
+                ${(() => {
+                  const meId = String(player?.id || '');
+                  const entries = Array.isArray(state.challengeLeaderboard.entries) ? state.challengeLeaderboard.entries : [];
+                  const top = entries.slice(0, 20);
+                  if (!state.challengeLeaderboard.loading && top.length === 0) {
+                    return `<div class="hm-muted">No records yet.</div>`;
+                  }
+                  return top.map((e, idx) => {
+                    const sid = String(e?.student?.id || e?.studentId || e?.id || '');
+                    const name = String(e?.student?.name || e?.name || 'Unknown');
+                    const solved = Number(e?.totalSolved ?? 0) || 0;
+                    const lvl = Number(e?.bestLevel ?? 1) || 1;
+                    const tleft = Number(e?.bestTimeLeftSec ?? 0) || 0;
+                    const isMe = meId && sid === meId;
+                    return `
+                      <div class="hm-leaderboard-row ${isMe ? 'is-me' : ''}">
+                        <div class="hm-leaderboard-rank">${idx + 1}</div>
+                        <div class="hm-leaderboard-name">${escapeHtml(name)}</div>
+                        <div class="hm-leaderboard-score">${solved} <span class="hm-muted" style="font-weight:600;">(Lv ${lvl}, ${formatMmSs(tleft)} left)</span></div>
+                      </div>
+                    `;
+                  }).join('');
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
     const pieces = state.puzzle ? state.puzzle.whitePieces : ['?', '?'];
     const slot0Active = state.selectedPieceSlot === 0 ? 'active' : '';
     const slot1Active = state.selectedPieceSlot === 1 ? 'active' : '';
@@ -1320,6 +1464,7 @@
               <button id="hmChallengeBtn" class="btn btn-secondary hm-mode-btn" type="button">Challenge Mode</button>
               <button id="hmPracticeBtn" class="btn btn-primary hm-mode-btn" type="button">Practice Mode</button>
               <button id="hmRulesBtn" class="btn btn-secondary hm-mode-btn" type="button">Rules</button>
+              <button id="hmHomeLeaderboardBtn" class="btn btn-secondary hm-mode-btn" type="button">Leaderboard</button>
             </div>
           </div>
 
@@ -1329,21 +1474,45 @@
             <div class="hm-muted" style="margin-top:6px;">Practice Mode is available now.</div>
           </div>
         </div>
+
+        ${challengeLeaderboardHtml()}
       `;
       document.getElementById('hmPracticeBtn')?.addEventListener('click', () => {
         stopChallengeTimer();
         state.challenge.active = false;
+        state.ui.challengeLeaderboardOpen = false;
         state.screen = 'practiceSelect';
         render();
       });
       document.getElementById('hmChallengeBtn')?.addEventListener('click', () => {
         stopChallengeTimer();
         state.challenge.active = false;
+        state.ui.challengeLeaderboardOpen = false;
         state.screen = 'challengeSelect';
         render();
       });
       document.getElementById('hmRulesBtn')?.addEventListener('click', () => {
-        alert('Rules are not implemented yet.');
+        stopChallengeTimer();
+        state.challenge.active = false;
+        state.ui.challengeLeaderboardOpen = false;
+        state.screen = 'rules';
+        render();
+      });
+      document.getElementById('hmHomeLeaderboardBtn')?.addEventListener('click', () => {
+        openChallengeLeaderboard(60);
+        refreshChallengeLeaderboard(60);
+      });
+      document.getElementById('hmChallengeLeaderboardClose')?.addEventListener('click', closeChallengeLeaderboard);
+      document.getElementById('hmChallengeLeaderboardBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'hmChallengeLeaderboardBackdrop') closeChallengeLeaderboard();
+      });
+      root.querySelectorAll('[data-hm-clb-sec]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sec = Number(btn.getAttribute('data-hm-clb-sec'));
+          if (![60, 120, 180].includes(sec)) return;
+          openChallengeLeaderboard(sec);
+          refreshChallengeLeaderboard(sec);
+        });
       });
       return;
     }
@@ -1376,11 +1545,14 @@
             </div>
           </div>
         </div>
+
+        ${challengeLeaderboardHtml()}
       `;
 
       document.getElementById('hmChallengeBackBtn')?.addEventListener('click', () => {
         stopChallengeTimer();
         state.challenge.active = false;
+        state.ui.challengeLeaderboardOpen = false;
         state.screen = 'home';
         render();
       });
@@ -1394,8 +1566,61 @@
           setStatus('Challenge started. Place both pieces, then Confirm.', 'info');
           render();
           startChallengeTimer();
-          refreshLeaderboard();
+          // Preload leaderboard for the selected duration (optional)
+          refreshChallengeLeaderboard(sec);
         });
+      });
+      document.getElementById('hmChallengeLeaderboardClose')?.addEventListener('click', closeChallengeLeaderboard);
+      document.getElementById('hmChallengeLeaderboardBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'hmChallengeLeaderboardBackdrop') closeChallengeLeaderboard();
+      });
+      root.querySelectorAll('[data-hm-clb-sec]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sec = Number(btn.getAttribute('data-hm-clb-sec'));
+          if (![60, 120, 180].includes(sec)) return;
+          openChallengeLeaderboard(sec);
+          refreshChallengeLeaderboard(sec);
+        });
+      });
+      return;
+    }
+
+    if (state.screen === 'rules') {
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">Rules</div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmRulesBackBtn" class="btn btn-secondary" type="button">Back</button>
+            </div>
+          </div>
+
+          <div class="hm-piece-tray" style="max-width:820px; margin: 0 auto;">
+            <div class="hm-piece-tray-title">How to play</div>
+            <div class="hm-muted" style="line-height:1.6;">
+              <div style="margin-bottom:10px;"><strong>Goal:</strong> Place all given white pieces so that it is <strong>Black to move</strong>, and the position is <strong>checkmate</strong>.</div>
+              <div style="margin-bottom:10px;"><strong>Confirm:</strong> You can re-place pieces freely before confirming. No “temporary check” hints are shown.</div>
+              <div style="margin-bottom:10px;"><strong>Success / Failure:</strong> Checkmate = success. <strong>Stalemate = failure</strong>.</div>
+              <div style="margin-bottom:10px;"><strong>Piece rules:</strong> Standard chess rules apply. White pawns cannot be placed on rank 1. White king (if present) cannot be placed adjacent to the black king, and cannot be placed on a square attacked by black.</div>
+              <div style="margin-bottom:10px;"><strong>Scoring:</strong> +1 only if you solve the puzzle on the first correct attempt. If you failed once on the same puzzle, solving it later gives 0 points.</div>
+              <div style="margin-bottom:10px;"><strong>Modes:</strong>
+                <div>- <strong>Practice</strong>: Pick a level and solve puzzles with no time limit.</div>
+                <div>- <strong>Challenge</strong>: Choose 1/2/3 minutes. Start at Level 1. Every 2 solved puzzles increases the level (max Level 10).</div>
+              </div>
+              <div><strong>Controls:</strong> Click-to-place or drag-and-drop pieces. You can also drag already-placed pieces.</div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('hmRulesBackBtn')?.addEventListener('click', () => {
+        state.screen = 'home';
+        render();
       });
       return;
     }
@@ -1574,6 +1799,8 @@
             </div>
           </div>
         ` : ''}
+
+        ${challengeLeaderboardHtml()}
       `;
 
       document.getElementById('hmChallengeQuitBtn')?.addEventListener('click', () => {
@@ -1592,8 +1819,9 @@
       });
       document.getElementById('hmChallengeNextBtn')?.addEventListener('click', nextChallengePuzzle);
       document.getElementById('hopeMateLeaderboardBtn')?.addEventListener('click', () => {
-        openLeaderboard();
-        refreshLeaderboard();
+        const sec = Number(state.challenge.durationSec || 60) || 60;
+        openChallengeLeaderboard(sec);
+        refreshChallengeLeaderboard(sec);
       });
       document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
       document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
@@ -1622,6 +1850,19 @@
         closeResult();
         resetPlacements();
         setStatus('Redo: place both pieces again, then Confirm.', 'info');
+      });
+
+      document.getElementById('hmChallengeLeaderboardClose')?.addEventListener('click', closeChallengeLeaderboard);
+      document.getElementById('hmChallengeLeaderboardBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'hmChallengeLeaderboardBackdrop') closeChallengeLeaderboard();
+      });
+      root.querySelectorAll('[data-hm-clb-sec]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sec = Number(btn.getAttribute('data-hm-clb-sec'));
+          if (![60, 120, 180].includes(sec)) return;
+          openChallengeLeaderboard(sec);
+          refreshChallengeLeaderboard(sec);
+        });
       });
 
       // Bind board interactions + drag
@@ -1659,7 +1900,7 @@
         <div class="hope-mate-controls">
           <div class="hm-actions">
             <button id="hmPracticeLevelsBtn" class="btn btn-secondary" type="button">Levels</button>
-            <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Leaderboard</button>
+            <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Practice Leaderboard</button>
             <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
             <button id="hopeMateNextBtn" class="btn btn-secondary" type="button">Next</button>
           </div>
