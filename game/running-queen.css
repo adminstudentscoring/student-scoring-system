@@ -527,6 +527,10 @@
     box-shadow: inset 0 0 0 4px rgba(16, 185, 129, 0.7);
 }
 
+.rq-cell.rq-drag-origin .rq-queen {
+    opacity: 0;
+}
+
 .rq-queen {
     display: inline-flex;
     align-items: center;

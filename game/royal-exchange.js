@@ -553,7 +553,7 @@
     if (!state.boardEl) return;
     const DRAG_THRESHOLD_PX = 4;
 
-    let drag = null; // { pieceIndex, originRow, originCol, startX, startY, started, ghostEl, overCellEl }
+    let drag = null; // { pieceIndex, originRow, originCol, startX, startY, started, ghostEl, overCellEl, originCellEl }
 
     const clearOver = () => {
       if (drag?.overCellEl) {
@@ -564,6 +564,10 @@
 
     const cleanup = () => {
       clearOver();
+      if (drag?.originCellEl) {
+        drag.originCellEl.classList.remove('re-drag-origin');
+        drag.originCellEl = null;
+      }
       if (drag?.ghostEl) drag.ghostEl.remove();
       drag = null;
       document.body.classList.remove('re-dragging');
@@ -593,6 +597,8 @@
       }
       document.body.appendChild(ghost);
       drag.ghostEl = ghost;
+      drag.originCellEl = cellEl;
+      cellEl.classList.add('re-drag-origin');
       document.body.classList.add('re-dragging');
     };
 
@@ -688,7 +694,8 @@
           startY: e.clientY,
           started: false,
           ghostEl: null,
-          overCellEl: null
+          overCellEl: null,
+          originCellEl: null
         };
 
         window.addEventListener('pointermove', onPointerMove, true);

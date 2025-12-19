@@ -805,7 +805,7 @@
     // Custom pointer-based dragging (mouse/touch) to avoid browser drag cursor/icons.
     // This emulates chess.com style: the piece follows the cursor, with no "not allowed" cursor changes.
 
-    let dragging = null; // { slot, ghostEl, lastOverSquareEl }
+    let dragging = null; // { slot, ghostEl, lastOverSquareEl, originSquareEl }
 
     const clearOver = () => {
       if (dragging?.lastOverSquareEl) {
@@ -816,6 +816,10 @@
 
     const cleanup = () => {
       clearOver();
+      if (dragging?.originSquareEl) {
+        dragging.originSquareEl.classList.remove('hm-drag-origin');
+        dragging.originSquareEl = null;
+      }
       if (dragging?.ghostEl) dragging.ghostEl.remove();
       dragging = null;
       document.body.classList.remove('hm-dragging');
@@ -888,7 +892,7 @@
       }
       document.body.appendChild(ghost);
 
-      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null };
+      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originSquareEl: null };
       document.body.classList.add('hm-dragging');
       state.selectedPieceSlot = slot;
 
@@ -943,7 +947,8 @@
         }
         document.body.appendChild(ghost);
 
-        dragging = { slot, ghostEl: ghost, lastOverSquareEl: null };
+        dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originSquareEl: sq };
+        sq.classList.add('hm-drag-origin');
         document.body.classList.add('hm-dragging');
         state.selectedPieceSlot = slot;
 

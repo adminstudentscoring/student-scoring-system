@@ -188,6 +188,10 @@
     box-shadow: inset 0 0 0 4px rgba(16, 185, 129, 0.7);
 }
 
+.re-cell.re-drag-origin .re-piece {
+    opacity: 0;
+}
+
 .re-dragging {
     cursor: default !important;
 }
