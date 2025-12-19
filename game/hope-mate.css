@@ -273,7 +273,7 @@
   width: min(560px, 100%);
   max-width: 560px;
   aspect-ratio: 1 / 1;
-  background: rgba(17, 24, 39, 0.78);
+  background: rgba(255, 255, 255, 0.92);
   border-radius: 18px;
   padding: 30px 30px 48px 48px;
   display: flex;
@@ -281,6 +281,8 @@
   justify-content: center;
   position: relative;
   margin: 0 auto;
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
 }
 
 .hm-board-shell {
@@ -301,7 +303,7 @@
   font-size: 0.85rem;
   opacity: 0.85;
   letter-spacing: 1px;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(31, 41, 55, 0.75);
 }
 
 .hm-board-row-labels {
@@ -316,7 +318,7 @@
   opacity: 0.85;
   align-items: center;
   justify-items: center;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(31, 41, 55, 0.75);
 }
 
 .hm-col-label,
