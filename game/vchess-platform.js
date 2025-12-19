@@ -13,7 +13,9 @@
     teacherMessages: [],
     activeSession: null, // {id, mode, config, studentIds}
     lastError: null,
-    pendingInvite: null // teacher-only: { inviteId, studentIds, config, createdAt, responses }
+    pendingInvite: null, // teacher-only: { inviteId, studentIds, config, createdAt, responses }
+    ncApp: null,
+    ncSessionId: null
   };
 
   let reconnectTimer = null;
@@ -425,15 +427,14 @@
             <button id="vcpLeaveSessionBtnX" class="vcp-modal-close" type="button" aria-label="Close">×</button>
           </div>
           <div class="vcp-modal-body">
-            <div class="vcp-muted" style="margin-bottom:10px;">
-              Normal Chess (placeholder). Game board will be implemented next.
-            </div>
-            <div class="vcp-list-item">
+            <div class="vcp-list-item" style="margin-bottom:12px;">
               <div style="font-weight:900; color:#111827;">Time control</div>
               <div class="vcp-muted" style="margin-top:6px;">
                 ${escapeHtml(String(cfg.minutes || 3))} min + ${escapeHtml(String(cfg.incrementSec || 0))} sec increment
               </div>
             </div>
+
+            <div id="ncMount"></div>
             <div class="vcp-btn-row" style="margin-top:12px;">
               <button id="vcpLeaveSessionBtn" class="btn btn-secondary" type="button">Leave</button>
             </div>
@@ -450,6 +451,27 @@
     document.getElementById('vcpSessionBackdrop')?.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'vcpSessionBackdrop') leaveSession();
     });
+
+    // Mount Normal Chess UI
+    try {
+      const mount = document.getElementById('ncMount');
+      if (mount && window.NormalChess?.mountNormalChess) {
+        const sessionId = String(STATE.activeSession.id || '');
+        // Create once per render
+        if (!STATE.ncApp || String(STATE.ncSessionId) !== sessionId) {
+          STATE.ncSessionId = sessionId;
+          STATE.ncApp = window.NormalChess.mountNormalChess({
+            rootEl: mount,
+            send: wsSend,
+            getSession: () => STATE.activeSession,
+            getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' })
+          });
+        }
+        if (STATE.ncApp?.applyState && STATE.activeSession?.chessState) {
+          STATE.ncApp.applyState(STATE.activeSession.chessState);
+        }
+      }
+    } catch {}
   }
 
   function leaveSession() {
@@ -709,6 +731,16 @@
         setTeacherMessage('Session started.', 'success');
       }
       render();
+      return;
+    }
+    if (type === 'vcp_chess_sync') {
+      const sid = String(msg?.sessionId || '');
+      if (!STATE.activeSession || String(STATE.activeSession.id) !== sid) return;
+      const st = msg?.state || null;
+      if (st && typeof st === 'object') {
+        STATE.activeSession.chessState = st;
+        try { STATE.ncApp?.applyState?.(st); } catch {}
+      }
       return;
     }
     if (type === 'vcp_session_update') {

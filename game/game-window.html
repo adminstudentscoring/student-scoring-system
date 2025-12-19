@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/game/no-blunder.css">
     <link rel="stylesheet" href="/game/hope-mate.css">
     <link rel="stylesheet" href="/game/vchess-platform.css">
+    <link rel="stylesheet" href="/game/normal-chess.css">
     <style>
         body {
             margin: 0;
@@ -187,6 +188,7 @@
                     if (role) {
                         try { localStorage.setItem('vChessPlatformRole', role); } catch {}
                     }
+                    await loadScript('/game/normal-chess.js');
                     await loadScript('/game/vchess-platform.js');
                     if (window.initVChessPlatform) {
                         window.initVChessPlatform();

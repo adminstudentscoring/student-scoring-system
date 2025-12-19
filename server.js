@@ -10708,6 +10708,277 @@ async function startServer() {
   }, 15000);
   vcpIdleTicker.unref?.();
 
+  // ----------------------------
+  // Normal Chess (MVP) helpers
+  // ----------------------------
+  const VCP_FILES = 'abcdefgh';
+
+  function vcpCoordToRc(coord) {
+    const s = String(coord || '');
+    const f = VCP_FILES.indexOf(s[0]);
+    const rank = Number(s[1] || 0);
+    if (f < 0 || rank < 1 || rank > 8) return null;
+    return { r: 8 - rank, c: f };
+  }
+
+  function vcpRcToCoord(r, c) {
+    return `${VCP_FILES[c]}${8 - r}`;
+  }
+
+  function vcpPieceColor(p) {
+    if (!p) return null;
+    return p === p.toUpperCase() ? 'w' : 'b';
+  }
+
+  function vcpOpp(c) {
+    return c === 'w' ? 'b' : 'w';
+  }
+
+  function vcpInBounds(r, c) {
+    return r >= 0 && r < 8 && c >= 0 && c < 8;
+  }
+
+  function vcpCloneBoard(b) {
+    return b.map(row => row.slice());
+  }
+
+  function vcpInitialBoard() {
+    const b = Array.from({ length: 8 }, () => Array(8).fill(''));
+    const backW = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
+    const backB = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
+    b[7] = backW.slice();
+    b[6] = Array(8).fill('P');
+    b[0] = backB.slice();
+    b[1] = Array(8).fill('p');
+    return b;
+  }
+
+  function vcpFindKing(board, color) {
+    const k = color === 'w' ? 'K' : 'k';
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (board[r][c] === k) return { r, c };
+    return null;
+  }
+
+  function vcpIsSquareAttacked(board, r, c, byColor) {
+    // pawns
+    const pawnDir = byColor === 'w' ? -1 : 1;
+    const pawn = byColor === 'w' ? 'P' : 'p';
+    for (const dc of [-1, 1]) {
+      const rr = r + pawnDir, cc = c + dc;
+      if (vcpInBounds(rr, cc) && board[rr][cc] === pawn) return true;
+    }
+    // knights
+    const knight = byColor === 'w' ? 'N' : 'n';
+    const kd = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+    for (const [dr, dc] of kd) {
+      const rr = r + dr, cc = c + dc;
+      if (vcpInBounds(rr, cc) && board[rr][cc] === knight) return true;
+    }
+    // king
+    const king = byColor === 'w' ? 'K' : 'k';
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const rr = r + dr, cc = c + dc;
+      if (vcpInBounds(rr, cc) && board[rr][cc] === king) return true;
+    }
+    // sliding
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+    for (const [dr, dc] of dirs) {
+      let rr = r + dr, cc = c + dc;
+      while (vcpInBounds(rr, cc)) {
+        const p = board[rr][cc];
+        if (p) {
+          const col = vcpPieceColor(p);
+          if (col === byColor) {
+            const up = p.toUpperCase();
+            if ((dr === 0 || dc === 0) && (up === 'R' || up === 'Q')) return true;
+            if ((dr !== 0 && dc !== 0) && (up === 'B' || up === 'Q')) return true;
+          }
+          break;
+        }
+        rr += dr; cc += dc;
+      }
+    }
+    return false;
+  }
+
+  function vcpIsInCheck(board, color) {
+    const k = vcpFindKing(board, color);
+    if (!k) return false;
+    return vcpIsSquareAttacked(board, k.r, k.c, vcpOpp(color));
+  }
+
+  function vcpApplyMoveToBoard(board, from, to, promo) {
+    const b = vcpCloneBoard(board);
+    const a = vcpCoordToRc(from);
+    const z = vcpCoordToRc(to);
+    if (!a || !z) return null;
+    const p = b[a.r][a.c];
+    b[a.r][a.c] = '';
+    let placed = p;
+    if ((p === 'P' && z.r === 0) || (p === 'p' && z.r === 7)) {
+      placed = vcpPieceColor(p) === 'w' ? 'Q' : 'q';
+      const up = String(promo || 'q').toLowerCase();
+      if (['q','r','b','n'].includes(up)) placed = vcpPieceColor(p) === 'w' ? up.toUpperCase() : up;
+    }
+    b[z.r][z.c] = placed;
+    return b;
+  }
+
+  function vcpGenPseudoMoves(board, from, color) {
+    const a = vcpCoordToRc(from);
+    if (!a) return [];
+    const p = board[a.r][a.c];
+    if (!p || vcpPieceColor(p) !== color) return [];
+    const up = p.toUpperCase();
+    const moves = [];
+    const add = (rr, cc) => {
+      if (!vcpInBounds(rr, cc)) return;
+      const t = board[rr][cc];
+      if (!t) moves.push({ to: vcpRcToCoord(rr, cc) });
+      else if (vcpPieceColor(t) !== color) moves.push({ to: vcpRcToCoord(rr, cc) });
+    };
+
+    if (up === 'P') {
+      const dir = color === 'w' ? -1 : 1;
+      const startRow = color === 'w' ? 6 : 1;
+      const oneR = a.r + dir;
+      if (vcpInBounds(oneR, a.c) && !board[oneR][a.c]) {
+        moves.push({ to: vcpRcToCoord(oneR, a.c) });
+        const twoR = a.r + dir * 2;
+        if (a.r === startRow && vcpInBounds(twoR, a.c) && !board[twoR][a.c]) moves.push({ to: vcpRcToCoord(twoR, a.c) });
+      }
+      for (const dc of [-1, 1]) {
+        const rr = a.r + dir, cc = a.c + dc;
+        if (!vcpInBounds(rr, cc)) continue;
+        const t = board[rr][cc];
+        if (t && vcpPieceColor(t) !== color) moves.push({ to: vcpRcToCoord(rr, cc) });
+      }
+      return moves;
+    }
+
+    if (up === 'N') {
+      const d = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      for (const [dr, dc] of d) add(a.r + dr, a.c + dc);
+      return moves;
+    }
+
+    if (up === 'K') {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        add(a.r + dr, a.c + dc);
+      }
+      return moves;
+    }
+
+    const dirs = [];
+    if (up === 'B' || up === 'Q') dirs.push([-1,-1],[-1,1],[1,-1],[1,1]);
+    if (up === 'R' || up === 'Q') dirs.push([-1,0],[1,0],[0,-1],[0,1]);
+    for (const [dr, dc] of dirs) {
+      let rr = a.r + dr, cc = a.c + dc;
+      while (vcpInBounds(rr, cc)) {
+        const t = board[rr][cc];
+        if (!t) moves.push({ to: vcpRcToCoord(rr, cc) });
+        else {
+          if (vcpPieceColor(t) !== color) moves.push({ to: vcpRcToCoord(rr, cc) });
+          break;
+        }
+        rr += dr; cc += dc;
+      }
+    }
+    return moves;
+  }
+
+  function vcpLegalMove(board, from, to, color, promo) {
+    const pseudo = vcpGenPseudoMoves(board, from, color);
+    if (!pseudo.some(m => m.to === to)) return false;
+    const next = vcpApplyMoveToBoard(board, from, to, promo);
+    if (!next) return false;
+    return !vcpIsInCheck(next, color);
+  }
+
+  function vcpCreateInitialChessState(session) {
+    const minutes = Math.max(1, Math.min(60, Number(session?.config?.minutes) || 3));
+    const wMs = minutes * 60 * 1000;
+    const bMs = minutes * 60 * 1000;
+    return {
+      board: vcpInitialBoard(),
+      turn: 'w',
+      turnStartTs: Date.now(),
+      clocks: { wMs, bMs },
+      moveNumber: 1,
+      gameOver: false,
+      gameOverReason: null
+    };
+  }
+
+  function vcpUpdateClocksForMove(state, incrementSec) {
+    const now = Date.now();
+    const turn = String(state.turn || 'w');
+    const elapsed = Math.max(0, now - Number(state.turnStartTs || now));
+    if (turn === 'w') state.clocks.wMs = Math.max(0, Number(state.clocks.wMs || 0) - elapsed);
+    else state.clocks.bMs = Math.max(0, Number(state.clocks.bMs || 0) - elapsed);
+    // add increment to the mover after move
+    if (turn === 'w') state.clocks.wMs += incrementSec * 1000;
+    else state.clocks.bMs += incrementSec * 1000;
+    state.turnStartTs = now;
+  }
+
+  function vcpApplyChessMove(session, moverId, { from, to, promo }) {
+    const cfg = session.config || {};
+    const whiteId = String(cfg.whiteStudentId || '');
+    const blackId = String(cfg.blackStudentId || '');
+    const moverColor = String(moverId) === whiteId ? 'w' : String(moverId) === blackId ? 'b' : null;
+    if (!moverColor) return { ok: false, error: 'Not a player' };
+
+    const st = session.chessState;
+    if (!st || st.gameOver) return { ok: false, error: 'Game not active' };
+    if (String(st.turn || 'w') !== moverColor) return { ok: false, error: 'Not your turn' };
+
+    const board = st.board;
+    const a = vcpCoordToRc(from);
+    const z = vcpCoordToRc(to);
+    if (!a || !z) return { ok: false, error: 'Invalid coordinates' };
+    const piece = board[a.r][a.c];
+    if (!piece || vcpPieceColor(piece) !== moverColor) return { ok: false, error: 'Invalid piece' };
+
+    if (!vcpLegalMove(board, from, to, moverColor, promo)) return { ok: false, error: 'Illegal move' };
+
+    const inc = Math.max(0, Math.min(60, Number(cfg.incrementSec) || 0));
+    // clock update for mover (uses current turn)
+    vcpUpdateClocksForMove(st, inc);
+
+    // apply move
+    st.board = vcpApplyMoveToBoard(board, from, to, promo);
+    st.turn = vcpOpp(String(st.turn || 'w'));
+    st.moveNumber = Number(st.moveNumber || 1) + 1;
+
+    // timeout check (if mover used all time before moving)
+    if (Number(st.clocks.wMs || 0) <= 0 || Number(st.clocks.bMs || 0) <= 0) {
+      st.gameOver = true;
+      st.gameOverReason = 'Time out';
+    }
+
+    session.chessState = st;
+    vcp.sessions.set(String(session.id), session);
+    return { ok: true };
+  }
+
+  function vcpBroadcastChessSync(session) {
+    const payload = { type: 'vcp_chess_sync', sessionId: String(session.id), state: session.chessState };
+    // teacher who created session
+    for (const tws of vcpOrgTeachersSet(String(session.orgId))) {
+      if (tws?.vcp?.kind === 'teacher' && String(tws.vcp.userId) === String(session.teacherId)) wsSend(tws, payload);
+    }
+    // students
+    const smap = vcpOrgStudentsMap(String(session.orgId));
+    for (const sid of session.studentIds || []) {
+      const pres = smap.get(String(sid));
+      if (!pres) continue;
+      for (const sWs of pres.connections) wsSend(sWs, payload);
+    }
+  }
+
   wss.on('connection', (ws) => {
     ws.vcp = null; // { kind, orgId, userId, name }
 
@@ -10916,9 +11187,11 @@ async function startServer() {
             mode: invite.mode,
             studentIds: invite.studentIds.slice(),
             config: invite.config,
+            chessState: null,
             createdAt: nowIso(),
             status: 'active'
           };
+          if (String(session.mode) === 'chess') session.chessState = vcpCreateInitialChessState(session);
           vcp.sessions.set(sessionId, session);
 
           // Mark students in-game
@@ -10961,6 +11234,35 @@ async function startServer() {
           // Notify teacher that student left
           for (const tws of vcpOrgTeachersSet(orgId)) wsSend(tws, { type: 'vcp_session_update', sessionId, studentId: String(userId), action: 'left' });
         }
+        return;
+      }
+
+      // Normal Chess: server-authoritative state
+      if (type === 'vcp_chess_move') {
+        const sessionId = String(msg?.sessionId || '');
+        const from = String(msg?.from || '');
+        const to = String(msg?.to || '');
+        const promo = String(msg?.promo || 'q');
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) return;
+        if (String(session.mode) !== 'chess') return;
+
+        // Only participants can move (students)
+        if (kind !== 'student') return;
+        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+
+        // Ensure chess state exists
+        if (!session.chessState) {
+          session.chessState = vcpCreateInitialChessState(session);
+          vcp.sessions.set(sessionId, session);
+        }
+        const result = vcpApplyChessMove(session, String(userId), { from, to, promo });
+        if (!result?.ok) {
+          wsSend(ws, { type: 'vcp_error', error: String(result?.error || 'Illegal move') });
+          return;
+        }
+
+        vcpBroadcastChessSync(session);
         return;
       }
     });
