@@ -26,26 +26,12 @@
   const PIECE_POOL_BLACK = ['q', 'r', 'b', 'n', 'p']; // no king duplicates allowed
 
   const MODES = [
-    { key: 'stage', name: 'Stage Mode' },
     { key: 'challenge', name: 'Challenge Mode' },
     { key: 'practice', name: 'Practice Mode' },
     { key: 'rules', name: 'Rules' }
   ];
 
   const PRACTICE_LEVELS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-  const STAGES = [
-    { key: 'rook', label: 'Rook' },
-    { key: 'queen', label: 'Queen' },
-    { key: 'minor', label: 'Minor pieces' },
-    { key: 'pawns', label: 'Pawns' },
-    { key: 'twoRooks', label: 'Two Rooks' },
-    { key: 'rookKnight', label: 'Rook + Knight' },
-    { key: 'queenBishop', label: 'Queen + Bishop' },
-    { key: 'queenKnight', label: 'Queen + Knight' },
-    { key: 'queenRook', label: 'Queen + Rook' },
-    { key: 'threePieces', label: 'Three pieces' }
-  ];
 
   function getPracticeConfig(levelNumber) {
     const lvl = Math.max(1, Math.min(10, Number(levelNumber) || 1));
@@ -54,51 +40,11 @@
     return { level: lvl, boardSize, blackExtraCount };
   }
 
-  function getStageConfig(stageKey) {
-    const key = String(stageKey || '');
-    // Stage 3+ requested rules:
-    // - Black pieces count not fixed (we still keep it in a safe random range for solvability), but must include a king
-    // - White pieces are determined by stage:
-    //   - Pawns: 2 pawns
-    //   - Minor pieces: 2 pieces, each random from Knight/Bishop/Pawn (duplicates allowed)
-    // For now, Stage 1/2 remain special-cased (rook) / not implemented (queen), per previous behavior.
-    if (key === 'minor') {
-      const pool = ['N', 'B', 'P'];
-      return { boardSize: 8, whitePieces: [sample(pool), sample(pool)], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    if (key === 'pawns') {
-      return { boardSize: 8, whitePieces: ['P', 'P'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    // Other stages (future): keep placeholder mapping but allow generation later.
-    if (key === 'twoRooks') {
-      return { boardSize: 8, whitePieces: ['R', 'R'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    if (key === 'rookKnight') {
-      return { boardSize: 8, whitePieces: ['R', 'N'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    if (key === 'queenBishop') {
-      return { boardSize: 8, whitePieces: ['Q', 'B'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    if (key === 'queenKnight') {
-      return { boardSize: 8, whitePieces: ['Q', 'N'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    if (key === 'queenRook') {
-      return { boardSize: 8, whitePieces: ['Q', 'R'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
-    }
-    if (key === 'threePieces') {
-      // Keep simple: 3 pieces sampled from QRBNP (duplicates allowed). Use sampling verifier (not exhaustive).
-      const pool = ['Q', 'R', 'B', 'N', 'P'];
-      return { boardSize: 8, whitePieces: [sample(pool), sample(pool), sample(pool)], blackExtraMin: 0, blackExtraMax: 3, exhaustivePairs: false, blackKingPlacement: 'edge' };
-    }
-    return null;
-  }
-
   const STORAGE = {
     players: 'hopeMatePlayers',
     level: 'hopeMateLevel',
     best: (studentId) => `hopeMateBestScore_${String(studentId || 'unknown')}`,
-    total: (studentId) => `hopeMateTotalScore_${String(studentId || 'unknown')}`,
-    stage: (studentId, stageKey) => `hopeMateStage_${String(stageKey || 'unknown')}_${String(studentId || 'unknown')}`
+    total: (studentId) => `hopeMateTotalScore_${String(studentId || 'unknown')}`
   };
 
   function safeJsonParse(raw) {
@@ -762,14 +708,8 @@
   // UI / Game State
   // ---------------------------
   const state = {
-    screen: 'home', // 'home' | 'stageSelect' | 'stageGame' | 'practiceSelect' | 'practiceGame'
+    screen: 'home', // 'home' | 'practiceSelect' | 'practiceGame'
     practiceLevel: 1,
-    stageKey: null,
-    stageProgress: {
-      solved: 0,
-      target: 10,
-      puzzleSolved: false
-    },
     puzzle: null,
     board: null,
     placed: [], // indices for each white piece slot
@@ -820,29 +760,6 @@
     const sid = player?.id || 'unknown';
     localStorage.setItem(STORAGE.total(sid), String(state.totalScore));
     localStorage.setItem(STORAGE.best(sid), String(state.bestScore));
-  }
-
-  function loadStageProgress(stageKey) {
-    const player = getSinglePlayer();
-    const sid = player?.id || 'unknown';
-    const raw = localStorage.getItem(STORAGE.stage(sid, stageKey));
-    try {
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (!parsed || typeof parsed !== 'object') return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  }
-
-  function saveStageProgress(stageKey, data) {
-    const player = getSinglePlayer();
-    const sid = player?.id || 'unknown';
-    try {
-      localStorage.setItem(STORAGE.stage(sid, stageKey), JSON.stringify(data));
-    } catch {
-      // ignore
-    }
   }
 
   function getAuthToken() {
@@ -933,7 +850,6 @@
     state.placed = [];
     state.selectedPieceSlot = 0;
     state.puzzleSolved = false;
-    state.stageProgress.puzzleSolved = false;
     const cfg = getPracticeConfig(state.practiceLevel);
     setBoardSize(cfg.boardSize);
     state.puzzle = randomPuzzle(cfg);
@@ -1016,7 +932,7 @@
 
   function confirm() {
     if (!state.puzzle || !state.board) return;
-    if (state.puzzleSolved || state.stageProgress.puzzleSolved) {
+    if (state.puzzleSolved) {
       openResult('correct', 'Already confirmed. Use Next to continue.');
       return;
     }
@@ -1028,49 +944,31 @@
 
     const mate = isCheckmate(state.board);
     if (mate) {
-      if (state.screen === 'stageGame') {
-        // Stage: progress only, no score.
-        state.stageProgress.puzzleSolved = true;
-        const nextSolved = Math.min(state.stageProgress.target, (Number(state.stageProgress.solved) || 0) + 1);
-        state.stageProgress.solved = nextSolved;
-        const msg = nextSolved >= state.stageProgress.target
-          ? `Correct! Stage complete (${nextSolved}/${state.stageProgress.target}).`
-          : `Correct! Progress: ${nextSolved}/${state.stageProgress.target}.`;
-        setStatus(msg, 'success');
-        openResult('correct', msg);
-        // Auto-save stage progress (including completion)
-        saveStageProgress(state.stageKey, {
-          solved: state.stageProgress.solved,
-          target: state.stageProgress.target,
-          updatedAt: new Date().toISOString()
-        });
-      } else {
-        const gained = state.attemptsFailed ? 0 : 1;
-        state.sessionScore += gained;
-        state.totalScore += gained;
-        state.bestScore = Math.max(state.bestScore, state.sessionScore);
-        saveScores();
-        state.puzzleSolved = true;
-        const msg = gained ? 'Correct! Checkmate. +1 point.' : 'Correct! Checkmate. (No points because you already failed this puzzle.)';
-        setStatus(msg, 'success');
-        openResult('correct', msg);
-        if (gained === 1) {
-          const player = getSinglePlayer();
-          if (player?.id) {
-            // Fire-and-forget: submit total score, then refresh leaderboard.
-            submitHopeMateTotalScore(String(player.id), state.totalScore)
-              .then((entries) => {
-                state.leaderboard.entries = entries;
-                state.leaderboard.loading = false;
-                state.leaderboard.error = null;
-                render();
-              })
-              .catch((e) => {
-                state.leaderboard.error = e?.message || 'Failed to submit score';
-                state.leaderboard.loading = false;
-                render();
-              });
-          }
+      const gained = state.attemptsFailed ? 0 : 1;
+      state.sessionScore += gained;
+      state.totalScore += gained;
+      state.bestScore = Math.max(state.bestScore, state.sessionScore);
+      saveScores();
+      state.puzzleSolved = true;
+      const msg = gained ? 'Correct! Checkmate. +1 point.' : 'Correct! Checkmate. (No points because you already failed this puzzle.)';
+      setStatus(msg, 'success');
+      openResult('correct', msg);
+      if (gained === 1) {
+        const player = getSinglePlayer();
+        if (player?.id) {
+          // Fire-and-forget: submit total score, then refresh leaderboard.
+          submitHopeMateTotalScore(String(player.id), state.totalScore)
+            .then((entries) => {
+              state.leaderboard.entries = entries;
+              state.leaderboard.loading = false;
+              state.leaderboard.error = null;
+              render();
+            })
+            .catch((e) => {
+              state.leaderboard.error = e?.message || 'Failed to submit score';
+              state.leaderboard.loading = false;
+              render();
+            });
         }
       }
       render();
@@ -1098,76 +996,6 @@
     newPuzzle();
     setStatus('New puzzle generated. Place both pieces, then Confirm.', 'info');
     render();
-  }
-
-  function startStageRookPuzzle() {
-    // Stage 1: fixed single rook, 8x8 board, random black king + 2 or 3 black pieces.
-    setBoardSize(8);
-    state.attemptsFailed = false;
-    state.puzzleSolved = false;
-    state.stageProgress.puzzleSolved = false;
-    state.selectedPieceSlot = 0;
-
-    let lastError = null;
-    for (let i = 0; i < 10; i++) {
-      const blackExtraCount = Math.random() < 0.55 ? 2 : 3;
-      const cfg = { level: 1, boardSize: 8, blackExtraCount, whitePieces: ['R'] };
-      try {
-        state.puzzle = randomPuzzle(cfg);
-        state.board = state.puzzle.black.slice();
-        state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
-        setStatus('New puzzle generated. Place the rook, then Confirm.', 'info');
-        render();
-        return;
-      } catch (e) {
-        lastError = e;
-      }
-    }
-
-    console.error('Stage 1 puzzle generation failed:', lastError);
-    setStatus('Unable to generate a solvable puzzle. Please try again.', 'error');
-    openResult('incorrect', 'Unable to generate a solvable puzzle. Please click Cancel and try again.');
-  }
-
-  function startStagePuzzle(stageKey) {
-    const cfg = getStageConfig(stageKey);
-    if (!cfg) {
-      alert('This stage is not implemented yet.');
-      return;
-    }
-
-    setBoardSize(cfg.boardSize || 8);
-    state.stageProgress.puzzleSolved = false;
-    state.attemptsFailed = false;
-    state.puzzleSolved = false;
-    state.ui.resultOpen = false;
-
-    let lastError = null;
-    for (let i = 0; i < 8; i++) {
-      const min = Number(cfg.blackExtraMin ?? 0);
-      const max = Number(cfg.blackExtraMax ?? min);
-      const extra = min + randInt(Math.max(1, (max - min + 1)));
-      const rp = {
-        level: 1,
-        boardSize: cfg.boardSize || 8,
-        blackExtraCount: extra,
-        whitePieces: cfg.whitePieces,
-        exhaustivePairs: !!cfg.exhaustivePairs,
-        blackKingPlacement: cfg.blackKingPlacement || ''
-      };
-      try {
-        state.puzzle = randomPuzzle(rp);
-        state.board = state.puzzle.black.slice();
-        state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
-        setStatus('New puzzle generated. Place your pieces, then Confirm.', 'info');
-        render();
-        return;
-      } catch (e) {
-        lastError = e;
-      }
-    }
-    console.error('Stage puzzle generation failed:', lastError);
-    alert('Failed to generate a puzzle. Please try again.');
   }
 
   function onSquareClick(idx) {
@@ -1400,7 +1228,6 @@
 
           <div class="hope-mate-controls">
             <div class="hm-mode-menu" role="navigation" aria-label="Hope Mate mode menu">
-              <button id="hmStageBtn" class="btn btn-secondary hm-mode-btn" type="button">Stage Mode</button>
               <button id="hmChallengeBtn" class="btn btn-secondary hm-mode-btn" type="button">Challenge Mode</button>
               <button id="hmPracticeBtn" class="btn btn-primary hm-mode-btn" type="button">Practice Mode</button>
               <button id="hmRulesBtn" class="btn btn-secondary hm-mode-btn" type="button">Rules</button>
@@ -1410,7 +1237,7 @@
           <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
             <div class="hm-piece-tray-title">Status</div>
             <div class="hm-muted"><strong>Student:</strong> ${escapeHtml(playerName)}</div>
-            <div class="hm-muted" style="margin-top:6px;">Stage/Challenge/Rules UI will be implemented next. Practice is available now.</div>
+            <div class="hm-muted" style="margin-top:6px;">Practice Mode is available now.</div>
           </div>
         </div>
       `;
@@ -1418,82 +1245,11 @@
         state.screen = 'practiceSelect';
         render();
       });
-      document.getElementById('hmStageBtn')?.addEventListener('click', () => {
-        state.screen = 'stageSelect';
-        render();
-      });
       document.getElementById('hmChallengeBtn')?.addEventListener('click', () => {
         alert('Challenge Mode is not implemented yet.');
       });
       document.getElementById('hmRulesBtn')?.addEventListener('click', () => {
         alert('Rules are not implemented yet.');
-      });
-      return;
-    }
-
-    if (state.screen === 'stageSelect') {
-      root.innerHTML = `
-        <div class="hope-mate-shell">
-          <div class="hope-mate-topbar">
-            <div class="hope-mate-title-wrap">
-              <div class="hope-mate-title">✨ Hope Mate</div>
-              <div class="hope-mate-subtitle">Stage Mode — Select a stage</div>
-            </div>
-          </div>
-
-          <div class="hope-mate-controls">
-            <div class="hm-actions">
-              <button id="hmStageBackBtn" class="btn btn-secondary" type="button">Back</button>
-            </div>
-          </div>
-
-          <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
-            <div class="hm-piece-tray-title">Stages</div>
-            <div class="hm-stage-grid">
-              ${STAGES.map((s, idx) => `
-                <button class="hm-stage-btn" type="button" data-stage="${escapeHtml(s.key)}">
-                  <span class="hm-stage-number">${idx + 1}</span>
-                  <span class="hm-stage-label">${escapeHtml(s.label)}</span>
-                </button>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      `;
-      document.getElementById('hmStageBackBtn')?.addEventListener('click', () => {
-        state.screen = 'home';
-        render();
-      });
-      document.querySelectorAll('.hm-stage-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const key = btn.getAttribute('data-stage') || '';
-          const stage = STAGES.find(s => s.key === key);
-          if (key === 'rook') {
-            state.stageKey = 'rook';
-            // Load progress
-            const saved = loadStageProgress('rook');
-            const solved = Number(saved?.solved) || 0;
-            state.stageProgress.solved = Math.max(0, Math.min(state.stageProgress.target, solved));
-            state.stageProgress.puzzleSolved = false;
-            state.screen = 'stageGame';
-            startStageRookPuzzle();
-            return;
-          }
-
-          // Stage 3+ generator (requested: start from Stage 3, Stage 1/2 may be too hard)
-          if (['minor', 'pawns', 'twoRooks', 'rookKnight', 'queenBishop', 'queenKnight', 'queenRook', 'threePieces'].includes(key)) {
-            state.stageKey = key;
-            const saved = loadStageProgress(key);
-            const solved = Number(saved?.solved) || 0;
-            state.stageProgress.solved = Math.max(0, Math.min(state.stageProgress.target, solved));
-            state.stageProgress.puzzleSolved = false;
-            state.screen = 'stageGame';
-            startStagePuzzle(key);
-            return;
-          }
-
-          alert(`${stage?.label || 'Stage'} is not implemented yet.`);
-        });
       });
       return;
     }
@@ -1543,165 +1299,6 @@
           refreshLeaderboard();
         });
       });
-      return;
-    }
-
-    // stageGame (Stage 1 implemented: rook)
-    if (state.screen === 'stageGame') {
-      const stageTitleMap = {
-        rook: 'Stage 1 — Rook',
-        queen: 'Stage 2 — Queen',
-        minor: 'Stage 3 — Minor pieces',
-        pawns: 'Stage 4 — Pawns',
-        twoRooks: 'Stage 5 — Two Rooks',
-        rookKnight: 'Stage 6 — Rook + Knight',
-        queenBishop: 'Stage 7 — Queen + Bishop',
-        queenKnight: 'Stage 8 — Queen + Knight',
-        queenRook: 'Stage 9 — Queen + Rook',
-        threePieces: 'Stage 10 — Three pieces'
-      };
-      const stageTitle = stageTitleMap[String(state.stageKey)] || 'Stage';
-      const progressPct = Math.round((state.stageProgress.solved / state.stageProgress.target) * 100);
-      const pieces = state.puzzle ? state.puzzle.whitePieces : [];
-
-      root.innerHTML = `
-        <div class="hope-mate-shell">
-          <div class="hope-mate-topbar">
-            <div class="hope-mate-title-wrap">
-              <div class="hope-mate-title">✨ Hope Mate</div>
-              <div class="hope-mate-subtitle">${escapeHtml(stageTitle)} — Solve ${state.stageProgress.target} puzzles to complete the stage.</div>
-            </div>
-            <div class="hope-mate-meta">
-              <div><strong>Student:</strong> ${escapeHtml(playerName)}</div>
-              <div><strong>Progress:</strong> ${state.stageProgress.solved}/${state.stageProgress.target}</div>
-            </div>
-          </div>
-
-          <div class="hm-stage-progress">
-            <div class="hm-stage-progress-bar">
-              <div class="hm-stage-progress-fill" style="width:${progressPct}%;"></div>
-            </div>
-          </div>
-
-          <div class="hope-mate-controls">
-            <div class="hm-actions">
-              <button id="hmStageBackBtn2" class="btn btn-secondary" type="button">Stages</button>
-              <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
-            </div>
-          </div>
-
-          <div id="hopeMateStatus" class="hope-mate-status is-info">${escapeHtml(lastStatus.text || 'Generating puzzle...')}</div>
-
-          <div class="hope-mate-main">
-            <div class="hope-mate-left">
-              <div class="hm-piece-tray">
-                <div class="hm-piece-tray-title">Your piece</div>
-                <div class="hm-slots">
-                  ${pieces.map((p, idx) => `
-                    <button class="hm-slot ${state.selectedPieceSlot === idx ? 'active' : ''}" type="button" data-slot="${idx}" aria-label="Piece slot ${idx + 1}">
-                      <span class="hm-slot-badge">${idx + 1}</span>
-                      <span class="hm-slot-piece">${renderPieceVisual(p, pieceName(p))}</span>
-                    </button>
-                  `).join('')}
-                </div>
-                <div class="hm-piece-tray-hint">Place the rook to create checkmate. No partial feedback is shown.</div>
-
-                <div class="hm-piece-tray-footer" aria-label="Stage actions">
-                  <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
-                  <button id="hopeMateCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="hope-mate-board-wrap">
-              <div class="hm-board-container">
-                <div class="hm-board-shell" style="--hm-board-size:${BOARD_SIZE}">
-                  <div class="hm-board-col-labels" aria-hidden="true">
-                    ${FILES.map(f => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join('')}
-                  </div>
-                  <div class="hm-board-row-labels" aria-hidden="true">
-                    ${[...RANKS].reverse().map(r => `<div class="hm-row-label">${r}</div>`).join('')}
-                  </div>
-                  <div id="hopeMateBoard" class="hm-board" role="grid" aria-label="Hope Mate board">
-                    ${renderBoard(state.board || buildEmptyBoard())}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        ${state.ui.resultOpen ? `
-          <div class="hm-modal-backdrop" id="hmResultBackdrop" role="presentation">
-            <div class="hm-modal hm-result-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Result">
-              <div class="hm-modal-header">
-                <div class="hm-modal-title">${state.ui.resultKind === 'correct' ? 'Correct' : 'Incorrect'}</div>
-                <button id="hmResultClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
-              </div>
-              <div class="hm-modal-body">
-                <div class="hm-result-message">${escapeHtml(state.ui.resultMessage || '')}</div>
-                <div class="hm-result-actions">
-                  ${state.ui.resultKind === 'correct'
-                    ? `<button id="hmResultNext" class="btn btn-primary" type="button">${state.stageProgress.solved >= state.stageProgress.target ? 'Finish' : 'Next'}</button>`
-                    : `<button id="hmResultRedo" class="btn btn-primary" type="button">Redo</button>`
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-        ` : ''}
-      `;
-
-      document.querySelectorAll('.hm-slot').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const slot = Number(btn.getAttribute('data-slot'));
-          if (Number.isFinite(slot)) {
-            state.selectedPieceSlot = slot;
-            render();
-          }
-        });
-      });
-      document.getElementById('hmStageBackBtn2')?.addEventListener('click', () => {
-        state.screen = 'stageSelect';
-        render();
-      });
-      document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
-      document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
-      document.getElementById('hopeMateCancelBtn')?.addEventListener('click', () => {
-        state.screen = 'stageSelect';
-        render();
-      });
-
-      document.getElementById('hmResultClose')?.addEventListener('click', closeResult);
-      document.getElementById('hmResultBackdrop')?.addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'hmResultBackdrop') closeResult();
-      });
-      document.getElementById('hmResultRedo')?.addEventListener('click', () => {
-        closeResult();
-        resetPlacements();
-        setStatus('Redo: place the rook again, then Confirm.', 'info');
-      });
-      document.getElementById('hmResultNext')?.addEventListener('click', () => {
-        closeResult();
-        if (state.stageProgress.solved >= state.stageProgress.target) {
-          setStatus('Stage completed! Returning to stage list.', 'success');
-          state.screen = 'stageSelect';
-          render();
-          return;
-        }
-        // Next stage puzzle
-        state.stageProgress.puzzleSolved = false;
-        startStageRookPuzzle();
-      });
-
-      // Bind board interactions + drag
-      document.querySelectorAll('.hm-square').forEach((el) => {
-        el.addEventListener('click', () => {
-          const idx = Number(el.getAttribute('data-idx'));
-          if (Number.isFinite(idx)) onSquareClick(idx);
-        });
-      });
-      enableDragAndDrop();
       return;
     }
 
