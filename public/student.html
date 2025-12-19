@@ -219,11 +219,21 @@
         <div id="gameTab" class="tab-content">
             <h3>Game</h3>
             <p style="color:#666; margin-bottom: 16px;">Select a game to start. Your student name will be used for login/records.</p>
-            <div class="student-game-buttons">
-                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('runningQueen')">♕ Running Queen</button>
-                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('royalExchange')">♘ Royal Exchange</button>
-                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('hopeMate')">✨ Hope Mate</button>
-                <button class="btn btn-primary student-game-btn" onclick="openStudentGame('chessCom')">♟️ Chess.com</button>
+
+            <div class="card" style="box-shadow:none; border:1px solid #eee; padding:14px; margin-bottom:14px;">
+                <div style="font-weight:800; color:#111827; margin-bottom:10px;">Platform</div>
+                <div class="student-game-buttons">
+                    <button class="btn btn-primary student-game-btn" onclick="openStudentGame('chessCom')">♟️ Chess.com</button>
+                </div>
+            </div>
+
+            <div class="card" style="box-shadow:none; border:1px solid #eee; padding:14px;">
+                <div style="font-weight:800; color:#111827; margin-bottom:10px;">Mini Game</div>
+                <div class="student-game-buttons">
+                    <button class="btn btn-primary student-game-btn" onclick="openStudentGame('runningQueen')">♕ Running Queen</button>
+                    <button class="btn btn-primary student-game-btn" onclick="openStudentGame('royalExchange')">♘ Royal Exchange</button>
+                    <button class="btn btn-primary student-game-btn" onclick="openStudentGame('hopeMate')">✨ Hope Mate</button>
+                </div>
             </div>
         </div>
     </div>
