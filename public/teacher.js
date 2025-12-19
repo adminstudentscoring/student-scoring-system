@@ -1460,8 +1460,8 @@ async function startNoBlunder() {
 window.startNoBlunder = startNoBlunder;
 
 async function startHopeMate() {
-    if (selectedGameStudents.length === 0) {
-        showNotification('Please select at least one student', 'error');
+    if (selectedGameStudents.length !== 1) {
+        showNotification('Hope Mate currently supports exactly 1 student. Please select one student to start.', 'error');
         return;
     }
 
