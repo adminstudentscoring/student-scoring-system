@@ -598,7 +598,10 @@
       entries: []
     },
     ui: {
-      leaderboardOpen: false
+      leaderboardOpen: false,
+      resultOpen: false,
+      resultKind: null, // 'correct' | 'incorrect'
+      resultMessage: ''
     }
   };
 
@@ -699,6 +702,22 @@
     render();
   }
 
+  function openResult(kind, message) {
+    // Avoid stacking overlays
+    state.ui.leaderboardOpen = false;
+    state.ui.resultOpen = true;
+    state.ui.resultKind = kind;
+    state.ui.resultMessage = String(message || '');
+    render();
+  }
+
+  function closeResult() {
+    state.ui.resultOpen = false;
+    state.ui.resultKind = null;
+    state.ui.resultMessage = '';
+    render();
+  }
+
   function newPuzzle() {
     state.attemptsFailed = false;
     state.placed = [null, null];
@@ -780,6 +799,7 @@
     if (!state.puzzle || !state.board) return;
     if (state.placed[0] == null || state.placed[1] == null) {
       setStatus('Place both pieces before confirming.', 'error');
+      openResult('incorrect', 'Please place both pieces before confirming.');
       return;
     }
 
@@ -790,7 +810,9 @@
       state.totalScore += gained;
       state.bestScore = Math.max(state.bestScore, state.sessionScore);
       saveScores();
-      setStatus(gained ? 'Checkmate! +1 point.' : 'Checkmate! (No points because you already failed this puzzle.)', 'success');
+      const msg = gained ? 'Correct! Checkmate. +1 point.' : 'Correct! Checkmate. (No points because you already failed this puzzle.)';
+      setStatus(msg, 'success');
+      openResult('correct', msg);
       if (gained === 1) {
         const player = getSinglePlayer();
         if (player?.id) {
@@ -816,13 +838,17 @@
     // Stalemate should be treated as failure
     if (isStalemate(state.board)) {
       state.attemptsFailed = true;
-      setStatus('Stalemate is a failure. Try again (no points for this puzzle).', 'error');
+      const msg = 'Incorrect. Stalemate is a failure. Redo (no points for this puzzle).';
+      setStatus(msg, 'error');
+      openResult('incorrect', msg);
       render();
       return;
     }
 
     state.attemptsFailed = true;
-    setStatus('Not checkmate. Try again (no points for this puzzle).', 'error');
+    const msg = 'Incorrect. Not checkmate. Redo (no points for this puzzle).';
+    setStatus(msg, 'error');
+    openResult('incorrect', msg);
     render();
   }
 
@@ -1246,6 +1272,26 @@
           </div>
         </div>
       ` : ''}
+
+      ${state.ui.resultOpen ? `
+        <div class="hm-modal-backdrop" id="hmResultBackdrop" role="presentation">
+          <div class="hm-modal hm-result-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Result">
+            <div class="hm-modal-header">
+              <div class="hm-modal-title">${state.ui.resultKind === 'correct' ? 'Correct' : 'Incorrect'}</div>
+              <button id="hmResultClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="hm-modal-body">
+              <div class="hm-result-message">${escapeHtml(state.ui.resultMessage || '')}</div>
+              <div class="hm-result-actions">
+                ${state.ui.resultKind === 'correct'
+                  ? `<button id="hmResultNext" class="btn btn-primary" type="button">Next</button>`
+                  : `<button id="hmResultRedo" class="btn btn-primary" type="button">Redo</button>`
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     `;
 
     // Wire events
@@ -1286,6 +1332,20 @@
     document.getElementById('hmLeaderboardClose')?.addEventListener('click', closeLeaderboard);
     document.getElementById('hmLeaderboardBackdrop')?.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'hmLeaderboardBackdrop') closeLeaderboard();
+    });
+
+    document.getElementById('hmResultClose')?.addEventListener('click', closeResult);
+    document.getElementById('hmResultBackdrop')?.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'hmResultBackdrop') closeResult();
+    });
+    document.getElementById('hmResultNext')?.addEventListener('click', () => {
+      closeResult();
+      nextPuzzle();
+    });
+    document.getElementById('hmResultRedo')?.addEventListener('click', () => {
+      closeResult();
+      resetPlacements();
+      setStatus('Redo: place both pieces again, then Confirm.', 'info');
     });
 
     // Drag-and-drop is optional; click-to-place still works.

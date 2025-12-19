@@ -256,6 +256,27 @@
   flex-direction: column;
 }
 
+.hm-result-modal {
+  width: min(520px, 100%);
+  max-height: min(60vh, 520px);
+}
+
+.hm-result-message {
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.hm-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.hm-result-actions .btn {
+  min-width: 140px;
+}
+
 .hm-modal-header {
   display: flex;
   align-items: center;
