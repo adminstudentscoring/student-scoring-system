@@ -13,6 +13,21 @@
 
   const FILES = 'abcdefgh';
 
+  function pieceImagePath(p) {
+    if (!p) return '';
+    const color = p === p.toUpperCase() ? 'white' : 'black';
+    const t = p.toLowerCase();
+    const name =
+      t === 'p' ? 'Pawn' :
+      t === 'n' ? 'Knight' :
+      t === 'b' ? 'Bishop' :
+      t === 'r' ? 'Rook' :
+      t === 'q' ? 'Queen' :
+      t === 'k' ? 'King' : '';
+    if (!name) return '';
+    return `/game/pieces/${color}_${name}.png`;
+  }
+
   function cloneBoard(board) {
     return board.map((row) => row.slice());
   }
@@ -299,7 +314,7 @@
           ].filter(Boolean).join(' ');
           squaresHtml.push(`
             <div class="${cls}" data-coord="${coord}">
-              ${p ? `<div class="nc-piece">${PIECE_UNICODE[p] || p}</div>` : ''}
+              ${p ? `<img class="nc-piece-img" draggable="false" alt="${PIECE_UNICODE[p] || p}" src="${pieceImagePath(p)}">` : ''}
             </div>
           `);
         }
