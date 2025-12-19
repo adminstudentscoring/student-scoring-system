@@ -780,66 +780,117 @@
   }
 
   function enableDragAndDrop() {
-    // Slots are draggable; squares accept drops.
-    document.querySelectorAll('.hm-slot').forEach((el) => {
-      el.setAttribute('draggable', 'true');
-      el.addEventListener('dragstart', (e) => {
-        const slot = el.getAttribute('data-slot');
-        try {
-          e.dataTransfer.effectAllowed = 'copy';
-          e.dataTransfer.setData('text/hopeMateSlot', String(slot));
-        } catch {
-          // ignore
-        }
+    // Custom pointer-based dragging (mouse/touch) to avoid browser drag cursor/icons.
+    // This emulates chess.com style: the piece follows the cursor, with no "not allowed" cursor changes.
 
-        // Chess.com-like drag preview: use the piece image as drag ghost.
-        try {
-          const img = el.querySelector('.hm-piece-img');
-          if (img && img.getAttribute('src')) {
-            const ghost = document.createElement('img');
-            ghost.src = img.getAttribute('src');
-            ghost.style.width = '64px';
-            ghost.style.height = '64px';
-            ghost.style.position = 'fixed';
-            ghost.style.left = '-9999px';
-            ghost.style.top = '-9999px';
-            ghost.style.pointerEvents = 'none';
-            document.body.appendChild(ghost);
-            e.dataTransfer.setDragImage(ghost, 32, 32);
-            setTimeout(() => ghost.remove(), 0);
-          }
-        } catch {
-          // ignore
-        }
-      });
-    });
+    let dragging = null; // { slot, ghostEl, lastOverSquareEl }
 
-    document.querySelectorAll('.hm-square').forEach((sq) => {
-      sq.addEventListener('dragover', (e) => {
-        e.preventDefault();
-      });
-      sq.addEventListener('dragenter', () => {
-        sq.classList.add('is-drop-target');
-      });
-      sq.addEventListener('dragleave', () => {
-        sq.classList.remove('is-drop-target');
-      });
-      sq.addEventListener('drop', (e) => {
-        e.preventDefault();
-        sq.classList.remove('is-drop-target');
+    const clearOver = () => {
+      if (dragging?.lastOverSquareEl) {
+        dragging.lastOverSquareEl.classList.remove('is-drop-target');
+        dragging.lastOverSquareEl = null;
+      }
+    };
+
+    const cleanup = () => {
+      clearOver();
+      if (dragging?.ghostEl) dragging.ghostEl.remove();
+      dragging = null;
+      document.body.classList.remove('hm-dragging');
+    };
+
+    const moveGhost = (x, y) => {
+      if (!dragging?.ghostEl) return;
+      dragging.ghostEl.style.left = `${x}px`;
+      dragging.ghostEl.style.top = `${y}px`;
+    };
+
+    const getSquareUnderPoint = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      return el.closest?.('.hm-square') || null;
+    };
+
+    const onPointerMove = (e) => {
+      if (!dragging) return;
+      const x = e.clientX;
+      const y = e.clientY;
+      moveGhost(x, y);
+
+      const sq = getSquareUnderPoint(x, y);
+      if (sq !== dragging.lastOverSquareEl) {
+        clearOver();
+        if (sq) {
+          sq.classList.add('is-drop-target');
+          dragging.lastOverSquareEl = sq;
+        }
+      }
+      e.preventDefault?.();
+    };
+
+    const onPointerUp = (e) => {
+      if (!dragging) return;
+      const x = e.clientX;
+      const y = e.clientY;
+      const sq = getSquareUnderPoint(x, y);
+      if (sq) {
         const idx = Number(sq.getAttribute('data-idx'));
-        if (!Number.isFinite(idx)) return;
-        let slotRaw = null;
-        try {
-          slotRaw = e.dataTransfer.getData('text/hopeMateSlot');
-        } catch {
-          slotRaw = null;
+        if (Number.isFinite(idx)) {
+          state.selectedPieceSlot = dragging.slot;
+          placePiece(dragging.slot, idx);
         }
-        const slot = Number(slotRaw);
-        if (!(slot === 0 || slot === 1)) return;
-        // Select the dragged slot and place it
-        state.selectedPieceSlot = slot;
-        placePiece(slot, idx);
+      }
+      cleanup();
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
+      e.preventDefault?.();
+    };
+
+    const startDragFromSlotEl = (slotEl, slot, e) => {
+      if (!(slot === 0 || slot === 1)) return;
+      const img = slotEl.querySelector('.hm-piece-img');
+      const glyph = slotEl.querySelector('.hm-piece-glyph');
+
+      const ghost = document.createElement('div');
+      ghost.className = 'hm-drag-ghost';
+      if (img && img.getAttribute('src')) {
+        const gi = document.createElement('img');
+        gi.src = img.getAttribute('src');
+        gi.alt = '';
+        ghost.appendChild(gi);
+      } else if (glyph) {
+        const span = document.createElement('span');
+        span.textContent = glyph.textContent || '';
+        ghost.appendChild(span);
+      }
+      document.body.appendChild(ghost);
+
+      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null };
+      document.body.classList.add('hm-dragging');
+      state.selectedPieceSlot = slot;
+
+      moveGhost(e.clientX, e.clientY);
+
+      window.addEventListener('pointermove', onPointerMove, true);
+      window.addEventListener('pointerup', onPointerUp, true);
+      window.addEventListener('pointercancel', onPointerUp, true);
+      e.preventDefault?.();
+    };
+
+    document.querySelectorAll('.hm-slot').forEach((el) => {
+      // Prevent native HTML5 drag behavior entirely.
+      el.removeAttribute('draggable');
+      el.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+        return false;
+      });
+
+      el.addEventListener('pointerdown', (e) => {
+        // Only left mouse / primary touch
+        if (e.button !== undefined && e.button !== 0) return;
+        const slot = Number(el.getAttribute('data-slot'));
+        startDragFromSlotEl(el, slot, e);
       });
     });
   }
@@ -882,7 +933,7 @@
     const slotLabel = (slot) => {
       const p = pieces[slot];
       return `
-        <button class="hm-slot ${slot === 0 ? slot0Active : slot1Active}" type="button" data-slot="${slot}" draggable="true" aria-label="Piece slot ${slot + 1}">
+        <button class="hm-slot ${slot === 0 ? slot0Active : slot1Active}" type="button" data-slot="${slot}" aria-label="Piece slot ${slot + 1}">
           <span class="hm-slot-badge">${slot + 1}</span>
           <span class="hm-slot-piece">${renderPieceVisual(p, pieceName(p))}</span>
         </button>
