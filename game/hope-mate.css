@@ -143,13 +143,13 @@
 .hm-piece-tray-footer {
   margin-top: auto;
   display: flex;
+  flex-direction: column;
   gap: 10px;
-  justify-content: flex-end;
   padding-top: 12px;
 }
 
 .hm-piece-tray-footer .btn {
-  min-width: 120px;
+  width: 100%;
 }
 
 .hm-piece-tray-title {

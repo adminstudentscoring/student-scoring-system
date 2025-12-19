@@ -1168,6 +1168,7 @@
             <button id="hmPracticeLevelsBtn" class="btn btn-secondary" type="button">Levels</button>
             <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Leaderboard</button>
             <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
+            <button id="hopeMateNextBtn" class="btn btn-secondary" type="button">Next</button>
           </div>
         </div>
 
@@ -1182,11 +1183,11 @@
                 ${slotLabel(1)}
               </div>
               <div class="hm-piece-tray-hint">You can change placement before Confirm. No partial feedback is shown.</div>
-            </div>
 
-            <div class="hm-left-actions" aria-label="Practice actions">
-              <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
-              <button id="hopeMateNextBtn" class="btn btn-secondary" type="button">Next</button>
+              <div class="hm-piece-tray-footer" aria-label="Practice actions">
+                <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
+                <button id="hopeMateCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+              </div>
             </div>
           </div>
 
@@ -1263,6 +1264,11 @@
     document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
     document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
     document.getElementById('hopeMateNextBtn')?.addEventListener('click', nextPuzzle);
+    document.getElementById('hopeMateCancelBtn')?.addEventListener('click', () => {
+      // Cancel current practice puzzle and return to level select.
+      state.screen = 'practiceSelect';
+      render();
+    });
     document.getElementById('hmPracticeLevelsBtn')?.addEventListener('click', () => {
       state.screen = 'practiceSelect';
       render();
