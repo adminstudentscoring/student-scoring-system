@@ -1457,6 +1457,9 @@
               <div class="hope-mate-title">✨ Hope Mate</div>
               <div class="hope-mate-subtitle">Choose a mode to begin.</div>
             </div>
+            <div class="hope-mate-meta">
+              <div><strong>Student:</strong> ${escapeHtml(playerName)}</div>
+            </div>
           </div>
 
           <div class="hope-mate-controls">
@@ -1466,12 +1469,6 @@
               <button id="hmRulesBtn" class="btn btn-secondary hm-mode-btn" type="button">Rules</button>
               <button id="hmHomeLeaderboardBtn" class="btn btn-secondary hm-mode-btn" type="button">Leaderboard</button>
             </div>
-          </div>
-
-          <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
-            <div class="hm-piece-tray-title">Status</div>
-            <div class="hm-muted"><strong>Student:</strong> ${escapeHtml(playerName)}</div>
-            <div class="hm-muted" style="margin-top:6px;">Practice Mode is available now.</div>
           </div>
         </div>
 
