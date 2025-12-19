@@ -1151,6 +1151,13 @@ function showGameSelection() {
     const gameList = document.getElementById('gameList');
     if (gameList) {
         gameList.innerHTML = `
+            <div class="game-item" onclick="startVChessPlatform()">
+                <div class="game-icon">🌐</div>
+                <div class="game-info">
+                    <h4>V.Chess Platform</h4>
+                    <p>Teacher lobby for pairing students (coming soon)</p>
+                </div>
+            </div>
             <div class="game-item" onclick="openChessCom()">
                 <div class="game-icon">♟️</div>
                 <div class="game-info">
@@ -1529,6 +1536,62 @@ async function startHopeMate() {
 }
 
 window.startHopeMate = startHopeMate;
+
+async function startVChessPlatform() {
+    // Teacher entry: no student selection required (invites will be handled inside the platform later).
+    try {
+        localStorage.setItem('vChessPlatformRole', 'teacher');
+        localStorage.setItem('vChessPlatformSelectedStudentIds', JSON.stringify(Array.isArray(selectedGameStudents) ? selectedGameStudents : []));
+    } catch (e) {
+        console.warn('Unable to persist vChessPlatform context to localStorage:', e);
+    }
+
+    showGameArea();
+    const gameAreaContent = document.getElementById('gameAreaContent');
+    if (!gameAreaContent) return;
+
+    gameAreaContent.innerHTML = `
+        <div id="vChessPlatformRoot" class="vchess-platform-root">
+            <h2>🌐 V.Chess Platform</h2>
+            <p>Loading platform...</p>
+        </div>
+    `;
+
+    // Ensure CSS is loaded (only once)
+    if (!document.getElementById('vChessPlatformCss')) {
+        const link = document.createElement('link');
+        link.id = 'vChessPlatformCss';
+        link.rel = 'stylesheet';
+        link.href = '/game/vchess-platform.css';
+        document.head.appendChild(link);
+    }
+
+    const ensureScriptLoaded = () => {
+        if (window.initVChessPlatform) {
+            window.initVChessPlatform();
+        } else {
+            console.error('initVChessPlatform function not found');
+        }
+    };
+
+    if (!window.vChessPlatformLoaded) {
+        const script = document.createElement('script');
+        script.src = '/game/vchess-platform.js';
+        script.onload = () => {
+            window.vChessPlatformLoaded = true;
+            ensureScriptLoaded();
+        };
+        script.onerror = (error) => {
+            console.error('Error loading vchess-platform.js:', error);
+            showNotification('Failed to load V.Chess Platform scripts', 'error');
+        };
+        document.body.appendChild(script);
+    } else {
+        ensureScriptLoaded();
+    }
+}
+
+window.startVChessPlatform = startVChessPlatform;
 
 async function startPuzzleMonsterFight() {
     if (selectedGameStudents.length === 0) {

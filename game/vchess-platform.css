@@ -1,0 +1,71 @@
+.vchess-platform-root {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.vcp-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+}
+
+.vcp-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #111827;
+}
+
+.vcp-subtitle {
+  margin: 0 0 12px;
+  color: #6b7280;
+}
+
+.vcp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vcp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  font-weight: 800;
+  color: #111827;
+}
+
+.vcp-muted {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.vcp-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.vcp-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.vcp-list-item {
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+

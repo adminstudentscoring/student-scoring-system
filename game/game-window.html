@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/game/royal-exchange.css">
     <link rel="stylesheet" href="/game/no-blunder.css">
     <link rel="stylesheet" href="/game/hope-mate.css">
+    <link rel="stylesheet" href="/game/vchess-platform.css">
     <style>
         body {
             margin: 0;
@@ -173,6 +174,24 @@
                         window.initHopeMate();
                     } else {
                         showError('Hope Mate script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'vChessPlatform') {
+                    content.innerHTML = `
+                        <div id="vChessPlatformRoot" class="vchess-platform-root">
+                            <h2>🌐 V.Chess Platform</h2>
+                            <p>Loading platform...</p>
+                        </div>
+                    `;
+                    // Pass role via querystring or localStorage; keep localStorage for consistency.
+                    const role = params.get('role') || '';
+                    if (role) {
+                        try { localStorage.setItem('vChessPlatformRole', role); } catch {}
+                    }
+                    await loadScript('/game/vchess-platform.js');
+                    if (window.initVChessPlatform) {
+                        window.initVChessPlatform();
+                    } else {
+                        showError('V.Chess Platform script loaded but init function missing.');
                     }
                 } else {
                     content.innerHTML = `

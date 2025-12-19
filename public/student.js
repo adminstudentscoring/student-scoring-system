@@ -221,6 +221,22 @@ window.openStudentGame = function(gameKey, options = {}) {
         }
         return;
     }
+
+    if (gameKey === 'vChessPlatform') {
+        try {
+            localStorage.setItem('vChessPlatformRole', 'student');
+            localStorage.setItem('vChessPlatformPlayer', JSON.stringify(player));
+        } catch (e) {
+            console.warn('Unable to persist vChessPlatform context', e);
+        }
+        const url = '/game/game-window.html?game=vChessPlatform&role=student';
+        if (openMode === 'sameTab') {
+            window.location.href = url;
+        } else {
+            window.open(url, '_blank');
+        }
+        return;
+    }
 };
 
 // =========================
