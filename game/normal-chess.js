@@ -286,6 +286,7 @@
       const myColor = myColorFromSession(session);
       const role = String(getIdentity()?.role || '');
       const canMove = role === 'student' && myColor && myColor === turn && !state?.gameOver;
+      const flip = role === 'student' && myColor === 'b';
 
       // derive clocks locally between syncs
       const now = Date.now();
@@ -301,9 +302,11 @@
       const squaresHtml = [];
       for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
-          const coord = rcToCoord(r, c);
+          const srcR = flip ? (7 - r) : r;
+          const srcC = flip ? (7 - c) : c;
+          const coord = rcToCoord(srcR, srcC);
           const light = (r + c) % 2 === 0;
-          const p = board[r][c];
+          const p = board[srcR][srcC];
           const isSel = UI.selected === coord;
           const mv = UI.moves.find(x => x.to === coord);
           const cls = [

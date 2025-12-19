@@ -30,7 +30,8 @@
 
 .nc-board {
   width: min(560px, 72vh, 100%);
-  height: min(560px, 72vh, 100%);
+  aspect-ratio: 1 / 1;
+  height: auto;
   border: 2px solid #e5e7eb;
   border-radius: 14px;
   overflow: hidden;
