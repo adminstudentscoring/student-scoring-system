@@ -86,9 +86,12 @@
 
   function renderHeaderBadge() {
     const name = String(STATE.me?.name || 'Unknown');
-    const sid = String(STATE.me?.studentId || '');
     const uid = String(STATE.me?.id || '');
-    const idLabel = sid ? `Student ID: ${sid}` : (uid ? `ID: ${uid}` : '');
+    const role = String(STATE.role || '');
+    const sid = role === 'student' ? String(STATE.me?.studentId || '') : '';
+    const idLabel = role === 'teacher'
+      ? (uid ? `Teacher ID: ${uid}` : '')
+      : (sid ? `Student ID: ${sid}` : (uid ? `ID: ${uid}` : ''));
     return `${escapeHtml(name)}${idLabel ? ` (${escapeHtml(idLabel)})` : ''}${STATE.wsReady ? '' : ' (disconnected)'}`;
   }
 
@@ -532,7 +535,8 @@
       STATE.lastError = null;
       STATE.role = String(msg?.kind || STATE.role);
       if (msg?.userId) STATE.me.id = String(msg.userId);
-      if (msg?.studentId) STATE.me.studentId = String(msg.studentId);
+      if (STATE.role === 'student' && msg?.studentId) STATE.me.studentId = String(msg.studentId);
+      if (STATE.role === 'teacher') STATE.me.studentId = '';
       STATE.me.name = String(msg?.name || STATE.me.name);
       if (STATE.role === 'student' && msg?.status) STATE.status = String(msg.status);
       render();
@@ -592,13 +596,16 @@
 
   function init() {
     STATE.role = getRole();
-    const studentPlayer = getStudentPlayer();
+    const studentPlayer = STATE.role === 'student' ? getStudentPlayer() : null;
     if (studentPlayer && typeof studentPlayer === 'object') {
       STATE.me = {
         id: String(studentPlayer.id || ''),
         name: String(studentPlayer.name || 'Student'),
         studentId: String(studentPlayer.studentId || '')
       };
+    } else if (STATE.role === 'teacher') {
+      // Avoid leaking any leftover studentId in the header badge.
+      STATE.me.studentId = '';
     }
     render();
     connectWs();
