@@ -1114,16 +1114,10 @@
 
           <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
             <div class="hm-piece-tray-title">Levels</div>
-            <div class="hm-muted" style="margin-bottom:10px;">
-              Level 1: 1 black king vs 2 white pieces<br/>
-              Level 2: 1 black king + 1 black piece vs 2 white pieces<br/>
-              Level 3: 1 black king + 2 black pieces vs 2 white pieces<br/>
-              Level 4+: board becomes 8×8 (black pieces increase by level)
-            </div>
             <div class="hm-level-grid">
               ${PRACTICE_LEVELS.map(l => `
-                <button class="hm-level-btn ${l === state.practiceLevel ? 'active' : ''}" type="button" data-level="${l}">
-                  Level ${l}
+                <button class="hm-level-btn ${l === state.practiceLevel ? 'active' : ''}" type="button" data-level="${l}" aria-label="Level ${l}">
+                  <span class="hm-level-number">${l}</span>
                 </button>
               `).join('')}
             </div>
