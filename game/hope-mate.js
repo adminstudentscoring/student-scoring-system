@@ -708,8 +708,16 @@
   // UI / Game State
   // ---------------------------
   const state = {
-    screen: 'home', // 'home' | 'practiceSelect' | 'practiceGame'
+    screen: 'home', // 'home' | 'practiceSelect' | 'practiceGame' | 'challengeSelect' | 'challengeGame'
     practiceLevel: 1,
+    challenge: {
+      active: false,
+      durationSec: 60,
+      timeLeftSec: 60,
+      level: 1,
+      solvedInLevel: 0, // 0..1 (level up every 2 solved)
+      totalSolved: 0
+    },
     puzzle: null,
     board: null,
     placed: [], // indices for each white piece slot
@@ -731,6 +739,69 @@
       resultMessage: ''
     }
   };
+
+  // Timer for Challenge Mode (cleared on navigation/restart)
+  let challengeTimerId = null;
+  function stopChallengeTimer() {
+    if (challengeTimerId) {
+      clearInterval(challengeTimerId);
+      challengeTimerId = null;
+    }
+  }
+
+  function startChallengeTimer() {
+    stopChallengeTimer();
+    challengeTimerId = setInterval(() => {
+      if (!state.challenge.active) return;
+      if (state.screen !== 'challengeGame') return;
+      const next = Math.max(0, Number(state.challenge.timeLeftSec || 0) - 1);
+      state.challenge.timeLeftSec = next;
+      if (next <= 0) {
+        stopChallengeTimer();
+        state.challenge.active = false;
+        setStatus('Time is up.', 'error');
+        openResult('incorrect', 'Time is up. Restart Challenge to try again.');
+        return;
+      }
+      // Update UI without full re-render if possible
+      const el = document.getElementById('hmChallengeTimer');
+      if (el) el.textContent = formatMmSs(state.challenge.timeLeftSec);
+    }, 1000);
+  }
+
+  function formatMmSs(totalSec) {
+    const s = Math.max(0, Number(totalSec || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+  }
+
+  function challengeConfigForLevel(levelNumber) {
+    // Same difficulty curve as Practice Mode
+    return getPracticeConfig(levelNumber);
+  }
+
+  function resetChallengeState(durationSec) {
+    stopChallengeTimer();
+    state.challenge.active = true;
+    state.challenge.durationSec = durationSec;
+    state.challenge.timeLeftSec = durationSec;
+    state.challenge.level = 1;
+    state.challenge.solvedInLevel = 0;
+    state.challenge.totalSolved = 0;
+  }
+
+  function newChallengePuzzle() {
+    state.attemptsFailed = false;
+    state.selectedPieceSlot = 0;
+    state.puzzleSolved = false;
+    state.ui.resultOpen = false;
+    const cfg = challengeConfigForLevel(state.challenge.level);
+    setBoardSize(cfg.boardSize);
+    state.puzzle = randomPuzzle(cfg);
+    state.board = state.puzzle.black.slice();
+    state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
+  }
 
   function getRoot() {
     return document.getElementById('hopeMateRoot');
@@ -953,6 +1024,17 @@
       const msg = gained ? 'Correct! Checkmate. +1 point.' : 'Correct! Checkmate. (No points because you already failed this puzzle.)';
       setStatus(msg, 'success');
       openResult('correct', msg);
+
+      // Challenge Mode: auto-advance puzzle & difficulty, same scoring rule (+1 only if first attempt)
+      if (state.screen === 'challengeGame') {
+        state.challenge.totalSolved += 1;
+        state.challenge.solvedInLevel += 1;
+        if (state.challenge.solvedInLevel >= 2) {
+          state.challenge.solvedInLevel = 0;
+          state.challenge.level = Math.min(10, Number(state.challenge.level || 1) + 1);
+        }
+      }
+
       if (gained === 1) {
         const player = getSinglePlayer();
         if (player?.id) {
@@ -994,6 +1076,13 @@
 
   function nextPuzzle() {
     newPuzzle();
+    setStatus('New puzzle generated. Place both pieces, then Confirm.', 'info');
+    render();
+  }
+
+  function nextChallengePuzzle() {
+    // Generate next puzzle using current challenge.level
+    newChallengePuzzle();
     setStatus('New puzzle generated. Place both pieces, then Confirm.', 'info');
     render();
   }
@@ -1242,14 +1331,71 @@
         </div>
       `;
       document.getElementById('hmPracticeBtn')?.addEventListener('click', () => {
+        stopChallengeTimer();
+        state.challenge.active = false;
         state.screen = 'practiceSelect';
         render();
       });
       document.getElementById('hmChallengeBtn')?.addEventListener('click', () => {
-        alert('Challenge Mode is not implemented yet.');
+        stopChallengeTimer();
+        state.challenge.active = false;
+        state.screen = 'challengeSelect';
+        render();
       });
       document.getElementById('hmRulesBtn')?.addEventListener('click', () => {
         alert('Rules are not implemented yet.');
+      });
+      return;
+    }
+
+    if (state.screen === 'challengeSelect') {
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">Challenge Mode — Select a time limit</div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmChallengeBackBtn" class="btn btn-secondary" type="button">Back</button>
+            </div>
+          </div>
+
+          <div class="hm-piece-tray" style="max-width:520px; margin: 0 auto;">
+            <div class="hm-piece-tray-title">Time</div>
+            <div class="hm-mode-menu" style="margin-top:8px;">
+              <button class="btn btn-primary hm-mode-btn" type="button" data-sec="60">1 min</button>
+              <button class="btn btn-primary hm-mode-btn" type="button" data-sec="120">2 min</button>
+              <button class="btn btn-primary hm-mode-btn" type="button" data-sec="180">3 min</button>
+            </div>
+            <div class="hm-muted" style="margin-top:10px;">
+              Start at Level 1. Every 2 correct puzzles increases the level (max Level 10).
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('hmChallengeBackBtn')?.addEventListener('click', () => {
+        stopChallengeTimer();
+        state.challenge.active = false;
+        state.screen = 'home';
+        render();
+      });
+      root.querySelectorAll('[data-sec]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sec = Number(btn.getAttribute('data-sec'));
+          if (![60, 120, 180].includes(sec)) return;
+          resetChallengeState(sec);
+          state.screen = 'challengeGame';
+          newChallengePuzzle();
+          setStatus('Challenge started. Place both pieces, then Confirm.', 'info');
+          render();
+          startChallengeTimer();
+          refreshLeaderboard();
+        });
       });
       return;
     }
@@ -1299,6 +1445,193 @@
           refreshLeaderboard();
         });
       });
+      return;
+    }
+
+    if (state.screen === 'challengeGame') {
+      const cfg = challengeConfigForLevel(state.challenge.level);
+      const levelLabel = `Level ${cfg.level} (${cfg.boardSize}×${cfg.boardSize}, black pieces: ${cfg.blackExtraCount})`;
+      const timerLabel = formatMmSs(state.challenge.timeLeftSec);
+
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">Challenge Mode — ${escapeHtml(levelLabel)} — Place 2 pieces to checkmate the black king (black to move).</div>
+            </div>
+            <div class="hope-mate-meta">
+              <div><strong>Student:</strong> ${escapeHtml(playerName)}</div>
+              <div><strong>Timer:</strong> <span id="hmChallengeTimer">${escapeHtml(timerLabel)}</span></div>
+              <div><strong>Level:</strong> ${state.challenge.level}</div>
+              <div><strong>Progress:</strong> ${state.challenge.solvedInLevel}/2</div>
+              <div><strong>Solved:</strong> ${state.challenge.totalSolved}</div>
+              <div><strong>Session:</strong> ${state.sessionScore}</div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmChallengeQuitBtn" class="btn btn-secondary" type="button">Quit</button>
+              <button id="hmChallengeRestartBtn" class="btn btn-secondary" type="button">Restart</button>
+              <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Leaderboard</button>
+              <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
+              <button id="hmChallengeNextBtn" class="btn btn-secondary" type="button">Next</button>
+            </div>
+          </div>
+
+          <div id="hopeMateStatus" class="hope-mate-status is-info">${escapeHtml(lastStatus.text || 'Generating puzzle...')}</div>
+
+          <div class="hope-mate-main">
+            <div class="hope-mate-left">
+              <div class="hm-piece-tray">
+                <div class="hm-piece-tray-title">Your pieces (click or drag to a square)</div>
+                <div class="hm-slots">
+                  ${slotLabel(0)}
+                  ${slotLabel(1)}
+                </div>
+                <div class="hm-piece-tray-hint">You can change placement before Confirm. No partial feedback is shown.</div>
+
+                <div class="hm-piece-tray-footer" aria-label="Challenge actions">
+                  <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
+                  <button id="hopeMateCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="hope-mate-board-wrap">
+              <div class="hm-board-container">
+                <div class="hm-board-shell">
+                  <div class="hm-board-col-labels" aria-hidden="true">
+                    ${FILES.map(f => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join('')}
+                  </div>
+                  <div class="hm-board-row-labels" aria-hidden="true">
+                    ${[...RANKS].reverse().map(r => `<div class="hm-row-label">${r}</div>`).join('')}
+                  </div>
+                  <div id="hopeMateBoard" class="hm-board" role="grid" aria-label="Hope Mate board">
+                    ${renderBoard(state.board || buildEmptyBoard())}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${state.ui.leaderboardOpen ? `
+          <div class="hm-modal-backdrop" id="hmLeaderboardBackdrop" role="presentation">
+            <div class="hm-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Leaderboard">
+              <div class="hm-modal-header">
+                <div class="hm-modal-title">Leaderboard (your teacher)</div>
+                <button id="hmLeaderboardClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
+              </div>
+              <div class="hm-modal-body">
+                ${state.leaderboard.loading ? `<div class="hm-muted">Loading...</div>` : ''}
+                ${state.leaderboard.error ? `<div class="hm-muted">${escapeHtml(state.leaderboard.error)}</div>` : ''}
+                <div class="hm-leaderboard-list">
+                  ${(() => {
+                    const meId = String(player?.id || '');
+                    const entries = Array.isArray(state.leaderboard.entries) ? state.leaderboard.entries : [];
+                    const top = entries.slice(0, 20);
+                    if (!state.leaderboard.loading && top.length === 0) {
+                      return `<div class="hm-muted">No records yet.</div>`;
+                    }
+                    return top.map((e, idx) => {
+                      const sid = String(e?.student?.id || e?.studentId || e?.id || '');
+                      const name = String(e?.student?.name || e?.name || 'Unknown');
+                      const score = Number(e?.totalScore ?? e?.score ?? 0) || 0;
+                      const isMe = meId && sid === meId;
+                      return `
+                        <div class="hm-leaderboard-row ${isMe ? 'is-me' : ''}">
+                          <div class="hm-leaderboard-rank">${idx + 1}</div>
+                          <div class="hm-leaderboard-name">${escapeHtml(name)}</div>
+                          <div class="hm-leaderboard-score">${score}</div>
+                        </div>
+                      `;
+                    }).join('');
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        ${state.ui.resultOpen ? `
+          <div class="hm-modal-backdrop" id="hmResultBackdrop" role="presentation">
+            <div class="hm-modal hm-result-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Result">
+              <div class="hm-modal-header">
+                <div class="hm-modal-title">${state.ui.resultKind === 'correct' ? 'Correct' : 'Incorrect'}</div>
+                <button id="hmResultClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
+              </div>
+              <div class="hm-modal-body">
+                <div class="hm-result-message">${escapeHtml(state.ui.resultMessage || '')}</div>
+                <div class="hm-result-actions">
+                  ${state.ui.resultKind === 'correct'
+                    ? `<button id="hmResultNext" class="btn btn-primary" type="button">Next</button>`
+                    : `<button id="hmResultRedo" class="btn btn-primary" type="button">Redo</button>`
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      `;
+
+      document.getElementById('hmChallengeQuitBtn')?.addEventListener('click', () => {
+        stopChallengeTimer();
+        state.challenge.active = false;
+        state.screen = 'home';
+        render();
+      });
+      document.getElementById('hmChallengeRestartBtn')?.addEventListener('click', () => {
+        const sec = Number(state.challenge.durationSec || 60) || 60;
+        resetChallengeState(sec);
+        newChallengePuzzle();
+        setStatus('Challenge restarted. Place both pieces, then Confirm.', 'info');
+        render();
+        startChallengeTimer();
+      });
+      document.getElementById('hmChallengeNextBtn')?.addEventListener('click', nextChallengePuzzle);
+      document.getElementById('hopeMateLeaderboardBtn')?.addEventListener('click', () => {
+        openLeaderboard();
+        refreshLeaderboard();
+      });
+      document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
+      document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
+      document.getElementById('hopeMateCancelBtn')?.addEventListener('click', () => {
+        stopChallengeTimer();
+        state.challenge.active = false;
+        state.screen = 'challengeSelect';
+        render();
+      });
+
+      document.getElementById('hmLeaderboardClose')?.addEventListener('click', closeLeaderboard);
+      document.getElementById('hmLeaderboardBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'hmLeaderboardBackdrop') closeLeaderboard();
+      });
+
+      document.getElementById('hmResultClose')?.addEventListener('click', closeResult);
+      document.getElementById('hmResultBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'hmResultBackdrop') closeResult();
+      });
+      document.getElementById('hmResultNext')?.addEventListener('click', () => {
+        closeResult();
+        // In Challenge, Next advances difficulty progression handled in confirm()
+        nextChallengePuzzle();
+      });
+      document.getElementById('hmResultRedo')?.addEventListener('click', () => {
+        closeResult();
+        resetPlacements();
+        setStatus('Redo: place both pieces again, then Confirm.', 'info');
+      });
+
+      // Bind board interactions + drag
+      document.querySelectorAll('.hm-square').forEach((el) => {
+        el.addEventListener('click', () => {
+          const idx = Number(el.getAttribute('data-idx'));
+          if (Number.isFinite(idx)) onSquareClick(idx);
+        });
+      });
+      enableDragAndDrop();
       return;
     }
 
