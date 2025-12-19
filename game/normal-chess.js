@@ -611,21 +611,17 @@
             </div>
 
             <div>
-              <div class="nc-name-row">
-                <div class="nc-player-name">${escapeHtml(String(topName || ''))}</div>
-              </div>
               <div class="nc-board" id="ncBoard">
                 ${squaresHtml.join('')}
-              </div>
-              <div class="nc-name-row" style="margin-top:8px;">
-                <div class="nc-player-name">${escapeHtml(String(bottomName || ''))}</div>
               </div>
             </div>
           </div>
 
-          <div class="nc-status">
-            ${state?.gameOver ? `<strong>Game over:</strong> ${String(state.gameOverReason || 'ended')}` : (canMove ? 'Your move.' : 'Waiting…')}
-          </div>
+          ${state?.gameOver ? `
+            <div class="nc-status">
+              <strong>Game over:</strong> ${escapeHtml(String(state.gameOverReason || 'ended'))}
+            </div>
+          ` : ''}
 
           <div class="nc-actions">
             <button class="btn btn-secondary" type="button" id="ncClearSel">Clear selection</button>

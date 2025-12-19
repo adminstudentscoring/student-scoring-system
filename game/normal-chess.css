@@ -8,7 +8,7 @@
   display: grid;
   grid-template-columns: 96px 1fr;
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (max-width: 520px) {
@@ -34,8 +34,11 @@
 }
 
 .nc-timers {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   gap: 10px;
+  height: 100%;
 }
 
 .nc-timer {
@@ -81,21 +84,6 @@
   font-size: 18px;
   color: #111827;
   text-align: center;
-}
-
-.nc-name-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.nc-player-name {
-  font-weight: 950;
-  color: #111827;
-  font-size: 13px;
 }
 
 .nc-board {
