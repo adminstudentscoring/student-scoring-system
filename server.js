@@ -11121,6 +11121,7 @@ async function startServer() {
       moveNumber: 1,
       castling: 'KQkq',
       ep: null,
+      drawOffer: null, // { from: 'w'|'b', atTs }
       gameOver: false,
       gameOverReason: null
     };
@@ -11168,6 +11169,7 @@ async function startServer() {
     st.board = next.board;
     st.castling = next.castling;
     st.ep = next.ep;
+    st.drawOffer = null; // clear any outstanding draw offer on move
     st.turn = vcpOpp(String(st.turn || 'w'));
     st.moveNumber = Number(st.moveNumber || 1) + 1;
 
@@ -11246,6 +11248,32 @@ async function startServer() {
       if (!pres?.connections) continue;
       for (const sWs of pres.connections) wsSend(sWs, payload);
     }
+  }
+
+  function vcpEndChessSession(orgId, session, reason) {
+    try {
+      session.status = 'ended';
+      if (session.chessState && !session.chessState.gameOver) {
+        session.chessState.gameOver = true;
+        session.chessState.gameOverReason = String(reason || 'ended');
+      }
+      vcp.sessions.set(String(session.id), session);
+    } catch {}
+
+    // Mark players back online
+    for (const sid of session.studentIds || []) {
+      setStudentStatus(orgId, String(sid), 'online', false);
+      const smap = vcpOrgStudentsMap(orgId);
+      const pres = smap.get(String(sid));
+      if (pres) {
+        pres.lastActivityTs = Date.now();
+        pres.lastActivity = nowIso();
+        smap.set(String(sid), pres);
+      }
+    }
+    vcpBroadcastPresence(orgId);
+    vcpBroadcastChessSync(session);
+    vcpBroadcastLiveGames(orgId);
   }
 
   wss.on('connection', (ws) => {
@@ -11500,34 +11528,10 @@ async function startServer() {
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (kind === 'student') {
           // End session if any player leaves (MVP)
-          try {
-            session.status = 'ended';
-            if (session.chessState && !session.chessState.gameOver) {
-              session.chessState.gameOver = true;
-              session.chessState.gameOverReason = 'Player left';
-            }
-            vcp.sessions.set(sessionId, session);
-          } catch {}
-
-          // Mark both students back online
-          for (const sid of session.studentIds || []) {
-            setStudentStatus(orgId, String(sid), 'online', false);
-            const smap = vcpOrgStudentsMap(orgId);
-            const pres = smap.get(String(sid));
-            if (pres) {
-              pres.lastActivityTs = Date.now();
-              pres.lastActivity = nowIso();
-              smap.set(String(sid), pres);
-            }
-          }
-          vcpBroadcastPresence(orgId);
+          vcpEndChessSession(orgId, session, 'Player left');
 
           // Notify teacher that student left
           for (const tws of vcpOrgTeachersSet(orgId)) wsSend(tws, { type: 'vcp_session_update', sessionId, studentId: String(userId), action: 'left' });
-
-          // Sync chess + live games
-          vcpBroadcastChessSync(session);
-          vcpBroadcastLiveGames(orgId);
         }
         return;
       }
@@ -11559,6 +11563,76 @@ async function startServer() {
 
         vcpBroadcastChessSync(session);
         vcpBroadcastLiveGames(orgId);
+        return;
+      }
+
+      if (type === 'vcp_chess_offer_draw') {
+        const sessionId = String(msg?.sessionId || '');
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) return;
+        if (String(session.mode) !== 'chess') return;
+        if (String(session.status) !== 'active') return;
+        if (kind !== 'student') return;
+        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        if (!session.chessState || session.chessState.gameOver) return;
+
+        const cfg = session.config || {};
+        const moverColor = String(userId) === String(cfg.whiteStudentId || '') ? 'w' : String(userId) === String(cfg.blackStudentId || '') ? 'b' : null;
+        if (!moverColor) return;
+
+        session.chessState.drawOffer = { from: moverColor, atTs: Date.now() };
+        vcp.sessions.set(String(session.id), session);
+        vcpBroadcastChessSync(session);
+        vcpBroadcastLiveGames(orgId);
+        return;
+      }
+
+      if (type === 'vcp_chess_draw_response') {
+        const sessionId = String(msg?.sessionId || '');
+        const accept = String(msg?.accept || '') === 'true';
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) return;
+        if (String(session.mode) !== 'chess') return;
+        if (String(session.status) !== 'active') return;
+        if (kind !== 'student') return;
+        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        if (!session.chessState || session.chessState.gameOver) return;
+
+        const cfg = session.config || {};
+        const myColor = String(userId) === String(cfg.whiteStudentId || '') ? 'w' : String(userId) === String(cfg.blackStudentId || '') ? 'b' : null;
+        if (!myColor) return;
+
+        const offer = session.chessState.drawOffer;
+        if (!offer || !offer.from) return;
+        if (String(offer.from) === String(myColor)) return; // cannot respond to own offer
+
+        if (accept) {
+          session.chessState.drawOffer = null;
+          vcpEndChessSession(orgId, session, 'Draw agreed');
+        } else {
+          session.chessState.drawOffer = null;
+          vcp.sessions.set(String(session.id), session);
+          vcpBroadcastChessSync(session);
+          vcpBroadcastLiveGames(orgId);
+        }
+        return;
+      }
+
+      if (type === 'vcp_chess_resign') {
+        const sessionId = String(msg?.sessionId || '');
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) return;
+        if (String(session.mode) !== 'chess') return;
+        if (String(session.status) !== 'active') return;
+        if (kind !== 'student') return;
+        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        if (!session.chessState || session.chessState.gameOver) return;
+
+        const cfg = session.config || {};
+        const myColor = String(userId) === String(cfg.whiteStudentId || '') ? 'w' : String(userId) === String(cfg.blackStudentId || '') ? 'b' : null;
+        if (!myColor) return;
+
+        vcpEndChessSession(orgId, session, `${myColor === 'w' ? 'White' : 'Black'} resigned`);
         return;
       }
     });

@@ -542,6 +542,7 @@
       const flip = role === 'student' && myColor === 'b';
       const castling = String(state?.castling || 'KQkq');
       const ep = state?.ep ? String(state.ep) : '';
+      const drawOffer = state?.drawOffer && typeof state.drawOffer === 'object' ? state.drawOffer : null;
       const cfg = session?.config || {};
       const whiteId = String(cfg.whiteStudentId || '');
       const blackId = String(cfg.blackStudentId || '');
@@ -567,6 +568,9 @@
       const bottomMs = bottomColor === 'w' ? wMs : bMs;
       const activeTop = !state?.gameOver && turn === topColor;
       const activeBottom = !state?.gameOver && turn === bottomColor;
+
+      const myDrawOffer = role === 'student' && myColor && drawOffer && String(drawOffer.from) === String(myColor);
+      const opponentDrawOffer = role === 'student' && myColor && drawOffer && String(drawOffer.from) && String(drawOffer.from) !== String(myColor);
 
       const squaresHtml = [];
       for (let r = 0; r < 8; r++) {
@@ -604,6 +608,12 @@
                 <div class="nc-timer-label"><span>${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
                 <div class="nc-timer-time">${escapeHtml(formatMs(topMs))}</div>
               </div>
+
+              <div class="nc-actions" style="flex-direction:column;">
+                <button class="btn btn-secondary" type="button" id="ncDrawBtn" ${role !== 'student' || state?.gameOver || myDrawOffer ? 'disabled' : ''}>${myDrawOffer ? 'Draw offered' : (opponentDrawOffer ? 'Respond to draw' : 'Draw')}</button>
+                <button class="btn btn-secondary" type="button" id="ncResignBtn" ${role !== 'student' || state?.gameOver ? 'disabled' : ''}>Resign</button>
+              </div>
+
               <div class="nc-timer ${activeBottom ? 'active' : ''}">
                 <div class="nc-timer-label"><span>${escapeHtml(String(bottomName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
                 <div class="nc-timer-time">${escapeHtml(formatMs(bottomMs))}</div>
@@ -623,9 +633,6 @@
             </div>
           ` : ''}
 
-          <div class="nc-actions">
-            <button class="btn btn-secondary" type="button" id="ncClearSel">Clear selection</button>
-          </div>
         </div>
       `;
 
@@ -670,11 +677,52 @@
         });
       }
 
-      rootEl.querySelector('#ncClearSel')?.addEventListener('click', () => {
-        UI.selected = null;
-        UI.moves = [];
-        clearDrag();
-        render(UI.lastState);
+      // Draw offer modal (when opponent offers)
+      if (opponentDrawOffer && !state?.gameOver) {
+        const host = document.createElement('div');
+        host.innerHTML = `
+          <div class="vcp-modal-backdrop" id="ncDrawBackdrop" role="presentation">
+            <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Draw offer">
+              <div class="vcp-modal-header">
+                <div class="vcp-modal-title">Draw offer</div>
+                <button id="ncDrawClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              </div>
+              <div class="vcp-modal-body">
+                <div class="vcp-muted" style="margin-bottom:10px;">Your opponent offered a draw.</div>
+                <div class="vcp-btn-row" style="justify-content:flex-end;">
+                  <button id="ncDrawDecline" class="btn btn-secondary" type="button">Decline</button>
+                  <button id="ncDrawAccept" class="btn btn-primary" type="button">Accept</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        rootEl.appendChild(host);
+        const sessionId = String(session?.id || '');
+        const close = () => { send({ type: 'vcp_chess_draw_response', sessionId, accept: 'false' }); };
+        rootEl.querySelector('#ncDrawClose')?.addEventListener('click', close);
+        rootEl.querySelector('#ncDrawBackdrop')?.addEventListener('click', (e) => {
+          if (e.target && e.target.id === 'ncDrawBackdrop') close();
+        });
+        rootEl.querySelector('#ncDrawDecline')?.addEventListener('click', close);
+        rootEl.querySelector('#ncDrawAccept')?.addEventListener('click', () => {
+          send({ type: 'vcp_chess_draw_response', sessionId, accept: 'true' });
+        });
+      }
+
+      rootEl.querySelector('#ncDrawBtn')?.addEventListener('click', () => {
+        const sessionId = String(session?.id || '');
+        if (opponentDrawOffer) {
+          // Clicking Draw while an opponent offer is present will accept.
+          send({ type: 'vcp_chess_draw_response', sessionId, accept: 'true' });
+        } else {
+          send({ type: 'vcp_chess_offer_draw', sessionId });
+        }
+      });
+
+      rootEl.querySelector('#ncResignBtn')?.addEventListener('click', () => {
+        const sessionId = String(session?.id || '');
+        send({ type: 'vcp_chess_resign', sessionId });
       });
 
       rootEl.querySelectorAll('.nc-square[data-coord]').forEach((el) => {

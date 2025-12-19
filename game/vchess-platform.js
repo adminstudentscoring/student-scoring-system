@@ -508,9 +508,6 @@
           </div>
           <div class="vcp-modal-body">
             <div id="ncMount"></div>
-            <div class="vcp-btn-row" style="margin-top:12px;">
-              <button id="vcpLeaveSessionBtn" class="btn btn-secondary" type="button">Leave</button>
-            </div>
           </div>
         </div>
       </div>
@@ -519,7 +516,6 @@
 
   function bindSessionEvents() {
     if (!STATE.activeSession) return;
-    document.getElementById('vcpLeaveSessionBtn')?.addEventListener('click', leaveSession);
     document.getElementById('vcpLeaveSessionBtnX')?.addEventListener('click', leaveSession);
     document.getElementById('vcpSessionBackdrop')?.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'vcpSessionBackdrop') leaveSession();
