@@ -430,6 +430,52 @@
       }, 250);
     }
 
+    function optimisticUpdateClocks(state, incrementSec) {
+      const now = Date.now();
+      const turn = String(state.turn || 'w');
+      const elapsed = Math.max(0, now - Number(state.turnStartTs || now));
+      const wMs0 = Number(state.clocks?.wMs ?? 0);
+      const bMs0 = Number(state.clocks?.bMs ?? 0);
+      const wMs = turn === 'w' ? Math.max(0, wMs0 - elapsed) : wMs0;
+      const bMs = turn === 'b' ? Math.max(0, bMs0 - elapsed) : bMs0;
+      state.clocks = { wMs, bMs };
+      // add increment to mover
+      if (turn === 'w') state.clocks.wMs += incrementSec * 1000;
+      else state.clocks.bMs += incrementSec * 1000;
+      state.turnStartTs = now;
+    }
+
+    function sendMoveOptimistic(from, to, promo) {
+      const session = getSession();
+      if (!session || !UI.lastState) return;
+      const sessionId = String(session.id || '');
+      const inc = Math.max(0, Math.min(60, Number(session?.config?.incrementSec) || 0));
+
+      // Build an optimistic next state so the piece doesn't "snap back" before server sync arrives.
+      const base = UI.lastState;
+      const baseState = {
+        ...base,
+        board: base.board || initialBoard(),
+        castling: base.castling || 'KQkq',
+        ep: base.ep || null,
+        clocks: base.clocks || { wMs: 0, bMs: 0 },
+        turnStartTs: base.turnStartTs || Date.now()
+      };
+      const applied = applyMoveToState(baseState, from, to, promo);
+      if (applied) {
+        optimisticUpdateClocks(baseState, inc);
+        baseState.board = applied.board;
+        baseState.castling = applied.castling;
+        baseState.ep = applied.ep;
+        baseState.turn = opposite(String(base.turn || 'w'));
+        baseState.moveNumber = Number(base.moveNumber || 1) + 1;
+        UI.lastState = baseState;
+      }
+
+      send({ type: 'vcp_chess_move', sessionId, from, to, promo: promo || 'q' });
+      render(UI.lastState);
+    }
+
     function clearDrag() {
       if (!drag) return;
       try { drag.originEl?.classList?.remove('nc-drag-origin'); } catch {}
@@ -583,11 +629,10 @@
         rootEl.querySelectorAll('button[data-promo]').forEach((btn) => {
           btn.addEventListener('click', () => {
             const promo = String(btn.getAttribute('data-promo') || 'q');
-            const sessionId = String(session?.id || '');
             const from = pendingPromotion.from;
             const to = pendingPromotion.to;
             pendingPromotion = null;
-            send({ type: 'vcp_chess_move', sessionId, from, to, promo });
+            sendMoveOptimistic(from, to, promo);
             render(UI.lastState);
           });
         });
@@ -639,7 +684,7 @@
             if (needPromo) {
               pendingPromotion = { from, to: coord, isDrag: false };
             } else {
-              send({ type: 'vcp_chess_move', sessionId, from, to: coord, promo: 'q' });
+              sendMoveOptimistic(from, coord, 'q');
             }
             render(UI.lastState);
             return;
@@ -698,7 +743,7 @@
               if (needPromo) {
                 pendingPromotion = { from, to: toCoord, isDrag: true };
               } else {
-                send({ type: 'vcp_chess_move', sessionId, from, to: toCoord, promo: 'q' });
+                sendMoveOptimistic(from, toCoord, 'q');
               }
             }
             render(UI.lastState);
