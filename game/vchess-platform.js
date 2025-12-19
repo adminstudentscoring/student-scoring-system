@@ -15,7 +15,8 @@
     lastError: null,
     pendingInvite: null, // teacher-only: { inviteId, studentIds, config, createdAt, responses }
     ncApp: null,
-    ncSessionId: null
+    ncSessionId: null,
+    liveGames: [] // org-wide spectator snapshots
   };
 
   let reconnectTimer = null;
@@ -98,6 +99,85 @@
     const nm = String(s.name || 'Unknown');
     const sid = String(s.studentId || '');
     return sid ? `${nm} (${sid})` : nm;
+  }
+
+  function pieceImagePath(p) {
+    if (!p) return '';
+    const color = p === p.toUpperCase() ? 'white' : 'black';
+    const t = p.toLowerCase();
+    const name =
+      t === 'p' ? 'Pawn' :
+      t === 'n' ? 'Knight' :
+      t === 'b' ? 'Bishop' :
+      t === 'r' ? 'Rook' :
+      t === 'q' ? 'Queen' :
+      t === 'k' ? 'King' : '';
+    if (!name) return '';
+    return `/game/pieces/${color}_${name}.png`;
+  }
+
+  function formatMs(ms) {
+    const s = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+  }
+
+  function computeLiveClocks(game) {
+    const st = game?.state || {};
+    const turn = String(st.turn || 'w');
+    const turnStartTs = Number(st.turnStartTs || Date.now());
+    const elapsed = Math.max(0, Date.now() - turnStartTs);
+    const wMs0 = Number(st.clocks?.wMs ?? 0);
+    const bMs0 = Number(st.clocks?.bMs ?? 0);
+    const wMs = st.gameOver ? wMs0 : (turn === 'w' ? Math.max(0, wMs0 - elapsed) : wMs0);
+    const bMs = st.gameOver ? bMs0 : (turn === 'b' ? Math.max(0, bMs0 - elapsed) : bMs0);
+    return { wMs, bMs, turn };
+  }
+
+  function renderMiniBoard(board) {
+    const b = Array.isArray(board) ? board : [];
+    const out = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const light = (r + c) % 2 === 0;
+        const p = (b[r] && b[r][c]) ? String(b[r][c]) : '';
+        out.push(`
+          <div class="vcp-mini-sq ${light ? 'light' : 'dark'}">
+            ${p ? `<img class="vcp-mini-piece" draggable="false" alt="${escapeHtml(p)}" src="${pieceImagePath(p)}">` : ''}
+          </div>
+        `);
+      }
+    }
+    return `<div class="vcp-mini-board">${out.join('')}</div>`;
+  }
+
+  function renderLiveGames() {
+    const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
+    if (!games.length) {
+      return `<div class="vcp-muted">No live games right now.</div>`;
+    }
+    return `
+      <div class="vcp-live-grid">
+        ${games.map((g) => {
+          const clocks = computeLiveClocks(g);
+          const whiteLabel = `${String(g.whiteName || 'White')}${g.whiteStudentId ? ` (${String(g.whiteStudentId)})` : ''}`;
+          const blackLabel = `${String(g.blackName || 'Black')}${g.blackStudentId ? ` (${String(g.blackStudentId)})` : ''}`;
+          return `
+            <div class="vcp-live-card" data-live-session="${escapeHtml(String(g.sessionId || ''))}">
+              <div class="vcp-live-card-header">
+                <div class="vcp-live-names">${escapeHtml(whiteLabel)} vs ${escapeHtml(blackLabel)}</div>
+                <div class="vcp-live-meta">
+                  <div class="vcp-live-clock">W ${escapeHtml(formatMs(clocks.wMs))} | B ${escapeHtml(formatMs(clocks.bMs))}</div>
+                  <span class="vcp-status-pill ${clocks.turn === 'w' ? 'online' : 'in-game'}">Turn ${clocks.turn === 'w' ? 'White' : 'Black'}</span>
+                </div>
+              </div>
+              ${renderMiniBoard(g?.state?.board)}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   function renderHeaderBadge() {
@@ -260,7 +340,7 @@
         <div class="vcp-row">
           <div>
             <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Teacher Lobby</div>
+            <div class="vcp-subtitle">Lobby</div>
           </div>
           <div class="vcp-badge">${renderHeaderBadge()}</div>
         </div>
@@ -313,10 +393,8 @@
                 </div>
               ` : ''}
 
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Recent events</div>
-              <div class="vcp-muted">
-                ${STATE.teacherMessages.length ? STATE.teacherMessages.map(m => `${escapeHtml(m.at)} — ${escapeHtml(m.text)}`).join('<br>') : 'No events yet.'}
-              </div>
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Live Game</div>
+              <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
             </div>
           </div>
         </div>
@@ -327,6 +405,7 @@
 
     document.getElementById('vcpRefreshBtn')?.addEventListener('click', () => {
       wsSend({ type: 'vcp_get_presence' });
+      wsSend({ type: 'vcp_get_live_games' });
     });
 
     root.querySelectorAll('input[type="checkbox"][data-student-id]').forEach((cb) => {
@@ -362,7 +441,7 @@
         <div class="vcp-row">
           <div>
             <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Student Lobby</div>
+          <div class="vcp-subtitle">Lobby</div>
           </div>
           <div class="vcp-badge">${renderHeaderBadge()}</div>
         </div>
@@ -387,12 +466,12 @@
             </div>
 
             <div class="vcp-main">
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Waiting for invites…</div>
-              <div class="vcp-muted">You will receive invites here in realtime.</div>
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Live Game</div>
+              <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
 
-              <div class="vcp-list">
+              <div class="vcp-list" style="margin-top:12px;">
                 <div class="vcp-list-item">
-                  <div style="font-weight:900; color:#111827;">Incoming invites</div>
+                  <div style="font-weight:900; color:#111827;">Invites</div>
                   <div class="vcp-muted" style="margin-top:6px;">${STATE.invites.length ? `${STATE.invites.length} pending` : 'No invites yet.'}</div>
                 </div>
               </div>
@@ -407,6 +486,7 @@
 
     document.getElementById('vcpStudentRefreshBtn')?.addEventListener('click', () => {
       wsSend({ type: 'vcp_get_presence' });
+      wsSend({ type: 'vcp_get_live_games' });
       markActivity();
     });
 
@@ -677,6 +757,7 @@
       reconnectAttempt = 0;
       startHeartbeat();
       wsSend({ type: 'vcp_get_presence' });
+      wsSend({ type: 'vcp_get_live_games' });
       render();
       return;
     }
@@ -700,6 +781,13 @@
         STATE.selected = new Set(Array.from(STATE.selected).filter(id => ids.has(String(id))));
       }
       render();
+      return;
+    }
+    if (type === 'vcp_live_games_snapshot') {
+      STATE.liveGames = Array.isArray(msg?.games) ? msg.games : [];
+      // refresh only the live game area if present
+      const area = document.getElementById('vcpLiveGamesArea');
+      if (area) area.innerHTML = renderLiveGames();
       return;
     }
     if (type === 'vcp_invite') {

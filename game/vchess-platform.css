@@ -172,6 +172,86 @@
 .vcp-status-pill.idle { background: #fffbeb; border-color: #fde68a; }
 .vcp-status-pill.in-game { background: #eff6ff; border-color: #bfdbfe; }
 
+/* Live Game grid */
+.vcp-live-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .vcp-live-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .vcp-live-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vcp-live-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.vcp-live-card-header {
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.vcp-live-names {
+  font-weight: 950;
+  color: #111827;
+  line-height: 1.2;
+  font-size: 13px;
+}
+
+.vcp-live-meta {
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.vcp-live-clock {
+  font-weight: 900;
+  color: #111827;
+  font-size: 12px;
+}
+
+.vcp-mini-board {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+}
+
+.vcp-mini-sq.light { background: #f1f5f9; }
+.vcp-mini-sq.dark { background: #94a3b8; }
+
+.vcp-mini-sq {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vcp-mini-piece {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.18));
+}
+
 .vcp-modal-backdrop {
   position: fixed;
   inset: 0;

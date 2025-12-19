@@ -10729,6 +10729,7 @@ async function startServer() {
         session.chessState = st;
         vcp.sessions.set(String(session.id), session);
         vcpBroadcastChessSync(session);
+        vcpBroadcastLiveGames(String(session.orgId));
       }
 
       if (wMs <= 0 || bMs <= 0) {
@@ -10739,6 +10740,7 @@ async function startServer() {
         session.chessState = st;
         vcp.sessions.set(String(session.id), session);
         vcpBroadcastChessSync(session);
+        vcpBroadcastLiveGames(String(session.orgId));
       }
     }
   }, 1000);
@@ -11195,6 +11197,57 @@ async function startServer() {
     }
   }
 
+  // Live games (org-wide spectator snapshots)
+  function vcpLiveGamesSnapshotForOrg(orgId) {
+    const out = [];
+    const smap = vcpOrgStudentsMap(String(orgId));
+    for (const s of vcp.sessions.values()) {
+      if (!s || String(s.orgId) !== String(orgId)) continue;
+      if (String(s.mode) !== 'chess') continue;
+      if (String(s.status) !== 'active') continue;
+      const st = s.chessState;
+      if (!st) continue;
+      const cfg = s.config || {};
+      const whiteId = String(cfg.whiteStudentId || '');
+      const blackId = String(cfg.blackStudentId || '');
+      const wp = smap.get(whiteId);
+      const bp = smap.get(blackId);
+      out.push({
+        sessionId: String(s.id),
+        teacherId: String(s.teacherId || ''),
+        teacherName: String(s.teacherName || ''),
+        whiteId,
+        blackId,
+        whiteName: wp ? String(wp.name || 'White') : 'White',
+        blackName: bp ? String(bp.name || 'Black') : 'Black',
+        whiteStudentId: wp ? String(wp.studentId || '') : '',
+        blackStudentId: bp ? String(bp.studentId || '') : '',
+        config: { minutes: Number(cfg.minutes || 3), incrementSec: Number(cfg.incrementSec || 0) },
+        state: {
+          board: st.board,
+          turn: st.turn,
+          turnStartTs: st.turnStartTs,
+          clocks: st.clocks,
+          gameOver: st.gameOver,
+          gameOverReason: st.gameOverReason
+        }
+      });
+    }
+    return out;
+  }
+
+  function vcpBroadcastLiveGames(orgId) {
+    const payload = { type: 'vcp_live_games_snapshot', games: vcpLiveGamesSnapshotForOrg(orgId) };
+    // teachers
+    for (const tws of vcpOrgTeachersSet(String(orgId))) wsSend(tws, payload);
+    // students
+    const smap = vcpOrgStudentsMap(String(orgId));
+    for (const pres of smap.values()) {
+      if (!pres?.connections) continue;
+      for (const sWs of pres.connections) wsSend(sWs, payload);
+    }
+  }
+
   wss.on('connection', (ws) => {
     ws.vcp = null; // { kind, orgId, userId, name }
 
@@ -11308,6 +11361,11 @@ async function startServer() {
         return;
       }
 
+      if (type === 'vcp_get_live_games') {
+        wsSend(ws, { type: 'vcp_live_games_snapshot', games: vcpLiveGamesSnapshotForOrg(orgId) });
+        return;
+      }
+
       if (type === 'vcp_invite_create') {
         if (kind !== 'teacher') return;
         const mode = String(msg?.mode || '');
@@ -11400,6 +11458,7 @@ async function startServer() {
             id: sessionId,
             orgId,
             teacherId: invite.teacher.id,
+            teacherName: String(invite.teacher?.name || ''),
             mode: invite.mode,
             studentIds: invite.studentIds.slice(),
             config: invite.config,
@@ -11428,6 +11487,9 @@ async function startServer() {
             if (!pres) continue;
             for (const sWs of pres.connections) wsSend(sWs, startPayload);
           }
+
+          // Broadcast live games snapshot
+          vcpBroadcastLiveGames(orgId);
         }
         return;
       }
@@ -11437,18 +11499,35 @@ async function startServer() {
         const session = vcp.sessions.get(sessionId);
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (kind === 'student') {
-          // Mark student back online
-          setStudentStatus(orgId, String(userId), 'online', false);
-          const smap = vcpOrgStudentsMap(orgId);
-          const pres = smap.get(String(userId));
-          if (pres) {
-            pres.lastActivityTs = Date.now();
-            pres.lastActivity = nowIso();
-            smap.set(String(userId), pres);
+          // End session if any player leaves (MVP)
+          try {
+            session.status = 'ended';
+            if (session.chessState && !session.chessState.gameOver) {
+              session.chessState.gameOver = true;
+              session.chessState.gameOverReason = 'Player left';
+            }
+            vcp.sessions.set(sessionId, session);
+          } catch {}
+
+          // Mark both students back online
+          for (const sid of session.studentIds || []) {
+            setStudentStatus(orgId, String(sid), 'online', false);
+            const smap = vcpOrgStudentsMap(orgId);
+            const pres = smap.get(String(sid));
+            if (pres) {
+              pres.lastActivityTs = Date.now();
+              pres.lastActivity = nowIso();
+              smap.set(String(sid), pres);
+            }
           }
           vcpBroadcastPresence(orgId);
+
           // Notify teacher that student left
           for (const tws of vcpOrgTeachersSet(orgId)) wsSend(tws, { type: 'vcp_session_update', sessionId, studentId: String(userId), action: 'left' });
+
+          // Sync chess + live games
+          vcpBroadcastChessSync(session);
+          vcpBroadcastLiveGames(orgId);
         }
         return;
       }
@@ -11479,6 +11558,7 @@ async function startServer() {
         }
 
         vcpBroadcastChessSync(session);
+        vcpBroadcastLiveGames(orgId);
         return;
       }
     });
