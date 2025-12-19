@@ -517,18 +517,55 @@
         const trap1 = xyToIdx(corner.x + sx, corner.y);        // side square
         const trap2 = xyToIdx(corner.x + sx, corner.y + sy);   // diagonal inboard
         // Leave the file square (corner.x, corner.y + sy) empty so rook can give check.
+        // Use knights so they cannot block/capture the rook check line.
         boardBase[trap1] = 'n';
         boardBase[trap2] = 'n';
 
         if (blackExtraCount === 3) {
-          const bp = sample(PIECE_POOL_BLACK);
-          let bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
-          let guard = 0;
-          while (guard < 80 && (boardBase[bIdx] || (bp === 'p' && idxToXY(bIdx).y === 0))) {
-            bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
-            guard += 1;
+          // Add a 3rd black piece in a "safe" spot to keep solvable rate high.
+          // We still validate checkmate existence later, but this avoids most dead positions.
+          const rookFileX = corner.x;
+          const rookMateY = corner.y === 0 ? 7 : 0;
+          const rookMateIdx = xyToIdx(rookFileX, rookMateY);
+
+          // Prefer a pawn or knight (avoid rook/queen/bishop which may capture/block the checking rook too easily).
+          const bp = Math.random() < 0.7 ? 'p' : 'n';
+
+          const forbidden = new Set([blackKingIdx, trap1, trap2, rookMateIdx]);
+          // Also avoid placing on rook file.
+          for (let y = 0; y < 8; y++) forbidden.add(xyToIdx(rookFileX, y));
+          // Avoid squares where a black pawn could capture the mating rook square.
+          if (bp === 'p') {
+            const px1 = rookFileX - 1;
+            const px2 = rookFileX + 1;
+            const py = rookMateY + 1; // black pawns capture down (-1), so from y+1 they capture y
+            if (py >= 0 && py < 8) {
+              if (px1 >= 0 && px1 < 8) forbidden.add(xyToIdx(px1, py));
+              if (px2 >= 0 && px2 < 8) forbidden.add(xyToIdx(px2, py));
+            }
           }
-          if (!boardBase[bIdx]) {
+          // Avoid knight squares that can capture the mating rook square.
+          if (bp === 'n') {
+            const deltas = [
+              [1, 2], [2, 1], [2, -1], [1, -2],
+              [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+            ];
+            const { x: rx, y: ry } = idxToXY(rookMateIdx);
+            for (const [dx, dy] of deltas) {
+              const cx = rx + dx, cy = ry + dy;
+              if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8) forbidden.add(xyToIdx(cx, cy));
+            }
+          }
+
+          // Choose a placement from remaining squares.
+          const candidates = [];
+          for (let i = 0; i < 64; i++) {
+            if (boardBase[i]) continue;
+            if (forbidden.has(i)) continue;
+            candidates.push(i);
+          }
+          if (candidates.length > 0) {
+            const bIdx = candidates[randInt(candidates.length)];
             boardBase[bIdx] = bp;
           }
         }
@@ -1018,8 +1055,8 @@
     state.selectedPieceSlot = 0;
 
     let lastError = null;
-    for (let i = 0; i < 6; i++) {
-      const blackExtraCount = Math.random() < 0.6 ? 2 : 3;
+    for (let i = 0; i < 10; i++) {
+      const blackExtraCount = Math.random() < 0.55 ? 2 : 3;
       const cfg = { level: 1, boardSize: 8, blackExtraCount, whitePieces: ['R'] };
       try {
         state.puzzle = randomPuzzle(cfg);
