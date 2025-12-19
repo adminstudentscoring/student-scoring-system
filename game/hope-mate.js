@@ -1501,7 +1501,7 @@
 
             <div class="hope-mate-board-wrap">
               <div class="hm-board-container">
-                <div class="hm-board-shell">
+                <div class="hm-board-shell" style="--hm-board-size:${BOARD_SIZE}">
                   <div class="hm-board-col-labels" aria-hidden="true">
                     ${FILES.map(f => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join('')}
                   </div>
@@ -1631,6 +1631,8 @@
           if (Number.isFinite(idx)) onSquareClick(idx);
         });
       });
+      // Ensure CSS grid uses current board size (important when switching 5x5 <-> 8x8)
+      document.querySelector('.hm-board-shell')?.style.setProperty('--hm-board-size', String(BOARD_SIZE));
       enableDragAndDrop();
       return;
     }
