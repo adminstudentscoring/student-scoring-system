@@ -75,18 +75,81 @@
   align-items: center;
 }
 
-.vcp-online-table {
-  width: 100%;
-  border-collapse: collapse;
+.vcp-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.vcp-sidebar {
+  border-right: 1px solid #e5e7eb;
+  padding-right: 12px;
+}
+
+.vcp-main {
+  padding-left: 6px;
+}
+
+.vcp-sidebar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-top: 10px;
 }
 
-.vcp-online-table th,
-.vcp-online-table td {
-  text-align: left;
-  padding: 10px 8px;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 14px;
+.vcp-online-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.vcp-online-item {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.vcp-online-item-name {
+  font-weight: 950;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.vcp-online-item-meta {
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.vcp-online-item-studentid {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .vcp-layout {
+    grid-template-columns: 1fr;
+  }
+  .vcp-sidebar {
+    border-right: none;
+    padding-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+  .vcp-main {
+    padding-left: 0;
+  }
 }
 
 .vcp-status-pill {

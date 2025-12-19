@@ -151,49 +151,46 @@
         </div>
 
         <div class="vcp-section">
-          <div class="vcp-row">
-            <div>
+          <div class="vcp-layout">
+            <div class="vcp-sidebar" aria-label="Online list sidebar">
               <div style="font-weight:900; color:#111827;">Online list</div>
               <div class="vcp-muted">Select exactly 2 students for Normal Chess.</div>
-            </div>
-            <div class="vcp-btn-row">
-              <button id="vcpRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-              <button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>
-            </div>
-          </div>
 
-          <table class="vcp-online-table" aria-label="Online students">
-            <thead>
-              <tr>
-                <th style="width:48px;">Pick</th>
-                <th>Name</th>
-                <th style="width:120px;">Student ID</th>
-                <th style="width:110px;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${STATE.students.map((s) => {
-                const checked = STATE.selected.has(s.id) ? 'checked' : '';
-                const disabled = s.status === 'in-game' ? 'disabled' : '';
-                return `
-                  <tr>
-                    <td><input type="checkbox" data-student-id="${escapeHtml(s.id)}" ${checked} ${disabled}></td>
-                    <td>${escapeHtml(s.name || 'Unknown')}</td>
-                    <td>${escapeHtml(s.studentId || '')}</td>
-                    <td><span class="vcp-status-pill ${escapeHtml(s.status)}">${escapeHtml(s.status)}</span></td>
-                  </tr>
-                `;
-              }).join('')}
-              ${STATE.students.length === 0 ? `
-                <tr><td colspan="4" class="vcp-muted" style="padding:12px 8px;">No students online.</td></tr>
-              ` : ''}
-            </tbody>
-          </table>
+              <div class="vcp-sidebar-actions">
+                <button id="vcpRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+                <button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>
+              </div>
 
-          <div class="vcp-section">
-            <div style="font-weight:900; color:#111827; margin-bottom:6px;">Recent events</div>
-            <div class="vcp-muted">
-              ${STATE.teacherMessages.length ? STATE.teacherMessages.map(m => `${escapeHtml(m.at)} — ${escapeHtml(m.text)}`).join('<br>') : 'No events yet.'}
+              <div class="vcp-online-list" role="list">
+                ${STATE.students.map((s) => {
+                  const checked = STATE.selected.has(s.id) ? 'checked' : '';
+                  const disabled = s.status === 'in-game' ? 'disabled' : '';
+                  return `
+                    <div class="vcp-online-item" role="listitem">
+                      <div>
+                        <input type="checkbox" data-student-id="${escapeHtml(s.id)}" ${checked} ${disabled} aria-label="Select ${escapeHtml(s.name || 'student')}" />
+                      </div>
+                      <div>
+                        <div class="vcp-online-item-name">${escapeHtml(s.name || 'Unknown')}</div>
+                        <div class="vcp-online-item-meta">
+                          <div class="vcp-online-item-studentid">${escapeHtml(s.studentId || '')}</div>
+                          <span class="vcp-status-pill ${escapeHtml(s.status)}">${escapeHtml(s.status)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+                ${STATE.students.length === 0 ? `
+                  <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
+                ` : ''}
+              </div>
+            </div>
+
+            <div class="vcp-main">
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Recent events</div>
+              <div class="vcp-muted">
+                ${STATE.teacherMessages.length ? STATE.teacherMessages.map(m => `${escapeHtml(m.at)} — ${escapeHtml(m.text)}`).join('<br>') : 'No events yet.'}
+              </div>
             </div>
           </div>
         </div>
