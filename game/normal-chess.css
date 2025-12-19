@@ -83,6 +83,25 @@
   background: rgba(239, 68, 68, 0.9);
 }
 
+.nc-square.nc-drag-origin .nc-piece-img {
+  opacity: 0;
+}
+
+.nc-drag-ghost {
+  position: fixed;
+  z-index: 999999;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.28));
+}
+
+.nc-board.nc-dragging {
+  cursor: grabbing;
+}
+
 .nc-status {
   color: #6b7280;
   font-size: 13px;

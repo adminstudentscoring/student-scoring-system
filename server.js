@@ -10708,6 +10708,34 @@ async function startServer() {
   }, 15000);
   vcpIdleTicker.unref?.();
 
+  // Periodic chess timeout checker (keeps clocks accurate even without moves)
+  const vcpChessClockTicker = setInterval(() => {
+    const now = Date.now();
+    for (const session of vcp.sessions.values()) {
+      if (!session || String(session.mode) !== 'chess') continue;
+      if (String(session.status) !== 'active') continue;
+      const st = session.chessState;
+      if (!st || st.gameOver) continue;
+      const turn = String(st.turn || 'w');
+      const elapsed = Math.max(0, now - Number(st.turnStartTs || now));
+      const wMs0 = Number(st.clocks?.wMs ?? 0);
+      const bMs0 = Number(st.clocks?.bMs ?? 0);
+      const wMs = turn === 'w' ? Math.max(0, wMs0 - elapsed) : wMs0;
+      const bMs = turn === 'b' ? Math.max(0, bMs0 - elapsed) : bMs0;
+
+      if (wMs <= 0 || bMs <= 0) {
+        st.clocks.wMs = wMs;
+        st.clocks.bMs = bMs;
+        st.gameOver = true;
+        st.gameOverReason = 'Time out';
+        session.chessState = st;
+        vcp.sessions.set(String(session.id), session);
+        vcpBroadcastChessSync(session);
+      }
+    }
+  }, 1000);
+  vcpChessClockTicker.unref?.();
+
   // ----------------------------
   // Normal Chess (MVP) helpers
   // ----------------------------

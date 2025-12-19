@@ -265,8 +265,58 @@
       selected: null,
       moves: [],
       lastState: null,
-      localClockBase: null // { wMs, bMs, turn, atTs }
+      localClockBase: null // (reserved)
     };
+
+    let tickTimer = null;
+    let drag = null; // { from, ghostEl, originEl }
+
+    function stopTick() {
+      if (tickTimer) clearInterval(tickTimer);
+      tickTimer = null;
+    }
+
+    function startTick() {
+      stopTick();
+      tickTimer = setInterval(() => {
+        if (UI.lastState) render(UI.lastState);
+      }, 250);
+    }
+
+    function clearDrag() {
+      if (!drag) return;
+      try { drag.originEl?.classList?.remove('nc-drag-origin'); } catch {}
+      try { document.getElementById('ncBoard')?.classList?.remove('nc-dragging'); } catch {}
+      try { drag.ghostEl?.remove?.(); } catch {}
+      drag = null;
+    }
+
+    function findSquareElAtClientPoint(x, y) {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      const sq = el.closest?.('.nc-square[data-coord]');
+      return sq || null;
+    }
+
+    function beginDrag(fromCoord, pieceChar, originEl) {
+      clearDrag();
+      const ghost = document.createElement('img');
+      ghost.className = 'nc-drag-ghost';
+      ghost.alt = PIECE_UNICODE[pieceChar] || pieceChar;
+      ghost.src = pieceImagePath(pieceChar);
+      ghost.draggable = false;
+      document.body.appendChild(ghost);
+
+      originEl.classList.add('nc-drag-origin');
+      document.getElementById('ncBoard')?.classList?.add('nc-dragging');
+      drag = { from: fromCoord, ghostEl: ghost, originEl };
+    }
+
+    function moveGhost(x, y) {
+      if (!drag?.ghostEl) return;
+      drag.ghostEl.style.left = `${x}px`;
+      drag.ghostEl.style.top = `${y}px`;
+    }
 
     function myColorFromSession(session) {
       const id = String(getIdentity()?.id || '');
@@ -351,6 +401,7 @@
       rootEl.querySelector('#ncClearSel')?.addEventListener('click', () => {
         UI.selected = null;
         UI.moves = [];
+        clearDrag();
         render(UI.lastState);
       });
 
@@ -391,6 +442,56 @@
           UI.moves = [];
           render(UI.lastState);
         });
+
+        el.addEventListener('pointerdown', (ev) => {
+          if (!canMove) return;
+          if (!UI.lastState) return;
+          const coord = el.getAttribute('data-coord');
+          if (!coord) return;
+          const boardNow = UI.lastState.board || initialBoard();
+          const rc = coordToRc(coord);
+          const piece = rc ? boardNow[rc.r][rc.c] : '';
+          const pc = pieceColor(piece);
+          if (!piece || pc !== myColor) return;
+
+          // Select the piece and compute legal moves (no click required).
+          UI.selected = coord;
+          UI.moves = legalMoves(boardNow, coord, myColor);
+          beginDrag(coord, piece, el);
+          moveGhost(ev.clientX, ev.clientY);
+
+          try { el.setPointerCapture(ev.pointerId); } catch {}
+          ev.preventDefault();
+
+          const onMove = (e) => {
+            moveGhost(e.clientX, e.clientY);
+          };
+
+          const onUp = (e) => {
+            try { el.releasePointerCapture(e.pointerId); } catch {}
+            window.removeEventListener('pointermove', onMove, { capture: true });
+            window.removeEventListener('pointerup', onUp, { capture: true });
+            window.removeEventListener('pointercancel', onUp, { capture: true });
+
+            const sessionId = String(session?.id || '');
+            const dropSq = findSquareElAtClientPoint(e.clientX, e.clientY);
+            const toCoord = dropSq?.getAttribute?.('data-coord') || '';
+            const from = String(drag?.from || coord);
+            const ok = !!toCoord && UI.moves.some(m => m.to === toCoord);
+            clearDrag();
+            if (ok) {
+              UI.selected = null;
+              UI.moves = [];
+              send({ type: 'vcp_chess_move', sessionId, from, to: toCoord, promo: 'q' });
+            }
+            render(UI.lastState);
+          };
+
+          window.addEventListener('pointermove', onMove, { capture: true });
+          window.addEventListener('pointerup', onUp, { capture: true });
+          window.addEventListener('pointercancel', onUp, { capture: true });
+          render(UI.lastState);
+        });
       });
     }
 
@@ -399,7 +500,14 @@
     }
 
     // public API
-    return { applyState };
+    startTick();
+    return {
+      applyState,
+      destroy: () => {
+        stopTick();
+        clearDrag();
+      }
+    };
   }
 
   window.NormalChess = { mountNormalChess };

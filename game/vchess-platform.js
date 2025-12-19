@@ -479,6 +479,9 @@
     wsSend({ type: 'vcp_leave_session', sessionId: STATE.activeSession.id });
     STATE.activeSession = null;
     STATE.status = 'online';
+    try { STATE.ncApp?.destroy?.(); } catch {}
+    STATE.ncApp = null;
+    STATE.ncSessionId = null;
     render();
   }
 
