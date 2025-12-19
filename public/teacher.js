@@ -1711,6 +1711,22 @@ window.toggleGameStudent = toggleGameStudent;
 
 // Event listeners for Game Zone
 document.getElementById('gameZoneBtn')?.addEventListener('click', openGameZoneModal);
+document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
+    // Quick Action entry: open Game Zone and jump into V.Chess Platform (teacher lobby)
+    openGameZoneModal();
+    try {
+        if (typeof window.startVChessPlatform === 'function') {
+            window.startVChessPlatform();
+        } else {
+            setTimeout(() => {
+                if (typeof window.startVChessPlatform === 'function') window.startVChessPlatform();
+            }, 0);
+        }
+    } catch (e) {
+        console.error('Failed to open V.Chess Platform:', e);
+        showNotification('Failed to open V.Chess Platform', 'error');
+    }
+});
 document.getElementById('chessComSettingsBtn')?.addEventListener('click', openChessComSettingsModal);
 document.getElementById('gameZoneModalClose')?.addEventListener('click', closeGameZoneModal);
 document.getElementById('gameZoneSizeBtn')?.addEventListener('click', toggleGameZoneSize);
