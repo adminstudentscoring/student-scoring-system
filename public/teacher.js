@@ -1712,20 +1712,23 @@ window.toggleGameStudent = toggleGameStudent;
 // Event listeners for Game Zone
 document.getElementById('gameZoneBtn')?.addEventListener('click', openGameZoneModal);
 document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
-    // Quick Action entry: open Game Zone and jump into V.Chess Platform (teacher lobby)
-    openGameZoneModal();
+    // Quick Action entry: open V.Chess Platform directly in a new tab (no modal).
     try {
-        if (typeof window.startVChessPlatform === 'function') {
-            window.startVChessPlatform();
-        } else {
-            setTimeout(() => {
-                if (typeof window.startVChessPlatform === 'function') window.startVChessPlatform();
-            }, 0);
-        }
+        localStorage.setItem('vChessPlatformRole', 'teacher');
+        localStorage.setItem('vChessPlatformSelectedStudentIds', JSON.stringify([]));
     } catch (e) {
-        console.error('Failed to open V.Chess Platform:', e);
-        showNotification('Failed to open V.Chess Platform', 'error');
+        console.warn('Unable to persist vChessPlatform context to localStorage:', e);
     }
+
+    const url = '/game/game-window.html?game=vChessPlatform&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        // Popup blocked: fall back to same tab.
+        showNotification('Popup blocked. Opening V.Chess Platform in current tab...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('V.Chess Platform opened in a new tab', 'success');
 });
 document.getElementById('chessComSettingsBtn')?.addEventListener('click', openChessComSettingsModal);
 document.getElementById('gameZoneModalClose')?.addEventListener('click', closeGameZoneModal);
