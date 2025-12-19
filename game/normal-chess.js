@@ -141,28 +141,157 @@
     return isSquareAttacked(board, k.r, k.c, opposite(color));
   }
 
-  function applyMove(board, from, to, promo) {
-    const b = cloneBoard(board);
+  function hasCastleRight(castling, right) {
+    return String(castling || '').includes(right);
+  }
+
+  function isCastleMove(piece, from, to) {
+    if (!piece || piece.toUpperCase() !== 'K') return false;
+    return (
+      (from === 'e1' && (to === 'g1' || to === 'c1')) ||
+      (from === 'e8' && (to === 'g8' || to === 'c8'))
+    );
+  }
+
+  function updateCastlingRights(castling, from, to, movedPiece, capturedPiece) {
+    let s = String(castling || '');
+    const remove = (ch) => { s = s.replace(ch, ''); };
+    if (movedPiece === 'K') { remove('K'); remove('Q'); }
+    if (movedPiece === 'k') { remove('k'); remove('q'); }
+    if (movedPiece === 'R') {
+      if (from === 'h1') remove('K');
+      if (from === 'a1') remove('Q');
+    }
+    if (movedPiece === 'r') {
+      if (from === 'h8') remove('k');
+      if (from === 'a8') remove('q');
+    }
+    if (capturedPiece === 'R') {
+      if (to === 'h1') remove('K');
+      if (to === 'a1') remove('Q');
+    }
+    if (capturedPiece === 'r') {
+      if (to === 'h8') remove('k');
+      if (to === 'a8') remove('q');
+    }
+    return s;
+  }
+
+  function applyMoveToState(state, from, to, promo) {
+    const board = state.board;
     const a = coordToRc(from);
     const z = coordToRc(to);
     if (!a || !z) return null;
-    const p = b[a.r][a.c];
-    b[a.r][a.c] = '';
-    let placed = p;
-    // promotion (only pawn reaching last rank)
-    if ((p === 'P' && z.r === 0) || (p === 'p' && z.r === 7)) {
-      placed = (pieceColor(p) === 'w') ? 'Q' : 'q';
-      if (promo && typeof promo === 'string') {
-        const up = promo.toLowerCase();
-        const allow = ['q', 'r', 'b', 'n'];
-        if (allow.includes(up)) placed = pieceColor(p) === 'w' ? up.toUpperCase() : up;
+    const piece = board[a.r][a.c];
+    const captured = board[z.r][z.c] || '';
+
+    const next = {
+      ...state,
+      board: cloneBoard(board),
+      ep: null,
+      castling: String(state.castling || '')
+    };
+
+    // castling
+    if (isCastleMove(piece, from, to)) {
+      next.board[a.r][a.c] = '';
+      next.board[z.r][z.c] = piece;
+      if (to === 'g1') { next.board[7][7] = ''; next.board[7][5] = 'R'; }
+      if (to === 'c1') { next.board[7][0] = ''; next.board[7][3] = 'R'; }
+      if (to === 'g8') { next.board[0][7] = ''; next.board[0][5] = 'r'; }
+      if (to === 'c8') { next.board[0][0] = ''; next.board[0][3] = 'r'; }
+      next.castling = updateCastlingRights(next.castling, from, to, piece, captured);
+      return next;
+    }
+
+    // en passant capture
+    if (piece && piece.toUpperCase() === 'P' && String(state.ep || '') === to && !captured) {
+      if (piece === 'P') {
+        const capR = z.r + 1;
+        if (inBounds(capR, z.c)) next.board[capR][z.c] = '';
+      } else {
+        const capR = z.r - 1;
+        if (inBounds(capR, z.c)) next.board[capR][z.c] = '';
       }
     }
-    b[z.r][z.c] = placed;
-    return b;
+
+    // normal move + promotion
+    next.board[a.r][a.c] = '';
+    let placed = piece;
+    if ((piece === 'P' && z.r === 0) || (piece === 'p' && z.r === 7)) {
+      let up = String(promo || 'q').toLowerCase();
+      if (!['q', 'r', 'b', 'n'].includes(up)) up = 'q';
+      placed = (pieceColor(piece) === 'w') ? up.toUpperCase() : up;
+    }
+    next.board[z.r][z.c] = placed;
+
+    next.castling = updateCastlingRights(next.castling, from, to, piece, captured);
+
+    // en passant target on double push
+    if (piece && piece.toUpperCase() === 'P') {
+      const color = pieceColor(piece);
+      const dir = color === 'w' ? -1 : 1;
+      const startRow = color === 'w' ? 6 : 1;
+      if (a.r === startRow && z.r === a.r + dir * 2) {
+        const epR = a.r + dir;
+        next.ep = rcToCoord(epR, a.c);
+      }
+    }
+    return next;
   }
 
-  function genPseudoMoves(board, from, turnColor) {
+  function isCastlePathSafe(state, color, to) {
+    const board = state.board;
+    if (isInCheck(board, color)) return false;
+    const castling = state.castling;
+    if (color === 'w') {
+      if (to === 'g1') {
+        if (!hasCastleRight(castling, 'K')) return false;
+        const f1 = coordToRc('f1'), g1 = coordToRc('g1'), h1 = coordToRc('h1');
+        if (!f1 || !g1 || !h1) return false;
+        if (board[f1.r][f1.c] || board[g1.r][g1.c]) return false;
+        if (board[h1.r][h1.c] !== 'R') return false;
+        if (isSquareAttacked(board, f1.r, f1.c, 'b')) return false;
+        if (isSquareAttacked(board, g1.r, g1.c, 'b')) return false;
+        return true;
+      }
+      if (to === 'c1') {
+        if (!hasCastleRight(castling, 'Q')) return false;
+        const d1 = coordToRc('d1'), c1 = coordToRc('c1'), b1 = coordToRc('b1'), a1 = coordToRc('a1');
+        if (!d1 || !c1 || !b1 || !a1) return false;
+        if (board[d1.r][d1.c] || board[c1.r][c1.c] || board[b1.r][b1.c]) return false;
+        if (board[a1.r][a1.c] !== 'R') return false;
+        if (isSquareAttacked(board, d1.r, d1.c, 'b')) return false;
+        if (isSquareAttacked(board, c1.r, c1.c, 'b')) return false;
+        return true;
+      }
+    } else {
+      if (to === 'g8') {
+        if (!hasCastleRight(castling, 'k')) return false;
+        const f8 = coordToRc('f8'), g8 = coordToRc('g8'), h8 = coordToRc('h8');
+        if (!f8 || !g8 || !h8) return false;
+        if (board[f8.r][f8.c] || board[g8.r][g8.c]) return false;
+        if (board[h8.r][h8.c] !== 'r') return false;
+        if (isSquareAttacked(board, f8.r, f8.c, 'w')) return false;
+        if (isSquareAttacked(board, g8.r, g8.c, 'w')) return false;
+        return true;
+      }
+      if (to === 'c8') {
+        if (!hasCastleRight(castling, 'q')) return false;
+        const d8 = coordToRc('d8'), c8 = coordToRc('c8'), b8 = coordToRc('b8'), a8 = coordToRc('a8');
+        if (!d8 || !c8 || !b8 || !a8) return false;
+        if (board[d8.r][d8.c] || board[c8.r][c8.c] || board[b8.r][b8.c]) return false;
+        if (board[a8.r][a8.c] !== 'r') return false;
+        if (isSquareAttacked(board, d8.r, d8.c, 'w')) return false;
+        if (isSquareAttacked(board, c8.r, c8.c, 'w')) return false;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function genPseudoMoves(state, from, turnColor) {
+    const board = state.board;
     const a = coordToRc(from);
     if (!a) return [];
     const p = board[a.r][a.c];
@@ -196,6 +325,14 @@
         const t = board[rr][cc];
         if (t && pieceColor(t) !== turnColor) moves.push({ to: rcToCoord(rr, cc), capture: true });
       }
+      // en passant capture (target square is empty but capturable)
+      const ep = String(state.ep || '');
+      if (ep) {
+        const epRc = coordToRc(ep);
+        if (epRc && epRc.r === a.r + dir && Math.abs(epRc.c - a.c) === 1 && !board[epRc.r][epRc.c]) {
+          moves.push({ to: ep, capture: true, enPassant: true });
+        }
+      }
       return moves;
     }
 
@@ -211,6 +348,15 @@
           if (!dr && !dc) continue;
           add(a.r + dr, a.c + dc);
         }
+      }
+      // castling
+      if (turnColor === 'w' && from === 'e1') {
+        if (isCastlePathSafe(state, 'w', 'g1')) moves.push({ to: 'g1', capture: false, castle: 'K' });
+        if (isCastlePathSafe(state, 'w', 'c1')) moves.push({ to: 'c1', capture: false, castle: 'Q' });
+      }
+      if (turnColor === 'b' && from === 'e8') {
+        if (isCastlePathSafe(state, 'b', 'g8')) moves.push({ to: 'g8', capture: false, castle: 'k' });
+        if (isCastlePathSafe(state, 'b', 'c8')) moves.push({ to: 'c8', capture: false, castle: 'q' });
       }
       return moves;
     }
@@ -234,14 +380,14 @@
     return moves;
   }
 
-  function legalMoves(board, from, turnColor) {
-    const pseudo = genPseudoMoves(board, from, turnColor);
+  function legalMoves(state, from, turnColor) {
+    const pseudo = genPseudoMoves(state, from, turnColor);
     const out = [];
     for (const m of pseudo) {
-      const next = applyMove(board, from, m.to);
+      const next = applyMoveToState(state, from, m.to, 'q');
       if (!next) continue;
       // king safety
-      if (!isInCheck(next, turnColor)) out.push(m);
+      if (!isInCheck(next.board, turnColor)) out.push(m);
     }
     return out;
   }
@@ -267,6 +413,7 @@
       lastState: null,
       localClockBase: null // (reserved)
     };
+    let pendingPromotion = null; // { from, to, isDrag }
 
     let tickTimer = null;
     let drag = null; // { from, ghostEl, originEl }
@@ -337,6 +484,8 @@
       const role = String(getIdentity()?.role || '');
       const canMove = role === 'student' && myColor && myColor === turn && !state?.gameOver;
       const flip = role === 'student' && myColor === 'b';
+      const castling = String(state?.castling || 'KQkq');
+      const ep = state?.ep ? String(state.ep) : '';
 
       // derive clocks locally between syncs
       const now = Date.now();
@@ -365,9 +514,11 @@
             isSel ? 'nc-selected' : '',
             mv ? (mv.capture ? 'nc-move nc-capture' : 'nc-move') : ''
           ].filter(Boolean).join(' ');
+          const epTarget = ep && coord === ep && p === '';
           squaresHtml.push(`
             <div class="${cls}" data-coord="${coord}">
               ${p ? `<img class="nc-piece-img" draggable="false" alt="${PIECE_UNICODE[p] || p}" src="${pieceImagePath(p)}">` : ''}
+              ${epTarget ? `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;"><div style="width:14%; height:14%; border-radius:999px; background: rgba(239,68,68,0.9);"></div></div>` : ''}
             </div>
           `);
         }
@@ -398,6 +549,48 @@
         </div>
       `;
 
+      // Promotion modal (simple)
+      if (pendingPromotion && canMove) {
+        const promoHost = document.createElement('div');
+        promoHost.innerHTML = `
+          <div class="vcp-modal-backdrop" id="ncPromoBackdrop" role="presentation">
+            <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Promotion">
+              <div class="vcp-modal-header">
+                <div class="vcp-modal-title">Promote pawn</div>
+                <button id="ncPromoClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              </div>
+              <div class="vcp-modal-body">
+                <div class="vcp-muted" style="margin-bottom:10px;">Choose a piece for promotion.</div>
+                <div class="vcp-btn-row" style="justify-content:flex-end;">
+                  <button class="btn btn-primary" type="button" data-promo="q">Queen</button>
+                  <button class="btn btn-secondary" type="button" data-promo="r">Rook</button>
+                  <button class="btn btn-secondary" type="button" data-promo="b">Bishop</button>
+                  <button class="btn btn-secondary" type="button" data-promo="n">Knight</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        rootEl.appendChild(promoHost);
+
+        const closePromo = () => { pendingPromotion = null; render(UI.lastState); };
+        rootEl.querySelector('#ncPromoClose')?.addEventListener('click', closePromo);
+        rootEl.querySelector('#ncPromoBackdrop')?.addEventListener('click', (e) => {
+          if (e.target && e.target.id === 'ncPromoBackdrop') closePromo();
+        });
+        rootEl.querySelectorAll('button[data-promo]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const promo = String(btn.getAttribute('data-promo') || 'q');
+            const sessionId = String(session?.id || '');
+            const from = pendingPromotion.from;
+            const to = pendingPromotion.to;
+            pendingPromotion = null;
+            send({ type: 'vcp_chess_move', sessionId, from, to, promo });
+            render(UI.lastState);
+          });
+        });
+      }
+
       rootEl.querySelector('#ncClearSel')?.addEventListener('click', () => {
         UI.selected = null;
         UI.moves = [];
@@ -412,6 +605,11 @@
           if (!UI.lastState) return;
           const sessionId = String(session?.id || '');
           const boardNow = UI.lastState.board || initialBoard();
+          const stateNow = {
+            board: boardNow,
+            castling: UI.lastState.castling || 'KQkq',
+            ep: UI.lastState.ep || null
+          };
           const turnNow = String(UI.lastState.turn || 'w');
 
           const rc = coordToRc(coord);
@@ -421,7 +619,7 @@
           // if selecting own piece
           if (canMove && piece && pc === myColor) {
             UI.selected = coord;
-            UI.moves = legalMoves(boardNow, coord, myColor);
+            UI.moves = legalMoves(stateNow, coord, myColor);
             render(UI.lastState);
             return;
           }
@@ -431,8 +629,16 @@
             const from = UI.selected;
             UI.selected = null;
             UI.moves = [];
-            // send to server (server validates)
-            send({ type: 'vcp_chess_move', sessionId, from, to: coord, promo: 'q' });
+            // promotion selection if needed
+            const a = coordToRc(from);
+            const z = coordToRc(coord);
+            const moving = (a && UI.lastState?.board) ? String(UI.lastState.board[a.r][a.c] || '') : '';
+            const needPromo = (moving === 'P' && z && z.r === 0) || (moving === 'p' && z && z.r === 7);
+            if (needPromo) {
+              pendingPromotion = { from, to: coord, isDrag: false };
+            } else {
+              send({ type: 'vcp_chess_move', sessionId, from, to: coord, promo: 'q' });
+            }
             render(UI.lastState);
             return;
           }
@@ -456,7 +662,8 @@
 
           // Select the piece and compute legal moves (no click required).
           UI.selected = coord;
-          UI.moves = legalMoves(boardNow, coord, myColor);
+          const stateNow = { board: boardNow, castling: UI.lastState.castling || 'KQkq', ep: UI.lastState.ep || null };
+          UI.moves = legalMoves(stateNow, coord, myColor);
           beginDrag(coord, piece, el);
           moveGhost(ev.clientX, ev.clientY);
 
@@ -482,7 +689,15 @@
             if (ok) {
               UI.selected = null;
               UI.moves = [];
-              send({ type: 'vcp_chess_move', sessionId, from, to: toCoord, promo: 'q' });
+              const a = coordToRc(from);
+              const z = coordToRc(toCoord);
+              const moving = (a && UI.lastState?.board) ? String(UI.lastState.board[a.r][a.c] || '') : '';
+              const needPromo = (moving === 'P' && z && z.r === 0) || (moving === 'p' && z && z.r === 7);
+              if (needPromo) {
+                pendingPromotion = { from, to: toCoord, isDrag: true };
+              } else {
+                send({ type: 'vcp_chess_move', sessionId, from, to: toCoord, promo: 'q' });
+              }
             }
             render(UI.lastState);
           };

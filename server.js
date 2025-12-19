@@ -10723,6 +10723,14 @@ async function startServer() {
       const wMs = turn === 'w' ? Math.max(0, wMs0 - elapsed) : wMs0;
       const bMs = turn === 'b' ? Math.max(0, bMs0 - elapsed) : bMs0;
 
+      // keep clients in sync even if no moves are made
+      if (now - Number(st._lastSyncTs || 0) >= 1000) {
+        st._lastSyncTs = now;
+        session.chessState = st;
+        vcp.sessions.set(String(session.id), session);
+        vcpBroadcastChessSync(session);
+      }
+
       if (wMs <= 0 || bMs <= 0) {
         st.clocks.wMs = wMs;
         st.clocks.bMs = bMs;
@@ -10917,12 +10925,186 @@ async function startServer() {
     return moves;
   }
 
-  function vcpLegalMove(board, from, to, color, promo) {
+  function vcpHasCastleRight(castling, right) {
+    return String(castling || '').includes(right);
+  }
+
+  function vcpIsCastleMove(piece, from, to) {
+    if (!piece) return false;
+    if (piece.toUpperCase() !== 'K') return false;
+    return (
+      (from === 'e1' && (to === 'g1' || to === 'c1')) ||
+      (from === 'e8' && (to === 'g8' || to === 'c8'))
+    );
+  }
+
+  function vcpUpdateCastlingRights(castling, from, to, movedPiece, capturedPiece) {
+    let s = String(castling || '');
+    const remove = (ch) => { s = s.replace(ch, ''); };
+
+    if (movedPiece === 'K') { remove('K'); remove('Q'); }
+    if (movedPiece === 'k') { remove('k'); remove('q'); }
+
+    if (movedPiece === 'R') {
+      if (from === 'h1') remove('K');
+      if (from === 'a1') remove('Q');
+    }
+    if (movedPiece === 'r') {
+      if (from === 'h8') remove('k');
+      if (from === 'a8') remove('q');
+    }
+
+    if (capturedPiece === 'R') {
+      if (to === 'h1') remove('K');
+      if (to === 'a1') remove('Q');
+    }
+    if (capturedPiece === 'r') {
+      if (to === 'h8') remove('k');
+      if (to === 'a8') remove('q');
+    }
+    return s;
+  }
+
+  function vcpApplyMoveToState(state, from, to, promo) {
+    const board = state.board;
+    const a = vcpCoordToRc(from);
+    const z = vcpCoordToRc(to);
+    if (!a || !z) return null;
+    const piece = board[a.r][a.c];
+    const captured = board[z.r][z.c] || '';
+
+    const next = {
+      ...state,
+      board: vcpCloneBoard(board),
+      ep: null,
+      castling: String(state.castling || '')
+    };
+
+    // castling
+    if (vcpIsCastleMove(piece, from, to)) {
+      next.board[a.r][a.c] = '';
+      next.board[z.r][z.c] = piece;
+      if (to === 'g1') { next.board[7][7] = ''; next.board[7][5] = 'R'; }
+      if (to === 'c1') { next.board[7][0] = ''; next.board[7][3] = 'R'; }
+      if (to === 'g8') { next.board[0][7] = ''; next.board[0][5] = 'r'; }
+      if (to === 'c8') { next.board[0][0] = ''; next.board[0][3] = 'r'; }
+      next.castling = vcpUpdateCastlingRights(next.castling, from, to, piece, captured);
+      return next;
+    }
+
+    // en passant capture
+    if (piece && piece.toUpperCase() === 'P' && String(state.ep || '') === to && !captured) {
+      if (piece === 'P') {
+        const capR = z.r + 1;
+        if (vcpInBounds(capR, z.c)) next.board[capR][z.c] = '';
+      } else {
+        const capR = z.r - 1;
+        if (vcpInBounds(capR, z.c)) next.board[capR][z.c] = '';
+      }
+    }
+
+    // normal move + promotion
+    next.board[a.r][a.c] = '';
+    let placed = piece;
+    if ((piece === 'P' && z.r === 0) || (piece === 'p' && z.r === 7)) {
+      let up = String(promo || 'q').toLowerCase();
+      if (!['q', 'r', 'b', 'n'].includes(up)) up = 'q';
+      placed = vcpPieceColor(piece) === 'w' ? up.toUpperCase() : up;
+    }
+    next.board[z.r][z.c] = placed;
+
+    next.castling = vcpUpdateCastlingRights(next.castling, from, to, piece, captured);
+
+    // set ep square on double pawn push
+    if (piece && piece.toUpperCase() === 'P') {
+      const color = vcpPieceColor(piece);
+      const dir = color === 'w' ? -1 : 1;
+      const startRow = color === 'w' ? 6 : 1;
+      if (a.r === startRow && z.r === a.r + dir * 2) {
+        const epR = a.r + dir;
+        next.ep = vcpRcToCoord(epR, a.c);
+      }
+    }
+    return next;
+  }
+
+  function vcpIsCastlePathSafe(board, color, to, castling) {
+    if (vcpIsInCheck(board, color)) return false;
+    if (color === 'w') {
+      if (to === 'g1') {
+        if (!vcpHasCastleRight(castling, 'K')) return false;
+        const f1 = vcpCoordToRc('f1'), g1 = vcpCoordToRc('g1'), h1 = vcpCoordToRc('h1');
+        if (!f1 || !g1 || !h1) return false;
+        if (board[f1.r][f1.c] || board[g1.r][g1.c]) return false;
+        if (board[h1.r][h1.c] !== 'R') return false;
+        if (vcpIsSquareAttacked(board, f1.r, f1.c, 'b')) return false;
+        if (vcpIsSquareAttacked(board, g1.r, g1.c, 'b')) return false;
+        return true;
+      }
+      if (to === 'c1') {
+        if (!vcpHasCastleRight(castling, 'Q')) return false;
+        const d1 = vcpCoordToRc('d1'), c1 = vcpCoordToRc('c1'), b1 = vcpCoordToRc('b1'), a1 = vcpCoordToRc('a1');
+        if (!d1 || !c1 || !b1 || !a1) return false;
+        if (board[d1.r][d1.c] || board[c1.r][c1.c] || board[b1.r][b1.c]) return false;
+        if (board[a1.r][a1.c] !== 'R') return false;
+        if (vcpIsSquareAttacked(board, d1.r, d1.c, 'b')) return false;
+        if (vcpIsSquareAttacked(board, c1.r, c1.c, 'b')) return false;
+        return true;
+      }
+    } else {
+      if (to === 'g8') {
+        if (!vcpHasCastleRight(castling, 'k')) return false;
+        const f8 = vcpCoordToRc('f8'), g8 = vcpCoordToRc('g8'), h8 = vcpCoordToRc('h8');
+        if (!f8 || !g8 || !h8) return false;
+        if (board[f8.r][f8.c] || board[g8.r][g8.c]) return false;
+        if (board[h8.r][h8.c] !== 'r') return false;
+        if (vcpIsSquareAttacked(board, f8.r, f8.c, 'w')) return false;
+        if (vcpIsSquareAttacked(board, g8.r, g8.c, 'w')) return false;
+        return true;
+      }
+      if (to === 'c8') {
+        if (!vcpHasCastleRight(castling, 'q')) return false;
+        const d8 = vcpCoordToRc('d8'), c8 = vcpCoordToRc('c8'), b8 = vcpCoordToRc('b8'), a8 = vcpCoordToRc('a8');
+        if (!d8 || !c8 || !b8 || !a8) return false;
+        if (board[d8.r][d8.c] || board[c8.r][c8.c] || board[b8.r][b8.c]) return false;
+        if (board[a8.r][a8.c] !== 'r') return false;
+        if (vcpIsSquareAttacked(board, d8.r, d8.c, 'w')) return false;
+        if (vcpIsSquareAttacked(board, c8.r, c8.c, 'w')) return false;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function vcpLegalMove(state, from, to, color, promo) {
+    const board = state.board;
+    const a = vcpCoordToRc(from);
+    const z = vcpCoordToRc(to);
+    if (!a || !z) return false;
+    const piece = board[a.r][a.c];
+    if (!piece || vcpPieceColor(piece) !== color) return false;
+
+    if (vcpIsCastleMove(piece, from, to)) {
+      if (!vcpIsCastlePathSafe(board, color, to, state.castling)) return false;
+      const next = vcpApplyMoveToState(state, from, to, promo);
+      if (!next) return false;
+      return !vcpIsInCheck(next.board, color);
+    }
+
     const pseudo = vcpGenPseudoMoves(board, from, color);
-    if (!pseudo.some(m => m.to === to)) return false;
-    const next = vcpApplyMoveToBoard(board, from, to, promo);
+    const canEP = piece.toUpperCase() === 'P' && String(state.ep || '') === String(to || '');
+    if (!pseudo.some(m => m.to === to) && !canEP) return false;
+
+    if (canEP) {
+      const dir = color === 'w' ? -1 : 1;
+      if (z.r !== a.r + dir) return false;
+      if (Math.abs(z.c - a.c) !== 1) return false;
+      if (board[z.r][z.c]) return false;
+    }
+
+    const next = vcpApplyMoveToState(state, from, to, promo);
     if (!next) return false;
-    return !vcpIsInCheck(next, color);
+    return !vcpIsInCheck(next.board, color);
   }
 
   function vcpCreateInitialChessState(session) {
@@ -10935,6 +11117,8 @@ async function startServer() {
       turnStartTs: Date.now(),
       clocks: { wMs, bMs },
       moveNumber: 1,
+      castling: 'KQkq',
+      ep: null,
       gameOver: false,
       gameOverReason: null
     };
@@ -10970,14 +11154,18 @@ async function startServer() {
     const piece = board[a.r][a.c];
     if (!piece || vcpPieceColor(piece) !== moverColor) return { ok: false, error: 'Invalid piece' };
 
-    if (!vcpLegalMove(board, from, to, moverColor, promo)) return { ok: false, error: 'Illegal move' };
+    if (!vcpLegalMove(st, from, to, moverColor, promo)) return { ok: false, error: 'Illegal move' };
 
     const inc = Math.max(0, Math.min(60, Number(cfg.incrementSec) || 0));
     // clock update for mover (uses current turn)
     vcpUpdateClocksForMove(st, inc);
 
-    // apply move
-    st.board = vcpApplyMoveToBoard(board, from, to, promo);
+    // apply move (incl castling / en passant / promotion / ep / castling rights)
+    const next = vcpApplyMoveToState(st, from, to, promo);
+    if (!next) return { ok: false, error: 'Illegal move' };
+    st.board = next.board;
+    st.castling = next.castling;
+    st.ep = next.ep;
     st.turn = vcpOpp(String(st.turn || 'w'));
     st.moveNumber = Number(st.moveNumber || 1) + 1;
 
