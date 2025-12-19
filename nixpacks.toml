@@ -1,0 +1,12 @@
+[phases.setup]
+# Railway defaults to the latest Node. Pin to a stable LTS for production deploys.
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+# Avoid downloading heavy devDependencies (e.g. Electron) during Railway deploy.
+cmds = ["npm ci --omit=dev --no-audit --no-fund"]
+
+[start]
+cmd = "npm run start"
+
+
