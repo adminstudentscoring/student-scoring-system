@@ -34,6 +34,19 @@
 
   const PRACTICE_LEVELS = Array.from({ length: 10 }, (_, i) => i + 1);
 
+  const STAGES = [
+    { key: 'rook', label: 'Rook' },
+    { key: 'queen', label: 'Queen' },
+    { key: 'minor', label: 'Minor pieces' },
+    { key: 'pawns', label: 'Pawns' },
+    { key: 'twoRooks', label: 'Two Rooks' },
+    { key: 'rookKnight', label: 'Rook + Knight' },
+    { key: 'queenBishop', label: 'Queen + Bishop' },
+    { key: 'queenKnight', label: 'Queen + Knight' },
+    { key: 'queenRook', label: 'Queen + Rook' },
+    { key: 'threePieces', label: 'Three pieces' }
+  ];
+
   function getPracticeConfig(levelNumber) {
     const lvl = Math.max(1, Math.min(10, Number(levelNumber) || 1));
     const boardSize = lvl <= 3 ? 5 : 8;
@@ -582,7 +595,7 @@
   // UI / Game State
   // ---------------------------
   const state = {
-    screen: 'home', // 'home' | 'practiceSelect' | 'practiceGame'
+    screen: 'home', // 'home' | 'stageSelect' | 'practiceSelect' | 'practiceGame'
     practiceLevel: 1,
     puzzle: null,
     board: null,
@@ -1111,13 +1124,57 @@
         render();
       });
       document.getElementById('hmStageBtn')?.addEventListener('click', () => {
-        alert('Stage Mode is not implemented yet.');
+        state.screen = 'stageSelect';
+        render();
       });
       document.getElementById('hmChallengeBtn')?.addEventListener('click', () => {
         alert('Challenge Mode is not implemented yet.');
       });
       document.getElementById('hmRulesBtn')?.addEventListener('click', () => {
         alert('Rules are not implemented yet.');
+      });
+      return;
+    }
+
+    if (state.screen === 'stageSelect') {
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">Stage Mode — Select a stage</div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmStageBackBtn" class="btn btn-secondary" type="button">Back</button>
+            </div>
+          </div>
+
+          <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
+            <div class="hm-piece-tray-title">Stages</div>
+            <div class="hm-stage-grid">
+              ${STAGES.map((s, idx) => `
+                <button class="hm-stage-btn" type="button" data-stage="${escapeHtml(s.key)}">
+                  <span class="hm-stage-number">${idx + 1}</span>
+                  <span class="hm-stage-label">${escapeHtml(s.label)}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('hmStageBackBtn')?.addEventListener('click', () => {
+        state.screen = 'home';
+        render();
+      });
+      document.querySelectorAll('.hm-stage-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-stage') || '';
+          const stage = STAGES.find(s => s.key === key);
+          alert(`${stage?.label || 'Stage'} is not implemented yet.`);
+        });
       });
       return;
     }
