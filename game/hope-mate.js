@@ -487,7 +487,12 @@
     attemptsFailed: false,
     sessionScore: 0,
     totalScore: 0,
-    bestScore: 0
+    bestScore: 0,
+    leaderboard: {
+      loading: true,
+      error: null,
+      entries: []
+    }
   };
 
   function getRoot() {
@@ -518,6 +523,48 @@
     const sid = player?.id || 'unknown';
     localStorage.setItem(STORAGE.total(sid), String(state.totalScore));
     localStorage.setItem(STORAGE.best(sid), String(state.bestScore));
+  }
+
+  async function fetchHopeMateLeaderboard() {
+    const apiBase = window.API_BASE || '/api';
+    const resp = await fetch(`${apiBase}/hope-mate/leaderboard`, { credentials: 'include' });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error(`Failed to load leaderboard (${resp.status}): ${txt}`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    return Array.isArray(data.entries) ? data.entries : [];
+  }
+
+  async function submitHopeMateTotalScore(studentId, totalScore) {
+    const apiBase = window.API_BASE || '/api';
+    const resp = await fetch(`${apiBase}/hope-mate/leaderboard`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId, totalScore })
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error(`Failed to submit score (${resp.status}): ${txt}`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    return Array.isArray(data.entries) ? data.entries : [];
+  }
+
+  async function refreshLeaderboard() {
+    state.leaderboard.loading = true;
+    state.leaderboard.error = null;
+    try {
+      const entries = await fetchHopeMateLeaderboard();
+      state.leaderboard.entries = entries;
+    } catch (e) {
+      state.leaderboard.error = e?.message || 'Failed to load leaderboard';
+      state.leaderboard.entries = [];
+    } finally {
+      state.leaderboard.loading = false;
+      render();
+    }
   }
 
   function newPuzzle() {
@@ -601,6 +648,24 @@
       state.bestScore = Math.max(state.bestScore, state.sessionScore);
       saveScores();
       setStatus(gained ? 'Checkmate! +1 point.' : 'Checkmate! (No points because you already failed this puzzle.)', 'success');
+      if (gained === 1) {
+        const player = getSinglePlayer();
+        if (player?.id) {
+          // Fire-and-forget: submit total score, then refresh leaderboard.
+          submitHopeMateTotalScore(String(player.id), state.totalScore)
+            .then((entries) => {
+              state.leaderboard.entries = entries;
+              state.leaderboard.loading = false;
+              state.leaderboard.error = null;
+              render();
+            })
+            .catch((e) => {
+              state.leaderboard.error = e?.message || 'Failed to submit score';
+              state.leaderboard.loading = false;
+              render();
+            });
+        }
+      }
       render();
       return;
     }
@@ -631,6 +696,51 @@
   function onSelectSlot(slot) {
     state.selectedPieceSlot = slot;
     render();
+  }
+
+  function enableDragAndDrop() {
+    // Slots are draggable; squares accept drops.
+    document.querySelectorAll('.hm-slot').forEach((el) => {
+      el.setAttribute('draggable', 'true');
+      el.addEventListener('dragstart', (e) => {
+        const slot = el.getAttribute('data-slot');
+        try {
+          e.dataTransfer.effectAllowed = 'copy';
+          e.dataTransfer.setData('text/hopeMateSlot', String(slot));
+        } catch {
+          // ignore
+        }
+      });
+    });
+
+    document.querySelectorAll('.hm-square').forEach((sq) => {
+      sq.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+      sq.addEventListener('dragenter', () => {
+        sq.classList.add('is-drop-target');
+      });
+      sq.addEventListener('dragleave', () => {
+        sq.classList.remove('is-drop-target');
+      });
+      sq.addEventListener('drop', (e) => {
+        e.preventDefault();
+        sq.classList.remove('is-drop-target');
+        const idx = Number(sq.getAttribute('data-idx'));
+        if (!Number.isFinite(idx)) return;
+        let slotRaw = null;
+        try {
+          slotRaw = e.dataTransfer.getData('text/hopeMateSlot');
+        } catch {
+          slotRaw = null;
+        }
+        const slot = Number(slotRaw);
+        if (!(slot === 0 || slot === 1)) return;
+        // Select the dragged slot and place it
+        state.selectedPieceSlot = slot;
+        placePiece(slot, idx);
+      });
+    });
   }
 
   function renderBoard(board) {
@@ -674,7 +784,7 @@
       const placedIdx = state.placed[slot];
       const placedCoord = placedIdx == null ? 'Not placed' : idxToCoord(placedIdx);
       return `
-        <button class="hm-slot ${slot === 0 ? slot0Active : slot1Active}" type="button" data-slot="${slot}">
+        <button class="hm-slot ${slot === 0 ? slot0Active : slot1Active}" type="button" data-slot="${slot}" draggable="true" aria-label="Piece slot ${slot + 1}">
           <span class="hm-slot-piece">${pieceGlyph(p)}</span>
           <span class="hm-slot-text">
             <span class="hm-slot-name">${escapeHtml(pieceName(p))}</span>
@@ -716,12 +826,41 @@
         <div class="hope-mate-main">
           <div class="hope-mate-left">
             <div class="hm-piece-tray">
-              <div class="hm-piece-tray-title">Your pieces (click one, then click a square)</div>
+              <div class="hm-piece-tray-title">Your pieces (click or drag to a square)</div>
               <div class="hm-slots">
                 ${slotLabel(0)}
                 ${slotLabel(1)}
               </div>
               <div class="hm-piece-tray-hint">You can change placement before Confirm. No partial feedback is shown.</div>
+
+              <div class="hm-leaderboard">
+                <div class="hm-leaderboard-title">Leaderboard (your teacher)</div>
+                ${state.leaderboard.loading ? `<div class="hm-muted">Loading...</div>` : ''}
+                ${state.leaderboard.error ? `<div class="hm-muted">${escapeHtml(state.leaderboard.error)}</div>` : ''}
+                <div class="hm-leaderboard-list">
+                  ${(() => {
+                    const meId = String(player?.id || '');
+                    const entries = Array.isArray(state.leaderboard.entries) ? state.leaderboard.entries : [];
+                    const top = entries.slice(0, 10);
+                    if (!state.leaderboard.loading && top.length === 0) {
+                      return `<div class="hm-muted">No records yet.</div>`;
+                    }
+                    return top.map((e, idx) => {
+                      const sid = String(e?.student?.id || e?.studentId || e?.id || '');
+                      const name = String(e?.student?.name || e?.name || 'Unknown');
+                      const score = Number(e?.totalScore ?? e?.score ?? 0) || 0;
+                      const isMe = meId && sid === meId;
+                      return `
+                        <div class="hm-leaderboard-row ${isMe ? 'is-me' : ''}">
+                          <div class="hm-leaderboard-rank">${idx + 1}</div>
+                          <div class="hm-leaderboard-name">${escapeHtml(name)}</div>
+                          <div class="hm-leaderboard-score">${score}</div>
+                        </div>
+                      `;
+                    }).join('');
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -757,6 +896,9 @@
       writeStoredLevel(v);
       nextPuzzle();
     });
+
+    // Drag-and-drop is optional; click-to-place still works.
+    enableDragAndDrop();
   }
 
   function init() {
@@ -780,6 +922,7 @@
     lastStatus = { text: 'New puzzle generated. Place both pieces, then Confirm.', kind: 'info' };
     newPuzzle();
     render();
+    refreshLeaderboard();
   }
 
   window.initHopeMate = function initHopeMate() {

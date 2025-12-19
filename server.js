@@ -20,6 +20,7 @@ const SAVES_DIR = path.join(__dirname, process.env.SAVES_DIR || path.join(DATA_D
 const GAME_SAVES_DIR = path.join(__dirname, process.env.GAME_SAVES_DIR || path.join(DATA_DIR, 'game-saves'));
 const RUNNING_QUEEN_LEADERBOARD_FILE = path.join(__dirname, process.env.RUNNING_QUEEN_LEADERBOARD_FILE || path.join(DATA_DIR, 'running-queen-leaderboard.txt'));
 const ROYAL_EXCHANGE_LEADERBOARD_FILE = path.join(__dirname, process.env.ROYAL_EXCHANGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'royal-exchange-leaderboard.txt'));
+const HOPE_MATE_LEADERBOARD_FILE = path.join(__dirname, process.env.HOPE_MATE_LEADERBOARD_FILE || path.join(DATA_DIR, 'hope-mate-leaderboard.txt'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -127,6 +128,11 @@ async function ensureDataDir() {
     await fs.access(ROYAL_EXCHANGE_LEADERBOARD_FILE);
   } catch {
     await fs.writeFile(ROYAL_EXCHANGE_LEADERBOARD_FILE, JSON.stringify([], null, 2), 'utf8');
+  }
+  try {
+    await fs.access(HOPE_MATE_LEADERBOARD_FILE);
+  } catch {
+    await fs.writeFile(HOPE_MATE_LEADERBOARD_FILE, JSON.stringify([], null, 2), 'utf8');
   }
   
   // Ensure users file exists
@@ -1356,6 +1362,129 @@ async function addRoyalExchangeLeaderboardEntry(entry) {
   });
   await writeRoyalExchangeLeaderboard(deduped);
   return deduped;
+}
+
+// ============================
+// Hope Mate leaderboard (scoped per teacher + org)
+// ============================
+
+async function readHopeMateLeaderboard() {
+  try {
+    const raw = await fs.readFile(HOPE_MATE_LEADERBOARD_FILE, 'utf8');
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Error reading Hope Mate leaderboard:', error);
+    return [];
+  }
+}
+
+async function writeHopeMateLeaderboard(entries) {
+  try {
+    await fs.writeFile(HOPE_MATE_LEADERBOARD_FILE, JSON.stringify(entries, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing Hope Mate leaderboard:', error);
+    return false;
+  }
+}
+
+function normalizeHopeMateEntry(entry) {
+  return {
+    orgId: String(entry?.orgId || ''),
+    teacherId: String(entry?.teacherId || ''),
+    student: {
+      id: String(entry?.student?.id || ''),
+      name: String(entry?.student?.name || 'Unknown'),
+      studentId: String(entry?.student?.studentId || '')
+    },
+    totalScore: Number(entry?.totalScore) || 0,
+    updatedAt: entry?.updatedAt || new Date().toISOString(),
+    createdAt: entry?.createdAt || new Date().toISOString()
+  };
+}
+
+function getHopeMateKey(entry) {
+  const orgId = String(entry?.orgId || '');
+  const teacherId = String(entry?.teacherId || '');
+  const studentId = String(entry?.student?.id || '');
+  return `${orgId}:${teacherId}:${studentId}`;
+}
+
+function dedupeHopeMateLeaderboard(entries) {
+  const bestByKey = new Map();
+  for (const e of Array.isArray(entries) ? entries : []) {
+    const n = normalizeHopeMateEntry(e);
+    if (!n.orgId || !n.teacherId || !n.student.id) continue;
+    const key = getHopeMateKey(n);
+    const cur = bestByKey.get(key);
+    // Keep highest totalScore; if tie, keep most recent updatedAt
+    if (!cur) {
+      bestByKey.set(key, n);
+      continue;
+    }
+    if ((n.totalScore || 0) > (cur.totalScore || 0)) {
+      bestByKey.set(key, { ...cur, ...n, createdAt: cur.createdAt || n.createdAt });
+      continue;
+    }
+    if ((n.totalScore || 0) === (cur.totalScore || 0)) {
+      const nt = new Date(n.updatedAt || 0).getTime() || 0;
+      const ct = new Date(cur.updatedAt || 0).getTime() || 0;
+      if (nt > ct) {
+        bestByKey.set(key, { ...cur, ...n, createdAt: cur.createdAt || n.createdAt });
+      }
+    }
+  }
+  return Array.from(bestByKey.values());
+}
+
+async function upsertHopeMateLeaderboardEntry({ orgId, teacherId, student, totalScore }) {
+  const existing = await readHopeMateLeaderboard();
+  const deduped = dedupeHopeMateLeaderboard(existing);
+
+  const key = `${String(orgId)}:${String(teacherId)}:${String(student?.id || '')}`;
+  const nowIso = new Date().toISOString();
+  const incomingTotal = Number(totalScore);
+
+  const next = deduped.map(e => normalizeHopeMateEntry(e));
+  const idx = next.findIndex(e => getHopeMateKey(e) === key);
+  if (idx === -1) {
+    next.push(normalizeHopeMateEntry({
+      orgId,
+      teacherId,
+      student,
+      totalScore: Number.isFinite(incomingTotal) ? incomingTotal : 0,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    }));
+  } else {
+    const cur = next[idx];
+    const curTotal = Number(cur.totalScore) || 0;
+    // Allow idempotent resend (same total), or incremental +1 only.
+    if (incomingTotal < curTotal) {
+      // ignore decreasing updates
+    } else if (incomingTotal === curTotal || incomingTotal === curTotal + 1) {
+      next[idx] = normalizeHopeMateEntry({
+        ...cur,
+        student,
+        totalScore: incomingTotal,
+        updatedAt: nowIso
+      });
+    } else {
+      // reject suspicious jump (client bug or tampering)
+      const err = new Error('Invalid score update (jump too large)');
+      err.code = 'SCORE_JUMP';
+      throw err;
+    }
+  }
+
+  const final = dedupeHopeMateLeaderboard(next);
+  final.sort((a, b) => {
+    if ((b.totalScore || 0) !== (a.totalScore || 0)) return (b.totalScore || 0) - (a.totalScore || 0);
+    return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+  });
+  await writeHopeMateLeaderboard(final);
+  return final;
 }
 
 // Broadcast to all WebSocket clients
@@ -8587,6 +8716,73 @@ app.post('/api/royal-exchange/leaderboard', async (req, res) => {
     res.json({ success: true, entries });
   } catch (error) {
     console.error('Error updating Royal Exchange leaderboard:', error);
+    res.status(500).json({ error: 'Failed to update leaderboard' });
+  }
+});
+
+// Hope Mate leaderboard (teacher scoped)
+app.get('/api/hope-mate/leaderboard', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = resolveOrgIdFromUser(req.user);
+    const teacherId = String(req.user?.id || '');
+    const all = await readHopeMateLeaderboard();
+    const filtered = (Array.isArray(all) ? all : [])
+      .map(e => normalizeHopeMateEntry(e))
+      .filter(e => String(e.orgId) === String(orgId) && String(e.teacherId) === teacherId);
+    filtered.sort((a, b) => {
+      if ((b.totalScore || 0) !== (a.totalScore || 0)) return (b.totalScore || 0) - (a.totalScore || 0);
+      return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+    });
+    res.json({ entries: filtered });
+  } catch (error) {
+    console.error('Error fetching Hope Mate leaderboard:', error);
+    res.status(500).json({ error: 'Failed to load leaderboard' });
+  }
+});
+
+app.post('/api/hope-mate/leaderboard', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = resolveOrgIdFromUser(req.user);
+    const teacherId = String(req.user?.id || '');
+    const studentInternalId = String(req.body?.studentId || '');
+    const totalScore = Number(req.body?.totalScore);
+    if (!studentInternalId) return res.status(400).json({ error: 'studentId is required' });
+    if (!Number.isFinite(totalScore) || totalScore < 0) return res.status(400).json({ error: 'totalScore must be a non-negative number' });
+
+    // Validate student exists within this teacher's organization
+    const data = await readData();
+    let students = Array.isArray(data?.students) ? data.students : [];
+    if (orgId) {
+      students = filterStudentsByOrganization(students, orgId);
+    }
+    const student = students.find(s => String(s?.id) === studentInternalId);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const updated = await upsertHopeMateLeaderboardEntry({
+      orgId: String(orgId || ''),
+      teacherId,
+      student: {
+        id: String(student.id),
+        name: String(student.name || 'Unknown'),
+        studentId: String(student.studentId || '')
+      },
+      totalScore
+    });
+
+    const scoped = updated
+      .map(e => normalizeHopeMateEntry(e))
+      .filter(e => String(e.orgId) === String(orgId) && String(e.teacherId) === teacherId);
+    scoped.sort((a, b) => {
+      if ((b.totalScore || 0) !== (a.totalScore || 0)) return (b.totalScore || 0) - (a.totalScore || 0);
+      return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+    });
+
+    res.json({ ok: true, entries: scoped });
+  } catch (error) {
+    if (error && error.code === 'SCORE_JUMP') {
+      return res.status(400).json({ error: 'Invalid score update' });
+    }
+    console.error('Error updating Hope Mate leaderboard:', error);
     res.status(500).json({ error: 'Failed to update leaderboard' });
   }
 });
