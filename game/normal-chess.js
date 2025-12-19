@@ -508,10 +508,12 @@
           const p = board[srcR][srcC];
           const isSel = UI.selected === coord;
           const mv = UI.moves.find(x => x.to === coord);
+          const isDragOrigin = !!(drag && drag.from && String(drag.from) === String(coord));
           const cls = [
             'nc-square',
             light ? 'light' : 'dark',
             isSel ? 'nc-selected' : '',
+            isDragOrigin ? 'nc-drag-origin' : '',
             mv ? (mv.capture ? 'nc-move nc-capture' : 'nc-move') : ''
           ].filter(Boolean).join(' ');
           const epTarget = ep && coord === ep && p === '';
