@@ -379,6 +379,7 @@
                         <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('puzzleMonsterFight', this)">Puzzle Monster Fight</button>
                         <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('chessCom', this)">Chess.com</button>
                         <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('noBlunder', this)">No Blunder</button>
+                        <button class="admin-game-setting-side-tab" type="button" onclick="switchAdminGameSettingSideTab('hopeMate', this)">Hope Mate</button>
                     </div>
 
                     <div>
@@ -405,6 +406,48 @@
                         <div id="adminGameSettingNoBlunderPanel" class="admin-game-setting-panel hidden">
                             <h3 style="margin:0 0 8px; color:#111827;">No Blunder</h3>
                             <p style="color:#6b7280; margin:0;">No settings yet.</p>
+                        </div>
+                        <div id="adminGameSettingHopeMatePanel" class="admin-game-setting-panel hidden">
+                            <h3 style="margin:0 0 8px; color:#111827;">Hope Mate</h3>
+                            <p style="color:#6b7280; margin:0 0 12px;">Manage stage puzzles by FEN. (Admin only)</p>
+
+                            <div class="admin-game-setting-form">
+                                <div class="admin-game-setting-form-row">
+                                    <label class="admin-game-setting-label">Stage</label>
+                                    <select id="adminHopeMateStageSelect" class="admin-game-setting-input">
+                                        <option value="rook">Stage 1: Rook</option>
+                                        <option value="queen">Stage 2: Queen</option>
+                                        <option value="minor">Stage 3: Minor pieces</option>
+                                        <option value="pawns">Stage 4: Pawns</option>
+                                        <option value="twoRooks">Stage 5: Two Rooks</option>
+                                        <option value="rookKnight">Stage 6: Rook + Knight</option>
+                                        <option value="queenBishop">Stage 7: Queen + Bishop</option>
+                                        <option value="queenKnight">Stage 8: Queen + Knight</option>
+                                        <option value="queenRook">Stage 9: Queen + Rook</option>
+                                        <option value="threePieces">Stage 10: Three pieces</option>
+                                    </select>
+                                </div>
+
+                                <div class="admin-game-setting-form-row">
+                                    <label class="admin-game-setting-label">FEN</label>
+                                    <textarea id="adminHopeMateFenInput" class="admin-game-setting-textarea" rows="3" placeholder="e.g. 8/8/8/8/8/8/8/8 w - - 0 1"></textarea>
+                                    <div class="admin-game-setting-help">We validate 8×8 FEN format. Side to move must be <strong>b</strong> (black to move) for Hope Mate puzzles.</div>
+                                </div>
+
+                                <div class="admin-game-setting-actions">
+                                    <button id="adminHopeMateAddBtn" class="btn btn-primary" type="button">Add Puzzle</button>
+                                    <button id="adminHopeMateRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+                                </div>
+                                <div id="adminHopeMateMsg" class="admin-game-setting-msg" style="display:none;"></div>
+                            </div>
+
+                            <div style="margin-top:14px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                                    <h4 style="margin:0; color:#111827;">Puzzles</h4>
+                                    <div style="color:#6b7280; font-size:13px;">Showing selected stage only</div>
+                                </div>
+                                <div id="adminHopeMatePuzzleList" class="admin-game-setting-list" style="margin-top:10px;"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
