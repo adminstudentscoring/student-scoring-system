@@ -671,7 +671,16 @@
     if (state.puzzle.black[idx]) return; // occupied by black
     // prevent placing on square used by other slot
     const otherSlot = slot === 0 ? 1 : 0;
-    if (state.placed[otherSlot] === idx) return;
+    if (state.placed[otherSlot] === idx) {
+      // Swap positions if dropping onto the other placed piece
+      const curIdx = state.placed[slot];
+      state.placed[slot] = idx;
+      state.placed[otherSlot] = curIdx;
+      rebuildBoardFromPlacements();
+      setStatus('Swapped pieces. You can adjust before Confirm.', 'info');
+      render();
+      return;
+    }
 
     // Apply placement constraints early for feedback
     const placements = [];
@@ -771,6 +780,19 @@
   }
 
   function onSquareClick(idx) {
+    // If clicking a placed white piece, select it (so user can quickly adjust without changing slots)
+    const slot0 = state.placed[0];
+    const slot1 = state.placed[1];
+    if (slot0 === idx) {
+      state.selectedPieceSlot = 0;
+      render();
+      return;
+    }
+    if (slot1 === idx) {
+      state.selectedPieceSlot = 1;
+      render();
+      return;
+    }
     placePiece(state.selectedPieceSlot, idx);
   }
 
@@ -891,6 +913,45 @@
         if (e.button !== undefined && e.button !== 0) return;
         const slot = Number(el.getAttribute('data-slot'));
         startDragFromSlotEl(el, slot, e);
+      });
+    });
+
+    // Allow dragging already-placed pieces from the board (so user doesn't need to re-select slots).
+    document.querySelectorAll('.hm-square').forEach((sq) => {
+      sq.addEventListener('pointerdown', (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        const idx = Number(sq.getAttribute('data-idx'));
+        if (!Number.isFinite(idx)) return;
+        const slot = state.placed[0] === idx ? 0 : (state.placed[1] === idx ? 1 : null);
+        if (slot === null) return; // only allow dragging placed white pieces
+
+        // Use the piece visual in this square as ghost.
+        const img = sq.querySelector('.hm-piece-img');
+        const glyph = sq.querySelector('.hm-piece-glyph');
+
+        const ghost = document.createElement('div');
+        ghost.className = 'hm-drag-ghost';
+        if (img && img.getAttribute('src')) {
+          const gi = document.createElement('img');
+          gi.src = img.getAttribute('src');
+          gi.alt = '';
+          ghost.appendChild(gi);
+        } else if (glyph) {
+          const span = document.createElement('span');
+          span.textContent = glyph.textContent || '';
+          ghost.appendChild(span);
+        }
+        document.body.appendChild(ghost);
+
+        dragging = { slot, ghostEl: ghost, lastOverSquareEl: null };
+        document.body.classList.add('hm-dragging');
+        state.selectedPieceSlot = slot;
+
+        moveGhost(e.clientX, e.clientY);
+        window.addEventListener('pointermove', onPointerMove, true);
+        window.addEventListener('pointerup', onPointerUp, true);
+        window.addEventListener('pointercancel', onPointerUp, true);
+        e.preventDefault?.();
       });
     });
   }
