@@ -54,6 +54,45 @@
     return { level: lvl, boardSize, blackExtraCount };
   }
 
+  function getStageConfig(stageKey) {
+    const key = String(stageKey || '');
+    // Stage 3+ requested rules:
+    // - Black pieces count not fixed (we still keep it in a safe random range for solvability), but must include a king
+    // - White pieces are determined by stage:
+    //   - Pawns: 2 pawns
+    //   - Minor pieces: 2 pieces, each random from Knight/Bishop/Pawn (duplicates allowed)
+    // For now, Stage 1/2 remain special-cased (rook) / not implemented (queen), per previous behavior.
+    if (key === 'minor') {
+      const pool = ['N', 'B', 'P'];
+      return { boardSize: 8, whitePieces: [sample(pool), sample(pool)], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    if (key === 'pawns') {
+      return { boardSize: 8, whitePieces: ['P', 'P'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    // Other stages (future): keep placeholder mapping but allow generation later.
+    if (key === 'twoRooks') {
+      return { boardSize: 8, whitePieces: ['R', 'R'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    if (key === 'rookKnight') {
+      return { boardSize: 8, whitePieces: ['R', 'N'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    if (key === 'queenBishop') {
+      return { boardSize: 8, whitePieces: ['Q', 'B'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    if (key === 'queenKnight') {
+      return { boardSize: 8, whitePieces: ['Q', 'N'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    if (key === 'queenRook') {
+      return { boardSize: 8, whitePieces: ['Q', 'R'], blackExtraMin: 0, blackExtraMax: 4, exhaustivePairs: true, blackKingPlacement: 'edge' };
+    }
+    if (key === 'threePieces') {
+      // Keep simple: 3 pieces sampled from QRBNP (duplicates allowed). Use sampling verifier (not exhaustive).
+      const pool = ['Q', 'R', 'B', 'N', 'P'];
+      return { boardSize: 8, whitePieces: [sample(pool), sample(pool), sample(pool)], blackExtraMin: 0, blackExtraMax: 3, exhaustivePairs: false, blackKingPlacement: 'edge' };
+    }
+    return null;
+  }
+
   const STORAGE = {
     players: 'hopeMatePlayers',
     level: 'hopeMateLevel',
@@ -484,6 +523,8 @@
     const level = Number(cfg?.level) || 1;
     const blackExtraCount = Number(cfg?.blackExtraCount) || 0;
     const fixedWhitePieces = Array.isArray(cfg?.whitePieces) ? cfg.whitePieces.filter(Boolean) : null;
+    const exhaustivePairs = !!cfg?.exhaustivePairs;
+    const blackKingPlacement = String(cfg?.blackKingPlacement || '');
     const maxTries = BOARD_SIZE === 8
       ? ((fixedWhitePieces && fixedWhitePieces.length === 1) ? 20000 : 3000)
       : 4000;
@@ -571,7 +612,20 @@
         }
       } else {
         // Generic random black setup
-        blackKingIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+        if (blackKingPlacement === 'edge') {
+          const edgeSquares = [];
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            edgeSquares.push(xyToIdx(x, 0));
+            edgeSquares.push(xyToIdx(x, BOARD_SIZE - 1));
+          }
+          for (let y = 1; y < BOARD_SIZE - 1; y++) {
+            edgeSquares.push(xyToIdx(0, y));
+            edgeSquares.push(xyToIdx(BOARD_SIZE - 1, y));
+          }
+          blackKingIdx = edgeSquares[randInt(edgeSquares.length)];
+        } else {
+          blackKingIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+        }
         boardBase[blackKingIdx] = 'k';
 
         // Extra black pieces (no extra king)
@@ -649,7 +703,7 @@
           if (trySingle(squares[i])) break;
         }
       } else if (pieceCount === 2) {
-        if (BOARD_SIZE <= 5 && blackExtraCount <= 2) {
+        if (exhaustivePairs || (BOARD_SIZE <= 5 && blackExtraCount <= 2)) {
           for (let i = 0; i < squares.length; i++) {
             for (let j = i + 1; j < squares.length; j++) {
               if (tryPair(squares[i], squares[j])) break;
@@ -1075,6 +1129,47 @@
     openResult('incorrect', 'Unable to generate a solvable puzzle. Please click Cancel and try again.');
   }
 
+  function startStagePuzzle(stageKey) {
+    const cfg = getStageConfig(stageKey);
+    if (!cfg) {
+      alert('This stage is not implemented yet.');
+      return;
+    }
+
+    setBoardSize(cfg.boardSize || 8);
+    state.stageProgress.puzzleSolved = false;
+    state.attemptsFailed = false;
+    state.puzzleSolved = false;
+    state.ui.resultOpen = false;
+
+    let lastError = null;
+    for (let i = 0; i < 8; i++) {
+      const min = Number(cfg.blackExtraMin ?? 0);
+      const max = Number(cfg.blackExtraMax ?? min);
+      const extra = min + randInt(Math.max(1, (max - min + 1)));
+      const rp = {
+        level: 1,
+        boardSize: cfg.boardSize || 8,
+        blackExtraCount: extra,
+        whitePieces: cfg.whitePieces,
+        exhaustivePairs: !!cfg.exhaustivePairs,
+        blackKingPlacement: cfg.blackKingPlacement || ''
+      };
+      try {
+        state.puzzle = randomPuzzle(rp);
+        state.board = state.puzzle.black.slice();
+        state.placed = new Array((state.puzzle.whitePieces || []).length).fill(null);
+        setStatus('New puzzle generated. Place your pieces, then Confirm.', 'info');
+        render();
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    console.error('Stage puzzle generation failed:', lastError);
+    alert('Failed to generate a puzzle. Please try again.');
+  }
+
   function onSquareClick(idx) {
     // If clicking a placed white piece, select it (so user can quickly adjust without changing slots)
     const slot = state.placed.findIndex(v => v === idx);
@@ -1384,6 +1479,19 @@
             startStageRookPuzzle();
             return;
           }
+
+          // Stage 3+ generator (requested: start from Stage 3, Stage 1/2 may be too hard)
+          if (['minor', 'pawns', 'twoRooks', 'rookKnight', 'queenBishop', 'queenKnight', 'queenRook', 'threePieces'].includes(key)) {
+            state.stageKey = key;
+            const saved = loadStageProgress(key);
+            const solved = Number(saved?.solved) || 0;
+            state.stageProgress.solved = Math.max(0, Math.min(state.stageProgress.target, solved));
+            state.stageProgress.puzzleSolved = false;
+            state.screen = 'stageGame';
+            startStagePuzzle(key);
+            return;
+          }
+
           alert(`${stage?.label || 'Stage'} is not implemented yet.`);
         });
       });
@@ -1440,7 +1548,19 @@
 
     // stageGame (Stage 1 implemented: rook)
     if (state.screen === 'stageGame') {
-      const stageTitle = state.stageKey === 'rook' ? 'Stage 1 — Rook' : 'Stage';
+      const stageTitleMap = {
+        rook: 'Stage 1 — Rook',
+        queen: 'Stage 2 — Queen',
+        minor: 'Stage 3 — Minor pieces',
+        pawns: 'Stage 4 — Pawns',
+        twoRooks: 'Stage 5 — Two Rooks',
+        rookKnight: 'Stage 6 — Rook + Knight',
+        queenBishop: 'Stage 7 — Queen + Bishop',
+        queenKnight: 'Stage 8 — Queen + Knight',
+        queenRook: 'Stage 9 — Queen + Rook',
+        threePieces: 'Stage 10 — Three pieces'
+      };
+      const stageTitle = stageTitleMap[String(state.stageKey)] || 'Stage';
       const progressPct = Math.round((state.stageProgress.solved / state.stageProgress.target) * 100);
       const pieces = state.puzzle ? state.puzzle.whitePieces : [];
 
