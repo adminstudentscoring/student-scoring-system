@@ -10,17 +10,36 @@
 // Note: White king is NOT required to exist; it may appear as a random piece. Rule: white king cannot be placed adjacent to black king.
 
 (function () {
-  const FILES = ['a', 'b', 'c', 'd', 'e'];
-  const RANKS = [1, 2, 3, 4, 5];
-  const SIZE = 5;
+  let BOARD_SIZE = 5;
+  let FILES = ['a', 'b', 'c', 'd', 'e'];
+  let RANKS = [1, 2, 3, 4, 5];
+
+  function setBoardSize(size) {
+    const n = Number(size);
+    const next = Number.isFinite(n) && n >= 4 && n <= 12 ? Math.floor(n) : 5;
+    BOARD_SIZE = next;
+    FILES = Array.from({ length: BOARD_SIZE }, (_, i) => String.fromCharCode('a'.charCodeAt(0) + i));
+    RANKS = Array.from({ length: BOARD_SIZE }, (_, i) => i + 1);
+  }
 
   const PIECE_POOL_WHITE = ['Q', 'R', 'B', 'N', 'K', 'P']; // includes pawn & king
   const PIECE_POOL_BLACK = ['q', 'r', 'b', 'n', 'p']; // no king duplicates allowed
 
-  const LEVELS = [
-    { key: 'level1', name: 'Level 1 (K)', blackExtraPiece: false },
-    { key: 'level2', name: 'Level 2 (K + 1)', blackExtraPiece: true }
+  const MODES = [
+    { key: 'stage', name: 'Stage Mode' },
+    { key: 'challenge', name: 'Challenge Mode' },
+    { key: 'practice', name: 'Practice Mode' },
+    { key: 'rules', name: 'Rules' }
   ];
+
+  const PRACTICE_LEVELS = Array.from({ length: 10 }, (_, i) => i + 1);
+
+  function getPracticeConfig(levelNumber) {
+    const lvl = Math.max(1, Math.min(10, Number(levelNumber) || 1));
+    const boardSize = lvl <= 3 ? 5 : 8;
+    const blackExtraCount = Math.max(0, lvl - 1); // Level 1:0, Level 2:1, ..., Level 10:9
+    return { level: lvl, boardSize, blackExtraCount };
+  }
 
   const STORAGE = {
     players: 'hopeMatePlayers',
@@ -69,12 +88,12 @@
   function toIdx(file, rank) {
     const x = FILES.indexOf(file);
     const y = RANKS.indexOf(rank);
-    return y * SIZE + x;
+    return y * BOARD_SIZE + x;
   }
 
   function idxToCoord(idx) {
-    const x = idx % SIZE;
-    const y = Math.floor(idx / SIZE);
+    const x = idx % BOARD_SIZE;
+    const y = Math.floor(idx / BOARD_SIZE);
     return `${FILES[x]}${RANKS[y]}`;
   }
 
@@ -85,15 +104,15 @@
   }
 
   function inBounds(x, y) {
-    return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+    return x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE;
   }
 
   function idxToXY(idx) {
-    return { x: idx % SIZE, y: Math.floor(idx / SIZE) };
+    return { x: idx % BOARD_SIZE, y: Math.floor(idx / BOARD_SIZE) };
   }
 
   function xyToIdx(x, y) {
-    return y * SIZE + x;
+    return y * BOARD_SIZE + x;
   }
 
   // Board model: array length 25, each cell = null or piece code (single char)
@@ -444,36 +463,47 @@
   }
 
   function buildEmptyBoard() {
-    return Array(SIZE * SIZE).fill(null);
+    return Array(BOARD_SIZE * BOARD_SIZE).fill(null);
   }
 
-  function randomPuzzle(levelKey) {
-    const level = LEVELS.find((l) => l.key === levelKey) || LEVELS[0];
-    const maxTries = 4000;
+  function randomPuzzle(cfg) {
+    const level = Number(cfg?.level) || 1;
+    const blackExtraCount = Number(cfg?.blackExtraCount) || 0;
+    const maxTries = BOARD_SIZE === 8 ? 2000 : 4000;
 
     for (let attempt = 0; attempt < maxTries; attempt++) {
       const boardBase = buildEmptyBoard();
 
       // Place black king
-      const blackKingIdx = randInt(SIZE * SIZE);
+      const blackKingIdx = randInt(BOARD_SIZE * BOARD_SIZE);
       boardBase[blackKingIdx] = 'k';
 
-      // Optional extra black piece
-      if (level.blackExtraPiece) {
-        let bp = sample(PIECE_POOL_BLACK);
-        // no king duplicates: already enforced by pool
-        let bIdx = randInt(SIZE * SIZE);
-        if (bIdx === blackKingIdx) continue;
+      // Extra black pieces (no extra king)
+      for (let i = 0; i < blackExtraCount; i++) {
+        const bp = sample(PIECE_POOL_BLACK);
+        // Avoid placing black pawn on rank 1 (y=0), because it would have no forward move.
+        let bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+        let guard = 0;
+        while (guard < 40 && (bIdx === blackKingIdx || boardBase[bIdx] || (bp === 'p' && idxToXY(bIdx).y === 0))) {
+          bIdx = randInt(BOARD_SIZE * BOARD_SIZE);
+          guard += 1;
+        }
+        if (bIdx === blackKingIdx || boardBase[bIdx]) {
+          // Retry full attempt if we cannot place all black pieces cleanly
+          boardBase[blackKingIdx] = null;
+          break;
+        }
         boardBase[bIdx] = bp;
       }
+      if (boardBase[blackKingIdx] !== 'k') continue;
 
       // Pick two random white pieces (duplicates allowed)
       const w1 = sample(PIECE_POOL_WHITE);
       const w2 = sample(PIECE_POOL_WHITE);
 
-      // Verify solvable by brute force placements (must exist at least one checkmate)
+      // Verify solvable (must exist at least one checkmate)
       const squares = [];
-      for (let i = 0; i < SIZE * SIZE; i++) {
+      for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
         if (boardBase[i]) continue;
         squares.push(i);
       }
@@ -481,42 +511,62 @@
       let hasMate = false;
       let sampleSolution = null;
 
-      for (let i = 0; i < squares.length; i++) {
-        for (let j = i + 1; j < squares.length; j++) {
-          const idx1 = squares[i];
-          const idx2 = squares[j];
+      const tryPair = (idx1, idx2) => {
+        // Try both assignments if pieces differ
+        const assignmentOptions = (w1 === w2)
+          ? [[{ piece: w1, idx: idx1 }, { piece: w2, idx: idx2 }]]
+          : [
+              [{ piece: w1, idx: idx1 }, { piece: w2, idx: idx2 }],
+              [{ piece: w1, idx: idx2 }, { piece: w2, idx: idx1 }]
+            ];
 
-          // Try both assignments if pieces differ
-          const assignmentOptions = (w1 === w2)
-            ? [[{ piece: w1, idx: idx1 }, { piece: w2, idx: idx2 }]]
-            : [
-                [{ piece: w1, idx: idx1 }, { piece: w2, idx: idx2 }],
-                [{ piece: w1, idx: idx2 }, { piece: w2, idx: idx1 }]
-              ];
+        for (const placements of assignmentOptions) {
+          const c = validateWhitePlacementConstraints(boardBase, blackKingIdx, placements);
+          if (!c.ok) continue;
 
-          for (const placements of assignmentOptions) {
-      const c = validateWhitePlacementConstraints(boardBase, blackKingIdx, placements);
-            if (!c.ok) continue;
+          const b = cloneBoard(boardBase);
+          b[placements[0].idx] = placements[0].piece;
+          b[placements[1].idx] = placements[1].piece;
 
-            const b = cloneBoard(boardBase);
-            b[placements[0].idx] = placements[0].piece;
-            b[placements[1].idx] = placements[1].piece;
+          if (isCheckmate(b)) {
+            hasMate = true;
+            sampleSolution = placements;
+            return true;
+          }
+        }
+        return false;
+      };
 
-            if (isCheckmate(b)) {
-              hasMate = true;
-              sampleSolution = placements;
-              break;
-            }
+      if (BOARD_SIZE <= 5 && blackExtraCount <= 2) {
+        // Exhaustive for small boards
+        for (let i = 0; i < squares.length; i++) {
+          for (let j = i + 1; j < squares.length; j++) {
+            if (tryPair(squares[i], squares[j])) break;
           }
           if (hasMate) break;
         }
-        if (hasMate) break;
+      } else {
+        // Random sampling for 8x8 to keep generation fast
+        const samples = Math.min(2000, squares.length * 4);
+        for (let t = 0; t < samples; t++) {
+          const idx1 = squares[randInt(squares.length)];
+          let idx2 = squares[randInt(squares.length)];
+          let guard = 0;
+          while (idx2 === idx1 && guard < 20) {
+            idx2 = squares[randInt(squares.length)];
+            guard += 1;
+          }
+          if (idx2 === idx1) continue;
+          if (tryPair(idx1, idx2)) break;
+        }
       }
 
       if (!hasMate) continue;
 
       return {
-        levelKey: level.key,
+        level,
+        boardSize: BOARD_SIZE,
+        blackExtraCount,
         black: boardBase.slice(),
         blackKingIdx,
         whitePieces: [w1, w2],
@@ -532,7 +582,8 @@
   // UI / Game State
   // ---------------------------
   const state = {
-    levelKey: null,
+    screen: 'home', // 'home' | 'practiceSelect' | 'practiceGame'
+    practiceLevel: 1,
     puzzle: null,
     board: null,
     placed: [null, null], // indices for the 2 white pieces
@@ -555,14 +606,14 @@
     return document.getElementById('hopeMateRoot');
   }
 
-  function readStoredLevel() {
-    const raw = localStorage.getItem(STORAGE.level);
-    if (raw && LEVELS.some((l) => l.key === raw)) return raw;
-    return LEVELS[0].key;
+  function readStoredPracticeLevel() {
+    const raw = Number(localStorage.getItem(STORAGE.level) || '1');
+    if (Number.isFinite(raw) && raw >= 1 && raw <= 10) return Math.floor(raw);
+    return 1;
   }
 
-  function writeStoredLevel(levelKey) {
-    localStorage.setItem(STORAGE.level, levelKey);
+  function writeStoredPracticeLevel(levelNumber) {
+    localStorage.setItem(STORAGE.level, String(levelNumber));
   }
 
   function loadScores() {
@@ -652,7 +703,9 @@
     state.attemptsFailed = false;
     state.placed = [null, null];
     state.selectedPieceSlot = 0;
-    state.puzzle = randomPuzzle(state.levelKey);
+    const cfg = getPracticeConfig(state.practiceLevel);
+    setBoardSize(cfg.boardSize);
+    state.puzzle = randomPuzzle(cfg);
     state.board = state.puzzle.black.slice();
   }
 
@@ -987,11 +1040,6 @@
     const player = getSinglePlayer();
     const playerName = player ? player.name : 'Unknown';
 
-    const levelOptions = LEVELS.map((l) => {
-      const selected = l.key === state.levelKey ? 'selected' : '';
-      return `<option value="${l.key}" ${selected}>${escapeHtml(l.name)}</option>`;
-    }).join('');
-
     const pieces = state.puzzle ? state.puzzle.whitePieces : ['?', '?'];
     const slot0Active = state.selectedPieceSlot === 0 ? 'active' : '';
     const slot1Active = state.selectedPieceSlot === 1 ? 'active' : '';
@@ -1006,12 +1054,111 @@
       `;
     };
 
+    if (state.screen === 'home') {
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">Choose a mode to begin.</div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmStageBtn" class="btn btn-secondary" type="button">Stage Mode</button>
+              <button id="hmChallengeBtn" class="btn btn-secondary" type="button">Challenge Mode</button>
+              <button id="hmPracticeBtn" class="btn btn-primary" type="button">Practice Mode</button>
+              <button id="hmRulesBtn" class="btn btn-secondary" type="button">Rules</button>
+            </div>
+          </div>
+
+          <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
+            <div class="hm-piece-tray-title">Status</div>
+            <div class="hm-muted">Stage/Challenge/Roles UI will be implemented next. Practice is available now.</div>
+          </div>
+        </div>
+      `;
+      document.getElementById('hmPracticeBtn')?.addEventListener('click', () => {
+        state.screen = 'practiceSelect';
+        render();
+      });
+      document.getElementById('hmStageBtn')?.addEventListener('click', () => {
+        alert('Stage Mode is not implemented yet.');
+      });
+      document.getElementById('hmChallengeBtn')?.addEventListener('click', () => {
+        alert('Challenge Mode is not implemented yet.');
+      });
+      document.getElementById('hmRulesBtn')?.addEventListener('click', () => {
+        alert('Rules are not implemented yet.');
+      });
+      return;
+    }
+
+    if (state.screen === 'practiceSelect') {
+      root.innerHTML = `
+        <div class="hope-mate-shell">
+          <div class="hope-mate-topbar">
+            <div class="hope-mate-title-wrap">
+              <div class="hope-mate-title">✨ Hope Mate</div>
+              <div class="hope-mate-subtitle">Practice Mode — Select a level</div>
+            </div>
+          </div>
+
+          <div class="hope-mate-controls">
+            <div class="hm-actions">
+              <button id="hmBackHomeBtn" class="btn btn-secondary" type="button">Back</button>
+            </div>
+          </div>
+
+          <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
+            <div class="hm-piece-tray-title">Levels</div>
+            <div class="hm-muted" style="margin-bottom:10px;">
+              Level 1: 1 black king vs 2 white pieces<br/>
+              Level 2: 1 black king + 1 black piece vs 2 white pieces<br/>
+              Level 3: 1 black king + 2 black pieces vs 2 white pieces<br/>
+              Level 4+: board becomes 8×8 (black pieces increase by level)
+            </div>
+            <div class="hm-level-grid">
+              ${PRACTICE_LEVELS.map(l => `
+                <button class="hm-level-btn ${l === state.practiceLevel ? 'active' : ''}" type="button" data-level="${l}">
+                  Level ${l}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('hmBackHomeBtn')?.addEventListener('click', () => {
+        state.screen = 'home';
+        render();
+      });
+      document.querySelectorAll('.hm-level-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const lvl = Number(btn.getAttribute('data-level'));
+          if (!Number.isFinite(lvl) || lvl < 1 || lvl > 10) return;
+          state.practiceLevel = Math.floor(lvl);
+          writeStoredPracticeLevel(state.practiceLevel);
+          state.screen = 'practiceGame';
+          newPuzzle();
+          setStatus('New puzzle generated. Place both pieces, then Confirm.', 'info');
+          render();
+          refreshLeaderboard();
+        });
+      });
+      return;
+    }
+
+    // practiceGame (current implementation)
+    const cfg = getPracticeConfig(state.practiceLevel);
+    const levelLabel = `Level ${cfg.level} (${cfg.boardSize}×${cfg.boardSize}, black pieces: ${cfg.blackExtraCount})`;
+
     root.innerHTML = `
       <div class="hope-mate-shell">
         <div class="hope-mate-topbar">
           <div class="hope-mate-title-wrap">
             <div class="hope-mate-title">✨ Hope Mate</div>
-            <div class="hope-mate-subtitle">Place 2 pieces to checkmate the black king (black to move).</div>
+            <div class="hope-mate-subtitle">Practice Mode — ${escapeHtml(levelLabel)} — Place 2 pieces to checkmate the black king (black to move).</div>
           </div>
           <div class="hope-mate-meta">
             <div><strong>Student:</strong> ${escapeHtml(playerName)}</div>
@@ -1022,11 +1169,8 @@
         </div>
 
         <div class="hope-mate-controls">
-          <label class="hm-label">
-            <span>Level</span>
-            <select id="hopeMateLevelSelect" class="hm-select">${levelOptions}</select>
-          </label>
           <div class="hm-actions">
+            <button id="hmPracticeLevelsBtn" class="btn btn-secondary" type="button">Levels</button>
             <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Leaderboard</button>
             <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
             <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
@@ -1121,6 +1265,10 @@
     document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
     document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
     document.getElementById('hopeMateNextBtn')?.addEventListener('click', nextPuzzle);
+    document.getElementById('hmPracticeLevelsBtn')?.addEventListener('click', () => {
+      state.screen = 'practiceSelect';
+      render();
+    });
     document.getElementById('hopeMateLeaderboardBtn')?.addEventListener('click', () => {
       // Open and refresh (if needed)
       openLeaderboard();
@@ -1128,13 +1276,8 @@
         refreshLeaderboard();
       }
     });
-    document.getElementById('hopeMateLevelSelect')?.addEventListener('change', (e) => {
-      const v = e.target?.value;
-      if (!LEVELS.some((l) => l.key === v)) return;
-      state.levelKey = v;
-      writeStoredLevel(v);
-      nextPuzzle();
-    });
+    // Update CSS variable for board size
+    document.querySelector('.hm-board-shell')?.style.setProperty('--hm-board-size', String(BOARD_SIZE));
 
     document.getElementById('hmLeaderboardClose')?.addEventListener('click', closeLeaderboard);
     document.getElementById('hmLeaderboardBackdrop')?.addEventListener('click', (e) => {
@@ -1161,12 +1304,15 @@
       return;
     }
 
-    state.levelKey = readStoredLevel();
+    state.practiceLevel = readStoredPracticeLevel();
+    const cfg = getPracticeConfig(state.practiceLevel);
+    setBoardSize(cfg.boardSize);
     loadScores();
-    lastStatus = { text: 'New puzzle generated. Place both pieces, then Confirm.', kind: 'info' };
-    newPuzzle();
+    lastStatus = { text: 'Welcome to Hope Mate. Choose Practice Mode to begin.', kind: 'info' };
+    state.screen = 'home';
+    state.puzzle = null;
+    state.board = buildEmptyBoard();
     render();
-    refreshLeaderboard();
   }
 
   window.initHopeMate = function initHopeMate() {
