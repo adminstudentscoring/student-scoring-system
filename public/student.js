@@ -1,6 +1,7 @@
 const urlParams = new URLSearchParams(window.location.search);
 const studentId = urlParams.get('id');
 let studentData = null;
+let studentAccessPassword = '';
 
 // Initialize
 if (studentId) {
@@ -12,6 +13,7 @@ if (studentId) {
 // Load Data
 async function loadData(password = '') {
     try {
+        studentAccessPassword = String(password || '');
         const url = `/api/public/students/${studentId}${password ? '?password=' + encodeURIComponent(password) : ''}`;
         const response = await fetch(url);
         
@@ -223,18 +225,39 @@ window.openStudentGame = function(gameKey, options = {}) {
     }
 
     if (gameKey === 'vChessPlatform') {
-        try {
-            localStorage.setItem('vChessPlatformRole', 'student');
-            localStorage.setItem('vChessPlatformPlayer', JSON.stringify(player));
-        } catch (e) {
-            console.warn('Unable to persist vChessPlatform context', e);
-        }
-        const url = '/game/game-window.html?game=vChessPlatform&role=student';
-        if (openMode === 'sameTab') {
-            window.location.href = url;
-        } else {
-            window.open(url, '_blank');
-        }
+        (async () => {
+            try {
+                localStorage.setItem('vChessPlatformRole', 'student');
+                localStorage.setItem('vChessPlatformPlayer', JSON.stringify(player));
+            } catch (e) {
+                console.warn('Unable to persist vChessPlatform context', e);
+            }
+
+            // Fetch a dedicated student token for VCP (do NOT rely on authToken)
+            try {
+                const pwdQuery = studentAccessPassword ? `?password=${encodeURIComponent(studentAccessPassword)}` : '';
+                const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentData.id || studentId))}/vcp-token${pwdQuery}`);
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data.token) {
+                    console.warn('Failed to obtain VCP token:', data);
+                } else {
+                    try {
+                        localStorage.setItem('vChessPlatformAuthToken', String(data.token));
+                    } catch (e) {
+                        console.warn('Unable to persist vChessPlatformAuthToken', e);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to fetch VCP token', e);
+            }
+
+            const url = '/game/game-window.html?game=vChessPlatform&role=student';
+            if (openMode === 'sameTab') {
+                window.location.href = url;
+            } else {
+                window.open(url, '_blank');
+            }
+        })();
         return;
     }
 };

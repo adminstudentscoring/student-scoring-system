@@ -48,7 +48,8 @@
 
   function getAuthToken() {
     try {
-      return localStorage.getItem('authToken');
+      // Prefer dedicated VCP token for public Student Dashboard (avoids using leftover teacher tokens).
+      return localStorage.getItem('vChessPlatformAuthToken') || localStorage.getItem('authToken');
     } catch {
       return null;
     }
@@ -122,6 +123,7 @@
   let lastActivityPing = 0;
   function markActivity() {
     if (STATE.role !== 'student') return;
+    if (!STATE.wsReady) return;
     const now = Date.now();
     if (now - lastActivityPing < 8000) return; // throttle
     lastActivityPing = now;

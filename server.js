@@ -6115,6 +6115,48 @@ app.get('/api/public/students/:id', async (req, res) => {
   }
 });
 
+// Public Student Access: V.Chess Platform token (No Auth required, Password protected)
+// Returns a short-lived JWT with role=student so the student can use WebSocket realtime.
+app.get('/api/public/students/:id/vcp-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.query;
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    // Check password protection (same rules as public profile)
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    // Mint token with role=student and org context
+    const token = generateToken({
+      id: String(student.id),
+      email: '',
+      role: 'student',
+      name: String(student.name || 'Student'),
+      organizationId: student.organizationId || null
+    });
+
+    return res.json({
+      ok: true,
+      token,
+      student: {
+        id: String(student.id),
+        name: String(student.name || 'Student'),
+        studentId: String(student.studentId || '')
+      }
+    });
+  } catch (error) {
+    console.error('Error issuing VCP token:', error);
+    return res.status(500).json({ error: 'Failed to issue token' });
+  }
+});
+
 // Delete student
 app.delete('/api/students/:id', authenticateUser, async (req, res) => {
   try {
