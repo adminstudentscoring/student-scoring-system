@@ -15,6 +15,11 @@
     lastError: null
   };
 
+  let reconnectTimer = null;
+  let reconnectAttempt = 0;
+  let heartbeatTimer = null;
+  let lastPongTs = 0;
+
   function getRoot() {
     return document.getElementById('vChessPlatformRoot');
   }
@@ -147,6 +152,14 @@
       }
       return;
     }
+    // Avoid double connections
+    if (STATE.ws && (STATE.ws.readyState === WebSocket.OPEN || STATE.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     try {
       STATE.ws = new WebSocket(wsUrl());
     } catch (e) {
@@ -164,9 +177,48 @@
     });
     STATE.ws.addEventListener('close', () => {
       STATE.wsReady = false;
+      stopHeartbeat();
       // keep UI but show disconnected badge
       render();
+      scheduleReconnect();
     });
+    STATE.ws.addEventListener('error', () => {
+      // Most environments also trigger close; just ensure we attempt reconnect.
+      try { STATE.ws?.close(); } catch {}
+    });
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    // Exponential backoff with cap + jitter
+    const base = Math.min(30000, 800 * Math.pow(2, reconnectAttempt));
+    const jitter = Math.floor(Math.random() * 400);
+    const delay = Math.min(30000, base + jitter);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectAttempt = Math.min(10, reconnectAttempt + 1);
+      connectWs();
+    }, delay);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    lastPongTs = 0;
+  }
+
+  function startHeartbeat() {
+    stopHeartbeat();
+    lastPongTs = Date.now();
+    heartbeatTimer = setInterval(() => {
+      if (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN) return;
+      wsSend({ type: 'vcp_ping' });
+      // If no pong for too long, force reconnect
+      const now = Date.now();
+      if (lastPongTs && (now - lastPongTs) > 65000) {
+        try { STATE.ws.close(); } catch {}
+      }
+    }, 20000);
   }
 
   // Activity ping (idle after 3 minutes)
@@ -177,7 +229,7 @@
     const now = Date.now();
     if (now - lastActivityPing < 8000) return; // throttle
     lastActivityPing = now;
-    wsSend({ type: 'vcp_activity' });
+    wsSend({ type: 'vcp_activity', statusChanged: 'true' });
   }
 
   function bindActivityListeners() {
@@ -539,7 +591,14 @@
       if (STATE.role === 'teacher') STATE.me.studentId = '';
       STATE.me.name = String(msg?.name || STATE.me.name);
       if (STATE.role === 'student' && msg?.status) STATE.status = String(msg.status);
+      reconnectAttempt = 0;
+      startHeartbeat();
+      wsSend({ type: 'vcp_get_presence' });
       render();
+      return;
+    }
+    if (type === 'vcp_pong') {
+      lastPongTs = Date.now();
       return;
     }
     if (type === 'vcp_error') {
@@ -610,6 +669,12 @@
     render();
     connectWs();
     bindActivityListeners();
+    window.addEventListener('focus', () => {
+      if (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN) connectWs();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN)) connectWs();
+    });
   }
 
   window.initVChessPlatform = init;

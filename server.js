@@ -10799,6 +10799,22 @@ async function startServer() {
         return;
       }
 
+      if (type === 'vcp_ping') {
+        // App-level heartbeat to keep connections alive behind proxies.
+        if (kind === 'student') {
+          const map = vcpOrgStudentsMap(orgId);
+          const p = map.get(String(userId));
+          if (p) {
+            p.lastActivityTs = Date.now();
+            p.lastActivity = nowIso();
+            if (!p.inGame && p.status !== 'online') p.status = 'online';
+            map.set(String(userId), p);
+          }
+        }
+        wsSend(ws, { type: 'vcp_pong', ts: Date.now() });
+        return;
+      }
+
       if (type === 'vcp_get_presence') {
         // Allow both teacher and student to refresh presence snapshot.
         wsSend(ws, { type: 'vcp_presence_snapshot', students: vcpSnapshotForOrg(orgId) });
