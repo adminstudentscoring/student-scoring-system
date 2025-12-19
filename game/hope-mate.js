@@ -140,6 +140,35 @@
     }
   }
 
+  function pieceImagePath(piece) {
+    const up = String(piece || '').toUpperCase();
+    const isW = isWhite(piece);
+    const colorPrefix = isW ? 'white_' : 'black_';
+    switch (up) {
+      case 'K': return `/game/pieces/${colorPrefix}King.png`;
+      case 'Q': return `/game/pieces/${colorPrefix}Queen.png`;
+      case 'R': return `/game/pieces/${colorPrefix}Rook.png`;
+      case 'B': return `/game/pieces/${colorPrefix}Bishop.png`;
+      case 'N': return `/game/pieces/${colorPrefix}Knight.png`;
+      case 'P': return `/game/pieces/${colorPrefix}Pawn.png`;
+      default: return null;
+    }
+  }
+
+  function renderPieceVisual(piece, altText) {
+    if (!piece) return '';
+    const src = pieceImagePath(piece);
+    const glyph = pieceGlyph(piece);
+    const alt = escapeHtml(String(altText || pieceName(piece)));
+    if (!src) return `<span class="hm-piece-glyph" aria-label="${alt}">${glyph}</span>`;
+    // Use image but keep glyph fallback for safety (e.g., if image fails to load)
+    return `
+      <img class="hm-piece-img" src="${src}" alt="${alt}" loading="lazy" decoding="async"
+        onerror="this.style.display='none'; this.parentElement?.querySelector('.hm-piece-glyph')?.classList.remove('hm-hidden');" />
+      <span class="hm-piece-glyph hm-hidden" aria-label="${alt}">${glyph}</span>
+    `;
+  }
+
   function getAttacksForPiece(board, fromIdx, piece) {
     // Returns set of attacked squares (indices). For pawns: attacks only diagonals.
     const attacks = new Set();
@@ -751,11 +780,11 @@
         const coord = `${FILES[x]}${RANKS[y]}`;
         const isDark = (x + y) % 2 === 1;
         const piece = board[idx];
-        const glyph = piece ? pieceGlyph(piece) : '';
+        const visual = piece ? renderPieceVisual(piece, pieceName(piece)) : '';
         squaresHtml.push(`
           <div class="hm-square ${isDark ? 'dark' : 'light'}" data-idx="${idx}" aria-label="${coord}">
             <div class="hm-coord">${coord}</div>
-            <div class="hm-piece">${glyph}</div>
+            <div class="hm-piece">${visual}</div>
           </div>
         `);
       }
@@ -785,7 +814,7 @@
       const placedCoord = placedIdx == null ? 'Not placed' : idxToCoord(placedIdx);
       return `
         <button class="hm-slot ${slot === 0 ? slot0Active : slot1Active}" type="button" data-slot="${slot}" draggable="true" aria-label="Piece slot ${slot + 1}">
-          <span class="hm-slot-piece">${pieceGlyph(p)}</span>
+          <span class="hm-slot-piece">${renderPieceVisual(p, pieceName(p))}</span>
           <span class="hm-slot-text">
             <span class="hm-slot-name">${escapeHtml(pieceName(p))}</span>
             <span class="hm-slot-placed">${escapeHtml(placedCoord)}</span>
