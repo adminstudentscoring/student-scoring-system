@@ -1065,17 +1065,18 @@
           </div>
 
           <div class="hope-mate-controls">
-            <div class="hm-actions">
-              <button id="hmStageBtn" class="btn btn-secondary" type="button">Stage Mode</button>
-              <button id="hmChallengeBtn" class="btn btn-secondary" type="button">Challenge Mode</button>
-              <button id="hmPracticeBtn" class="btn btn-primary" type="button">Practice Mode</button>
-              <button id="hmRulesBtn" class="btn btn-secondary" type="button">Rules</button>
+            <div class="hm-mode-menu" role="navigation" aria-label="Hope Mate mode menu">
+              <button id="hmStageBtn" class="btn btn-secondary hm-mode-btn" type="button">Stage Mode</button>
+              <button id="hmChallengeBtn" class="btn btn-secondary hm-mode-btn" type="button">Challenge Mode</button>
+              <button id="hmPracticeBtn" class="btn btn-primary hm-mode-btn" type="button">Practice Mode</button>
+              <button id="hmRulesBtn" class="btn btn-secondary hm-mode-btn" type="button">Rules</button>
             </div>
           </div>
 
           <div class="hm-piece-tray" style="max-width:720px; margin: 0 auto;">
             <div class="hm-piece-tray-title">Status</div>
-            <div class="hm-muted">Stage/Challenge/Roles UI will be implemented next. Practice is available now.</div>
+            <div class="hm-muted"><strong>Student:</strong> ${escapeHtml(playerName)}</div>
+            <div class="hm-muted" style="margin-top:6px;">Stage/Challenge/Rules UI will be implemented next. Practice is available now.</div>
           </div>
         </div>
       `;

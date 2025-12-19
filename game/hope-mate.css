@@ -56,6 +56,19 @@
   border: 1px solid rgba(229, 231, 235, 0.9);
 }
 
+.hm-mode-menu {
+  width: min(360px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hm-mode-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .hm-label {
   display: flex;
   align-items: center;
