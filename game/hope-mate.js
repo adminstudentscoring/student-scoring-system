@@ -545,6 +545,9 @@
       loading: true,
       error: null,
       entries: []
+    },
+    ui: {
+      leaderboardOpen: false
     }
   };
 
@@ -578,9 +581,24 @@
     localStorage.setItem(STORAGE.best(sid), String(state.bestScore));
   }
 
+  function getAuthToken() {
+    // Same key as public/auth.js
+    return localStorage.getItem('authToken');
+  }
+
+  function buildAuthHeaders(extra = {}) {
+    const token = getAuthToken();
+    const headers = { ...extra };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  }
+
   async function fetchHopeMateLeaderboard() {
     const apiBase = window.API_BASE || '/api';
-    const resp = await fetch(`${apiBase}/hope-mate/leaderboard`, { credentials: 'include' });
+    const resp = await fetch(`${apiBase}/hope-mate/leaderboard`, {
+      headers: buildAuthHeaders(),
+      credentials: 'include'
+    });
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
       throw new Error(`Failed to load leaderboard (${resp.status}): ${txt}`);
@@ -594,7 +612,7 @@
     const resp = await fetch(`${apiBase}/hope-mate/leaderboard`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ studentId, totalScore })
     });
     if (!resp.ok) {
@@ -618,6 +636,16 @@
       state.leaderboard.loading = false;
       render();
     }
+  }
+
+  function openLeaderboard() {
+    state.ui.leaderboardOpen = true;
+    render();
+  }
+
+  function closeLeaderboard() {
+    state.ui.leaderboardOpen = false;
+    render();
   }
 
   function newPuzzle() {
@@ -763,6 +791,26 @@
         } catch {
           // ignore
         }
+
+        // Chess.com-like drag preview: use the piece image as drag ghost.
+        try {
+          const img = el.querySelector('.hm-piece-img');
+          if (img && img.getAttribute('src')) {
+            const ghost = document.createElement('img');
+            ghost.src = img.getAttribute('src');
+            ghost.style.width = '64px';
+            ghost.style.height = '64px';
+            ghost.style.position = 'fixed';
+            ghost.style.left = '-9999px';
+            ghost.style.top = '-9999px';
+            ghost.style.pointerEvents = 'none';
+            document.body.appendChild(ghost);
+            e.dataTransfer.setDragImage(ghost, 32, 32);
+            setTimeout(() => ghost.remove(), 0);
+          }
+        } catch {
+          // ignore
+        }
       });
     });
 
@@ -833,15 +881,10 @@
 
     const slotLabel = (slot) => {
       const p = pieces[slot];
-      const placedIdx = state.placed[slot];
-      const placedCoord = placedIdx == null ? 'Not placed' : idxToCoord(placedIdx);
       return `
         <button class="hm-slot ${slot === 0 ? slot0Active : slot1Active}" type="button" data-slot="${slot}" draggable="true" aria-label="Piece slot ${slot + 1}">
+          <span class="hm-slot-badge">${slot + 1}</span>
           <span class="hm-slot-piece">${renderPieceVisual(p, pieceName(p))}</span>
-          <span class="hm-slot-text">
-            <span class="hm-slot-name">${escapeHtml(pieceName(p))}</span>
-            <span class="hm-slot-placed">${escapeHtml(placedCoord)}</span>
-          </span>
         </button>
       `;
     };
@@ -867,6 +910,7 @@
             <select id="hopeMateLevelSelect" class="hm-select">${levelOptions}</select>
           </label>
           <div class="hm-actions">
+            <button id="hopeMateLeaderboardBtn" class="btn btn-secondary" type="button">Leaderboard</button>
             <button id="hopeMateResetBtn" class="btn btn-secondary" type="button">Reset placement</button>
             <button id="hopeMateConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
             <button id="hopeMateNextBtn" class="btn btn-secondary" type="button">Next</button>
@@ -884,35 +928,6 @@
                 ${slotLabel(1)}
               </div>
               <div class="hm-piece-tray-hint">You can change placement before Confirm. No partial feedback is shown.</div>
-
-              <div class="hm-leaderboard">
-                <div class="hm-leaderboard-title">Leaderboard (your teacher)</div>
-                ${state.leaderboard.loading ? `<div class="hm-muted">Loading...</div>` : ''}
-                ${state.leaderboard.error ? `<div class="hm-muted">${escapeHtml(state.leaderboard.error)}</div>` : ''}
-                <div class="hm-leaderboard-list">
-                  ${(() => {
-                    const meId = String(player?.id || '');
-                    const entries = Array.isArray(state.leaderboard.entries) ? state.leaderboard.entries : [];
-                    const top = entries.slice(0, 10);
-                    if (!state.leaderboard.loading && top.length === 0) {
-                      return `<div class="hm-muted">No records yet.</div>`;
-                    }
-                    return top.map((e, idx) => {
-                      const sid = String(e?.student?.id || e?.studentId || e?.id || '');
-                      const name = String(e?.student?.name || e?.name || 'Unknown');
-                      const score = Number(e?.totalScore ?? e?.score ?? 0) || 0;
-                      const isMe = meId && sid === meId;
-                      return `
-                        <div class="hm-leaderboard-row ${isMe ? 'is-me' : ''}">
-                          <div class="hm-leaderboard-rank">${idx + 1}</div>
-                          <div class="hm-leaderboard-name">${escapeHtml(name)}</div>
-                          <div class="hm-leaderboard-score">${score}</div>
-                        </div>
-                      `;
-                    }).join('');
-                  })()}
-                </div>
-              </div>
             </div>
           </div>
 
@@ -933,6 +948,44 @@
           </div>
         </div>
       </div>
+
+      ${state.ui.leaderboardOpen ? `
+        <div class="hm-modal-backdrop" id="hmLeaderboardBackdrop" role="presentation">
+          <div class="hm-modal" role="dialog" aria-modal="true" aria-label="Hope Mate Leaderboard">
+            <div class="hm-modal-header">
+              <div class="hm-modal-title">Leaderboard (your teacher)</div>
+              <button id="hmLeaderboardClose" class="hm-modal-close" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="hm-modal-body">
+              ${state.leaderboard.loading ? `<div class="hm-muted">Loading...</div>` : ''}
+              ${state.leaderboard.error ? `<div class="hm-muted">${escapeHtml(state.leaderboard.error)}</div>` : ''}
+              <div class="hm-leaderboard-list">
+                ${(() => {
+                  const meId = String(player?.id || '');
+                  const entries = Array.isArray(state.leaderboard.entries) ? state.leaderboard.entries : [];
+                  const top = entries.slice(0, 20);
+                  if (!state.leaderboard.loading && top.length === 0) {
+                    return `<div class="hm-muted">No records yet.</div>`;
+                  }
+                  return top.map((e, idx) => {
+                    const sid = String(e?.student?.id || e?.studentId || e?.id || '');
+                    const name = String(e?.student?.name || e?.name || 'Unknown');
+                    const score = Number(e?.totalScore ?? e?.score ?? 0) || 0;
+                    const isMe = meId && sid === meId;
+                    return `
+                      <div class="hm-leaderboard-row ${isMe ? 'is-me' : ''}">
+                        <div class="hm-leaderboard-rank">${idx + 1}</div>
+                        <div class="hm-leaderboard-name">${escapeHtml(name)}</div>
+                        <div class="hm-leaderboard-score">${score}</div>
+                      </div>
+                    `;
+                  }).join('');
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     `;
 
     // Wire events
@@ -951,12 +1004,24 @@
     document.getElementById('hopeMateResetBtn')?.addEventListener('click', resetPlacements);
     document.getElementById('hopeMateConfirmBtn')?.addEventListener('click', confirm);
     document.getElementById('hopeMateNextBtn')?.addEventListener('click', nextPuzzle);
+    document.getElementById('hopeMateLeaderboardBtn')?.addEventListener('click', () => {
+      // Open and refresh (if needed)
+      openLeaderboard();
+      if (!state.leaderboard.loading && (!state.leaderboard.entries || state.leaderboard.entries.length === 0)) {
+        refreshLeaderboard();
+      }
+    });
     document.getElementById('hopeMateLevelSelect')?.addEventListener('change', (e) => {
       const v = e.target?.value;
       if (!LEVELS.some((l) => l.key === v)) return;
       state.levelKey = v;
       writeStoredLevel(v);
       nextPuzzle();
+    });
+
+    document.getElementById('hmLeaderboardClose')?.addEventListener('click', closeLeaderboard);
+    document.getElementById('hmLeaderboardBackdrop')?.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'hmLeaderboardBackdrop') closeLeaderboard();
     });
 
     // Drag-and-drop is optional; click-to-place still works.
