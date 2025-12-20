@@ -1372,6 +1372,60 @@
     return squaresHtml.join('');
   }
 
+  function canPatchInGameUi() {
+    // Only patch during in-game screens to avoid full DOM rebuild flicker on iOS Safari.
+    if (!(state.screen === 'practiceGame' || state.screen === 'challengeGame')) return false;
+    // If any overlay/modal is open, keep using full render (simpler + consistent).
+    if (state.ui?.leaderboardOpen || state.ui?.challengeLeaderboardOpen || state.ui?.resultOpen) return false;
+    const root = getRoot();
+    if (!root) return false;
+    const boardEl = document.getElementById('hopeMateBoard');
+    if (!boardEl) return false;
+    // Ensure board size hasn't changed (otherwise labels/grid need full rebuild).
+    const expected = BOARD_SIZE * BOARD_SIZE;
+    const squares = boardEl.querySelectorAll('.hm-square[data-idx]');
+    if (squares.length !== expected) return false;
+    return true;
+  }
+
+  function patchInGameUi() {
+    const boardEl = document.getElementById('hopeMateBoard');
+    if (!boardEl) return false;
+    const b = Array.isArray(state.board) ? state.board : buildEmptyBoard();
+
+    // Update board pieces without rebuilding squares (prevents iPad flicker).
+    boardEl.querySelectorAll('.hm-square[data-idx]').forEach((sq) => {
+      const idx = Number(sq.getAttribute('data-idx'));
+      if (!Number.isFinite(idx)) return;
+      const piece = b[idx];
+      const pieceEl = sq.querySelector('.hm-piece');
+      if (!pieceEl) return;
+      const nextHtml = piece ? renderPieceVisual(piece, pieceName(piece)) : '';
+      if (pieceEl.innerHTML !== nextHtml) pieceEl.innerHTML = nextHtml;
+    });
+
+    // Update slot UI (active + piece visuals) without recreating buttons.
+    const pieces = state.puzzle ? state.puzzle.whitePieces : ['?', '?'];
+    const slot0Active = state.selectedPieceSlot === 0 ? 'active' : '';
+    const slot1Active = state.selectedPieceSlot === 1 ? 'active' : '';
+    document.querySelectorAll('.hm-slot[data-slot]').forEach((btn) => {
+      const slot = Number(btn.getAttribute('data-slot'));
+      if (slot !== 0 && slot !== 1) return;
+      const wantActive = slot === 0 ? slot0Active : slot1Active;
+      btn.classList.toggle('active', !!wantActive);
+      const p = pieces[slot];
+      const pieceWrap = btn.querySelector('.hm-slot-piece');
+      if (pieceWrap) {
+        const next = renderPieceVisual(p, pieceName(p));
+        if (pieceWrap.innerHTML !== next) pieceWrap.innerHTML = next;
+      }
+    });
+
+    // Ensure CSS variable uses current board size (important when switching 5x5 <-> 8x8).
+    document.querySelector('.hm-board-shell')?.style.setProperty('--hm-board-size', String(BOARD_SIZE));
+    return true;
+  }
+
   function render() {
     const root = getRoot();
     if (!root) return;
@@ -1448,6 +1502,11 @@
         </button>
       `;
     };
+
+    // Patch mode for in-game screens (iPad flicker fix): update only pieces/slots, avoid root.innerHTML rebuild.
+    if (canPatchInGameUi()) {
+      if (patchInGameUi()) return;
+    }
 
     if (state.screen === 'home') {
       root.innerHTML = `
