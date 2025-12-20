@@ -23,6 +23,7 @@ const ROYAL_EXCHANGE_LEADERBOARD_FILE = path.join(__dirname, process.env.ROYAL_E
 const HOPE_MATE_LEADERBOARD_FILE = path.join(__dirname, process.env.HOPE_MATE_LEADERBOARD_FILE || path.join(DATA_DIR, 'hope-mate-leaderboard.txt'));
 const HOPE_MATE_CHALLENGE_LEADERBOARD_FILE = path.join(__dirname, process.env.HOPE_MATE_CHALLENGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'hope-mate-challenge-leaderboard.json'));
 const HOPE_MATE_STAGE_PUZZLES_FILE = path.join(__dirname, process.env.HOPE_MATE_STAGE_PUZZLES_FILE || path.join(DATA_DIR, 'hope-mate-stage-puzzles.json'));
+const VCP_CHESS_GAMES_FILE = path.join(__dirname, process.env.VCP_CHESS_GAMES_FILE || path.join(DATA_DIR, 'vcp-chess-games.jsonl'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -148,6 +149,13 @@ async function ensureDataDir() {
     await fs.access(HOPE_MATE_STAGE_PUZZLES_FILE);
   } catch {
     await fs.writeFile(HOPE_MATE_STAGE_PUZZLES_FILE, JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure VCP chess games history file exists (append-only JSONL)
+  try {
+    await fs.access(VCP_CHESS_GAMES_FILE);
+  } catch {
+    await fs.writeFile(VCP_CHESS_GAMES_FILE, '', 'utf8');
   }
   
   // Ensure users file exists
@@ -10580,6 +10588,7 @@ app.put('/api/organizations/game-config', authenticateUser, authorizeRole('organ
 async function startServer() {
   await ensureDataDir();
   await initializeDataFile();
+  await loadVcpChessGameHistoryIndex();
   await billingDb.ensureBillingSchema();
   
   const server = http.createServer(app);
@@ -10739,8 +10748,8 @@ async function startServer() {
         st.gameOverReason = 'Time out';
         session.chessState = st;
         vcp.sessions.set(String(session.id), session);
-        vcpBroadcastChessSync(session);
-        vcpBroadcastLiveGames(String(session.orgId));
+        // End session + record game history
+        vcpEndChessSession(String(session.orgId), session, 'Time out');
       }
     }
   }, 1000);
@@ -10750,6 +10759,111 @@ async function startServer() {
   // Normal Chess (MVP) helpers
   // ----------------------------
   const VCP_FILES = 'abcdefgh';
+
+  // ----------------------------
+  // VCP Chess game history (persisted)
+  // ----------------------------
+  const vcpChessGameIdIndex = new Set(); // gameId (sessionId) -> recorded
+
+  async function loadVcpChessGameHistoryIndex() {
+    try {
+      const raw = await fs.readFile(VCP_CHESS_GAMES_FILE, 'utf8');
+      const lines = String(raw || '').split('\n').map(s => s.trim()).filter(Boolean);
+      for (const line of lines) {
+        try {
+          const obj = JSON.parse(line);
+          const id = String(obj?.id || '');
+          if (id) vcpChessGameIdIndex.add(id);
+        } catch {}
+      }
+    } catch {}
+  }
+
+  function vcpComputeChessResult(session) {
+    const st = session?.chessState || {};
+    const reason = String(st.gameOverReason || '');
+    const cfg = session?.config || {};
+    const whiteId = String(cfg.whiteStudentId || '');
+    const blackId = String(cfg.blackStudentId || '');
+    const wMs = Number(st?.clocks?.wMs ?? 0);
+    const bMs = Number(st?.clocks?.bMs ?? 0);
+
+    if (/Draw agreed/i.test(reason)) return { result: '1/2-1/2', winnerColor: null, reason };
+    if (/White resigned/i.test(reason)) return { result: '0-1', winnerColor: 'b', reason };
+    if (/Black resigned/i.test(reason)) return { result: '1-0', winnerColor: 'w', reason };
+    if (/Time out/i.test(reason)) {
+      if (wMs <= 0 && bMs <= 0) return { result: '1/2-1/2', winnerColor: null, reason };
+      if (wMs <= 0) return { result: '0-1', winnerColor: 'b', reason };
+      if (bMs <= 0) return { result: '1-0', winnerColor: 'w', reason };
+      return { result: '1/2-1/2', winnerColor: null, reason };
+    }
+    if (/Player left/i.test(reason)) {
+      // Unknown winner for MVP; treat as loss for leaver if available; otherwise show unknown.
+      const endedBy = String(session?.endedByUserId || '');
+      if (endedBy && endedBy === whiteId) return { result: '0-1', winnerColor: 'b', reason };
+      if (endedBy && endedBy === blackId) return { result: '1-0', winnerColor: 'w', reason };
+      return { result: '1/2-1/2', winnerColor: null, reason };
+    }
+    // Default fallback
+    return { result: '1/2-1/2', winnerColor: null, reason: reason || 'ended' };
+  }
+
+  async function appendVcpChessGameRecord(record) {
+    try {
+      const id = String(record?.id || '');
+      if (!id) return;
+      if (vcpChessGameIdIndex.has(id)) return;
+      const line = JSON.stringify(record);
+      await fs.appendFile(VCP_CHESS_GAMES_FILE, `${line}\n`, 'utf8');
+      vcpChessGameIdIndex.add(id);
+    } catch (e) {
+      console.error('Failed to append VCP chess game record:', e);
+    }
+  }
+
+  async function readVcpChessGameHistory(orgId, userId) {
+    try {
+      const raw = await fs.readFile(VCP_CHESS_GAMES_FILE, 'utf8');
+      const lines = String(raw || '').split('\n').map(s => s.trim()).filter(Boolean);
+      const out = [];
+      const oid = String(orgId || '');
+      const uid = String(userId || '');
+      for (const line of lines) {
+        try {
+          const g = JSON.parse(line);
+          if (!g) continue;
+          if (String(g.orgId || '') !== oid) continue;
+          if (String(g.whiteId || '') !== uid && String(g.blackId || '') !== uid) continue;
+          out.push(g);
+        } catch {}
+      }
+      // newest first
+      out.sort((a, b) => Number(new Date(b.endedAt || b.startedAt || 0)) - Number(new Date(a.endedAt || a.startedAt || 0)));
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  async function readVcpChessGameById(orgId, gameId) {
+    try {
+      const raw = await fs.readFile(VCP_CHESS_GAMES_FILE, 'utf8');
+      const lines = String(raw || '').split('\n').map(s => s.trim()).filter(Boolean);
+      const oid = String(orgId || '');
+      const gid = String(gameId || '');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const g = JSON.parse(lines[i]);
+          if (String(g?.id || '') !== gid) continue;
+          if (String(g?.orgId || '') !== oid) return null;
+          return g;
+        } catch {}
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 
   function vcpCoordToRc(coord) {
     const s = String(coord || '');
@@ -11123,7 +11237,8 @@ async function startServer() {
       ep: null,
       drawOffer: null, // { from: 'w'|'b', atTs }
       gameOver: false,
-      gameOverReason: null
+      gameOverReason: null,
+      history: [] // [{ from,to,promo,by,atTs,moveNumber }]
     };
   }
 
@@ -11170,6 +11285,15 @@ async function startServer() {
     st.castling = next.castling;
     st.ep = next.ep;
     st.drawOffer = null; // clear any outstanding draw offer on move
+    if (!Array.isArray(st.history)) st.history = [];
+    st.history.push({
+      from: String(from),
+      to: String(to),
+      promo: String(promo || 'q').toLowerCase(),
+      by: String(moverId),
+      atTs: Date.now(),
+      moveNumber: Number(st.moveNumber || 1)
+    });
     st.turn = vcpOpp(String(st.turn || 'w'));
     st.moveNumber = Number(st.moveNumber || 1) + 1;
 
@@ -11262,6 +11386,52 @@ async function startServer() {
         session.chessState.gameOverReason = String(reason || 'ended');
       }
       vcp.sessions.set(String(session.id), session);
+    } catch {}
+
+    // Persist game record (append-only)
+    try {
+      const st = session?.chessState || {};
+      const cfg = session?.config || {};
+      const resultInfo = vcpComputeChessResult(session);
+      const record = {
+        id: String(session.id || ''),
+        orgId: String(orgId || ''),
+        mode: 'chess',
+        startedAt: String(session?.startedAt || session?.createdAt || ''),
+        endedAt: new Date().toISOString(),
+        teacherId: String(session.teacherId || ''),
+        teacherName: String(session.teacherName || ''),
+        whiteId: String(cfg.whiteStudentId || ''),
+        blackId: String(cfg.blackStudentId || ''),
+        whiteName: String(session.whiteName || ''),
+        blackName: String(session.blackName || ''),
+        whiteStudentId: String(session.whiteStudentId || ''),
+        blackStudentId: String(session.blackStudentId || ''),
+        config: { minutes: Number(cfg.minutes || 3), incrementSec: Number(cfg.incrementSec || 0) },
+        result: String(resultInfo.result || '1/2-1/2'),
+        resultReason: String(resultInfo.reason || st.gameOverReason || ''),
+        endedByUserId: String(session.endedByUserId || ''),
+        state: {
+          board: st.board,
+          clocks: st.clocks,
+          turn: st.turn,
+          moveNumber: st.moveNumber,
+          castling: st.castling,
+          ep: st.ep,
+          gameOver: !!st.gameOver,
+          gameOverReason: st.gameOverReason
+        },
+        moves: Array.isArray(st.history) ? st.history : []
+      };
+      // Fill missing names from presence snapshot if available
+      const smap = vcpOrgStudentsMap(orgId);
+      const wp = smap.get(String(cfg.whiteStudentId || ''));
+      const bp = smap.get(String(cfg.blackStudentId || ''));
+      if (!record.whiteName) record.whiteName = wp ? String(wp.name || 'White') : 'White';
+      if (!record.blackName) record.blackName = bp ? String(bp.name || 'Black') : 'Black';
+      if (!record.whiteStudentId) record.whiteStudentId = wp ? String(wp.studentId || '') : '';
+      if (!record.blackStudentId) record.blackStudentId = bp ? String(bp.studentId || '') : '';
+      appendVcpChessGameRecord(record);
     } catch {}
 
     // Mark players back online
@@ -11403,6 +11573,60 @@ async function startServer() {
         return;
       }
 
+      if (type === 'vcp_get_game_history') {
+        const targetUserId = String(msg?.targetUserId || '');
+        const pageRaw = Number(msg?.page || 1);
+        const page = Number.isFinite(pageRaw) ? Math.max(1, Math.floor(pageRaw)) : 1;
+        const pageSize = 10;
+        if (!targetUserId) {
+          wsSend(ws, { type: 'vcp_error', error: 'targetUserId is required' });
+          return;
+        }
+        const all = await readVcpChessGameHistory(orgId, targetUserId);
+        const totalItems = all.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+        const cur = Math.min(page, totalPages);
+        const start = (cur - 1) * pageSize;
+        const games = all.slice(start, start + pageSize).map((g) => ({
+          id: String(g.id || ''),
+          endedAt: String(g.endedAt || ''),
+          startedAt: String(g.startedAt || ''),
+          whiteId: String(g.whiteId || ''),
+          blackId: String(g.blackId || ''),
+          whiteName: String(g.whiteName || 'White'),
+          blackName: String(g.blackName || 'Black'),
+          whiteStudentId: String(g.whiteStudentId || ''),
+          blackStudentId: String(g.blackStudentId || ''),
+          result: String(g.result || '1/2-1/2'),
+          resultReason: String(g.resultReason || '')
+        }));
+        wsSend(ws, {
+          type: 'vcp_game_history',
+          targetUserId,
+          page: cur,
+          pageSize,
+          totalItems,
+          totalPages,
+          games
+        });
+        return;
+      }
+
+      if (type === 'vcp_get_game_record') {
+        const gameId = String(msg?.gameId || '');
+        if (!gameId) {
+          wsSend(ws, { type: 'vcp_error', error: 'gameId is required' });
+          return;
+        }
+        const g = await readVcpChessGameById(orgId, gameId);
+        if (!g) {
+          wsSend(ws, { type: 'vcp_error', error: 'Game not found' });
+          return;
+        }
+        wsSend(ws, { type: 'vcp_game_record', game: g });
+        return;
+      }
+
       if (type === 'vcp_invite_create') {
         if (kind !== 'teacher') return;
         const mode = String(msg?.mode || '');
@@ -11491,6 +11715,10 @@ async function startServer() {
           vcp.invites.set(inviteId, invite);
 
           const sessionId = `vcp_sess_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+          const startedAt = nowIso();
+          const smap2 = vcpOrgStudentsMap(orgId);
+          const wp = smap2.get(String(invite.config?.whiteStudentId || invite.studentIds[0]));
+          const bp = smap2.get(String(invite.config?.blackStudentId || invite.studentIds[1]));
           const session = {
             id: sessionId,
             orgId,
@@ -11500,7 +11728,12 @@ async function startServer() {
             studentIds: invite.studentIds.slice(),
             config: invite.config,
             chessState: null,
-            createdAt: nowIso(),
+            createdAt: startedAt,
+            startedAt,
+            whiteName: wp ? String(wp.name || 'White') : 'White',
+            blackName: bp ? String(bp.name || 'Black') : 'Black',
+            whiteStudentId: wp ? String(wp.studentId || '') : '',
+            blackStudentId: bp ? String(bp.studentId || '') : '',
             status: 'active'
           };
           if (String(session.mode) === 'chess') session.chessState = vcpCreateInitialChessState(session);
@@ -11537,6 +11770,7 @@ async function startServer() {
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (kind === 'student') {
           // End session if any player leaves (MVP)
+          session.endedByUserId = String(userId);
           vcpEndChessSession(orgId, session, 'Player left');
 
           // Notify teacher that student left
@@ -11567,6 +11801,11 @@ async function startServer() {
         const result = vcpApplyChessMove(session, String(userId), { from, to, promo });
         if (!result?.ok) {
           wsSend(ws, { type: 'vcp_error', error: String(result?.error || 'Illegal move') });
+          return;
+        }
+
+        if (session.chessState?.gameOver) {
+          vcpEndChessSession(orgId, session, String(session.chessState.gameOverReason || 'ended'));
           return;
         }
 

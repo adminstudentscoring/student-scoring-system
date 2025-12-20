@@ -111,6 +111,137 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.vcp-profile-section-title {
+  margin-top: 6px;
+  font-weight: 950;
+  color: #111827;
+}
+
+.vcp-history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.vcp-history-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.vcp-history-row:hover {
+  background: #f9fafb;
+}
+
+.vcp-history-title {
+  font-weight: 950;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.vcp-history-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.vcp-history-result {
+  font-weight: 950;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+.vcp-pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.vcp-page-btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 900;
+  color: #111827;
+}
+
+.vcp-page-btn.active {
+  border-color: rgba(102, 126, 234, 0.65);
+  background: rgba(102, 126, 234, 0.12);
+}
+
+.vcp-game-view {
+  display: grid;
+  gap: 12px;
+}
+
+.vcp-game-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.vcp-game-title {
+  font-weight: 950;
+  color: #111827;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.vcp-game-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .vcp-game-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vcp-game-moves {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.vcp-moves-list {
+  margin-top: 10px;
+  max-height: 420px;
+  overflow: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.vcp-move-row {
+  padding: 6px 0;
+  border-bottom: 1px dashed #e5e7eb;
+  font-weight: 800;
+  color: #111827;
+  font-size: 13px;
+}
+
+.vcp-move-row:last-child {
+  border-bottom: none;
+}
+
 .vcp-muted {
   color: #6b7280;
   font-size: 13px;
