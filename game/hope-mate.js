@@ -20,6 +20,8 @@
     BOARD_SIZE = next;
     FILES = Array.from({ length: BOARD_SIZE }, (_, i) => String.fromCharCode('a'.charCodeAt(0) + i));
     RANKS = Array.from({ length: BOARD_SIZE }, (_, i) => i + 1);
+    // Board geometry changed; reset patch cache
+    hmPatchPrevBoard = null;
   }
 
   const PIECE_POOL_WHITE = ['Q', 'R', 'B', 'N', 'K', 'P']; // includes pawn & king
@@ -46,6 +48,9 @@
     best: (studentId) => `hopeMateBestScore_${String(studentId || 'unknown')}`,
     total: (studentId) => `hopeMateTotalScore_${String(studentId || 'unknown')}`
   };
+
+  // Patch-mode cache (reduces iOS Safari flicker by avoiding full DOM rebuilds)
+  let hmPatchPrevBoard = null;
 
   function safeJsonParse(raw) {
     try {
@@ -1377,6 +1382,8 @@
     if (!(state.screen === 'practiceGame' || state.screen === 'challengeGame')) return false;
     // If any overlay/modal is open, keep using full render (simpler + consistent).
     if (state.ui?.leaderboardOpen || state.ui?.challengeLeaderboardOpen || state.ui?.resultOpen) return false;
+    // While dragging, avoid patching (iOS Safari tends to repaint aggressively during pointer move).
+    if (document.body.classList.contains('hm-dragging')) return false;
     const root = getRoot();
     if (!root) return false;
     const boardEl = document.getElementById('hopeMateBoard');
@@ -1393,16 +1400,24 @@
     if (!boardEl) return false;
     const b = Array.isArray(state.board) ? state.board : buildEmptyBoard();
 
+    // Ensure any closed overlays are removed (fixes: Result modal stuck after Next when patch-mode runs).
+    if (!state.ui?.resultOpen) document.getElementById('hmResultBackdrop')?.remove?.();
+    if (!state.ui?.leaderboardOpen) document.getElementById('hmLeaderboardBackdrop')?.remove?.();
+    if (!state.ui?.challengeLeaderboardOpen) document.getElementById('hmChallengeLeaderboardBackdrop')?.remove?.();
+
     // Update board pieces without rebuilding squares (prevents iPad flicker).
+    // Diff against previous board to avoid touching every square.
+    const prev = Array.isArray(hmPatchPrevBoard) && hmPatchPrevBoard.length === b.length ? hmPatchPrevBoard : null;
     boardEl.querySelectorAll('.hm-square[data-idx]').forEach((sq) => {
       const idx = Number(sq.getAttribute('data-idx'));
       if (!Number.isFinite(idx)) return;
-      const piece = b[idx];
+      const piece = b[idx] || null;
+      if (prev && prev[idx] === piece) return;
       const pieceEl = sq.querySelector('.hm-piece');
       if (!pieceEl) return;
-      const nextHtml = piece ? renderPieceVisual(piece, pieceName(piece)) : '';
-      if (pieceEl.innerHTML !== nextHtml) pieceEl.innerHTML = nextHtml;
+      pieceEl.innerHTML = piece ? renderPieceVisual(piece, pieceName(piece)) : '';
     });
+    hmPatchPrevBoard = b.slice();
 
     // Update slot UI (active + piece visuals) without recreating buttons.
     const pieces = state.puzzle ? state.puzzle.whitePieces : ['?', '?'];
