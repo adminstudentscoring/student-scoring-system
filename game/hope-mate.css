@@ -158,6 +158,12 @@
   margin-bottom: 10px;
 }
 
+.hm-piece-tray {
+  contain: layout paint;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
 .hm-slots {
   display: flex;
   gap: 12px;
@@ -178,6 +184,8 @@
   cursor: pointer;
   text-align: center;
   transition: transform 0.08s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .hm-slot:hover {
@@ -199,6 +207,8 @@
   border-radius: 12px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .hm-slot-badge {
@@ -215,6 +225,8 @@
   height: 44px;
   object-fit: contain;
   display: block;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .hm-piece-glyph {
@@ -622,10 +634,24 @@
   .hm-square:hover {
     box-shadow: none;
   }
+  .hm-slot {
+    transition: none;
+  }
+  .hm-slot:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .hm-slot.active {
+    box-shadow: none;
+  }
   .hm-drag-ghost img,
   .hm-drag-ghost span {
     filter: none;
   }
+}
+
+.hm-slot.hm-drag-origin .hm-slot-piece {
+  opacity: 0;
 }
 
 .hm-square.light {

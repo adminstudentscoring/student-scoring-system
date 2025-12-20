@@ -1200,7 +1200,7 @@
     // Custom pointer-based dragging (mouse/touch) to avoid browser drag cursor/icons.
     // This emulates chess.com style: the piece follows the cursor, with no "not allowed" cursor changes.
 
-    let dragging = null; // { slot, ghostEl, lastOverSquareEl, originSquareEl }
+    let dragging = null; // { slot, ghostEl, lastOverSquareEl, originEl }
 
     const clearOver = () => {
       if (dragging?.lastOverSquareEl) {
@@ -1211,9 +1211,9 @@
 
     const cleanup = () => {
       clearOver();
-      if (dragging?.originSquareEl) {
-        dragging.originSquareEl.classList.remove('hm-drag-origin');
-        dragging.originSquareEl = null;
+      if (dragging?.originEl) {
+        dragging.originEl.classList.remove('hm-drag-origin');
+        dragging.originEl = null;
       }
       if (dragging?.ghostEl) dragging.ghostEl.remove();
       dragging = null;
@@ -1297,7 +1297,9 @@
       }
       document.body.appendChild(ghost);
 
-      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originSquareEl: null };
+      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originEl: el };
+      // Hide the origin piece while dragging (iPad flicker + avoids double-vision).
+      el.classList.add('hm-drag-origin');
       document.body.classList.add('hm-dragging');
       state.selectedPieceSlot = slot;
 
@@ -1354,7 +1356,7 @@
         }
         document.body.appendChild(ghost);
 
-        dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originSquareEl: sq };
+        dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originEl: sq };
         sq.classList.add('hm-drag-origin');
         document.body.classList.add('hm-dragging');
         state.selectedPieceSlot = slot;
