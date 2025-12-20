@@ -16,7 +16,8 @@
     pendingInvite: null, // teacher-only: { inviteId, studentIds, config, createdAt, responses }
     ncApp: null,
     ncSessionId: null,
-    liveGames: [] // org-wide spectator snapshots
+    liveGames: [], // org-wide spectator snapshots
+    uiDelegatedBound: false
   };
 
   let reconnectTimer = null;
@@ -244,6 +245,21 @@
       const key = `vcpLastSession:${String(STATE.role || '')}:${String(STATE.me?.id || '')}`;
       localStorage.setItem(key, sid);
     } catch {}
+  }
+
+  function ensureDelegatedClicks() {
+    if (STATE.uiDelegatedBound) return;
+    const root = getRoot();
+    if (!root) return;
+    STATE.uiDelegatedBound = true;
+    root.addEventListener('click', (e) => {
+      const target = e.target;
+      const el = target?.closest?.('[data-my-session]');
+      if (!el) return;
+      const sid = el.getAttribute('data-my-session');
+      if (!sid) return;
+      openMyGame(sid);
+    });
   }
 
   function renderHeaderBadge() {
@@ -476,9 +492,6 @@
       wsSend({ type: 'vcp_get_presence' });
       wsSend({ type: 'vcp_get_live_games' });
     });
-    root.querySelectorAll('[data-my-session]')?.forEach?.((el) => {
-      el.addEventListener('click', () => openMyGame(el.getAttribute('data-my-session')));
-    });
 
     root.querySelectorAll('input[type="checkbox"][data-student-id]').forEach((cb) => {
       cb.addEventListener('change', () => {
@@ -563,9 +576,6 @@
       wsSend({ type: 'vcp_get_presence' });
       wsSend({ type: 'vcp_get_live_games' });
       markActivity();
-    });
-    root.querySelectorAll('[data-my-session]')?.forEach?.((el) => {
-      el.addEventListener('click', () => openMyGame(el.getAttribute('data-my-session')));
     });
 
     bindStudentInviteModalEvents();
@@ -943,6 +953,7 @@
       STATE.me.studentId = '';
     }
     render();
+    ensureDelegatedClicks();
     connectWs();
     bindActivityListeners();
     window.addEventListener('focus', () => {
