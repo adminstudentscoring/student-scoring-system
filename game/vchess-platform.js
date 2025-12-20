@@ -5,6 +5,8 @@
     wsReady: false,
     me: { id: '', name: 'Unknown', studentId: '' },
     status: 'online', // student-only
+    page: 'lobby', // 'lobby' | 'profile'
+    profileTargetId: null, // userId
     // Teacher view
     students: [], // [{id,name,studentId,status,inGame}]
     selected: new Set(),
@@ -258,6 +260,14 @@
     STATE.uiDelegatedBound = true;
     root.addEventListener('click', (e) => {
       const target = e.target;
+
+      const prof = target?.closest?.('[data-vcp-profile-id]');
+      if (prof) {
+        const pid = String(prof.getAttribute('data-vcp-profile-id') || '');
+        if (pid) openProfile(pid);
+        return;
+      }
+
       const el = target?.closest?.('[data-my-session]');
       if (!el) return;
       const sid = el.getAttribute('data-my-session');
@@ -277,6 +287,104 @@
     return `${escapeHtml(name)}${idLabel ? ` (${escapeHtml(idLabel)})` : ''}${STATE.wsReady ? '' : ' (disconnected)'}`;
   }
 
+  function getProfileUserById(id) {
+    const uid = String(id || '');
+    if (!uid) return null;
+    if (uid === String(STATE.me?.id || '')) {
+      return {
+        id: String(STATE.me?.id || ''),
+        name: String(STATE.me?.name || 'Unknown'),
+        studentId: STATE.role === 'student' ? String(STATE.me?.studentId || '') : '',
+        role: String(STATE.role || ''),
+        status: STATE.role === 'student' ? String(STATE.status || 'online') : 'online'
+      };
+    }
+    const s = STATE.students.find((x) => String(x?.id || '') === uid);
+    if (!s) return null;
+    return {
+      id: String(s.id || ''),
+      name: String(s.name || 'Unknown'),
+      studentId: String(s.studentId || ''),
+      role: 'student',
+      status: String(s.status || 'online')
+    };
+  }
+
+  function openProfile(id) {
+    const uid = String(id || '');
+    if (!uid) return;
+    STATE.page = 'profile';
+    STATE.profileTargetId = uid;
+    render();
+  }
+
+  function closeProfile() {
+    STATE.page = 'lobby';
+    STATE.profileTargetId = null;
+    render();
+  }
+
+  function renderProfileScreen() {
+    const root = getRoot();
+    if (!root) return;
+    const target = getProfileUserById(STATE.profileTargetId) || {
+      id: String(STATE.profileTargetId || ''),
+      name: 'Unknown',
+      studentId: '',
+      role: 'student',
+      status: 'online'
+    };
+    const isMe = String(target.id || '') === String(STATE.me?.id || '');
+    const idLine = target.role === 'teacher'
+      ? `Teacher ID: ${target.id || ''}`
+      : (target.studentId ? `Student ID: ${target.studentId}` : (target.id ? `ID: ${target.id}` : ''));
+
+    root.innerHTML = `
+      <div class="vcp-card">
+        <div class="vcp-row">
+          <div>
+            <div class="vcp-title">V.Chess Platform</div>
+            <div class="vcp-subtitle">Profile</div>
+          </div>
+          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+            ${renderHeaderBadge()}
+          </button>
+        </div>
+
+        <div class="vcp-section">
+          <div class="vcp-profile-shell">
+            <div class="vcp-profile-card">
+              <div class="vcp-profile-header">
+                <div>
+                  <div class="vcp-profile-name">${escapeHtml(String(target.name || 'Unknown'))}${isMe ? ' <span class="vcp-profile-me">(You)</span>' : ''}</div>
+                  <div class="vcp-profile-id">${escapeHtml(String(idLine || ''))}</div>
+                </div>
+                <div>
+                  <span class="vcp-status-pill ${escapeHtml(String(target.status || 'online'))}">${escapeHtml(String(target.status || 'online'))}</span>
+                </div>
+              </div>
+
+              <div class="vcp-profile-body">
+                <div class="vcp-muted">
+                  This page is a placeholder for future development.
+                </div>
+                <div class="vcp-muted" style="margin-top:10px;">
+                  Planned: stats, achievements, recent games, and mini-game records.
+                </div>
+              </div>
+
+              <div class="vcp-btn-row" style="justify-content:flex-end; margin-top:12px;">
+                <button id="vcpProfileBackBtn" class="btn btn-secondary" type="button">Back</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('vcpProfileBackBtn')?.addEventListener('click', closeProfile);
+  }
+
   function renderOnlineListItem(s, { selectable }) {
     const safeId = escapeHtml(String(s?.id || ''));
     const safeName = escapeHtml(String(s?.name || 'Unknown'));
@@ -292,7 +400,7 @@
             <input type="checkbox" data-student-id="${safeId}" ${checked} ${disabled} aria-label="Select ${safeName}" />
           </div>
           <div>
-            <div class="vcp-online-item-name">${safeName}</div>
+            <button class="vcp-online-item-name vcp-name-btn" type="button" data-vcp-profile-id="${safeId}" aria-label="Open profile for ${safeName}">${safeName}</button>
             <div class="vcp-online-item-meta">
               <div class="vcp-online-item-studentid">${safeStudentId}</div>
               <span class="vcp-status-pill ${safeStatus}">${safeStatus}</span>
@@ -305,7 +413,7 @@
     return `
       <div class="vcp-online-item no-select" role="listitem">
         <div>
-          <div class="vcp-online-item-name">${safeName}</div>
+          <button class="vcp-online-item-name vcp-name-btn" type="button" data-vcp-profile-id="${safeId}" aria-label="Open profile for ${safeName}">${safeName}</button>
           <div class="vcp-online-item-meta">
             <div class="vcp-online-item-studentid">${safeStudentId}</div>
             <span class="vcp-status-pill ${safeStatus}">${safeStatus}</span>
@@ -428,7 +536,9 @@
             <div class="vcp-title">V.Chess Platform</div>
             <div class="vcp-subtitle">Lobby</div>
           </div>
-          <div class="vcp-badge">${renderHeaderBadge()}</div>
+          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+            ${renderHeaderBadge()}
+          </button>
         </div>
         ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
@@ -532,7 +642,9 @@
             <div class="vcp-title">V.Chess Platform</div>
           <div class="vcp-subtitle">Lobby</div>
           </div>
-          <div class="vcp-badge">${renderHeaderBadge()}</div>
+          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+            ${renderHeaderBadge()}
+          </button>
         </div>
         ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
@@ -939,12 +1051,18 @@
   }
 
   function render() {
+    if (STATE.page === 'profile') {
+      renderProfileScreen();
+      return;
+    }
     if (STATE.role === 'teacher') renderTeacher();
     else renderStudent();
   }
 
   function init() {
     STATE.role = getRole();
+    STATE.page = 'lobby';
+    STATE.profileTargetId = null;
     const studentPlayer = STATE.role === 'student' ? getStudentPlayer() : null;
     if (studentPlayer && typeof studentPlayer === 'object') {
       STATE.me = {

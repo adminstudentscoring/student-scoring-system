@@ -43,6 +43,74 @@
   color: #111827;
 }
 
+.vcp-badge-btn {
+  cursor: pointer;
+}
+
+.vcp-badge-btn:hover {
+  background: #f3f4f6;
+}
+
+.vcp-name-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.vcp-name-btn:hover {
+  text-decoration: underline;
+}
+
+.vcp-profile-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.vcp-profile-card {
+  width: min(720px, 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.vcp-profile-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.vcp-profile-name {
+  font-weight: 950;
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.vcp-profile-me {
+  font-weight: 900;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.vcp-profile-id {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.vcp-profile-body {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
 .vcp-muted {
   color: #6b7280;
   font-size: 13px;
