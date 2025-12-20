@@ -10821,6 +10821,40 @@ async function startServer() {
     }
   }
 
+  function vcpBuildPgnFromSanMoves(sanMoves) {
+    const m = Array.isArray(sanMoves) ? sanMoves.filter(x => String(x || '').trim()) : [];
+    if (!m.length) return '';
+    const parts = [];
+    for (let i = 0; i < m.length; i += 2) {
+      const moveNo = Math.floor(i / 2) + 1;
+      const w = m[i] ? String(m[i]) : '';
+      const b = m[i + 1] ? String(m[i + 1]) : '';
+      parts.push(`${moveNo}. ${w}${b ? ` ${b}` : ''}`);
+    }
+    return parts.join(' ');
+  }
+
+  function vcpBuildTimelineBoards(session) {
+    try {
+      const base = vcpCreateInitialChessState(session);
+      // keep a clean clock to avoid side effects
+      base.clocks = { wMs: 0, bMs: 0 };
+      base.turnStartTs = 0;
+      const boards = [vcpCloneBoard(base.board)];
+      let cur = base;
+      const moves = Array.isArray(session?.chessState?.history) ? session.chessState.history : [];
+      for (const mv of moves) {
+        const next = vcpApplyMoveToState(cur, String(mv.from || ''), String(mv.to || ''), String(mv.promo || 'q'));
+        if (!next) break;
+        cur = next;
+        boards.push(vcpCloneBoard(cur.board));
+      }
+      return boards;
+    } catch {
+      return null;
+    }
+  }
+
   async function readVcpChessGameHistory(orgId, userId) {
     try {
       const raw = await fs.readFile(VCP_CHESS_GAMES_FILE, 'utf8');
@@ -10958,6 +10992,122 @@ async function startServer() {
     const k = vcpFindKing(board, color);
     if (!k) return false;
     return vcpIsSquareAttacked(board, k.r, k.c, vcpOpp(color));
+  }
+
+  function vcpHasAnyLegalMove(state, color) {
+    const board = state?.board;
+    if (!board) return false;
+    // brute force (64x64 max) but only used on check situations for SAN suffix
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p || vcpPieceColor(p) !== color) continue;
+        const from = vcpRcToCoord(r, c);
+        for (let rr = 0; rr < 8; rr++) {
+          for (let cc = 0; cc < 8; cc++) {
+            if (rr === r && cc === c) continue;
+            const to = vcpRcToCoord(rr, cc);
+            // Promotions: try all four; otherwise default 'q'
+            const isPawn = p.toUpperCase() === 'P';
+            const lastRank = color === 'w' ? 8 : 1;
+            const toRank = Number(String(to)[1] || 0);
+            const promos = (isPawn && toRank === lastRank) ? ['q', 'r', 'b', 'n'] : ['q'];
+            for (const promo of promos) {
+              if (vcpLegalMove(state, from, to, color, promo)) return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function vcpSanForMove(state, from, to, promo, moverColor) {
+    const a = vcpCoordToRc(from);
+    const z = vcpCoordToRc(to);
+    if (!a || !z) return '';
+    const board = state?.board;
+    if (!board) return '';
+    const p = board[a.r][a.c];
+    if (!p) return '';
+    const up = p.toUpperCase();
+
+    // Castling
+    if (up === 'K' && String(from) === (moverColor === 'w' ? 'e1' : 'e8')) {
+      if (String(to) === (moverColor === 'w' ? 'g1' : 'g8')) return 'O-O';
+      if (String(to) === (moverColor === 'w' ? 'c1' : 'c8')) return 'O-O-O';
+    }
+
+    const destPiece = board[z.r][z.c];
+    const isPawn = up === 'P';
+    const isCapture = (() => {
+      if (destPiece) return true;
+      // En passant capture: pawn moves diagonally onto empty square equal to ep target
+      const ep = state?.ep;
+      if (!ep || !isPawn) return false;
+      if (String(ep) !== String(to)) return false;
+      if (a.c === z.c) return false;
+      return true;
+    })();
+
+    const pieceLetter = isPawn ? '' : up;
+
+    // Disambiguation for pieces (except pawns)
+    let disamb = '';
+    if (!isPawn && up !== 'K') {
+      const candidates = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (r === a.r && c === a.c) continue;
+          const pp = board[r][c];
+          if (!pp) continue;
+          if (vcpPieceColor(pp) !== moverColor) continue;
+          if (pp.toUpperCase() !== up) continue;
+          const cf = vcpRcToCoord(r, c);
+          if (vcpLegalMove(state, cf, to, moverColor, String(promo || 'q'))) {
+            candidates.push({ r, c, coord: cf });
+          }
+        }
+      }
+      if (candidates.length) {
+        const fromFile = String(from)[0];
+        const fromRank = String(from)[1];
+        const sameFile = candidates.some(x => String(x.coord)[0] === fromFile);
+        const sameRank = candidates.some(x => String(x.coord)[1] === fromRank);
+        if (!sameFile) disamb = fromFile;
+        else if (!sameRank) disamb = fromRank;
+        else disamb = `${fromFile}${fromRank}`;
+      }
+    }
+
+    // Pawn capture includes file of origin
+    const originFile = String(from)[0];
+    const capturePrefix = isPawn && isCapture ? originFile : '';
+
+    // Promotion
+    const promoStr = (() => {
+      const toRank = Number(String(to)[1] || 0);
+      if (!isPawn) return '';
+      if (moverColor === 'w' && toRank !== 8) return '';
+      if (moverColor === 'b' && toRank !== 1) return '';
+      const pr = String(promo || 'q').toLowerCase();
+      const ok = ['q', 'r', 'b', 'n'].includes(pr) ? pr : 'q';
+      return `=${ok.toUpperCase()}`;
+    })();
+
+    let san = `${pieceLetter}${disamb}${capturePrefix}${isCapture ? 'x' : ''}${String(to)}${promoStr}`;
+
+    // Check / mate suffix
+    try {
+      const next = vcpApplyMoveToState(state, from, to, promo);
+      const opp = vcpOpp(moverColor);
+      if (next && vcpIsInCheck(next.board, opp)) {
+        const hasReply = vcpHasAnyLegalMove(next, opp);
+        san += hasReply ? '+' : '#';
+      }
+    } catch {}
+
+    return san;
   }
 
   function vcpApplyMoveToBoard(board, from, to, promo) {
@@ -11274,6 +11424,9 @@ async function startServer() {
 
     if (!vcpLegalMove(st, from, to, moverColor, promo)) return { ok: false, error: 'Illegal move' };
 
+    // SAN (PGN) record based on current state before applying move
+    const san = vcpSanForMove(st, from, to, promo, moverColor);
+
     const inc = Math.max(0, Math.min(60, Number(cfg.incrementSec) || 0));
     // clock update for mover (uses current turn)
     vcpUpdateClocksForMove(st, inc);
@@ -11290,6 +11443,7 @@ async function startServer() {
       from: String(from),
       to: String(to),
       promo: String(promo || 'q').toLowerCase(),
+      san: String(san || ''),
       by: String(moverId),
       atTs: Date.now(),
       moveNumber: Number(st.moveNumber || 1)
@@ -11393,6 +11547,9 @@ async function startServer() {
       const st = session?.chessState || {};
       const cfg = session?.config || {};
       const resultInfo = vcpComputeChessResult(session);
+      const sanMoves = Array.isArray(st.history) ? st.history.map(m => String(m?.san || '').trim()).filter(Boolean) : [];
+      const pgn = vcpBuildPgnFromSanMoves(sanMoves);
+      const timelineBoards = vcpBuildTimelineBoards(session) || null;
       const record = {
         id: String(session.id || ''),
         orgId: String(orgId || ''),
@@ -11411,6 +11568,9 @@ async function startServer() {
         result: String(resultInfo.result || '1/2-1/2'),
         resultReason: String(resultInfo.reason || st.gameOverReason || ''),
         endedByUserId: String(session.endedByUserId || ''),
+        sanMoves,
+        pgn,
+        timelineBoards,
         state: {
           board: st.board,
           clocks: st.clocks,

@@ -5,10 +5,10 @@
     wsReady: false,
     me: { id: '', name: 'Unknown', studentId: '' },
     status: 'online', // student-only
-    page: 'lobby', // 'lobby' | 'profile' | 'game'
+    page: 'lobby', // 'lobby' | 'profile'
     profileTargetId: null, // userId
     profileHistory: { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] },
-    gameViewer: { loading: false, error: null, gameId: null, game: null },
+    gameViewer: { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 },
     // Teacher view
     students: [], // [{id,name,studentId,status,inGame}]
     selected: new Set(),
@@ -318,6 +318,38 @@
         return;
       }
 
+      if (target?.closest?.('[data-vcp-game-close]')) {
+        closeGameViewer();
+        return;
+      }
+
+      const backdrop = target?.closest?.('#vcpGameViewerBackdrop');
+      if (backdrop && target === backdrop) {
+        closeGameViewer();
+        return;
+      }
+
+      if (target?.closest?.('[data-vcp-game-prev]')) {
+        const gv = STATE.gameViewer;
+        if (!gv?.open) return;
+        const next = Math.max(0, Number(gv.ply || 0) - 1);
+        STATE.gameViewer.ply = next;
+        render();
+        return;
+      }
+
+      if (target?.closest?.('[data-vcp-game-next]')) {
+        const gv = STATE.gameViewer;
+        if (!gv?.open) return;
+        const boards = Array.isArray(gv?.game?.timelineBoards) ? gv.game.timelineBoards : null;
+        const sanMoves = Array.isArray(gv?.game?.sanMoves) ? gv.game.sanMoves : [];
+        const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
+        const next = Math.min(maxPly, Number(gv.ply || 0) + 1);
+        STATE.gameViewer.ply = next;
+        render();
+        return;
+      }
+
       const el = target?.closest?.('[data-my-session]');
       if (!el) return;
       const sid = el.getAttribute('data-my-session');
@@ -380,16 +412,13 @@
   function openGameViewer(gameId) {
     const gid = String(gameId || '');
     if (!gid) return;
-    STATE.page = 'game';
-    STATE.gameViewer = { loading: true, error: null, gameId: gid, game: null };
+    STATE.gameViewer = { open: true, loading: true, error: null, gameId: gid, game: null, ply: 0 };
     wsSend({ type: 'vcp_get_game_record', gameId: gid });
     render();
   }
 
   function closeGameViewer() {
-    if (STATE.profileTargetId) STATE.page = 'profile';
-    else STATE.page = 'lobby';
-    STATE.gameViewer = { loading: false, error: null, gameId: null, game: null };
+    STATE.gameViewer = { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 };
     render();
   }
 
@@ -414,6 +443,67 @@
       const total = Math.max(1, Number(hist.totalPages || 1));
       const count = Math.min(5, total);
       return Array.from({ length: count }, (_, i) => i + 1);
+    })();
+
+    const gv = STATE.gameViewer || { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 };
+    const gameModalHtml = (() => {
+      if (!gv.open) return '';
+      const g = gv.game;
+      const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
+      const sanMoves = Array.isArray(g?.sanMoves) ? g.sanMoves : [];
+      const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
+      const ply = Math.max(0, Math.min(Number(gv.ply || 0) || 0, maxPly));
+      const boardToShow = boards ? boards[ply] : g?.state?.board;
+      const pgn = String(g?.pgn || '').trim();
+      const lastMoveIdx = ply > 0 ? (ply - 1) : -1;
+
+      return `
+        <div class="vcp-modal-backdrop vcp-gameviewer-backdrop" id="vcpGameViewerBackdrop" role="presentation">
+          <div class="vcp-modal vcp-gameviewer-modal" role="dialog" aria-modal="true" aria-label="Game viewer">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Game viewer</div>
+              <button class="vcp-modal-close" type="button" data-vcp-game-close="1" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              ${gv.loading ? `<div class="vcp-muted">Loading game...</div>` : ''}
+              ${gv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(gv.error))}</div>` : ''}
+              ${(!gv.loading && g) ? `
+                <div class="vcp-game-view">
+                  <div class="vcp-game-header">
+                    <div>
+                      <div class="vcp-game-title">${escapeHtml(String(g.whiteName || 'White'))} vs ${escapeHtml(String(g.blackName || 'Black'))}</div>
+                      <div class="vcp-muted" style="margin-top:6px;">Result: <strong>${escapeHtml(String(g.result || '1/2-1/2'))}</strong> — ${escapeHtml(String(g.resultReason || ''))}</div>
+                      <div class="vcp-muted" style="margin-top:6px;">Date: ${escapeHtml(formatDateTime(g.endedAt || g.startedAt))}</div>
+                    </div>
+                    <div class="vcp-game-nav">
+                      <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-prev="1" ${ply <= 0 ? 'disabled' : ''} aria-label="Previous move">◀</button>
+                      <div class="vcp-muted" style="font-weight:900;">${ply}/${maxPly}</div>
+                      <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-next="1" ${ply >= maxPly ? 'disabled' : ''} aria-label="Next move">▶</button>
+                    </div>
+                  </div>
+
+                  <div class="vcp-game-body">
+                    <div class="vcp-game-board">
+                      ${renderMiniBoard(boardToShow)}
+                    </div>
+                    <div class="vcp-game-moves">
+                      <div class="vcp-profile-section-title">PGN</div>
+                      ${pgn ? `<pre class="vcp-pgn-box">${escapeHtml(pgn)}</pre>` : `<div class="vcp-muted">PGN not available yet.</div>`}
+
+                      <div class="vcp-profile-section-title" style="margin-top:12px;">Moves</div>
+                      <div class="vcp-moves-list">
+                        ${sanMoves.length ? sanMoves.map((san, idx) => `
+                          <div class="vcp-move-row ${idx === lastMoveIdx ? 'active' : ''}">${idx + 1}. ${escapeHtml(String(san || ''))}</div>
+                        `).join('') : `<div class="vcp-muted">No moves recorded.</div>`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
     })();
 
     root.innerHTML = `
@@ -489,68 +579,10 @@
           </div>
         </div>
       </div>
+      ${gameModalHtml}
     `;
 
     document.getElementById('vcpProfileBackBtn')?.addEventListener('click', closeProfile);
-  }
-
-  function renderGameViewerScreen() {
-    const root = getRoot();
-    if (!root) return;
-    const gv = STATE.gameViewer || { loading: false, error: null, gameId: null, game: null };
-    const g = gv.game;
-
-    root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Game</div>
-          </div>
-          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-            ${renderHeaderBadge()}
-          </button>
-        </div>
-
-        <div class="vcp-section">
-          ${gv.loading ? `<div class="vcp-muted">Loading game...</div>` : ''}
-          ${gv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(gv.error))}</div>` : ''}
-
-          ${(!gv.loading && g) ? `
-            <div class="vcp-game-view">
-              <div class="vcp-game-header">
-                <div>
-                  <div class="vcp-game-title">${escapeHtml(String(g.whiteName || 'White'))} vs ${escapeHtml(String(g.blackName || 'Black'))}</div>
-                  <div class="vcp-muted" style="margin-top:6px;">Result: <strong>${escapeHtml(String(g.result || '1/2-1/2'))}</strong> — ${escapeHtml(String(g.resultReason || ''))}</div>
-                  <div class="vcp-muted" style="margin-top:6px;">Date: ${escapeHtml(formatDateTime(g.endedAt || g.startedAt))}</div>
-                </div>
-                <div class="vcp-btn-row" style="justify-content:flex-end;">
-                  <button id="vcpGameBackBtn" class="btn btn-secondary" type="button">Back</button>
-                </div>
-              </div>
-
-              <div class="vcp-game-body">
-                <div class="vcp-game-board">
-                  ${renderMiniBoard(g?.state?.board)}
-                </div>
-                <div class="vcp-game-moves">
-                  <div class="vcp-profile-section-title">Moves</div>
-                  <div class="vcp-moves-list">
-                    ${(Array.isArray(g.moves) ? g.moves : []).map((m, idx) => {
-                      const n = idx + 1;
-                      const promo = m?.promo && String(m.promo).toLowerCase() !== 'q' ? `=${String(m.promo).toUpperCase()}` : '';
-                      return `<div class="vcp-move-row">${n}. ${escapeHtml(String(m.from || ''))}→${escapeHtml(String(m.to || ''))}${escapeHtml(promo)}</div>`;
-                    }).join('') || `<div class="vcp-muted">No moves recorded.</div>`}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ` : ''}
-        </div>
-      </div>
-    `;
-
-    document.getElementById('vcpGameBackBtn')?.addEventListener('click', closeGameViewer);
   }
 
   function renderOnlineListItem(s, { selectable }) {
@@ -1173,11 +1205,11 @@
     if (type === 'vcp_game_record') {
       const g = msg?.game || null;
       if (!g) {
-        STATE.gameViewer = { loading: false, error: 'Game not found', gameId: String(STATE.gameViewer?.gameId || ''), game: null };
+        STATE.gameViewer = { open: true, loading: false, error: 'Game not found', gameId: String(STATE.gameViewer?.gameId || ''), game: null, ply: 0 };
         render();
         return;
       }
-      STATE.gameViewer = { loading: false, error: null, gameId: String(g.id || ''), game: g };
+      STATE.gameViewer = { open: true, loading: false, error: null, gameId: String(g.id || ''), game: g, ply: 0 };
       render();
       return;
     }
@@ -1248,10 +1280,6 @@
       renderProfileScreen();
       return;
     }
-    if (STATE.page === 'game') {
-      renderGameViewerScreen();
-      return;
-    }
     if (STATE.role === 'teacher') renderTeacher();
     else renderStudent();
   }
@@ -1261,7 +1289,7 @@
     STATE.page = 'lobby';
     STATE.profileTargetId = null;
     STATE.profileHistory = { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
-    STATE.gameViewer = { loading: false, error: null, gameId: null, game: null };
+    STATE.gameViewer = { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 };
     const studentPlayer = STATE.role === 'student' ? getStudentPlayer() : null;
     if (studentPlayer && typeof studentPlayer === 'object') {
       STATE.me = {
@@ -1282,6 +1310,27 @@
     });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN)) connectWs();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (!STATE.gameViewer?.open) return;
+      if (e.key === 'Escape') {
+        closeGameViewer();
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        STATE.gameViewer.ply = Math.max(0, Number(STATE.gameViewer.ply || 0) - 1);
+        render();
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        const boards = Array.isArray(STATE.gameViewer?.game?.timelineBoards) ? STATE.gameViewer.game.timelineBoards : null;
+        const sanMoves = Array.isArray(STATE.gameViewer?.game?.sanMoves) ? STATE.gameViewer.game.sanMoves : [];
+        const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
+        STATE.gameViewer.ply = Math.min(maxPly, Number(STATE.gameViewer.ply || 0) + 1);
+        render();
+        return;
+      }
     });
   }
 
