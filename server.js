@@ -11230,6 +11230,10 @@ async function startServer() {
           turn: st.turn,
           turnStartTs: st.turnStartTs,
           clocks: st.clocks,
+          castling: st.castling,
+          ep: st.ep,
+          drawOffer: st.drawOffer,
+          moveNumber: st.moveNumber,
           gameOver: st.gameOver,
           gameOverReason: st.gameOverReason
         }
@@ -11333,8 +11337,13 @@ async function startServer() {
           };
           presence.name = name;
           presence.studentId = presence.studentId || studentPublicId;
-          presence.status = 'online';
-          presence.inGame = false;
+          // If the student is already in an active session, keep them in-game after refresh/reconnect.
+          const inActiveSession = Array.from(vcp.sessions.values()).some((s) => {
+            return s && String(s.orgId) === String(orgId) && String(s.mode) === 'chess' && String(s.status) === 'active'
+              && Array.isArray(s.studentIds) && s.studentIds.includes(String(studentId));
+          });
+          presence.inGame = !!inActiveSession;
+          presence.status = inActiveSession ? 'in-game' : 'online';
           presence.lastActivity = nowIso();
           presence.lastActivityTs = Date.now();
           presence.connections.add(ws);

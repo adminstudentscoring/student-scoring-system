@@ -180,6 +180,72 @@
     `;
   }
 
+  function computeMyGames() {
+    const role = String(STATE.role || '');
+    const uid = String(STATE.me?.id || '');
+    const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
+    if (!uid) return [];
+    if (role === 'teacher') {
+      return games.filter(g => String(g.teacherId || '') === uid);
+    }
+    // student
+    return games.filter(g => String(g.whiteId || '') === uid || String(g.blackId || '') === uid);
+  }
+
+  function renderMyGames() {
+    const games = computeMyGames();
+    if (!games.length) return `<div class="vcp-muted">No active games for you.</div>`;
+    // reuse same card style
+    return `
+      <div class="vcp-live-grid">
+        ${games.map((g) => {
+          const clocks = computeLiveClocks(g);
+          const whiteLabel = `${String(g.whiteName || 'White')}${g.whiteStudentId ? ` (${String(g.whiteStudentId)})` : ''}`;
+          const blackLabel = `${String(g.blackName || 'Black')}${g.blackStudentId ? ` (${String(g.blackStudentId)})` : ''}`;
+          return `
+            <div class="vcp-live-card" data-my-session="${escapeHtml(String(g.sessionId || ''))}" style="cursor:pointer;">
+              <div class="vcp-live-card-header">
+                <div class="vcp-live-names">${escapeHtml(whiteLabel)} vs ${escapeHtml(blackLabel)}</div>
+                <div class="vcp-live-meta">
+                  <div class="vcp-live-clock">W ${escapeHtml(formatMs(clocks.wMs))} | B ${escapeHtml(formatMs(clocks.bMs))}</div>
+                  <span class="vcp-status-pill ${clocks.turn === 'w' ? 'online' : 'in-game'}">Turn ${clocks.turn === 'w' ? 'White' : 'Black'}</span>
+                </div>
+              </div>
+              ${renderMiniBoard(g?.state?.board)}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function openMyGame(sessionId) {
+    const sid = String(sessionId || '');
+    const g = (Array.isArray(STATE.liveGames) ? STATE.liveGames : []).find(x => String(x.sessionId) === sid);
+    if (!g) return;
+    // Recreate activeSession from snapshot (so refresh/close won't lose the game view)
+    STATE.activeSession = {
+      id: sid,
+      orgId: '',
+      mode: 'chess',
+      studentIds: [String(g.whiteId || ''), String(g.blackId || '')],
+      config: {
+        minutes: Number(g?.config?.minutes || 3),
+        incrementSec: Number(g?.config?.incrementSec || 0),
+        whiteStudentId: String(g.whiteId || ''),
+        blackStudentId: String(g.blackId || '')
+      },
+      chessState: g.state || null,
+      status: 'active'
+    };
+    render();
+    bindSessionEvents();
+    try {
+      const key = `vcpLastSession:${String(STATE.role || '')}:${String(STATE.me?.id || '')}`;
+      localStorage.setItem(key, sid);
+    } catch {}
+  }
+
   function renderHeaderBadge() {
     const name = String(STATE.me?.name || 'Unknown');
     const uid = String(STATE.me?.id || '');
@@ -393,7 +459,10 @@
                 </div>
               ` : ''}
 
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Live Game</div>
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
+              <div id="vcpMyGamesArea">${renderMyGames()}</div>
+
+              <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
               <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
             </div>
           </div>
@@ -406,6 +475,9 @@
     document.getElementById('vcpRefreshBtn')?.addEventListener('click', () => {
       wsSend({ type: 'vcp_get_presence' });
       wsSend({ type: 'vcp_get_live_games' });
+    });
+    root.querySelectorAll('[data-my-session]')?.forEach?.((el) => {
+      el.addEventListener('click', () => openMyGame(el.getAttribute('data-my-session')));
     });
 
     root.querySelectorAll('input[type="checkbox"][data-student-id]').forEach((cb) => {
@@ -466,7 +538,10 @@
             </div>
 
             <div class="vcp-main">
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">Live Game</div>
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
+              <div id="vcpMyGamesArea">${renderMyGames()}</div>
+
+              <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
               <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
 
               <div class="vcp-list" style="margin-top:12px;">
@@ -488,6 +563,9 @@
       wsSend({ type: 'vcp_get_presence' });
       wsSend({ type: 'vcp_get_live_games' });
       markActivity();
+    });
+    root.querySelectorAll('[data-my-session]')?.forEach?.((el) => {
+      el.addEventListener('click', () => openMyGame(el.getAttribute('data-my-session')));
     });
 
     bindStudentInviteModalEvents();
@@ -516,9 +594,10 @@
 
   function bindSessionEvents() {
     if (!STATE.activeSession) return;
-    document.getElementById('vcpLeaveSessionBtnX')?.addEventListener('click', leaveSession);
+    // Closing the modal should NOT end the game. User can reopen via "My game".
+    document.getElementById('vcpLeaveSessionBtnX')?.addEventListener('click', closeSessionView);
     document.getElementById('vcpSessionBackdrop')?.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'vcpSessionBackdrop') leaveSession();
+      if (e.target && e.target.id === 'vcpSessionBackdrop') closeSessionView();
     });
 
     // Mount Normal Chess UI
@@ -542,6 +621,16 @@
         }
       }
     } catch {}
+  }
+
+  function closeSessionView() {
+    if (!STATE.activeSession) return;
+    try { STATE.ncApp?.destroy?.(); } catch {}
+    STATE.ncApp = null;
+    STATE.ncSessionId = null;
+    // Keep active session available for quick reopen via My game click
+    STATE.activeSession = null;
+    render();
   }
 
   function leaveSession() {
@@ -778,6 +867,8 @@
       // refresh only the live game area if present
       const area = document.getElementById('vcpLiveGamesArea');
       if (area) area.innerHTML = renderLiveGames();
+      const myArea = document.getElementById('vcpMyGamesArea');
+      if (myArea) myArea.innerHTML = renderMyGames();
       return;
     }
     if (type === 'vcp_invite') {
