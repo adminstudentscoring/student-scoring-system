@@ -207,7 +207,7 @@
   display: grid;
   grid-template-columns: minmax(220px, 320px) 1fr;
   gap: 12px;
-  align-items: start;
+  align-items: end;
 }
 
 @media (max-width: 900px) {
@@ -281,12 +281,81 @@
   font-variant-numeric: tabular-nums;
 }
 
+.vcp-gameviewer-body {
+  position: relative;
+}
+
+.vcp-gameviewer-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+}
+
+.vcp-viewer-timers {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.vcp-viewer-timer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-radius: 14px;
+  border: 2px solid #e5e7eb;
+  padding: 10px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vcp-viewer-timer-row.is-black {
+  background: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
+
+.vcp-viewer-timer-row.is-white {
+  background: #ffffff;
+  border-color: #4b5563;
+  color: #111827;
+}
+
+.vcp-viewer-timer-name {
+  font-weight: 950;
+}
+
+.vcp-viewer-timer-clock {
+  font-weight: 950;
+  font-size: 16px;
+}
+
+.vcp-board-nav {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.vcp-moves-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.vcp-copy-pgn-btn {
+  padding: 8px 10px;
+}
+
 .vcp-moves-table-wrap {
   margin-top: 10px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   overflow: hidden;
   background: #ffffff;
+  max-height: 360px; /* about 7 rows + header */
+  overflow: auto;
 }
 
 .vcp-moves-table {
@@ -307,6 +376,9 @@
 .vcp-moves-table thead th {
   background: #f9fafb;
   font-weight: 950;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .vcp-moves-table tbody tr:last-child td {
@@ -328,20 +400,48 @@
 
 .vcp-move-time {
   width: 190px;
-  display: flex;
-  flex-wrap: wrap;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.vcp-time-stack {
+  display: grid;
   gap: 6px;
 }
 
-.vcp-move-time-pill {
-  display: inline-flex;
+.vcp-time-chip {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 4px 8px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border: 1px solid #4b5563;
   font-weight: 950;
   font-size: 12px;
+  line-height: 1;
+}
+
+.vcp-time-chip .vcp-time-side {
+  font-weight: 950;
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+.vcp-time-chip .vcp-time-side::before {
+  content: "› ";
+}
+
+.vcp-time-w {
+  background: #ffffff;
+  color: #111827;
+  border-color: #4b5563;
+}
+
+.vcp-time-b {
+  background: #111827;
+  color: #ffffff;
+  border-color: #4b5563;
 }
 
 .vcp-muted {

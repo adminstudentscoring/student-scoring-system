@@ -10855,6 +10855,29 @@ async function startServer() {
     }
   }
 
+  function vcpBuildTimelineClocks(session) {
+    try {
+      const cfg = session?.config || {};
+      const minutes = Math.max(1, Math.min(60, Number(cfg?.minutes) || 3));
+      const inc = Math.max(0, Math.min(60, Number(cfg?.incrementSec) || 0));
+      let wMs = minutes * 60 * 1000;
+      let bMs = minutes * 60 * 1000;
+      let turn = 'w';
+      const out = [{ wMs, bMs, turn }];
+      const moves = Array.isArray(session?.chessState?.history) ? session.chessState.history : [];
+      for (const mv of moves) {
+        const spent = Math.max(0, Number(mv?.spentMs ?? 0) || 0);
+        if (turn === 'w') wMs = Math.max(0, wMs - spent) + inc * 1000;
+        else bMs = Math.max(0, bMs - spent) + inc * 1000;
+        turn = vcpOpp(turn);
+        out.push({ wMs, bMs, turn });
+      }
+      return out;
+    } catch {
+      return null;
+    }
+  }
+
   async function readVcpChessGameHistory(orgId, userId) {
     try {
       const raw = await fs.readFile(VCP_CHESS_GAMES_FILE, 'utf8');
@@ -11555,6 +11578,7 @@ async function startServer() {
       const sanMoves = Array.isArray(st.history) ? st.history.map(m => String(m?.san || '').trim()).filter(Boolean) : [];
       const pgn = vcpBuildPgnFromSanMoves(sanMoves);
       const timelineBoards = vcpBuildTimelineBoards(session) || null;
+      const timelineClocks = vcpBuildTimelineClocks(session) || null;
       const record = {
         id: String(session.id || ''),
         orgId: String(orgId || ''),
@@ -11576,6 +11600,7 @@ async function startServer() {
         sanMoves,
         pgn,
         timelineBoards,
+        timelineClocks,
         state: {
           board: st.board,
           clocks: st.clocks,

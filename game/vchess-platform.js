@@ -357,6 +357,13 @@
         return;
       }
 
+      if (target?.closest?.('[data-vcp-copy-pgn]')) {
+        const pgn = String(STATE.gameViewer?.game?.pgn || '').trim();
+        if (!pgn) return;
+        copyToClipboard(pgn);
+        return;
+      }
+
       const el = target?.closest?.('[data-my-session]');
       if (!el) return;
       const sid = el.getAttribute('data-my-session');
@@ -374,6 +381,31 @@
       ? (uid ? `Teacher ID: ${uid}` : '')
       : (sid ? `Student ID: ${sid}` : (uid ? `ID: ${uid}` : ''));
     return `${escapeHtml(name)}${idLabel ? ` (${escapeHtml(idLabel)})` : ''}${STATE.wsReady ? '' : ' (disconnected)'}`;
+  }
+
+  function copyToClipboard(text) {
+    const t = String(text || '');
+    if (!t) return false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(t);
+        return true;
+      }
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.setAttribute('readonly', 'true');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function getProfileUserById(id) {
@@ -462,41 +494,43 @@
       const ply = Math.max(0, Math.min(Number(gv.ply || 0) || 0, maxPly));
       const boardToShow = boards ? boards[ply] : g?.state?.board;
       const pgn = String(g?.pgn || '').trim();
+      const clocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[ply] : null;
+      const wClock = clocks ? formatMs(Number(clocks.wMs || 0)) : '';
+      const bClock = clocks ? formatMs(Number(clocks.bMs || 0)) : '';
       const lastMoveIdx = ply > 0 ? (ply - 1) : -1;
 
       return `
         <div class="vcp-modal-backdrop vcp-gameviewer-backdrop" id="vcpGameViewerBackdrop" role="presentation">
           <div class="vcp-modal vcp-gameviewer-modal" role="dialog" aria-modal="true" aria-label="Game viewer">
-            <div class="vcp-modal-header">
-              <div class="vcp-modal-title">Game viewer</div>
+            <div class="vcp-gameviewer-close">
               <button class="vcp-modal-close" type="button" data-vcp-game-close="1" aria-label="Close">×</button>
             </div>
-            <div class="vcp-modal-body">
+            <div class="vcp-modal-body vcp-gameviewer-body">
               ${gv.loading ? `<div class="vcp-muted">Loading game...</div>` : ''}
               ${gv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(gv.error))}</div>` : ''}
               ${(!gv.loading && g) ? `
                 <div class="vcp-game-view">
-                  <div class="vcp-game-header">
-                    <div>
-                      <div class="vcp-game-title">${escapeHtml(String(g.whiteName || 'White'))} vs ${escapeHtml(String(g.blackName || 'Black'))}</div>
-                      <div class="vcp-muted" style="margin-top:6px;">Result: <strong>${escapeHtml(String(g.result || '1/2-1/2'))}</strong> — ${escapeHtml(String(g.resultReason || ''))}</div>
-                      <div class="vcp-muted" style="margin-top:6px;">Date: ${escapeHtml(formatDateTime(g.endedAt || g.startedAt))}</div>
+                  <div class="vcp-viewer-timers" aria-label="Viewer clocks">
+                    <div class="vcp-viewer-timer-row is-black">
+                      <div class="vcp-viewer-timer-name">${escapeHtml(String(g.blackName || 'Black'))}</div>
+                      <div class="vcp-viewer-timer-clock">${escapeHtml(bClock || '--:--')}</div>
                     </div>
-                    <div class="vcp-game-nav">
-                      <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-prev="1" ${ply <= 0 ? 'disabled' : ''} aria-label="Previous move">◀</button>
-                      <div class="vcp-muted" style="font-weight:900;">${ply}/${maxPly}</div>
-                      <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-next="1" ${ply >= maxPly ? 'disabled' : ''} aria-label="Next move">▶</button>
+                    <div class="vcp-viewer-timer-row is-white">
+                      <div class="vcp-viewer-timer-name">${escapeHtml(String(g.whiteName || 'White'))}</div>
+                      <div class="vcp-viewer-timer-clock">${escapeHtml(wClock || '--:--')}</div>
                     </div>
                   </div>
 
                   <div class="vcp-game-body">
                     <div class="vcp-game-board">
                       ${renderMiniBoard(boardToShow)}
+                      <div class="vcp-board-nav" aria-label="Move navigation">
+                        <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-prev="1" ${ply <= 0 ? 'disabled' : ''} aria-label="Previous move">◀</button>
+                        <div class="vcp-muted" style="font-weight:900;">${ply}/${maxPly}</div>
+                        <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-next="1" ${ply >= maxPly ? 'disabled' : ''} aria-label="Next move">▶</button>
+                      </div>
                     </div>
                     <div class="vcp-game-moves">
-                      <div class="vcp-profile-section-title">PGN</div>
-                      ${pgn ? `<pre class="vcp-pgn-box">${escapeHtml(pgn)}</pre>` : `<div class="vcp-muted">PGN not available yet.</div>`}
-
                       <div class="vcp-profile-section-title" style="margin-top:12px;">Moves</div>
                       ${(() => {
                         const moves = Array.isArray(g?.moves) ? g.moves : [];
@@ -530,8 +564,10 @@
                                       <td class="vcp-move-san ${wActive}">${escapeHtml(wSan || '-')}</td>
                                       <td class="vcp-move-san ${bActive}">${escapeHtml(bSan || '-')}</td>
                                       <td class="vcp-move-time">
-                                        <span class="vcp-move-time-pill">W ${escapeHtml(formatSpent(wSpent))}</span>
-                                        <span class="vcp-move-time-pill">B ${escapeHtml(formatSpent(bSpent))}</span>
+                                        <div class="vcp-time-stack">
+                                          <div class="vcp-time-chip vcp-time-w">${escapeHtml(formatSpent(wSpent))}<span class="vcp-time-side">w</span></div>
+                                          <div class="vcp-time-chip vcp-time-b">${escapeHtml(formatSpent(bSpent))}<span class="vcp-time-side">b</span></div>
+                                        </div>
                                       </td>
                                     </tr>
                                   `;
@@ -541,6 +577,10 @@
                           </div>
                         `;
                       })()}
+
+                      <div class="vcp-moves-actions">
+                        <button class="btn btn-secondary vcp-copy-pgn-btn" type="button" data-vcp-copy-pgn="1" ${pgn ? '' : 'disabled'}>Copy PGN</button>
+                      </div>
                     </div>
                   </div>
                 </div>
