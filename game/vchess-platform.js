@@ -106,6 +106,13 @@
     }
   }
 
+  function formatSpent(ms) {
+    const s = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+  }
+
   function invertResult(res) {
     const r = String(res || '');
     if (r === '1-0') return '0-1';
@@ -491,11 +498,49 @@
                       ${pgn ? `<pre class="vcp-pgn-box">${escapeHtml(pgn)}</pre>` : `<div class="vcp-muted">PGN not available yet.</div>`}
 
                       <div class="vcp-profile-section-title" style="margin-top:12px;">Moves</div>
-                      <div class="vcp-moves-list">
-                        ${sanMoves.length ? sanMoves.map((san, idx) => `
-                          <div class="vcp-move-row ${idx === lastMoveIdx ? 'active' : ''}">${idx + 1}. ${escapeHtml(String(san || ''))}</div>
-                        `).join('') : `<div class="vcp-muted">No moves recorded.</div>`}
-                      </div>
+                      ${(() => {
+                        const moves = Array.isArray(g?.moves) ? g.moves : [];
+                        const rows = Math.max(1, Math.ceil(moves.length / 2));
+                        if (!moves.length) return `<div class="vcp-muted">No moves recorded.</div>`;
+                        return `
+                          <div class="vcp-moves-table-wrap">
+                            <table class="vcp-moves-table" aria-label="Move list">
+                              <thead>
+                                <tr>
+                                  <th>Move</th>
+                                  <th>White</th>
+                                  <th>Black</th>
+                                  <th>Time</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                ${Array.from({ length: rows }, (_, i) => {
+                                  const moveNo = i + 1;
+                                  const w = moves[i * 2] || null;
+                                  const b = moves[i * 2 + 1] || null;
+                                  const wSan = w?.san ? String(w.san) : '';
+                                  const bSan = b?.san ? String(b.san) : '';
+                                  const wSpent = Number(w?.spentMs ?? 0) || 0;
+                                  const bSpent = Number(b?.spentMs ?? 0) || 0;
+                                  const wActive = (lastMoveIdx === (i * 2)) ? 'active' : '';
+                                  const bActive = (lastMoveIdx === (i * 2 + 1)) ? 'active' : '';
+                                  return `
+                                    <tr>
+                                      <td class="vcp-move-no">${moveNo}.</td>
+                                      <td class="vcp-move-san ${wActive}">${escapeHtml(wSan || '-')}</td>
+                                      <td class="vcp-move-san ${bActive}">${escapeHtml(bSan || '-')}</td>
+                                      <td class="vcp-move-time">
+                                        <span class="vcp-move-time-pill">W ${escapeHtml(formatSpent(wSpent))}</span>
+                                        <span class="vcp-move-time-pill">B ${escapeHtml(formatSpent(bSpent))}</span>
+                                      </td>
+                                    </tr>
+                                  `;
+                                }).join('')}
+                              </tbody>
+                            </table>
+                          </div>
+                        `;
+                      })()}
                     </div>
                   </div>
                 </div>

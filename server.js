@@ -11415,6 +11415,10 @@ async function startServer() {
     if (!st || st.gameOver) return { ok: false, error: 'Game not active' };
     if (String(st.turn || 'w') !== moverColor) return { ok: false, error: 'Not your turn' };
 
+    // Time spent on this move (A: per-move thinking time)
+    const nowTs = Date.now();
+    const spentMs = Math.max(0, nowTs - Number(st.turnStartTs || nowTs));
+
     const board = st.board;
     const a = vcpCoordToRc(from);
     const z = vcpCoordToRc(to);
@@ -11444,6 +11448,7 @@ async function startServer() {
       to: String(to),
       promo: String(promo || 'q').toLowerCase(),
       san: String(san || ''),
+      spentMs,
       by: String(moverId),
       atTs: Date.now(),
       moveNumber: Number(st.moveNumber || 1)
