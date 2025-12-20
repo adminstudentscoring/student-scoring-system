@@ -1220,10 +1220,20 @@
       document.body.classList.remove('hm-dragging');
     };
 
+    // Move ghost using transform (avoids layout/reflow flicker on iOS Safari)
+    let ghostRaf = 0;
+    let ghostX = 0;
+    let ghostY = 0;
     const moveGhost = (x, y) => {
       if (!dragging?.ghostEl) return;
-      dragging.ghostEl.style.left = `${x}px`;
-      dragging.ghostEl.style.top = `${y}px`;
+      ghostX = x;
+      ghostY = y;
+      if (ghostRaf) return;
+      ghostRaf = requestAnimationFrame(() => {
+        ghostRaf = 0;
+        if (!dragging?.ghostEl) return;
+        dragging.ghostEl.style.transform = `translate3d(${ghostX}px, ${ghostY}px, 0) translate(-50%, -50%)`;
+      });
     };
 
     const getSquareUnderPoint = (x, y) => {
