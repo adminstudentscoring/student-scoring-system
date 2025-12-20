@@ -510,18 +510,17 @@
               ${gv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(gv.error))}</div>` : ''}
               ${(!gv.loading && g) ? `
                 <div class="vcp-game-view">
-                  <div class="vcp-viewer-timers" aria-label="Viewer clocks">
-                    <div class="vcp-viewer-timer-row is-black">
-                      <div class="vcp-viewer-timer-name">${escapeHtml(String(g.blackName || 'Black'))}</div>
-                      <div class="vcp-viewer-timer-clock">${escapeHtml(bClock || '--:--')}</div>
-                    </div>
-                    <div class="vcp-viewer-timer-row is-white">
-                      <div class="vcp-viewer-timer-name">${escapeHtml(String(g.whiteName || 'White'))}</div>
-                      <div class="vcp-viewer-timer-clock">${escapeHtml(wClock || '--:--')}</div>
-                    </div>
-                  </div>
-
                   <div class="vcp-game-body">
+                    <div class="vcp-viewer-timers vcp-viewer-timers-sidebar" aria-label="Viewer clocks">
+                      <div class="vcp-viewer-timer-row is-black">
+                        <div class="vcp-viewer-timer-name">${escapeHtml(String(g.blackName || 'Black'))}</div>
+                        <div class="vcp-viewer-timer-clock">${escapeHtml(bClock || '--:--')}</div>
+                      </div>
+                      <div class="vcp-viewer-timer-row is-white">
+                        <div class="vcp-viewer-timer-name">${escapeHtml(String(g.whiteName || 'White'))}</div>
+                        <div class="vcp-viewer-timer-clock">${escapeHtml(wClock || '--:--')}</div>
+                      </div>
+                    </div>
                     <div class="vcp-game-board">
                       ${renderMiniBoard(boardToShow)}
                       <div class="vcp-board-nav" aria-label="Move navigation">

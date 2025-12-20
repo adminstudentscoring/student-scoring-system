@@ -205,7 +205,7 @@
 
 .vcp-game-body {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr;
+  grid-template-columns: 220px minmax(220px, 320px) 1fr;
   gap: 12px;
   align-items: end;
 }
@@ -295,7 +295,10 @@
 .vcp-viewer-timers {
   display: grid;
   gap: 10px;
-  margin-bottom: 12px;
+}
+
+.vcp-viewer-timers-sidebar {
+  align-self: start;
 }
 
 .vcp-viewer-timer-row {
