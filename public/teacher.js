@@ -1716,6 +1716,9 @@ document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
     try {
         localStorage.setItem('vChessPlatformRole', 'teacher');
         localStorage.setItem('vChessPlatformSelectedStudentIds', JSON.stringify([]));
+        // Ensure teacher entry never reuses any leftover student VCP token/profile from other tabs.
+        localStorage.removeItem('vChessPlatformAuthToken');
+        localStorage.removeItem('vChessPlatformPlayer');
     } catch (e) {
         console.warn('Unable to persist vChessPlatform context to localStorage:', e);
     }

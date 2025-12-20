@@ -59,7 +59,11 @@
 
   function getAuthToken() {
     try {
-      // Prefer dedicated VCP token for public Student Dashboard (avoids using leftover teacher tokens).
+      const role = getRole();
+      // IMPORTANT:
+      // - Student lobby may run on a public page, so it uses a dedicated VCP token.
+      // - Teacher lobby MUST use the logged-in teacher authToken, and must ignore any leftover student VCP token.
+      if (role === 'teacher') return localStorage.getItem('authToken');
       return localStorage.getItem('vChessPlatformAuthToken') || localStorage.getItem('authToken');
     } catch {
       return null;
