@@ -910,12 +910,12 @@
     if (rowLabelContainer) {
       rowLabelContainer.innerHTML = generateRowLabels(state.boardSize);
     }
-    state.boardEl.innerHTML = '';
     state.boardEl.style.gridTemplateColumns = `repeat(${state.boardSize}, 1fr)`;
     state.boardEl.style.gridTemplateRows = `repeat(${state.boardSize}, 1fr)`;
 
     const highlightCells = state.highlight?.cells || [];
     const highlightType = state.highlight?.type || null;
+    const frag = document.createDocumentFragment();
 
     for (let row = 0; row < state.boardSize; row += 1) {
       for (let col = 0; col < state.boardSize; col += 1) {
@@ -947,10 +947,12 @@
         }
 
         cell.addEventListener('click', () => onCellClick(row, col));
-        state.boardEl.appendChild(cell);
+        frag.appendChild(cell);
       }
     }
 
+    // Replace in one shot to avoid "empty board" paint flashes on iOS Safari.
+    state.boardEl.replaceChildren(frag);
     enablePointerDrag();
   }
 
