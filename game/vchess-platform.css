@@ -207,7 +207,7 @@
   display: grid;
   grid-template-columns: 220px minmax(220px, 320px) 1fr;
   gap: 12px;
-  align-items: end;
+  align-items: stretch;
 }
 
 @media (max-width: 900px) {
@@ -303,9 +303,9 @@
 
 .vcp-viewer-timer-row {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
   border-radius: 14px;
   border: 2px solid #e5e7eb;
   padding: 10px 12px;
@@ -331,6 +331,7 @@
 .vcp-viewer-timer-clock {
   font-weight: 950;
   font-size: 16px;
+  align-self: flex-end;
 }
 
 .vcp-board-nav {
@@ -339,6 +340,19 @@
   gap: 10px;
   align-items: center;
   margin-top: 10px;
+}
+
+/* Make board height match move list height (top+bottom alignment) */
+.vcp-game-board {
+  display: flex;
+  flex-direction: column;
+}
+
+.vcp-game-board .vcp-mini-board {
+  height: var(--vcp-viewer-board-px, 320px);
+  width: var(--vcp-viewer-board-px, 320px);
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .vcp-moves-actions {

@@ -408,6 +408,23 @@
     }
   }
 
+  function syncGameViewerBoardSizing() {
+    try {
+      const backdrop = document.getElementById('vcpGameViewerBackdrop');
+      if (!backdrop) return;
+      const movesPanel = backdrop.querySelector('.vcp-game-moves');
+      const boardCol = backdrop.querySelector('.vcp-game-board');
+      const nav = backdrop.querySelector('.vcp-board-nav');
+      const mini = backdrop.querySelector('.vcp-mini-board');
+      if (!movesPanel || !boardCol || !nav || !mini) return;
+
+      const movesRect = movesPanel.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      const boardAvailable = Math.max(180, Math.floor(movesRect.height - navRect.height - 10));
+      backdrop.style.setProperty('--vcp-viewer-board-px', `${boardAvailable}px`);
+    } catch {}
+  }
+
   function getProfileUserById(id) {
     const uid = String(id || '');
     if (!uid) return null;
@@ -498,6 +515,17 @@
       const wClock = clocks ? formatMs(Number(clocks.wMs || 0)) : '';
       const bClock = clocks ? formatMs(Number(clocks.bMs || 0)) : '';
       const lastMoveIdx = ply > 0 ? (ply - 1) : -1;
+      const targetId = String(STATE.profileTargetId || '');
+      const isTargetWhite = targetId && targetId === String(g?.whiteId || '');
+      const timers = isTargetWhite
+        ? [
+            { color: 'black', name: String(g.blackName || 'Black'), clock: bClock || '--:--' },
+            { color: 'white', name: String(g.whiteName || 'White'), clock: wClock || '--:--' }
+          ]
+        : [
+            { color: 'white', name: String(g.whiteName || 'White'), clock: wClock || '--:--' },
+            { color: 'black', name: String(g.blackName || 'Black'), clock: bClock || '--:--' }
+          ];
 
       return `
         <div class="vcp-modal-backdrop vcp-gameviewer-backdrop" id="vcpGameViewerBackdrop" role="presentation">
@@ -512,14 +540,12 @@
                 <div class="vcp-game-view">
                   <div class="vcp-game-body">
                     <div class="vcp-viewer-timers vcp-viewer-timers-sidebar" aria-label="Viewer clocks">
-                      <div class="vcp-viewer-timer-row is-black">
-                        <div class="vcp-viewer-timer-name">${escapeHtml(String(g.blackName || 'Black'))}</div>
-                        <div class="vcp-viewer-timer-clock">${escapeHtml(bClock || '--:--')}</div>
-                      </div>
-                      <div class="vcp-viewer-timer-row is-white">
-                        <div class="vcp-viewer-timer-name">${escapeHtml(String(g.whiteName || 'White'))}</div>
-                        <div class="vcp-viewer-timer-clock">${escapeHtml(wClock || '--:--')}</div>
-                      </div>
+                      ${timers.map((t) => `
+                        <div class="vcp-viewer-timer-row ${t.color === 'black' ? 'is-black' : 'is-white'}">
+                          <div class="vcp-viewer-timer-name">${escapeHtml(t.name)}</div>
+                          <div class="vcp-viewer-timer-clock">${escapeHtml(t.clock)}</div>
+                        </div>
+                      `).join('')}
                     </div>
                     <div class="vcp-game-board">
                       ${renderMiniBoard(boardToShow)}
@@ -667,6 +693,11 @@
     `;
 
     document.getElementById('vcpProfileBackBtn')?.addEventListener('click', closeProfile);
+    // After DOM mounts, size the viewer board so its top+bottom aligns with the move list.
+    if (STATE.gameViewer?.open) {
+      setTimeout(syncGameViewerBoardSizing, 0);
+      setTimeout(syncGameViewerBoardSizing, 80);
+    }
   }
 
   function renderOnlineListItem(s, { selectable }) {
