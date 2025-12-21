@@ -8,7 +8,6 @@
     page: 'lobby', // 'lobby' | 'profile'
     profileTargetId: null, // userId
     profileHistory: { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] },
-    gameViewer: { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 },
     // Teacher view
     students: [], // [{id,name,studentId,status,inGame}]
     selected: new Set(),
@@ -318,51 +317,9 @@
         return;
       }
 
+      // Game Viewer removed: clicking a history row is temporarily disabled.
       const row = target?.closest?.('[data-vcp-game-id]');
-      if (row) {
-        const gid = String(row.getAttribute('data-vcp-game-id') || '');
-        if (gid) openGameViewer(gid);
-        return;
-      }
-
-      if (target?.closest?.('[data-vcp-game-close]')) {
-        closeGameViewer();
-        return;
-      }
-
-      const backdrop = target?.closest?.('#vcpGameViewerBackdrop');
-      if (backdrop && target === backdrop) {
-        closeGameViewer();
-        return;
-      }
-
-      if (target?.closest?.('[data-vcp-game-prev]')) {
-        const gv = STATE.gameViewer;
-        if (!gv?.open) return;
-        const next = Math.max(0, Number(gv.ply || 0) - 1);
-        STATE.gameViewer.ply = next;
-        if (!patchGameViewerUi()) render();
-        return;
-      }
-
-      if (target?.closest?.('[data-vcp-game-next]')) {
-        const gv = STATE.gameViewer;
-        if (!gv?.open) return;
-        const boards = Array.isArray(gv?.game?.timelineBoards) ? gv.game.timelineBoards : null;
-        const sanMoves = Array.isArray(gv?.game?.sanMoves) ? gv.game.sanMoves : [];
-        const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
-        const next = Math.min(maxPly, Number(gv.ply || 0) + 1);
-        STATE.gameViewer.ply = next;
-        if (!patchGameViewerUi()) render();
-        return;
-      }
-
-      if (target?.closest?.('[data-vcp-copy-pgn]')) {
-        const pgn = String(STATE.gameViewer?.game?.pgn || '').trim();
-        if (!pgn) return;
-        copyToClipboard(pgn);
-        return;
-      }
+      if (row) return;
 
       const el = target?.closest?.('[data-my-session]');
       if (!el) return;
@@ -383,109 +340,7 @@
     return `${escapeHtml(name)}${idLabel ? ` (${escapeHtml(idLabel)})` : ''}${STATE.wsReady ? '' : ' (disconnected)'}`;
   }
 
-  function copyToClipboard(text) {
-    const t = String(text || '');
-    if (!t) return false;
-    try {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(t);
-        return true;
-      }
-    } catch {}
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = t;
-      ta.setAttribute('readonly', 'true');
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  function syncGameViewerBoardSizing() {
-    try {
-      const backdrop = document.getElementById('vcpGameViewerBackdrop');
-      if (!backdrop) return;
-      const boardCol = backdrop.querySelector('.vcp-game-board');
-      const nav = backdrop.querySelector('.vcp-board-nav');
-      const mini = backdrop.querySelector('.vcp-mini-board');
-      const modal = backdrop.querySelector('.vcp-gameviewer-modal');
-      const body = modal?.querySelector('.vcp-modal-body');
-      if (!boardCol || !nav || !mini) return;
-
-      const bodyH = body ? Math.floor(body.getBoundingClientRect().height) : Math.floor(window.innerHeight * 0.72);
-      const modalW = modal ? Math.floor(modal.getBoundingClientRect().width) : window.innerWidth;
-      const timerW = 190;
-      const gaps = 12; // grid gap (approx)
-      const maxByWidth = Math.max(180, modalW - timerW - gaps - 24);
-      const maxByHeight = Math.max(180, bodyH - 24); // padding safety
-      const boardAvailable = Math.max(180, Math.min(maxByWidth, maxByHeight, 720));
-      backdrop.style.setProperty('--vcp-viewer-board-px', `${boardAvailable}px`);
-    } catch {}
-  }
-
-  function patchGameViewerUi() {
-    try {
-      const backdrop = document.getElementById('vcpGameViewerBackdrop');
-      if (!backdrop) return false;
-      const gv = STATE.gameViewer;
-      if (!gv?.open || gv.loading || !gv.game) return false;
-
-      const g = gv.game;
-      const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
-      const sanMoves = Array.isArray(g?.sanMoves) ? g.sanMoves : [];
-      const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
-      const ply = Math.max(0, Math.min(Number(gv.ply || 0) || 0, maxPly));
-      const boardToShow = boards ? boards[ply] : g?.state?.board;
-
-      const clocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[ply] : null;
-      const wClock = clocks ? formatMs(Number(clocks.wMs || 0)) : '--:--';
-      const bClock = clocks ? formatMs(Number(clocks.bMs || 0)) : '--:--';
-
-      // Update clocks (order already rendered by CSS + template)
-      const clockEls = backdrop.querySelectorAll('.vcp-viewer-timer-clock');
-      if (clockEls.length >= 2) {
-        // We can't know order without re-evaluating; infer by row class.
-        backdrop.querySelectorAll('.vcp-viewer-timer-row').forEach((row) => {
-          const cEl = row.querySelector('.vcp-viewer-timer-clock');
-          if (!cEl) return;
-          if (row.classList.contains('is-white')) cEl.textContent = wClock;
-          if (row.classList.contains('is-black')) cEl.textContent = bClock;
-        });
-      }
-
-      // Update board squares without rebuilding modal
-      const curMini = backdrop.querySelector('.vcp-mini-board');
-      if (curMini && boardToShow) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = renderMiniBoard(boardToShow);
-        const nextMini = tmp.querySelector('.vcp-mini-board');
-        if (nextMini) {
-          curMini.replaceChildren(...Array.from(nextMini.childNodes));
-        }
-      }
-
-      // Update nav label + disabled states
-      const label = backdrop.querySelector('[data-vcp-viewer-ply-label]');
-      if (label) label.textContent = `${ply}/${maxPly}`;
-      const prevBtn = backdrop.querySelector('[data-vcp-game-prev]');
-      const nextBtn = backdrop.querySelector('[data-vcp-game-next]');
-      if (prevBtn) prevBtn.toggleAttribute('disabled', ply <= 0);
-      if (nextBtn) nextBtn.toggleAttribute('disabled', ply >= maxPly);
-
-      // Keep sizing in sync (no re-render)
-      syncGameViewerBoardSizing();
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  // Game Viewer intentionally removed (user will redesign later).
 
   function getProfileUserById(id) {
     const uid = String(id || '');
@@ -527,18 +382,7 @@
     render();
   }
 
-  function openGameViewer(gameId) {
-    const gid = String(gameId || '');
-    if (!gid) return;
-    STATE.gameViewer = { open: true, loading: true, error: null, gameId: gid, game: null, ply: 0 };
-    wsSend({ type: 'vcp_get_game_record', gameId: gid });
-    render();
-  }
-
-  function closeGameViewer() {
-    STATE.gameViewer = { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 };
-    render();
-  }
+  // openGameViewer / closeGameViewer removed.
 
   function renderProfileScreen() {
     const root = getRoot();
@@ -563,70 +407,8 @@
       return Array.from({ length: count }, (_, i) => i + 1);
     })();
 
-    const gv = STATE.gameViewer || { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 };
-    const gameModalHtml = (() => {
-      if (!gv.open) return '';
-      const g = gv.game;
-      const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
-      const sanMoves = Array.isArray(g?.sanMoves) ? g.sanMoves : [];
-      const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
-      const ply = Math.max(0, Math.min(Number(gv.ply || 0) || 0, maxPly));
-      const boardToShow = boards ? boards[ply] : g?.state?.board;
-      const pgn = String(g?.pgn || '').trim();
-      const clocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[ply] : null;
-      const wClock = clocks ? formatMs(Number(clocks.wMs || 0)) : '';
-      const bClock = clocks ? formatMs(Number(clocks.bMs || 0)) : '';
-      const lastMoveIdx = ply > 0 ? (ply - 1) : -1;
-      const targetId = String(STATE.profileTargetId || '');
-      const isTargetWhite = targetId && targetId === String(g?.whiteId || '');
-      const safeWhiteName = String(g?.whiteName || 'White');
-      const safeBlackName = String(g?.blackName || 'Black');
-      const timers = isTargetWhite
-        ? [
-            { color: 'black', name: safeBlackName, clock: bClock || '--:--' },
-            { color: 'white', name: safeWhiteName, clock: wClock || '--:--' }
-          ]
-        : [
-            { color: 'white', name: safeWhiteName, clock: wClock || '--:--' },
-            { color: 'black', name: safeBlackName, clock: bClock || '--:--' }
-          ];
-
-      return `
-        <div class="vcp-modal-backdrop vcp-gameviewer-backdrop" id="vcpGameViewerBackdrop" role="presentation">
-          <div class="vcp-modal vcp-gameviewer-modal" role="dialog" aria-modal="true" aria-label="Game viewer">
-            <div class="vcp-gameviewer-close">
-              <button class="vcp-modal-close" type="button" data-vcp-game-close="1" aria-label="Close">×</button>
-            </div>
-            <div class="vcp-modal-body vcp-gameviewer-body">
-              ${gv.loading ? `<div class="vcp-muted">Loading game...</div>` : ''}
-              ${gv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(gv.error))}</div>` : ''}
-              ${(!gv.loading && g) ? `
-                <div class="vcp-game-view">
-                  <div class="vcp-game-body vcp-game-body-compact">
-                    <div class="vcp-viewer-timers vcp-viewer-timers-sidebar" aria-label="Viewer clocks">
-                      ${timers.map((t) => `
-                        <div class="vcp-viewer-timer-row ${t.color === 'black' ? 'is-black' : 'is-white'}">
-                          <div class="vcp-viewer-timer-name">${escapeHtml(t.name)}</div>
-                          <div class="vcp-viewer-timer-clock">${escapeHtml(t.clock)}</div>
-                        </div>
-                      `).join('')}
-                    </div>
-                    <div class="vcp-game-board">
-                      ${renderMiniBoard(boardToShow)}
-                      <div class="vcp-board-nav" aria-label="Move navigation">
-                        <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-prev="1" ${ply <= 0 ? 'disabled' : ''} aria-label="Previous move">◀</button>
-                        <div class="vcp-muted" data-vcp-viewer-ply-label="1" style="font-weight:900;">${ply}/${maxPly}</div>
-                        <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-next="1" ${ply >= maxPly ? 'disabled' : ''} aria-label="Next move">▶</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-          </div>
-        </div>
-      `;
-    })();
+    // Game Viewer removed (no modal HTML).
+    const gameModalHtml = '';
 
     root.innerHTML = `
       <div class="vcp-card">
@@ -705,11 +487,6 @@
     `;
 
     document.getElementById('vcpProfileBackBtn')?.addEventListener('click', closeProfile);
-    // After DOM mounts, size the viewer board so its top+bottom aligns with the move list.
-    if (STATE.gameViewer?.open) {
-      setTimeout(syncGameViewerBoardSizing, 0);
-      setTimeout(syncGameViewerBoardSizing, 80);
-    }
   }
 
   function renderOnlineListItem(s, { selectable }) {
@@ -1340,18 +1117,7 @@
       render();
       return;
     }
-    if (type === 'vcp_game_record') {
-      const g = msg?.game || null;
-      if (!g) {
-        STATE.gameViewer = { open: true, loading: false, error: 'Game not found', gameId: String(STATE.gameViewer?.gameId || ''), game: null, ply: 0 };
-        render();
-        return;
-      }
-      STATE.gameViewer = { open: true, loading: false, error: null, gameId: String(g.id || ''), game: g, ply: 0 };
-      // If the modal is already open, patch it to avoid "re-open" flicker.
-      if (!patchGameViewerUi()) render();
-      return;
-    }
+    // Game Viewer removed: ignore vcp_game_record.
     if (type === 'vcp_live_games_snapshot') {
       STATE.liveGames = Array.isArray(msg?.games) ? msg.games : [];
       // refresh only the live game area if present
@@ -1433,7 +1199,6 @@
     STATE.page = 'lobby';
     STATE.profileTargetId = null;
     STATE.profileHistory = { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
-    STATE.gameViewer = { open: false, loading: false, error: null, gameId: null, game: null, ply: 0 };
     const studentPlayer = STATE.role === 'student' ? getStudentPlayer() : null;
     if (studentPlayer && typeof studentPlayer === 'object') {
       STATE.me = {
@@ -1456,26 +1221,6 @@
       if (!document.hidden && (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN)) connectWs();
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (!STATE.gameViewer?.open) return;
-      if (e.key === 'Escape') {
-        closeGameViewer();
-        return;
-      }
-      if (e.key === 'ArrowLeft') {
-        STATE.gameViewer.ply = Math.max(0, Number(STATE.gameViewer.ply || 0) - 1);
-        if (!patchGameViewerUi()) render();
-        return;
-      }
-      if (e.key === 'ArrowRight') {
-        const boards = Array.isArray(STATE.gameViewer?.game?.timelineBoards) ? STATE.gameViewer.game.timelineBoards : null;
-        const sanMoves = Array.isArray(STATE.gameViewer?.game?.sanMoves) ? STATE.gameViewer.game.sanMoves : [];
-        const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
-        STATE.gameViewer.ply = Math.min(maxPly, Number(STATE.gameViewer.ply || 0) + 1);
-        if (!patchGameViewerUi()) render();
-        return;
-      }
-    });
   }
 
   window.initVChessPlatform = init;
