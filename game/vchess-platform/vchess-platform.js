@@ -282,8 +282,8 @@
       chessState: g.state || null,
       status: 'active'
     };
+    STATE.page = 'session';
     render();
-    bindSessionEvents();
     try {
       const key = `vcpLastSession:${String(STATE.role || '')}:${String(STATE.me?.id || '')}`;
       localStorage.setItem(key, sid);
@@ -1012,7 +1012,6 @@
       </div>
 
       ${renderStudentInviteModal()}
-      ${renderSessionScreen()}
     `;
 
     document.getElementById('vcpStudentRefreshBtn')?.addEventListener('click', () => {
@@ -1022,36 +1021,47 @@
     });
 
     bindStudentInviteModalEvents();
-    bindSessionEvents();
   }
 
-  function renderSessionScreen() {
-    if (!STATE.activeSession) return '';
+  function renderSessionPage() {
+    const root = getRoot();
+    if (!root) return;
+    if (!STATE.activeSession) {
+      STATE.page = 'lobby';
+      render();
+      return;
+    }
     const s = STATE.activeSession;
-    if (String(s.mode) !== 'chess') return '';
-    const cfg = s.config || {};
-    return `
-      <div class="vcp-modal-backdrop" id="vcpSessionBackdrop" role="presentation">
-        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Session">
-          <div class="vcp-modal-header">
-            <div class="vcp-modal-title">Session started</div>
-            <button id="vcpLeaveSessionBtnX" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+    if (String(s.mode) !== 'chess') {
+      STATE.page = 'lobby';
+      render();
+      return;
+    }
+
+    root.innerHTML = `
+      <div class="vcp-card">
+        <div class="vcp-row">
+          <div>
+            <div class="vcp-title">V.Chess Platform</div>
+            <div class="vcp-subtitle">Session</div>
           </div>
-          <div class="vcp-modal-body">
-            <div id="ncMount"></div>
+          <div class="vcp-btn-row" style="justify-content:flex-end;">
+            <button id="vcpSessionBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
           </div>
+        </div>
+        <div class="vcp-section">
+          <div id="ncMount"></div>
         </div>
       </div>
     `;
+
+    bindSessionEvents();
   }
 
   function bindSessionEvents() {
     if (!STATE.activeSession) return;
-    // Closing the modal should NOT end the game. User can reopen via "My game".
-    document.getElementById('vcpLeaveSessionBtnX')?.addEventListener('click', closeSessionView);
-    document.getElementById('vcpSessionBackdrop')?.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'vcpSessionBackdrop') closeSessionView();
-    });
+    // Back should NOT end the game. User can reopen via "My game".
+    document.getElementById('vcpSessionBackBtn')?.addEventListener('click', closeSessionView);
 
     // Mount Normal Chess UI
     try {
@@ -1083,6 +1093,7 @@
     STATE.ncSessionId = null;
     // Keep active session available for quick reopen via My game click
     STATE.activeSession = null;
+    STATE.page = 'lobby';
     render();
   }
 
@@ -1381,6 +1392,7 @@
         STATE.pendingInvite = null;
         setTeacherMessage('Session started.', 'success');
       }
+      STATE.page = 'session';
       render();
       return;
     }
@@ -1404,6 +1416,10 @@
   }
 
   function render() {
+    if (STATE.page === 'session') {
+      renderSessionPage();
+      return;
+    }
     if (STATE.page === 'profile') {
       renderProfileScreen();
       return;
