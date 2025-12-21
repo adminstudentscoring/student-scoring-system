@@ -20,6 +20,8 @@
     pendingInvite: null, // teacher-only: { inviteId, studentIds, config, createdAt, responses }
     ncApp: null,
     ncSessionId: null,
+    historyNcApp: null,
+    historyNcKey: null,
     liveGames: [], // org-wide spectator snapshots
     uiDelegatedBound: false
   };
@@ -196,22 +198,7 @@
     return `<div class="vcp-mini-board">${out.join('')}</div>`;
   }
 
-  function renderHistoryBoard(board) {
-    const b = Array.isArray(board) ? board : [];
-    const out = [];
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        const light = (r + c) % 2 === 0;
-        const p = (b[r] && b[r][c]) ? String(b[r][c]) : '';
-        out.push(`
-          <div class="vcp-hg-sq ${light ? 'light' : 'dark'}">
-            ${p ? `<img class="vcp-hg-piece" draggable="false" alt="${escapeHtml(p)}" src="${pieceImagePath(p)}">` : ''}
-          </div>
-        `);
-      }
-    }
-    return `<div class="vcp-hg-board" role="grid" aria-label="Chess board">${out.join('')}</div>`;
-  }
+  // Game history view reuses Normal Chess UI (same as session page).
 
   function renderLiveGames() {
     const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
@@ -406,6 +393,9 @@
   function openHistoryGame(gameId) {
     const gid = String(gameId || '');
     if (!gid) return;
+    try { STATE.historyNcApp?.destroy?.(); } catch {}
+    STATE.historyNcApp = null;
+    STATE.historyNcKey = null;
     STATE.page = 'historyGame';
     STATE.historyGame = { loading: true, error: null, gameId: gid, game: null };
     wsSend({ type: 'vcp_get_game_record', gameId: gid });
@@ -413,6 +403,9 @@
   }
 
   function closeHistoryGame() {
+    try { STATE.historyNcApp?.destroy?.(); } catch {}
+    STATE.historyNcApp = null;
+    STATE.historyNcKey = null;
     STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
     STATE.page = 'profile';
     render();
@@ -875,31 +868,13 @@
     const root = getRoot();
     if (!root) return;
     const hg = STATE.historyGame || { loading: false, error: null, gameId: null, game: null };
-    const g = hg.game;
-
-    let board = null;
-    let wClock = '--:--';
-    let bClock = '--:--';
-    if (g) {
-      const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
-      const lastPly = boards ? Math.max(0, boards.length - 1) : 0;
-      board = boards ? boards[lastPly] : (g?.state?.board || null);
-      const clocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[lastPly] : null;
-      if (clocks) {
-        wClock = formatMs(Number(clocks.wMs || 0));
-        bClock = formatMs(Number(clocks.bMs || 0));
-      }
-    }
-
-    const whiteName = String(g?.whiteName || 'White');
-    const blackName = String(g?.blackName || 'Black');
 
     root.innerHTML = `
       <div class="vcp-card">
         <div class="vcp-row">
           <div>
             <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Game</div>
+            <div class="vcp-subtitle">Session</div>
           </div>
           <div class="vcp-btn-row" style="justify-content:flex-end;">
             <button id="vcpHistoryBackBtn" class="btn btn-secondary" type="button">Back</button>
@@ -907,30 +882,16 @@
         </div>
 
         <div class="vcp-section">
-          ${hg.loading ? `<div class="vcp-muted">Loading game...</div>` : ''}
-          ${hg.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(hg.error))}</div>` : ''}
-          ${(!hg.loading && g) ? `
-            <div class="vcp-hg-layout">
-              <div class="vcp-hg-sidebar" aria-label="Clocks">
-                <div class="vcp-hg-timer vcp-hg-timer-black">
-                  <div class="vcp-hg-timer-name">${escapeHtml(blackName)}</div>
-                  <div class="vcp-hg-timer-clock">${escapeHtml(bClock)}</div>
-                </div>
-                <div class="vcp-hg-timer vcp-hg-timer-white">
-                  <div class="vcp-hg-timer-name">${escapeHtml(whiteName)}</div>
-                  <div class="vcp-hg-timer-clock">${escapeHtml(wClock)}</div>
-                </div>
-              </div>
-              <div class="vcp-hg-main">
-                ${board ? renderHistoryBoard(board) : `<div class="vcp-muted">Board not available.</div>`}
-              </div>
-            </div>
-          ` : ''}
+          <div id="ncHistoryMount">
+            ${hg.loading ? `<div class="vcp-muted">Loading...</div>` : ''}
+            ${hg.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(hg.error))}</div>` : ''}
+          </div>
         </div>
       </div>
     `;
 
     document.getElementById('vcpHistoryBackBtn')?.addEventListener('click', closeHistoryGame);
+    bindHistoryGameEvents();
   }
 
   function bindSessionEvents() {
@@ -959,6 +920,75 @@
         }
       }
     } catch {}
+  }
+
+  function buildHistoryChessSessionFromGameRecord(g) {
+    if (!g) return null;
+    const whiteId = String(g.whiteId || g?.config?.whiteStudentId || 'white');
+    const blackId = String(g.blackId || g?.config?.blackStudentId || 'black');
+    const cfg = g?.config && typeof g.config === 'object' ? g.config : {};
+    const minutes = Number(cfg.minutes || 3) || 3;
+    const incrementSec = Number(cfg.incrementSec || 0) || 0;
+
+    const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
+    const lastPly = boards ? Math.max(0, boards.length - 1) : 0;
+    const board = boards ? boards[lastPly] : (g?.state?.board || null);
+    const tClocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[lastPly] : null;
+    const wMs = tClocks ? Number(tClocks.wMs || 0) : Number(g?.state?.clocks?.wMs ?? 0);
+    const bMs = tClocks ? Number(tClocks.bMs || 0) : Number(g?.state?.clocks?.bMs ?? 0);
+
+    const chessState = {
+      ...(g?.state && typeof g.state === 'object' ? g.state : {}),
+      board: board || (g?.state?.board || null),
+      clocks: { wMs, bMs },
+      // Freeze UI: history is read-only
+      gameOver: true,
+      turnStartTs: Date.now()
+    };
+
+    return {
+      id: `history:${String(g.id || '')}`,
+      mode: 'chess',
+      status: 'ended',
+      config: { minutes, incrementSec, whiteStudentId: whiteId, blackStudentId: blackId },
+      chessState
+    };
+  }
+
+  function bindHistoryGameEvents() {
+    if (STATE.page !== 'historyGame') return;
+    const mount = document.getElementById('ncHistoryMount');
+    if (!mount) return;
+    const g = STATE.historyGame?.game || null;
+    if (!g) return;
+    if (!window.NormalChess?.mountNormalChess) return;
+
+    const session = buildHistoryChessSessionFromGameRecord(g);
+    if (!session) return;
+
+    const key = String(session.id || '');
+    if (!STATE.historyNcApp || String(STATE.historyNcKey) !== key) {
+      try { STATE.historyNcApp?.destroy?.(); } catch {}
+      STATE.historyNcKey = key;
+      const sendNoop = () => {};
+      const whiteId = String(session?.config?.whiteStudentId || '');
+      const blackId = String(session?.config?.blackStudentId || '');
+      const whiteName = String(g.whiteName || 'White');
+      const blackName = String(g.blackName || 'Black');
+      STATE.historyNcApp = window.NormalChess.mountNormalChess({
+        rootEl: mount,
+        send: sendNoop,
+        getSession: () => session,
+        getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' }),
+        getPlayerLabelById: (id) => {
+          const sid = String(id || '');
+          if (sid && sid === whiteId) return whiteName;
+          if (sid && sid === blackId) return blackName;
+          return '';
+        }
+      });
+    }
+    try { STATE.historyNcApp?.applyState?.(session.chessState); } catch {}
   }
 
   function closeSessionView() {
