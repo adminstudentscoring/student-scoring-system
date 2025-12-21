@@ -416,12 +416,15 @@
     const getSession = opts?.getSession || (() => null);
     const getIdentity = opts?.getIdentity || (() => ({ role: 'student', id: '' }));
     const getPlayerLabelById = opts?.getPlayerLabelById || ((id) => String(id || ''));
+    const isViewer = !!opts?.viewer;
+    const getViewerData = opts?.getViewerData || (() => null);
 
     const UI = {
       selected: null,
       moves: [],
       lastState: null,
-      localClockBase: null // (reserved)
+      localClockBase: null, // (reserved)
+      viewerPly: null
     };
     let pendingPromotion = null; // { from, to, isDrag }
 
@@ -529,15 +532,76 @@
       return null;
     }
 
+    function clampInt(n, lo, hi) {
+      const x = Number.isFinite(Number(n)) ? Math.floor(Number(n)) : lo;
+      return Math.max(lo, Math.min(hi, x));
+    }
+
+    function buildMovesTableHtml(sanMoves, activePly, lastPly) {
+      const moves = Array.isArray(sanMoves) ? sanMoves.map(String) : [];
+      const totalPlies = moves.length;
+      const lastMovePly = clampInt(activePly, 0, Math.max(0, lastPly)) - 1; // -1 means start position
+      const activeIndex = lastMovePly; // 0-based move index in sanMoves
+      const rows = [];
+      const totalMoves = Math.ceil(totalPlies / 2);
+      for (let m = 1; m <= totalMoves; m++) {
+        const wi = (m - 1) * 2;
+        const bi = wi + 1;
+        const w = moves[wi] || '';
+        const b = moves[bi] || '';
+        const wActive = activeIndex === wi;
+        const bActive = activeIndex === bi;
+        // Clicking a cell jumps to the ply AFTER that move is applied (ply = index+1)
+        rows.push(`
+          <div class="nc-move-row" role="row">
+            <div class="nc-move-no" role="cell">${m}.</div>
+            <button class="nc-move-cell ${wActive ? 'active' : ''}" type="button" data-ply="${wi + 1}" ${w ? '' : 'disabled'}>${escapeHtml(w || '')}</button>
+            <button class="nc-move-cell ${bActive ? 'active' : ''}" type="button" data-ply="${bi + 1}" ${b ? '' : 'disabled'}>${escapeHtml(b || '')}</button>
+          </div>
+        `);
+      }
+      if (!rows.length) {
+        return `<div class="nc-move-empty">No moves.</div>`;
+      }
+      return `
+        <div class="nc-move-table" role="table" aria-label="Move list">
+          <div class="nc-move-head" role="rowgroup">
+            <div class="nc-move-row head" role="row">
+              <div class="nc-move-no" role="columnheader">Move</div>
+              <div class="nc-move-col" role="columnheader">White</div>
+              <div class="nc-move-col" role="columnheader">Black</div>
+            </div>
+          </div>
+          <div class="nc-move-body" role="rowgroup">
+            ${rows.join('')}
+          </div>
+        </div>
+      `;
+    }
+
     function render(state) {
       UI.lastState = state;
       const session = getSession();
       if (!session) return;
 
-      const board = state?.board || initialBoard();
+      const role = String(getIdentity()?.role || '');
+      const viewerData = isViewer ? (getViewerData?.() || null) : null;
+      const timelineBoards = Array.isArray(viewerData?.timelineBoards) ? viewerData.timelineBoards : null;
+      const timelineClocks = Array.isArray(viewerData?.timelineClocks) ? viewerData.timelineClocks : null;
+      const sanMoves = Array.isArray(viewerData?.sanMoves) ? viewerData.sanMoves : [];
+
+      const viewerLastPly = timelineBoards && timelineBoards.length ? Math.max(0, timelineBoards.length - 1) : 0;
+      if (isViewer && timelineBoards && timelineBoards.length && (UI.viewerPly === null || UI.viewerPly === undefined)) {
+        UI.viewerPly = viewerLastPly; // default: last position
+      }
+      const viewerPly = isViewer && timelineBoards && timelineBoards.length ? clampInt(UI.viewerPly, 0, viewerLastPly) : 0;
+
+      // For viewer: override board & clocks by selected ply; freeze game state.
+      const board = (isViewer && timelineBoards && timelineBoards.length)
+        ? (timelineBoards[viewerPly] || initialBoard())
+        : (state?.board || initialBoard());
       const turn = String(state?.turn || 'w');
       const myColor = myColorFromSession(session);
-      const role = String(getIdentity()?.role || '');
       const canMove = role === 'student' && myColor && myColor === turn && !state?.gameOver;
       const flip = role === 'student' && myColor === 'b';
       const castling = String(state?.castling || 'KQkq');
@@ -558,6 +622,13 @@
       if (!state?.gameOver) {
         if (turn === 'w') wMs = Math.max(0, wMs - elapsed);
         else bMs = Math.max(0, bMs - elapsed);
+      }
+      if (isViewer && timelineBoards && timelineBoards.length) {
+        const c = timelineClocks && timelineClocks[viewerPly] ? timelineClocks[viewerPly] : null;
+        if (c) {
+          wMs = Number(c.wMs || 0);
+          bMs = Number(c.bMs || 0);
+        }
       }
 
       const topColor = myColor === 'b' ? 'w' : 'b';
@@ -602,7 +673,7 @@
 
       rootEl.innerHTML = `
         <div class="nc-root">
-          <div class="nc-layout">
+          <div class="nc-layout ${isViewer ? 'nc-viewer' : ''}">
             <div class="nc-timers">
               <div class="nc-timer ${activeTop ? 'active' : ''}">
                 <div class="nc-timer-label"><span>${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
@@ -625,6 +696,19 @@
                 ${squaresHtml.join('')}
               </div>
             </div>
+
+            ${isViewer ? `
+              <div class="nc-viewer-panel" aria-label="Game viewer panel">
+                <div class="nc-viewer-moves" id="ncMoveList">
+                  ${buildMovesTableHtml(sanMoves, viewerPly, viewerLastPly)}
+                </div>
+                <div class="nc-viewer-nav" aria-label="Navigation">
+                  <button class="btn btn-secondary nc-nav-btn" type="button" id="ncPrevBtn" ${viewerPly <= 0 ? 'disabled' : ''}>←</button>
+                  <div class="nc-nav-label">${escapeHtml(String(viewerPly))} / ${escapeHtml(String(viewerLastPly))}</div>
+                  <button class="btn btn-secondary nc-nav-btn" type="button" id="ncNextBtn" ${viewerPly >= viewerLastPly ? 'disabled' : ''}>→</button>
+                </div>
+              </div>
+            ` : ''}
           </div>
 
           ${state?.gameOver ? `
@@ -724,6 +808,24 @@
         const sessionId = String(session?.id || '');
         send({ type: 'vcp_chess_resign', sessionId });
       });
+
+      if (isViewer && timelineBoards && timelineBoards.length) {
+        rootEl.querySelector('#ncPrevBtn')?.addEventListener('click', () => {
+          UI.viewerPly = clampInt(Number(UI.viewerPly || 0) - 1, 0, viewerLastPly);
+          render(UI.lastState);
+        });
+        rootEl.querySelector('#ncNextBtn')?.addEventListener('click', () => {
+          UI.viewerPly = clampInt(Number(UI.viewerPly || 0) + 1, 0, viewerLastPly);
+          render(UI.lastState);
+        });
+        rootEl.querySelectorAll('.nc-move-cell[data-ply]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const ply = Number(btn.getAttribute('data-ply') || 0);
+            UI.viewerPly = clampInt(ply, 0, viewerLastPly);
+            render(UI.lastState);
+          });
+        });
+      }
 
       rootEl.querySelectorAll('.nc-square[data-coord]').forEach((el) => {
         el.addEventListener('click', () => {

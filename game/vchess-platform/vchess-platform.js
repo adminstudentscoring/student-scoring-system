@@ -985,6 +985,15 @@
           if (sid && sid === whiteId) return whiteName;
           if (sid && sid === blackId) return blackName;
           return '';
+        },
+        viewer: true,
+        getViewerData: () => {
+          const gg = STATE.historyGame?.game || null;
+          return {
+            sanMoves: Array.isArray(gg?.sanMoves) ? gg.sanMoves : [],
+            timelineBoards: Array.isArray(gg?.timelineBoards) ? gg.timelineBoards : [],
+            timelineClocks: Array.isArray(gg?.timelineClocks) ? gg.timelineClocks : []
+          };
         }
       });
     }

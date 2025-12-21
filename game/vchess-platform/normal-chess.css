@@ -11,8 +11,27 @@
   align-items: stretch;
 }
 
+.nc-layout.nc-viewer {
+  grid-template-columns: 96px min(560px, 72vh, 100%) minmax(220px, 1fr);
+  align-items: stretch;
+}
+
+.nc-layout.nc-viewer > * {
+  min-height: 0;
+}
+
+.nc-layout.nc-viewer .nc-board {
+  width: 100%;
+}
+
 @media (max-width: 520px) {
   .nc-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .nc-layout.nc-viewer {
     grid-template-columns: 1fr;
   }
 }
@@ -98,6 +117,114 @@
   grid-template-rows: repeat(8, 1fr);
   background: #ffffff;
   margin: 0;
+}
+
+.nc-viewer-panel {
+  height: 100%;
+  min-height: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.nc-viewer-moves {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+}
+
+.nc-viewer-nav {
+  flex: 0 0 50px;
+  height: 50px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.nc-nav-btn {
+  width: 52px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 950;
+}
+
+.nc-nav-label {
+  font-weight: 900;
+  color: #6b7280;
+  font-size: 12px;
+  text-align: center;
+  flex: 1 1 auto;
+}
+
+.nc-move-table {
+  display: grid;
+  gap: 6px;
+}
+
+.nc-move-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.nc-move-row.head {
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 6px;
+}
+
+.nc-move-no {
+  font-weight: 900;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.nc-move-col {
+  font-weight: 900;
+  color: #111827;
+  font-size: 12px;
+}
+
+.nc-move-cell {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #ffffff;
+  cursor: pointer;
+  font-weight: 850;
+  color: #111827;
+}
+
+.nc-move-cell:hover {
+  background: #f9fafb;
+}
+
+.nc-move-cell:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nc-move-cell.active {
+  border-color: rgba(16, 185, 129, 0.65);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+.nc-move-empty {
+  color: #6b7280;
+  font-weight: 800;
+  font-size: 13px;
 }
 
 .nc-square {
