@@ -205,13 +205,13 @@
 
 .vcp-game-body {
   display: grid;
-  grid-template-columns: 190px var(--vcp-viewer-board-px, 360px) minmax(360px, 1fr);
+  grid-template-columns: var(--vcp-viewer-timer-col, 95px) var(--vcp-viewer-board-px, 360px) minmax(360px, 1fr);
   gap: 12px;
   align-items: stretch;
 }
 
 .vcp-game-body-compact {
-  grid-template-columns: 190px var(--vcp-viewer-board-px, 360px);
+  grid-template-columns: var(--vcp-viewer-timer-col, 95px) var(--vcp-viewer-board-px, 360px);
   justify-content: center;
 }
 
@@ -259,10 +259,12 @@
 
 .vcp-gameviewer-modal {
   width: min(1240px, 96vw);
+  max-height: 92vh;
 }
 
 .vcp-gameviewer-backdrop .vcp-modal-body {
-  max-height: min(80vh, 820px);
+  /* bigger viewer (approx 2x previous cap) */
+  max-height: 92vh;
   overflow: auto;
 }
 
