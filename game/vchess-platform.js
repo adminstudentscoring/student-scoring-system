@@ -341,7 +341,7 @@
         if (!gv?.open) return;
         const next = Math.max(0, Number(gv.ply || 0) - 1);
         STATE.gameViewer.ply = next;
-        render();
+        if (!patchGameViewerUi()) render();
         return;
       }
 
@@ -353,7 +353,7 @@
         const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
         const next = Math.min(maxPly, Number(gv.ply || 0) + 1);
         STATE.gameViewer.ply = next;
-        render();
+        if (!patchGameViewerUi()) render();
         return;
       }
 
@@ -428,6 +428,63 @@
       const boardAvailable = Math.max(180, Math.min(maxByWidth, maxByHeight, 720));
       backdrop.style.setProperty('--vcp-viewer-board-px', `${boardAvailable}px`);
     } catch {}
+  }
+
+  function patchGameViewerUi() {
+    try {
+      const backdrop = document.getElementById('vcpGameViewerBackdrop');
+      if (!backdrop) return false;
+      const gv = STATE.gameViewer;
+      if (!gv?.open || gv.loading || !gv.game) return false;
+
+      const g = gv.game;
+      const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
+      const sanMoves = Array.isArray(g?.sanMoves) ? g.sanMoves : [];
+      const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
+      const ply = Math.max(0, Math.min(Number(gv.ply || 0) || 0, maxPly));
+      const boardToShow = boards ? boards[ply] : g?.state?.board;
+
+      const clocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[ply] : null;
+      const wClock = clocks ? formatMs(Number(clocks.wMs || 0)) : '--:--';
+      const bClock = clocks ? formatMs(Number(clocks.bMs || 0)) : '--:--';
+
+      // Update clocks (order already rendered by CSS + template)
+      const clockEls = backdrop.querySelectorAll('.vcp-viewer-timer-clock');
+      if (clockEls.length >= 2) {
+        // We can't know order without re-evaluating; infer by row class.
+        backdrop.querySelectorAll('.vcp-viewer-timer-row').forEach((row) => {
+          const cEl = row.querySelector('.vcp-viewer-timer-clock');
+          if (!cEl) return;
+          if (row.classList.contains('is-white')) cEl.textContent = wClock;
+          if (row.classList.contains('is-black')) cEl.textContent = bClock;
+        });
+      }
+
+      // Update board squares without rebuilding modal
+      const curMini = backdrop.querySelector('.vcp-mini-board');
+      if (curMini && boardToShow) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = renderMiniBoard(boardToShow);
+        const nextMini = tmp.querySelector('.vcp-mini-board');
+        if (nextMini) {
+          curMini.replaceChildren(...Array.from(nextMini.childNodes));
+        }
+      }
+
+      // Update nav label + disabled states
+      const label = backdrop.querySelector('[data-vcp-viewer-ply-label]');
+      if (label) label.textContent = `${ply}/${maxPly}`;
+      const prevBtn = backdrop.querySelector('[data-vcp-game-prev]');
+      const nextBtn = backdrop.querySelector('[data-vcp-game-next]');
+      if (prevBtn) prevBtn.toggleAttribute('disabled', ply <= 0);
+      if (nextBtn) nextBtn.toggleAttribute('disabled', ply >= maxPly);
+
+      // Keep sizing in sync (no re-render)
+      syncGameViewerBoardSizing();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function getProfileUserById(id) {
@@ -558,7 +615,7 @@
                       ${renderMiniBoard(boardToShow)}
                       <div class="vcp-board-nav" aria-label="Move navigation">
                         <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-prev="1" ${ply <= 0 ? 'disabled' : ''} aria-label="Previous move">◀</button>
-                        <div class="vcp-muted" style="font-weight:900;">${ply}/${maxPly}</div>
+                        <div class="vcp-muted" data-vcp-viewer-ply-label="1" style="font-weight:900;">${ply}/${maxPly}</div>
                         <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-next="1" ${ply >= maxPly ? 'disabled' : ''} aria-label="Next move">▶</button>
                       </div>
                     </div>
@@ -1280,7 +1337,8 @@
         return;
       }
       STATE.gameViewer = { open: true, loading: false, error: null, gameId: String(g.id || ''), game: g, ply: 0 };
-      render();
+      // If the modal is already open, patch it to avoid "re-open" flicker.
+      if (!patchGameViewerUi()) render();
       return;
     }
     if (type === 'vcp_live_games_snapshot') {
@@ -1390,7 +1448,7 @@
       }
       if (e.key === 'ArrowLeft') {
         STATE.gameViewer.ply = Math.max(0, Number(STATE.gameViewer.ply || 0) - 1);
-        render();
+        if (!patchGameViewerUi()) render();
         return;
       }
       if (e.key === 'ArrowRight') {
@@ -1398,7 +1456,7 @@
         const sanMoves = Array.isArray(STATE.gameViewer?.game?.sanMoves) ? STATE.gameViewer.game.sanMoves : [];
         const maxPly = boards ? Math.max(0, boards.length - 1) : (sanMoves.length || 0);
         STATE.gameViewer.ply = Math.min(maxPly, Number(STATE.gameViewer.ply || 0) + 1);
-        render();
+        if (!patchGameViewerUi()) render();
         return;
       }
     });
