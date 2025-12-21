@@ -12,10 +12,8 @@
 .rq-wrapper {
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-        "config board"
-        "log    board";
+    grid-template-rows: 1fr;
+    grid-template-areas: "config board";
     gap: 20px;
     align-items: start;
 }
@@ -1015,10 +1013,9 @@
 @media (max-width: 1180px) {
     .rq-wrapper {
         grid-template-columns: 1fr;
-        grid-template-rows: auto auto 1fr;
+        grid-template-rows: auto 1fr;
         grid-template-areas:
             "config"
-            "log"
             "board";
     }
 }

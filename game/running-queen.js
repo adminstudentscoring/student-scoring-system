@@ -275,15 +275,6 @@
             </div>
           </div>
         </div>
-        <div class="rq-log-panel">
-          <div class="rq-log-header">
-            <h3>Action Log</h3>
-            <div class="rq-log-actions">
-              <button type="button" id="rqClearLogButton" class="rq-secondary">Clear Log</button>
-            </div>
-          </div>
-          <div id="rqLogList" class="rq-log-list" aria-live="polite"></div>
-        </div>
       </div>
       <div id="rqPopupContainer" class="rq-popup-container" aria-live="assertive"></div>
       <div id="rqLeaderboardOverlay" class="rq-modal-overlay hidden" aria-hidden="true">
