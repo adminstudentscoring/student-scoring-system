@@ -522,14 +522,16 @@
       const lastMoveIdx = ply > 0 ? (ply - 1) : -1;
       const targetId = String(STATE.profileTargetId || '');
       const isTargetWhite = targetId && targetId === String(g?.whiteId || '');
+      const safeWhiteName = String(g?.whiteName || 'White');
+      const safeBlackName = String(g?.blackName || 'Black');
       const timers = isTargetWhite
         ? [
-            { color: 'black', name: String(g.blackName || 'Black'), clock: bClock || '--:--' },
-            { color: 'white', name: String(g.whiteName || 'White'), clock: wClock || '--:--' }
+            { color: 'black', name: safeBlackName, clock: bClock || '--:--' },
+            { color: 'white', name: safeWhiteName, clock: wClock || '--:--' }
           ]
         : [
-            { color: 'white', name: String(g.whiteName || 'White'), clock: wClock || '--:--' },
-            { color: 'black', name: String(g.blackName || 'Black'), clock: bClock || '--:--' }
+            { color: 'white', name: safeWhiteName, clock: wClock || '--:--' },
+            { color: 'black', name: safeBlackName, clock: bClock || '--:--' }
           ];
 
       return `
