@@ -157,7 +157,7 @@
       t === 'q' ? 'Queen' :
       t === 'k' ? 'King' : '';
     if (!name) return '';
-    return `/game/pieces/${color}_${name}.png`;
+    return `/game/vchess-platform/pieces/${color}_${name}.png`;
   }
 
   function formatMs(ms) {

@@ -1562,7 +1562,7 @@ async function startVChessPlatform() {
         const link = document.createElement('link');
         link.id = 'vChessPlatformCss';
         link.rel = 'stylesheet';
-        link.href = '/game/vchess-platform.css';
+        link.href = '/game/vchess-platform/vchess-platform.css';
         document.head.appendChild(link);
     }
 
@@ -1575,17 +1575,23 @@ async function startVChessPlatform() {
     };
 
     if (!window.vChessPlatformLoaded) {
-        const script = document.createElement('script');
-        script.src = '/game/vchess-platform.js';
-        script.onload = () => {
-            window.vChessPlatformLoaded = true;
-            ensureScriptLoaded();
-        };
-        script.onerror = (error) => {
-            console.error('Error loading vchess-platform.js:', error);
-            showNotification('Failed to load V.Chess Platform scripts', 'error');
-        };
-        document.body.appendChild(script);
+        const loadScript = (src) => new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = () => resolve();
+            s.onerror = (e) => reject(e);
+            document.body.appendChild(s);
+        });
+        loadScript('/game/vchess-platform/normal-chess.js')
+            .then(() => loadScript('/game/vchess-platform/vchess-platform.js'))
+            .then(() => {
+                window.vChessPlatformLoaded = true;
+                ensureScriptLoaded();
+            })
+            .catch((error) => {
+                console.error('Error loading V.Chess Platform scripts:', error);
+                showNotification('Failed to load V.Chess Platform scripts', 'error');
+            });
     } else {
         ensureScriptLoaded();
     }
