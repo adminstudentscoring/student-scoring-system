@@ -1297,9 +1297,9 @@
       }
       document.body.appendChild(ghost);
 
-      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originEl: el };
+      dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originEl: slotEl };
       // Hide the origin piece while dragging (iPad flicker + avoids double-vision).
-      el.classList.add('hm-drag-origin');
+      slotEl.classList.add('hm-drag-origin');
       document.body.classList.add('hm-dragging');
       state.selectedPieceSlot = slot;
 
