@@ -419,8 +419,8 @@
       if (!movesPanel || !boardCol || !nav || !mini) return;
 
       const movesRect = movesPanel.getBoundingClientRect();
-      const navRect = nav.getBoundingClientRect();
-      const boardAvailable = Math.max(180, Math.floor(movesRect.height - navRect.height - 10));
+      // Align the BOARD square (not including the nav buttons) with the move list height.
+      const boardAvailable = Math.max(180, Math.floor(movesRect.height));
       backdrop.style.setProperty('--vcp-viewer-board-px', `${boardAvailable}px`);
     } catch {}
   }
