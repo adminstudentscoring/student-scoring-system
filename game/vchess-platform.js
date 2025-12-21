@@ -412,24 +412,20 @@
     try {
       const backdrop = document.getElementById('vcpGameViewerBackdrop');
       if (!backdrop) return;
-      const movesPanel = backdrop.querySelector('.vcp-game-moves');
       const boardCol = backdrop.querySelector('.vcp-game-board');
       const nav = backdrop.querySelector('.vcp-board-nav');
       const mini = backdrop.querySelector('.vcp-mini-board');
       const modal = backdrop.querySelector('.vcp-gameviewer-modal');
-      if (!movesPanel || !boardCol || !nav || !mini) return;
+      const body = modal?.querySelector('.vcp-modal-body');
+      if (!boardCol || !nav || !mini) return;
 
-      const movesRect = movesPanel.getBoundingClientRect();
-      // Align the BOARD square (not including the nav buttons) with the move list height.
-      // Also ensure the square fits horizontally in the modal.
-      const targetH = Math.floor(movesRect.height);
-      const modalW = modal ? modal.getBoundingClientRect().width : window.innerWidth;
+      const bodyH = body ? Math.floor(body.getBoundingClientRect().height) : Math.floor(window.innerHeight * 0.72);
+      const modalW = modal ? Math.floor(modal.getBoundingClientRect().width) : window.innerWidth;
       const timerW = 190;
-      const gaps = 12 * 2; // grid gap*2 (approx)
-      const minMovesW = 360;
-      const maxByWidth = Math.floor(Math.max(180, modalW - timerW - gaps - minMovesW));
-      const maxByViewport = Math.floor(Math.max(180, window.innerHeight * 0.62));
-      const boardAvailable = Math.max(180, Math.min(targetH, maxByWidth, maxByViewport, 600));
+      const gaps = 12; // grid gap (approx)
+      const maxByWidth = Math.max(180, modalW - timerW - gaps - 24);
+      const maxByHeight = Math.max(180, bodyH - 24); // padding safety
+      const boardAvailable = Math.max(180, Math.min(maxByWidth, maxByHeight, 720));
       backdrop.style.setProperty('--vcp-viewer-board-px', `${boardAvailable}px`);
     } catch {}
   }
@@ -547,7 +543,7 @@
               ${gv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(gv.error))}</div>` : ''}
               ${(!gv.loading && g) ? `
                 <div class="vcp-game-view">
-                  <div class="vcp-game-body">
+                  <div class="vcp-game-body vcp-game-body-compact">
                     <div class="vcp-viewer-timers vcp-viewer-timers-sidebar" aria-label="Viewer clocks">
                       ${timers.map((t) => `
                         <div class="vcp-viewer-timer-row ${t.color === 'black' ? 'is-black' : 'is-white'}">
@@ -562,58 +558,6 @@
                         <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-prev="1" ${ply <= 0 ? 'disabled' : ''} aria-label="Previous move">◀</button>
                         <div class="vcp-muted" style="font-weight:900;">${ply}/${maxPly}</div>
                         <button class="btn btn-secondary vcp-nav-btn" type="button" data-vcp-game-next="1" ${ply >= maxPly ? 'disabled' : ''} aria-label="Next move">▶</button>
-                      </div>
-                    </div>
-                    <div class="vcp-game-moves">
-                      <div class="vcp-profile-section-title" style="margin-top:12px;">Moves</div>
-                      ${(() => {
-                        const moves = Array.isArray(g?.moves) ? g.moves : [];
-                        const rows = Math.max(1, Math.ceil(moves.length / 2));
-                        if (!moves.length) return `<div class="vcp-muted">No moves recorded.</div>`;
-                        return `
-                          <div class="vcp-moves-table-wrap">
-                            <table class="vcp-moves-table" aria-label="Move list">
-                              <thead>
-                                <tr>
-                                  <th>Move</th>
-                                  <th>White</th>
-                                  <th>Black</th>
-                                  <th>Time</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                ${Array.from({ length: rows }, (_, i) => {
-                                  const moveNo = i + 1;
-                                  const w = moves[i * 2] || null;
-                                  const b = moves[i * 2 + 1] || null;
-                                  const wSan = w?.san ? String(w.san) : '';
-                                  const bSan = b?.san ? String(b.san) : '';
-                                  const wSpent = Number(w?.spentMs ?? 0) || 0;
-                                  const bSpent = Number(b?.spentMs ?? 0) || 0;
-                                  const wActive = (lastMoveIdx === (i * 2)) ? 'active' : '';
-                                  const bActive = (lastMoveIdx === (i * 2 + 1)) ? 'active' : '';
-                                  return `
-                                    <tr>
-                                      <td class="vcp-move-no">${moveNo}.</td>
-                                      <td class="vcp-move-san ${wActive}">${escapeHtml(wSan || '-')}</td>
-                                      <td class="vcp-move-san ${bActive}">${escapeHtml(bSan || '-')}</td>
-                                      <td class="vcp-move-time">
-                                        <div class="vcp-time-stack">
-                                          <div class="vcp-time-chip vcp-time-w">${escapeHtml(formatSpent(wSpent))}<span class="vcp-time-side">w</span></div>
-                                          <div class="vcp-time-chip vcp-time-b">${escapeHtml(formatSpent(bSpent))}<span class="vcp-time-side">b</span></div>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  `;
-                                }).join('')}
-                              </tbody>
-                            </table>
-                          </div>
-                        `;
-                      })()}
-
-                      <div class="vcp-moves-actions">
-                        <button class="btn btn-secondary vcp-copy-pgn-btn" type="button" data-vcp-copy-pgn="1" ${pgn ? '' : 'disabled'}>Copy PGN</button>
                       </div>
                     </div>
                   </div>

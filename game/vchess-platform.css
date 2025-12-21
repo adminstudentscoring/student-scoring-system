@@ -210,8 +210,16 @@
   align-items: stretch;
 }
 
+.vcp-game-body-compact {
+  grid-template-columns: 190px var(--vcp-viewer-board-px, 360px);
+  justify-content: center;
+}
+
 @media (max-width: 900px) {
   .vcp-game-body {
+    grid-template-columns: 1fr;
+  }
+  .vcp-game-body-compact {
     grid-template-columns: 1fr;
   }
 }
