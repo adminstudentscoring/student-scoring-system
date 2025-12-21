@@ -205,7 +205,7 @@
 
 .vcp-game-body {
   display: grid;
-  grid-template-columns: 220px minmax(220px, 320px) 1fr;
+  grid-template-columns: 190px var(--vcp-viewer-board-px, 360px) minmax(360px, 1fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -250,7 +250,7 @@
 }
 
 .vcp-gameviewer-modal {
-  width: min(980px, 100%);
+  width: min(1240px, 96vw);
 }
 
 .vcp-gameviewer-backdrop .vcp-modal-body {
@@ -299,6 +299,10 @@
 
 .vcp-viewer-timers-sidebar {
   align-self: start;
+  height: var(--vcp-viewer-board-px, 360px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .vcp-viewer-timer-row {
@@ -349,11 +353,12 @@
 .vcp-game-board {
   display: flex;
   flex-direction: column;
+  width: var(--vcp-viewer-board-px, 360px);
 }
 
 .vcp-game-board .vcp-mini-board {
-  width: min(var(--vcp-viewer-board-px, 320px), 100%);
-  height: min(var(--vcp-viewer-board-px, 320px), 100%);
+  width: var(--vcp-viewer-board-px, 360px);
+  height: var(--vcp-viewer-board-px, 360px);
   aspect-ratio: 1 / 1;
   max-width: 100%;
   margin: 0 auto;

@@ -416,11 +416,20 @@
       const boardCol = backdrop.querySelector('.vcp-game-board');
       const nav = backdrop.querySelector('.vcp-board-nav');
       const mini = backdrop.querySelector('.vcp-mini-board');
+      const modal = backdrop.querySelector('.vcp-gameviewer-modal');
       if (!movesPanel || !boardCol || !nav || !mini) return;
 
       const movesRect = movesPanel.getBoundingClientRect();
       // Align the BOARD square (not including the nav buttons) with the move list height.
-      const boardAvailable = Math.max(180, Math.floor(movesRect.height));
+      // Also ensure the square fits horizontally in the modal.
+      const targetH = Math.floor(movesRect.height);
+      const modalW = modal ? modal.getBoundingClientRect().width : window.innerWidth;
+      const timerW = 190;
+      const gaps = 12 * 2; // grid gap*2 (approx)
+      const minMovesW = 360;
+      const maxByWidth = Math.floor(Math.max(180, modalW - timerW - gaps - minMovesW));
+      const maxByViewport = Math.floor(Math.max(180, window.innerHeight * 0.62));
+      const boardAvailable = Math.max(180, Math.min(targetH, maxByWidth, maxByViewport, 600));
       backdrop.style.setProperty('--vcp-viewer-board-px', `${boardAvailable}px`);
     } catch {}
   }
