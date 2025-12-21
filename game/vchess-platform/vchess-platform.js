@@ -8,6 +8,7 @@
     page: 'lobby', // 'lobby' | 'profile'
     profileTargetId: null, // userId
     profileHistory: { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] },
+    historyGame: { loading: false, error: null, gameId: null, game: null },
     // Teacher view
     students: [], // [{id,name,studentId,status,inGame}]
     selected: new Set(),
@@ -195,6 +196,23 @@
     return `<div class="vcp-mini-board">${out.join('')}</div>`;
   }
 
+  function renderHistoryBoard(board) {
+    const b = Array.isArray(board) ? board : [];
+    const out = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const light = (r + c) % 2 === 0;
+        const p = (b[r] && b[r][c]) ? String(b[r][c]) : '';
+        out.push(`
+          <div class="vcp-hg-sq ${light ? 'light' : 'dark'}">
+            ${p ? `<img class="vcp-hg-piece" draggable="false" alt="${escapeHtml(p)}" src="${pieceImagePath(p)}">` : ''}
+          </div>
+        `);
+      }
+    }
+    return `<div class="vcp-hg-board" role="grid" aria-label="Chess board">${out.join('')}</div>`;
+  }
+
   function renderLiveGames() {
     const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
     if (!games.length) {
@@ -317,9 +335,12 @@
         return;
       }
 
-      // Game Viewer removed: clicking a history row is temporarily disabled.
       const row = target?.closest?.('[data-vcp-game-id]');
-      if (row) return;
+      if (row) {
+        const gid = String(row.getAttribute('data-vcp-game-id') || '');
+        if (gid) openHistoryGame(gid);
+        return;
+      }
 
       const el = target?.closest?.('[data-my-session]');
       if (!el) return;
@@ -379,6 +400,21 @@
     STATE.page = 'lobby';
     STATE.profileTargetId = null;
     STATE.profileHistory = { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
+    render();
+  }
+
+  function openHistoryGame(gameId) {
+    const gid = String(gameId || '');
+    if (!gid) return;
+    STATE.page = 'historyGame';
+    STATE.historyGame = { loading: true, error: null, gameId: gid, game: null };
+    wsSend({ type: 'vcp_get_game_record', gameId: gid });
+    render();
+  }
+
+  function closeHistoryGame() {
+    STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
+    STATE.page = 'profile';
     render();
   }
 
@@ -835,6 +871,68 @@
     bindSessionEvents();
   }
 
+  function renderHistoryGamePage() {
+    const root = getRoot();
+    if (!root) return;
+    const hg = STATE.historyGame || { loading: false, error: null, gameId: null, game: null };
+    const g = hg.game;
+
+    let board = null;
+    let wClock = '--:--';
+    let bClock = '--:--';
+    if (g) {
+      const boards = Array.isArray(g?.timelineBoards) ? g.timelineBoards : null;
+      const lastPly = boards ? Math.max(0, boards.length - 1) : 0;
+      board = boards ? boards[lastPly] : (g?.state?.board || null);
+      const clocks = Array.isArray(g?.timelineClocks) ? g.timelineClocks[lastPly] : null;
+      if (clocks) {
+        wClock = formatMs(Number(clocks.wMs || 0));
+        bClock = formatMs(Number(clocks.bMs || 0));
+      }
+    }
+
+    const whiteName = String(g?.whiteName || 'White');
+    const blackName = String(g?.blackName || 'Black');
+
+    root.innerHTML = `
+      <div class="vcp-card">
+        <div class="vcp-row">
+          <div>
+            <div class="vcp-title">V.Chess Platform</div>
+            <div class="vcp-subtitle">Game</div>
+          </div>
+          <div class="vcp-btn-row" style="justify-content:flex-end;">
+            <button id="vcpHistoryBackBtn" class="btn btn-secondary" type="button">Back</button>
+          </div>
+        </div>
+
+        <div class="vcp-section">
+          ${hg.loading ? `<div class="vcp-muted">Loading game...</div>` : ''}
+          ${hg.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(hg.error))}</div>` : ''}
+          ${(!hg.loading && g) ? `
+            <div class="vcp-hg-layout">
+              <div class="vcp-hg-sidebar" aria-label="Clocks">
+                <div class="vcp-hg-timer vcp-hg-timer-black">
+                  <div class="vcp-hg-timer-name">${escapeHtml(blackName)}</div>
+                  <div class="vcp-hg-timer-clock">${escapeHtml(bClock)}</div>
+                </div>
+                <div class="vcp-hg-timer vcp-hg-timer-white">
+                  <div class="vcp-hg-timer-name">${escapeHtml(whiteName)}</div>
+                  <div class="vcp-hg-timer-clock">${escapeHtml(wClock)}</div>
+                </div>
+              </div>
+              <div class="vcp-hg-main">
+                ${board ? renderHistoryBoard(board) : `<div class="vcp-muted">Board not available.</div>`}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('vcpHistoryBackBtn')?.addEventListener('click', closeHistoryGame);
+  }
+
   function bindSessionEvents() {
     if (!STATE.activeSession) return;
     // Back should NOT end the game. User can reopen via "My game".
@@ -1117,7 +1215,18 @@
       render();
       return;
     }
-    // Game Viewer removed: ignore vcp_game_record.
+    if (type === 'vcp_game_record') {
+      if (STATE.page !== 'historyGame') return;
+      const g = msg?.game || null;
+      if (!g) {
+        STATE.historyGame = { loading: false, error: 'Game not found', gameId: String(STATE.historyGame?.gameId || ''), game: null };
+        render();
+        return;
+      }
+      STATE.historyGame = { loading: false, error: null, gameId: String(g.id || ''), game: g };
+      render();
+      return;
+    }
     if (type === 'vcp_live_games_snapshot') {
       STATE.liveGames = Array.isArray(msg?.games) ? msg.games : [];
       // refresh only the live game area if present
@@ -1186,6 +1295,10 @@
       renderSessionPage();
       return;
     }
+    if (STATE.page === 'historyGame') {
+      renderHistoryGamePage();
+      return;
+    }
     if (STATE.page === 'profile') {
       renderProfileScreen();
       return;
@@ -1199,6 +1312,7 @@
     STATE.page = 'lobby';
     STATE.profileTargetId = null;
     STATE.profileHistory = { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
+    STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
     const studentPlayer = STATE.role === 'student' ? getStudentPlayer() : null;
     if (studentPlayer && typeof studentPlayer === 'object') {
       STATE.me = {
