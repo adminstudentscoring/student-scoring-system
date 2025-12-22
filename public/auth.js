@@ -2,7 +2,18 @@
  * Authentication utilities for frontend
  */
 
-const API_BASE = '/api';
+function buildApiUrl(url) {
+    const u = String(url || '');
+    // Always use absolute path so the browser never treats "api" as a hostname (e.g. https://api/...).
+    // Accept callers passing:
+    // - "/students"  -> "/api/students"
+    // - "students"   -> "/api/students"
+    // - "/api/..."   -> "/api/..."
+    if (u.startsWith('/api/')) return u;
+    if (u === '/api') return '/api';
+    if (u.startsWith('/')) return `/api${u}`;
+    return `/api/${u}`;
+}
 
 /**
  * Get authentication token from localStorage
@@ -58,7 +69,7 @@ async function authenticatedFetch(url, options = {}) {
         headers['Authorization'] = `Bearer ${token}`;
     }
     
-    const response = await fetch(`${API_BASE}${url}`, {
+    const response = await fetch(buildApiUrl(url), {
         ...options,
         headers
     });
