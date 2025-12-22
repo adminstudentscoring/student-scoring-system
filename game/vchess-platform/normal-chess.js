@@ -814,7 +814,7 @@
       const myColor = myColorFromSession(session);
       const isPlayerRole = (role === 'student' || role === 'teacher');
       const canMove = isPlayerRole && !isViewer && !isSpectator && myColor && myColor === turn && !state?.gameOver;
-      const flip = role === 'student' && myColor === 'b';
+      const flip = !isViewer && !isSpectator && isPlayerRole && myColor === 'b';
       const castling = String(state?.castling || 'KQkq');
       const ep = state?.ep ? String(state.ep) : '';
       const drawOffer = state?.drawOffer && typeof state.drawOffer === 'object' ? state.drawOffer : null;

@@ -1013,7 +1013,16 @@
       const mount = document.getElementById('ncMount');
       if (mount && window.NormalChess?.mountNormalChess) {
         const sessionId = String(STATE.activeSession.id || '');
-        // Create once per render
+        // If the page re-rendered, the mount node changes; ensure we remount to the current node.
+        const mountChanged = STATE._ncMountEl && STATE._ncMountEl !== mount;
+        if (mountChanged) {
+          try { STATE.ncApp?.destroy?.(); } catch {}
+          STATE.ncApp = null;
+          STATE.ncSessionId = null;
+        }
+        STATE._ncMountEl = mount;
+
+        // Create once per sessionId
         if (!STATE.ncApp || String(STATE.ncSessionId) !== sessionId) {
           STATE.ncSessionId = sessionId;
           STATE.ncApp = window.NormalChess.mountNormalChess({
@@ -1077,6 +1086,14 @@
     if (!session) return;
 
     const key = String(session.id || '');
+    const mountChanged = STATE._historyMountEl && STATE._historyMountEl !== mount;
+    if (mountChanged) {
+      try { STATE.historyNcApp?.destroy?.(); } catch {}
+      STATE.historyNcApp = null;
+      STATE.historyNcKey = null;
+    }
+    STATE._historyMountEl = mount;
+
     if (!STATE.historyNcApp || String(STATE.historyNcKey) !== key) {
       try { STATE.historyNcApp?.destroy?.(); } catch {}
       STATE.historyNcKey = key;
@@ -1120,6 +1137,14 @@
     if (!window.NormalChess?.mountNormalChess) return;
 
     const key = String(session.id || '');
+    const mountChanged = STATE._liveMountEl && STATE._liveMountEl !== mount;
+    if (mountChanged) {
+      try { STATE.liveNcApp?.destroy?.(); } catch {}
+      STATE.liveNcApp = null;
+      STATE.liveNcKey = null;
+    }
+    STATE._liveMountEl = mount;
+
     if (!STATE.liveNcApp || String(STATE.liveNcKey) !== key) {
       try { STATE.liveNcApp?.destroy?.(); } catch {}
       STATE.liveNcKey = key;
