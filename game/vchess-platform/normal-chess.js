@@ -531,11 +531,68 @@
       tickTimer = null;
     }
 
+    function updateClockOnly() {
+      const state = UI.lastState;
+      const session = getSession();
+      if (!state || !session) return;
+      // Viewer uses fixed timeline clocks; no need to tick.
+      if (isViewer) return;
+      if (state?.gameOver) return;
+
+      const role = String(getIdentity()?.role || '');
+      const boardNow = state?.board || initialBoard();
+      const turn = String(state?.turn || 'w');
+      const myColor = myColorFromSession(session);
+
+      // derive clocks locally between syncs
+      const now = Date.now();
+      let wMs = Number(state?.clocks?.wMs ?? 0);
+      let bMs = Number(state?.clocks?.bMs ?? 0);
+      const turnStartTs = Number(state?.turnStartTs ?? now);
+      const elapsed = Math.max(0, now - turnStartTs);
+      if (turn === 'w') wMs = Math.max(0, wMs - elapsed);
+      else bMs = Math.max(0, bMs - elapsed);
+
+      const cfg = session?.config || {};
+      const whiteId = String(cfg.whiteStudentId || '');
+      const blackId = String(cfg.blackStudentId || '');
+      const whiteName = getPlayerLabelById(whiteId) || 'White';
+      const blackName = getPlayerLabelById(blackId) || 'Black';
+
+      const topColor = myColor === 'b' ? 'w' : 'b';
+      const bottomColor = myColor === 'b' ? 'b' : 'w';
+      const topName = topColor === 'w' ? whiteName : blackName;
+      const bottomName = bottomColor === 'w' ? whiteName : blackName;
+      const topMs = topColor === 'w' ? wMs : bMs;
+      const bottomMs = bottomColor === 'w' ? wMs : bMs;
+
+      const activeTop = turn === topColor;
+      const activeBottom = turn === bottomColor;
+
+      const topTimerEl = rootEl.querySelector('#ncTimerTop');
+      const bottomTimerEl = rootEl.querySelector('#ncTimerBottom');
+      const topTimeEl = rootEl.querySelector('#ncTimerTopTime');
+      const bottomTimeEl = rootEl.querySelector('#ncTimerBottomTime');
+      const topNameEl = rootEl.querySelector('#ncTimerTopName');
+      const bottomNameEl = rootEl.querySelector('#ncTimerBottomName');
+
+      if (topNameEl) topNameEl.textContent = String(topName || '');
+      if (bottomNameEl) bottomNameEl.textContent = String(bottomName || '');
+      if (topTimeEl) topTimeEl.textContent = String(formatMs(topMs));
+      if (bottomTimeEl) bottomTimeEl.textContent = String(formatMs(bottomMs));
+
+      if (topTimerEl) topTimerEl.classList.toggle('active', !!activeTop);
+      if (bottomTimerEl) bottomTimerEl.classList.toggle('active', !!activeBottom);
+
+      // Avoid unused var lint in some environments (boardNow used for potential future patches)
+      void boardNow;
+      void role;
+    }
+
     function startTick() {
       stopTick();
       tickTimer = setInterval(() => {
-        if (UI.isUserScrollingMoveList) return;
-        if (UI.lastState) render(UI.lastState);
+        updateClockOnly();
       }, 250);
     }
 
@@ -796,9 +853,9 @@
         <div class="nc-root">
           <div class="nc-layout ${showPanel ? 'nc-viewer' : ''} ${escapeHtml(modeCls)}">
             <div class="nc-timers">
-              <div class="nc-timer ${activeTop ? 'active' : ''}">
-                <div class="nc-timer-label"><span>${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
-                <div class="nc-timer-time">${escapeHtml(formatMs(topMs))}</div>
+              <div class="nc-timer ${activeTop ? 'active' : ''}" id="ncTimerTop">
+                <div class="nc-timer-label"><span id="ncTimerTopName">${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
+                <div class="nc-timer-time" id="ncTimerTopTime">${escapeHtml(formatMs(topMs))}</div>
               </div>
 
               ${isViewer ? '' : `
@@ -808,9 +865,9 @@
                 </div>
               `}
 
-              <div class="nc-timer ${activeBottom ? 'active' : ''}">
-                <div class="nc-timer-label"><span>${escapeHtml(String(bottomName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
-                <div class="nc-timer-time">${escapeHtml(formatMs(bottomMs))}</div>
+              <div class="nc-timer ${activeBottom ? 'active' : ''}" id="ncTimerBottom">
+                <div class="nc-timer-label"><span id="ncTimerBottomName">${escapeHtml(String(bottomName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
+                <div class="nc-timer-time" id="ncTimerBottomTime">${escapeHtml(formatMs(bottomMs))}</div>
               </div>
             </div>
 
@@ -877,6 +934,9 @@
           }, { passive: true });
         }
       } catch {}
+
+      // After a full render, update clocks once (so the UI is correct without waiting for the next tick)
+      updateClockOnly();
 
       if (isViewer && UI.viewerShareOpen) {
         const fenNow = buildFenFromBoard(board, viewerPly);
