@@ -502,6 +502,21 @@
       viewerShareOpen: false,
       sessionPly: null
     };
+
+    function bindTap(el, fn) {
+      if (!el || typeof fn !== 'function') return;
+      let lastTs = 0;
+      const wrapped = (e) => {
+        const now = Date.now();
+        // Prevent double-fire (pointerup + click) and reduce iOS "needs 2 taps" issues
+        if (now - lastTs < 350) return;
+        lastTs = now;
+        try { e.preventDefault?.(); } catch {}
+        fn(e);
+      };
+      try { el.addEventListener('pointerup', wrapped, { passive: false }); } catch {}
+      try { el.addEventListener('click', wrapped, { passive: false }); } catch {}
+    }
     let pendingPromotion = null; // { from, to, isDrag }
 
     let tickTimer = null;
@@ -762,9 +777,10 @@
         }
       }
 
+      const modeCls = isViewer ? 'nc-mode-viewer' : (sessionMoveList ? 'nc-mode-session' : '');
       rootEl.innerHTML = `
         <div class="nc-root">
-          <div class="nc-layout ${showPanel ? 'nc-viewer' : ''}">
+          <div class="nc-layout ${showPanel ? 'nc-viewer' : ''} ${escapeHtml(modeCls)}">
             <div class="nc-timers">
               <div class="nc-timer ${activeTop ? 'active' : ''}">
                 <div class="nc-timer-label"><span>${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
@@ -953,33 +969,33 @@
       });
 
       if (isViewer && timelineBoards && timelineBoards.length) {
-        rootEl.querySelector('#ncShareBtn')?.addEventListener('click', () => {
+        bindTap(rootEl.querySelector('#ncShareBtn'), () => {
           UI.viewerShareOpen = true;
           render(UI.lastState);
         });
         const closeShare = () => { UI.viewerShareOpen = false; render(UI.lastState); };
-        rootEl.querySelector('#ncShareClose')?.addEventListener('click', closeShare);
+        bindTap(rootEl.querySelector('#ncShareClose'), closeShare);
         rootEl.querySelector('#ncShareBackdrop')?.addEventListener('click', (e) => {
           if (e.target && e.target.id === 'ncShareBackdrop') closeShare();
         });
         rootEl.querySelectorAll('button.nc-share-copy[data-copy]').forEach((btn) => {
-          btn.addEventListener('click', async () => {
+          bindTap(btn, async () => {
             const k = String(btn.getAttribute('data-copy') || '');
             if (k === 'fen') await copyTextToClipboard(buildFenFromBoard(board, viewerPly));
             if (k === 'pgn') await copyTextToClipboard(String(pgn || ''));
           });
         });
 
-        rootEl.querySelector('#ncPrevBtn')?.addEventListener('click', () => {
+        bindTap(rootEl.querySelector('#ncPrevBtn'), () => {
           UI.viewerPly = clampInt(Number(UI.viewerPly || 0) - 1, 0, viewerLastPly);
           render(UI.lastState);
         });
-        rootEl.querySelector('#ncNextBtn')?.addEventListener('click', () => {
+        bindTap(rootEl.querySelector('#ncNextBtn'), () => {
           UI.viewerPly = clampInt(Number(UI.viewerPly || 0) + 1, 0, viewerLastPly);
           render(UI.lastState);
         });
         rootEl.querySelectorAll('.nc-move-cell[data-ply]').forEach((btn) => {
-          btn.addEventListener('click', () => {
+          bindTap(btn, () => {
             const ply = Number(btn.getAttribute('data-ply') || 0);
             UI.viewerPly = clampInt(ply, 0, viewerLastPly);
             render(UI.lastState);
@@ -988,16 +1004,16 @@
       }
 
       if (sessionMoveList) {
-        rootEl.querySelector('#ncPrevBtn')?.addEventListener('click', () => {
+        bindTap(rootEl.querySelector('#ncPrevBtn'), () => {
           UI.sessionPly = clampInt(Number(UI.sessionPly || 0) - 1, 0, sessionLastPly);
           render(UI.lastState);
         });
-        rootEl.querySelector('#ncNextBtn')?.addEventListener('click', () => {
+        bindTap(rootEl.querySelector('#ncNextBtn'), () => {
           UI.sessionPly = clampInt(Number(UI.sessionPly || 0) + 1, 0, sessionLastPly);
           render(UI.lastState);
         });
         rootEl.querySelectorAll('.nc-move-cell[data-ply]').forEach((btn) => {
-          btn.addEventListener('click', () => {
+          bindTap(btn, () => {
             const ply = Number(btn.getAttribute('data-ply') || 0);
             UI.sessionPly = clampInt(ply, 0, sessionLastPly);
             render(UI.lastState);

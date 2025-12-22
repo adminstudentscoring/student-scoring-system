@@ -177,32 +177,6 @@
   min-height: 0;
   overflow: auto;
   padding: 10px;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin; /* firefox */
-  scrollbar-color: #cbd5e1 transparent; /* firefox */
-}
-
-.nc-viewer-moves::-webkit-scrollbar {
-  width: 10px;
-}
-
-.nc-viewer-moves::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.nc-viewer-moves::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
-}
-
-.nc-viewer-moves::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-  border: 3px solid transparent;
-  background-clip: content-box;
 }
 
 .nc-viewer-nav {
@@ -237,15 +211,6 @@
 }
 
 .nc-move-table {
-  display: grid;
-  gap: 6px;
-}
-
-.nc-move-head {
-  display: block;
-}
-
-.nc-move-body {
   display: grid;
   gap: 6px;
 }
@@ -350,60 +315,6 @@
   touch-action: manipulation;
 }
 
-/* iPad / coarse pointer tuning:
-   Aim: Viewer shows ~14 moves before scroll; Session shows ~15 moves before scroll. */
-@media (pointer: coarse) {
-  .nc-viewer-moves {
-    padding: 8px;
-  }
-
-  .nc-move-table {
-    gap: 4px;
-  }
-
-  .nc-move-body {
-    gap: 5px;
-  }
-
-  .nc-move-row {
-    grid-template-columns: 42px 1fr 1fr;
-    gap: 6px;
-  }
-
-  .nc-move-row.head {
-    padding-bottom: 4px;
-    margin-bottom: 4px;
-  }
-
-  .nc-move-no,
-  .nc-move-col {
-    font-size: 11px;
-  }
-
-  .nc-move-cell {
-    font-size: 12px;
-    border-radius: 9px;
-  }
-
-  /* Slightly different density targets:
-     Viewer ~14 moves before scroll, Session ~15 moves before scroll */
-  .nc-mode-viewer .nc-move-cell {
-    padding: 7px 8px;
-    min-height: 34px;
-  }
-
-  .nc-mode-session .nc-move-cell {
-    padding: 6px 7px;
-    min-height: 32px;
-  }
-
-  .nc-nav-btn {
-    width: 60px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
 
 .nc-square.light { background: #f1f5f9; }
 .nc-square.dark { background: #94a3b8; }
