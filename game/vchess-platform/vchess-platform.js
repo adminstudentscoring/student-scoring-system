@@ -208,7 +208,7 @@
 
           <div class="vcp-sidebar-actions">
             <button id="vcpSidebarRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-            ${isTeacher && canSelect ? `<button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>` : ''}
+            ${isTeacher && canSelect ? `<button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Start</button>` : ''}
           </div>
 
           <div class="vcp-online-list" role="list">

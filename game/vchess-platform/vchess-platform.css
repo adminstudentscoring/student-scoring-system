@@ -385,14 +385,17 @@
 
 /* Sidebar action buttons: same size, centered, bigger text (requested) */
 .vcp-fixed-sidebar .vcp-sidebar-actions {
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
   flex-wrap: nowrap;
+  gap: 8px;
 }
 
 .vcp-fixed-sidebar .vcp-sidebar-actions .btn {
-  width: 100%;
-  min-height: 54px;
+  width: auto;
+  flex: 1 1 0;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -400,7 +403,7 @@
   font-size: 14px;
   font-weight: 900;
   line-height: 1.1;
-  padding: 12px 10px;
+  padding: 10px 6px;
 }
 
 .vcp-online-list {
