@@ -216,6 +216,31 @@
     return false;
   }
 
+  function canCaptureEnPassant(board, epCoord, sideToMove) {
+    if (!epCoord) return false;
+    const z = coordToRc(epCoord);
+    if (!z) return false;
+    const epR = z.r;
+    const epC = z.c;
+    if (!inBounds(epR, epC)) return false;
+    // Only show en-passant marker if the side to move has a pawn that can capture onto ep square.
+    if (sideToMove === 'w') {
+      const pawnR = epR + 1; // white pawn must be one rank below ep square
+      if (!inBounds(pawnR, epC)) return false;
+      if (inBounds(pawnR, epC - 1) && board[pawnR][epC - 1] === 'P') return true;
+      if (inBounds(pawnR, epC + 1) && board[pawnR][epC + 1] === 'P') return true;
+      return false;
+    }
+    if (sideToMove === 'b') {
+      const pawnR = epR - 1; // black pawn must be one rank above ep square
+      if (!inBounds(pawnR, epC)) return false;
+      if (inBounds(pawnR, epC - 1) && board[pawnR][epC - 1] === 'p') return true;
+      if (inBounds(pawnR, epC + 1) && board[pawnR][epC + 1] === 'p') return true;
+      return false;
+    }
+    return false;
+  }
+
   function isInCheck(board, color) {
     const k = findKing(board, color);
     if (!k) return false;
@@ -849,7 +874,7 @@
             isLastTo ? 'nc-last-to' : '',
             mv ? (mv.capture ? 'nc-move nc-capture' : 'nc-move') : ''
           ].filter(Boolean).join(' ');
-          const epTarget = ep && coord === ep && p === '';
+          const epTarget = ep && coord === ep && p === '' && canCaptureEnPassant(board, ep, turn);
           const fileLabel = (r === 7) ? String(coord[0] || '') : '';
           const rankLabel = (c === 0) ? String(coord[1] || '') : '';
           squaresHtml.push(`
