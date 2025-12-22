@@ -689,7 +689,9 @@
     const safeId = escapeHtml(String(s?.id || ''));
     const safeName = escapeHtml(String(s?.name || 'Unknown'));
     const safeStudentId = escapeHtml(String(s?.studentId || ''));
-    const safeStatus = escapeHtml(String(s?.status || 'online'));
+    const rawStatus = String(s?.status || 'online');
+    const safeStatus = escapeHtml(rawStatus);
+    const dotCls = rawStatus === 'in-game' ? 'in-game' : (rawStatus === 'idle' ? 'idle' : 'online');
 
     if (selectable) {
       const checked = STATE.selected.has(String(s?.id)) ? 'checked' : '';
@@ -700,10 +702,12 @@
             <input type="checkbox" data-student-id="${safeId}" ${checked} ${disabled} aria-label="Select ${safeName}" />
           </div>
           <div>
-            <button class="vcp-online-item-name vcp-name-btn" type="button" data-vcp-profile-id="${safeId}" aria-label="Open profile for ${safeName}">${safeName}</button>
+            <div class="vcp-online-item-head">
+              <span class="vcp-status-dot ${dotCls}" aria-hidden="true"></span>
+              <button class="vcp-online-item-name vcp-name-btn" type="button" data-vcp-profile-id="${safeId}" aria-label="Open profile for ${safeName}">${safeName}</button>
+            </div>
             <div class="vcp-online-item-meta">
               <div class="vcp-online-item-studentid">${safeStudentId}</div>
-              <span class="vcp-status-pill ${safeStatus}">${safeStatus}</span>
             </div>
           </div>
         </div>
@@ -713,10 +717,12 @@
     return `
       <div class="vcp-online-item no-select" role="listitem">
         <div>
-          <button class="vcp-online-item-name vcp-name-btn" type="button" data-vcp-profile-id="${safeId}" aria-label="Open profile for ${safeName}">${safeName}</button>
+          <div class="vcp-online-item-head">
+            <span class="vcp-status-dot ${dotCls}" aria-hidden="true"></span>
+            <button class="vcp-online-item-name vcp-name-btn" type="button" data-vcp-profile-id="${safeId}" aria-label="Open profile for ${safeName}">${safeName}</button>
+          </div>
           <div class="vcp-online-item-meta">
             <div class="vcp-online-item-studentid">${safeStudentId}</div>
-            <span class="vcp-status-pill ${safeStatus}">${safeStatus}</span>
           </div>
         </div>
       </div>

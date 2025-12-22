@@ -404,10 +404,30 @@
   grid-template-columns: 1fr;
 }
 
+.vcp-online-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vcp-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #0f172a22;
+  flex: 0 0 10px;
+}
+
+/* Requested mapping: green / blue / red */
+.vcp-status-dot.online { background: #22c55e; }   /* green */
+.vcp-status-dot.idle { background: #3b82f6; }     /* blue */
+.vcp-status-dot.in-game { background: #ef4444; }  /* red */
+
 .vcp-online-item-name {
   font-weight: 950;
   color: #111827;
   line-height: 1.2;
+  font-size: 12px;
 }
 
 .vcp-online-item-meta {
