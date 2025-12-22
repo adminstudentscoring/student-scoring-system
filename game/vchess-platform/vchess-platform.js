@@ -464,17 +464,23 @@
                 </div>
               </div>
 
-              <div class="vcp-profile-body">
-                <div class="vcp-profile-section-title">Game history</div>
-                <div class="vcp-muted">Shows the latest games for this user. Click a game to view.</div>
+              <div class="vcp-btn-row" style="justify-content:flex-end; margin-top:12px;">
+                <button id="vcpProfileBackBtn" class="btn btn-secondary" type="button">Back</button>
+              </div>
+            </div>
 
-                ${hist.loading ? `<div class="vcp-muted" style="margin-top:10px;">Loading...</div>` : ''}
-                ${hist.error ? `<div class="vcp-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(String(hist.error))}</div>` : ''}
+            <div class="vcp-history-card">
+              <div class="vcp-profile-section-title">Game history</div>
+              <div class="vcp-muted">Shows the latest games for this user. Click a game to view.</div>
 
-                ${(!hist.loading && games.length === 0) ? `<div class="vcp-muted" style="margin-top:10px;">No games yet.</div>` : ''}
+              ${hist.loading ? `<div class="vcp-muted" style="margin-top:10px;">Loading...</div>` : ''}
+              ${hist.error ? `<div class="vcp-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(String(hist.error))}</div>` : ''}
 
-                ${games.length ? `
-                  <div class="vcp-history-list" role="list" aria-label="Game history list">
+              ${(!hist.loading && games.length === 0) ? `<div class="vcp-muted" style="margin-top:10px;">No games yet.</div>` : ''}
+
+              ${games.length ? `
+                <div class="vcp-history-scroll" role="region" aria-label="Game history list">
+                  <div class="vcp-history-list" role="list">
                     ${games.map((g) => {
                       const uid = String(STATE.profileTargetId || '');
                       const isWhite = uid && uid === String(g.whiteId || '');
@@ -493,21 +499,17 @@
                       `;
                     }).join('')}
                   </div>
-                ` : ''}
+                </div>
+              ` : ''}
 
-                ${(Number(hist.totalPages || 1) > 1) ? `
-                  <div class="vcp-pagination" role="navigation" aria-label="Game history pages">
-                    ${pageNums.map((p) => `
-                      <button class="vcp-page-btn ${Number(hist.page || 1) === p ? 'active' : ''}" type="button" data-vcp-history-page="${p}">${p}</button>
-                    `).join('')}
-                    ${Number(hist.totalPages || 1) > 5 ? `<span class="vcp-muted">…</span><button class="vcp-page-btn" type="button" data-vcp-history-page="${escapeHtml(String(hist.totalPages))}">${escapeHtml(String(hist.totalPages))}</button>` : ''}
-                  </div>
-                ` : ''}
-              </div>
-
-              <div class="vcp-btn-row" style="justify-content:flex-end; margin-top:12px;">
-                <button id="vcpProfileBackBtn" class="btn btn-secondary" type="button">Back</button>
-              </div>
+              ${(Number(hist.totalPages || 1) > 1) ? `
+                <div class="vcp-pagination" role="navigation" aria-label="Game history pages">
+                  ${pageNums.map((p) => `
+                    <button class="vcp-page-btn ${Number(hist.page || 1) === p ? 'active' : ''}" type="button" data-vcp-history-page="${p}">${p}</button>
+                  `).join('')}
+                  ${Number(hist.totalPages || 1) > 5 ? `<span class="vcp-muted">…</span><button class="vcp-page-btn" type="button" data-vcp-history-page="${escapeHtml(String(hist.totalPages))}">${escapeHtml(String(hist.totalPages))}</button>` : ''}
+                </div>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -992,7 +994,8 @@
           return {
             sanMoves: Array.isArray(gg?.sanMoves) ? gg.sanMoves : [],
             timelineBoards: Array.isArray(gg?.timelineBoards) ? gg.timelineBoards : [],
-            timelineClocks: Array.isArray(gg?.timelineClocks) ? gg.timelineClocks : []
+            timelineClocks: Array.isArray(gg?.timelineClocks) ? gg.timelineClocks : [],
+            pgn: String(gg?.pgn || '')
           };
         }
       });
