@@ -500,7 +500,11 @@
       localClockBase: null, // (reserved)
       viewerPly: null,
       viewerShareOpen: false,
-      sessionPly: null
+      sessionPly: null,
+      moveListScrollTop: 0,
+      moveListScrollLeft: 0,
+      isUserScrollingMoveList: false,
+      moveListScrollEndTimer: null
     };
 
     function bindTap(el, fn) {
@@ -530,6 +534,7 @@
     function startTick() {
       stopTick();
       tickTimer = setInterval(() => {
+        if (UI.isUserScrollingMoveList) return;
         if (UI.lastState) render(UI.lastState);
       }, 250);
     }
@@ -671,6 +676,15 @@
     }
 
     function render(state) {
+      // Preserve move list scroll position across full re-renders (the UI rebuilds frequently for clocks).
+      try {
+        const prevList = rootEl.querySelector('#ncMoveList');
+        if (prevList) {
+          UI.moveListScrollTop = prevList.scrollTop || 0;
+          UI.moveListScrollLeft = prevList.scrollLeft || 0;
+        }
+      } catch {}
+
       UI.lastState = state;
       const session = getSession();
       if (!session) return;
@@ -845,6 +859,24 @@
 
         </div>
       `;
+
+      // Re-bind move list scroll tracking & restore scroll position
+      try {
+        const list = rootEl.querySelector('#ncMoveList');
+        if (list) {
+          list.scrollTop = Number(UI.moveListScrollTop || 0);
+          list.scrollLeft = Number(UI.moveListScrollLeft || 0);
+          list.addEventListener('scroll', () => {
+            UI.isUserScrollingMoveList = true;
+            UI.moveListScrollTop = list.scrollTop || 0;
+            UI.moveListScrollLeft = list.scrollLeft || 0;
+            if (UI.moveListScrollEndTimer) clearTimeout(UI.moveListScrollEndTimer);
+            UI.moveListScrollEndTimer = setTimeout(() => {
+              UI.isUserScrollingMoveList = false;
+            }, 220);
+          }, { passive: true });
+        }
+      } catch {}
 
       if (isViewer && UI.viewerShareOpen) {
         const fenNow = buildFenFromBoard(board, viewerPly);
@@ -1144,6 +1176,7 @@
       destroy: () => {
         stopTick();
         clearDrag();
+        if (UI.moveListScrollEndTimer) clearTimeout(UI.moveListScrollEndTimer);
       }
     };
   }
