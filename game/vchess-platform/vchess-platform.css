@@ -1,6 +1,84 @@
 .vchess-platform-root {
+  /* Use full-width app shell so the left sidebar can stick to the viewport edge */
+  max-width: none;
+  margin: 0;
+}
+
+.vcp-app {
+  min-height: 100vh;
+}
+
+.vcp-fixed-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 180px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  padding: 12px 10px;
+  overflow: auto;
+  z-index: 50;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vcp-app-main {
+  margin-left: 180px;
+  padding: 12px;
+}
+
+.vcp-main-inner {
   max-width: 980px;
   margin: 0 auto;
+}
+
+.vcp-side-nav {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.vcp-side-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 10px 10px;
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-weight: 950;
+  color: #111827;
+}
+
+.vcp-side-btn:hover {
+  background: #f9fafb;
+}
+
+.vcp-side-btn.is-active {
+  background: #f3f4f6;
+}
+
+.vcp-side-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vcp-side-count {
+  font-weight: 900;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.vcp-side-chevron {
+  font-weight: 950;
+  color: #6b7280;
 }
 
 .vcp-card {
@@ -348,18 +426,9 @@
 }
 
 @media (max-width: 900px) {
-  .vcp-layout {
-    grid-template-columns: 1fr;
-  }
-  .vcp-sidebar {
-    border-right: none;
-    padding-right: 0;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 12px;
-    margin-bottom: 12px;
-  }
-  .vcp-main {
-    padding-left: 0;
+  /* Keep sidebar pinned; only reduce padding in main area */
+  .vcp-app-main {
+    padding: 10px;
   }
 }
 

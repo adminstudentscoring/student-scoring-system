@@ -143,6 +143,122 @@
     STATE.teacherMessages = STATE.teacherMessages.slice(0, 6);
   }
 
+  function goHome() {
+    // "Home" means go back to lobby without ending any active game.
+    try {
+      if (STATE.page === 'liveViewer') {
+        closeLiveViewer();
+        return;
+      }
+      if (STATE.page === 'historyGame') {
+        // closeHistoryGame goes back to profile; force lobby for Home.
+        try { STATE.historyNcApp?.destroy?.(); } catch {}
+        STATE.historyNcApp = null;
+        STATE.historyNcKey = null;
+        STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
+        STATE.page = 'lobby';
+        render();
+        return;
+      }
+      if (STATE.page === 'profile') {
+        closeProfile();
+        return;
+      }
+      if (STATE.page === 'session') {
+        closeSessionView();
+        return;
+      }
+    } catch {}
+    STATE.page = 'lobby';
+    render();
+  }
+
+  function renderFixedSidebar() {
+    const isLobby = STATE.page === 'lobby';
+    const isTeacher = STATE.role === 'teacher';
+    const canSelect = isTeacher && isLobby;
+    const selected = Array.from(STATE.selected);
+    const chevron = STATE.onlineListOpen ? '▾' : '▸';
+
+    const meItem = (STATE.me?.id && STATE.role === 'teacher') ? {
+      id: String(STATE.me.id),
+      name: `${String(STATE.me.name || 'Teacher')} (Teacher)`,
+      studentId: 'Teacher',
+      status: 'online',
+      inGame: false
+    } : null;
+
+    return `
+      <aside class="vcp-fixed-sidebar" aria-label="VCP sidebar">
+        <div class="vcp-side-nav">
+          <button id="vcpNavHomeBtn" class="vcp-side-btn ${isLobby ? 'is-active' : ''}" type="button">Home</button>
+          <button id="vcpNavOnlineBtn" class="vcp-side-btn ${STATE.onlineListOpen ? 'is-active' : ''}" type="button" aria-label="Toggle online list">
+            <span>Online list</span>
+            <span class="vcp-side-meta">
+              <span class="vcp-side-count">${escapeHtml(String(STATE.students.length || 0))}</span>
+              <span class="vcp-side-chevron" aria-hidden="true">${chevron}</span>
+            </span>
+          </button>
+        </div>
+
+        ${STATE.onlineListOpen ? `
+          ${isTeacher ? (canSelect ? `<div class="vcp-muted">Select 2 players. You can include yourself.</div>` : ``) : `
+            <div class="vcp-muted">Your status: <span class="vcp-status-pill ${escapeHtml(STATE.status)}">${escapeHtml(STATE.status)}</span></div>
+          `}
+
+          <div class="vcp-sidebar-actions">
+            <button id="vcpSidebarRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+            ${isTeacher && canSelect ? `<button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>` : ''}
+          </div>
+
+          <div class="vcp-online-list" role="list">
+            ${isTeacher && canSelect && meItem ? renderOnlineListItem(meItem, { selectable: true }) : ''}
+            ${(Array.isArray(STATE.students) ? STATE.students : []).map((s) => renderOnlineListItem(s, { selectable: canSelect })).join('')}
+            ${(Array.isArray(STATE.students) ? STATE.students : []).length === 0 ? `
+              <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
+            ` : ''}
+          </div>
+        ` : ''}
+      </aside>
+    `;
+  }
+
+  function bindFixedSidebarEvents() {
+    document.getElementById('vcpNavHomeBtn')?.addEventListener('click', () => {
+      goHome();
+    });
+
+    document.getElementById('vcpNavOnlineBtn')?.addEventListener('click', () => {
+      STATE.onlineListOpen = !STATE.onlineListOpen;
+      render();
+    });
+
+    document.getElementById('vcpSidebarRefreshBtn')?.addEventListener('click', () => {
+      wsSend({ type: 'vcp_get_presence' });
+      wsSend({ type: 'vcp_get_live_games' });
+      markActivity();
+    });
+
+    // Teacher: selectable checkboxes (lobby only)
+    document.querySelectorAll('input[type="checkbox"][data-student-id]').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const id = cb.getAttribute('data-student-id');
+        if (!id) return;
+        if (cb.checked) STATE.selected.add(id);
+        else STATE.selected.delete(id);
+        render();
+      });
+    });
+
+    // Teacher: choose mode button (lobby only)
+    document.getElementById('vcpChooseModeBtn')?.addEventListener('click', () => {
+      if (STATE.role !== 'teacher') return;
+      if (STATE.page !== 'lobby') return;
+      if (Array.from(STATE.selected).length !== 2) return;
+      openChooseModeModal();
+    });
+  }
+
   function studentLabelById(id) {
     if (STATE.role === 'teacher' && String(id) === String(STATE.me?.id || '')) {
       const nm = String(STATE.me?.name || 'Teacher');
@@ -481,84 +597,92 @@
     const gameModalHtml = '';
 
     root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Profile</div>
-          </div>
-          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-            ${renderHeaderBadge()}
-          </button>
-        </div>
-
-        <div class="vcp-section">
-          <div class="vcp-profile-shell">
-            <div class="vcp-profile-card">
-              <div class="vcp-profile-header">
+      <div class="vcp-app">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-row">
                 <div>
-                  <div class="vcp-profile-name">${escapeHtml(String(target.name || 'Unknown'))}${isMe ? ' <span class="vcp-profile-me">(You)</span>' : ''}</div>
-                  <div class="vcp-profile-id">${escapeHtml(String(idLine || ''))}</div>
+                  <div class="vcp-title">V.Chess Platform</div>
+                  <div class="vcp-subtitle">Profile</div>
                 </div>
-                <div>
-                  <span class="vcp-status-pill ${escapeHtml(String(target.status || 'online'))}">${escapeHtml(String(target.status || 'online'))}</span>
-                </div>
+                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+                  ${renderHeaderBadge()}
+                </button>
               </div>
 
-              <div class="vcp-btn-row" style="justify-content:flex-end; margin-top:12px;">
-                <button id="vcpProfileBackBtn" class="btn btn-secondary" type="button">Back</button>
-              </div>
-            </div>
+              <div class="vcp-section">
+                <div class="vcp-profile-shell">
+                  <div class="vcp-profile-card">
+                    <div class="vcp-profile-header">
+                      <div>
+                        <div class="vcp-profile-name">${escapeHtml(String(target.name || 'Unknown'))}${isMe ? ' <span class="vcp-profile-me">(You)</span>' : ''}</div>
+                        <div class="vcp-profile-id">${escapeHtml(String(idLine || ''))}</div>
+                      </div>
+                      <div>
+                        <span class="vcp-status-pill ${escapeHtml(String(target.status || 'online'))}">${escapeHtml(String(target.status || 'online'))}</span>
+                      </div>
+                    </div>
 
-            <div class="vcp-history-card">
-              <div class="vcp-profile-section-title">Game history</div>
-              <div class="vcp-muted">Shows the latest games for this user. Click a game to view.</div>
+                    <div class="vcp-btn-row" style="justify-content:flex-end; margin-top:12px;">
+                      <button id="vcpProfileBackBtn" class="btn btn-secondary" type="button">Back</button>
+                    </div>
+                  </div>
 
-              ${hist.loading ? `<div class="vcp-muted" style="margin-top:10px;">Loading...</div>` : ''}
-              ${hist.error ? `<div class="vcp-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(String(hist.error))}</div>` : ''}
+                  <div class="vcp-history-card">
+                    <div class="vcp-profile-section-title">Game history</div>
+                    <div class="vcp-muted">Shows the latest games for this user. Click a game to view.</div>
 
-              ${(!hist.loading && games.length === 0) ? `<div class="vcp-muted" style="margin-top:10px;">No games yet.</div>` : ''}
+                    ${hist.loading ? `<div class="vcp-muted" style="margin-top:10px;">Loading...</div>` : ''}
+                    ${hist.error ? `<div class="vcp-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(String(hist.error))}</div>` : ''}
 
-              ${games.length ? `
-                <div class="vcp-history-scroll" role="region" aria-label="Game history list">
-                  <div class="vcp-history-list" role="list">
-                    ${games.map((g) => {
-                      const uid = String(STATE.profileTargetId || '');
-                      const isWhite = uid && uid === String(g.whiteId || '');
-                      const meName = isWhite ? String(g.whiteName || 'Student A') : String(g.blackName || 'Student A');
-                      const oppName = isWhite ? String(g.blackName || 'Student B') : String(g.whiteName || 'Student B');
-                      const res = userPerspectiveResult(g, uid);
-                      const date = formatDateTime(g.endedAt || g.startedAt);
-                      return `
-                        <button class="vcp-history-row" type="button" data-vcp-game-id="${escapeHtml(String(g.id || ''))}">
-                          <div class="vcp-history-main">
-                            <div class="vcp-history-title">${escapeHtml(`${meName} vs ${oppName}`)}</div>
-                            <div class="vcp-history-meta">${escapeHtml(date)}</div>
-                          </div>
-                          <div class="vcp-history-result">${escapeHtml(res)}</div>
-                        </button>
-                      `;
-                    }).join('')}
+                    ${(!hist.loading && games.length === 0) ? `<div class="vcp-muted" style="margin-top:10px;">No games yet.</div>` : ''}
+
+                    ${games.length ? `
+                      <div class="vcp-history-scroll" role="region" aria-label="Game history list">
+                        <div class="vcp-history-list" role="list">
+                          ${games.map((g) => {
+                            const uid = String(STATE.profileTargetId || '');
+                            const isWhite = uid && uid === String(g.whiteId || '');
+                            const meName = isWhite ? String(g.whiteName || 'Student A') : String(g.blackName || 'Student A');
+                            const oppName = isWhite ? String(g.blackName || 'Student B') : String(g.whiteName || 'Student B');
+                            const res = userPerspectiveResult(g, uid);
+                            const date = formatDateTime(g.endedAt || g.startedAt);
+                            return `
+                              <button class="vcp-history-row" type="button" data-vcp-game-id="${escapeHtml(String(g.id || ''))}">
+                                <div class="vcp-history-main">
+                                  <div class="vcp-history-title">${escapeHtml(`${meName} vs ${oppName}`)}</div>
+                                  <div class="vcp-history-meta">${escapeHtml(date)}</div>
+                                </div>
+                                <div class="vcp-history-result">${escapeHtml(res)}</div>
+                              </button>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
+                    ` : ''}
+
+                    ${(Number(hist.totalPages || 1) > 1) ? `
+                      <div class="vcp-pagination" role="navigation" aria-label="Game history pages">
+                        ${pageNums.map((p) => `
+                          <button class="vcp-page-btn ${Number(hist.page || 1) === p ? 'active' : ''}" type="button" data-vcp-history-page="${p}">${p}</button>
+                        `).join('')}
+                        ${Number(hist.totalPages || 1) > 5 ? `<span class="vcp-muted">…</span><button class="vcp-page-btn" type="button" data-vcp-history-page="${escapeHtml(String(hist.totalPages))}">${escapeHtml(String(hist.totalPages))}</button>` : ''}
+                      </div>
+                    ` : ''}
                   </div>
                 </div>
-              ` : ''}
-
-              ${(Number(hist.totalPages || 1) > 1) ? `
-                <div class="vcp-pagination" role="navigation" aria-label="Game history pages">
-                  ${pageNums.map((p) => `
-                    <button class="vcp-page-btn ${Number(hist.page || 1) === p ? 'active' : ''}" type="button" data-vcp-history-page="${p}">${p}</button>
-                  `).join('')}
-                  ${Number(hist.totalPages || 1) > 5 ? `<span class="vcp-muted">…</span><button class="vcp-page-btn" type="button" data-vcp-history-page="${escapeHtml(String(hist.totalPages))}">${escapeHtml(String(hist.totalPages))}</button>` : ''}
-                </div>
-              ` : ''}
+              </div>
             </div>
+            ${gameModalHtml}
           </div>
         </div>
       </div>
-      ${gameModalHtml}
     `;
 
     document.getElementById('vcpProfileBackBtn')?.addEventListener('click', closeProfile);
+    bindFixedSidebarEvents();
   }
 
   function renderOnlineListItem(s, { selectable }) {
@@ -703,130 +827,73 @@
   function renderTeacher() {
     const root = getRoot();
     if (!root) return;
-    const selected = Array.from(STATE.selected);
-
-    const onlineTitle = STATE.onlineListOpen ? 'Online list' : 'Online list (collapsed)';
-    const chevron = STATE.onlineListOpen ? '▾' : '▸';
-    const meItem = (STATE.me?.id && STATE.role === 'teacher') ? {
-      id: String(STATE.me.id),
-      name: `${String(STATE.me.name || 'Teacher')} (Teacher)`,
-      studentId: 'Teacher',
-      status: 'online',
-      inGame: false
-    } : null;
 
     root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Lobby</div>
-          </div>
-          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-            ${renderHeaderBadge()}
-          </button>
-        </div>
-        ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
-
-        <div class="vcp-section">
-          <div class="vcp-layout">
-            <div class="vcp-sidebar" aria-label="Online list sidebar">
-              <button id="vcpOnlineToggleBtn" class="vcp-sidebar-toggle" type="button" aria-label="Toggle online list">
-                <span style="font-weight:950; color:#111827;">${escapeHtml(onlineTitle)}</span>
-                <span class="vcp-muted">${escapeHtml(String(STATE.students.length || 0))}</span>
-                <span class="vcp-sidebar-chevron" aria-hidden="true">${chevron}</span>
-              </button>
-
-              ${STATE.onlineListOpen ? `
-                <div class="vcp-muted">Select 2 players. You can include yourself.</div>
-
-                <div class="vcp-sidebar-actions">
-                  <button id="vcpRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-                  <button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>
+      <div class="vcp-app">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-row">
+                <div>
+                  <div class="vcp-title">V.Chess Platform</div>
+                  <div class="vcp-subtitle">Lobby</div>
                 </div>
+                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+                  ${renderHeaderBadge()}
+                </button>
+              </div>
+              ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
-                <div class="vcp-online-list" role="list">
-                  ${meItem ? renderOnlineListItem(meItem, { selectable: true }) : ''}
-                  ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: true })).join('')}
-                  ${STATE.students.length === 0 ? `
-                    <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
-                  ` : ''}
-                </div>
-              ` : ''}
+              <div class="vcp-section">
+                ${STATE.pendingInvite ? `
+                  <div class="vcp-list-item" style="border-style:solid; margin-bottom:12px;">
+                    <div style="font-weight:950; color:#111827;">Pending invite</div>
+                    <div class="vcp-muted" style="margin-top:6px;">
+                      Waiting for students to accept…
+                    </div>
+                    <div class="vcp-muted" style="margin-top:6px;">
+                      Time: <strong>${escapeHtml(String(STATE.pendingInvite.config?.minutes || 3))} min</strong> + <strong>${escapeHtml(String(STATE.pendingInvite.config?.incrementSec || 0))} sec</strong>
+                    </div>
+                    <div class="vcp-muted" style="margin-top:6px;">
+                      White: <strong>${escapeHtml(studentLabelById(STATE.pendingInvite.config?.whiteStudentId))}</strong><br>
+                      Black: <strong>${escapeHtml(studentLabelById(STATE.pendingInvite.config?.blackStudentId))}</strong>
+                    </div>
+                    <div class="vcp-muted" style="margin-top:8px;">
+                      ${STATE.pendingInvite.studentIds.map((sid) => {
+                        const r = STATE.pendingInvite.responses?.[String(sid)] || 'pending';
+                        const pill = r === 'accept' ? 'online' : r === 'decline' ? 'idle' : 'in-game';
+                        const text = r === 'accept' ? 'accepted' : r === 'decline' ? 'declined' : 'pending';
+                        return `${escapeHtml(studentLabelById(sid))}: <span class="vcp-status-pill ${pill}">${text}</span>`;
+                      }).join('<br>')}
+                    </div>
+                    <div class="vcp-btn-row" style="margin-top:10px; justify-content:flex-end;">
+                      <button id="vcpDismissInviteBtn" class="btn btn-secondary" type="button">Dismiss</button>
+                    </div>
+                  </div>
+                ` : ''}
+
+                <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
+                <div class="vcp-muted">Shows only games where you are a player.</div>
+                <div id="vcpMyGamesArea" style="margin-top:8px;">${renderMyGames()}</div>
+
+                <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
+                <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
+              </div>
             </div>
 
-            <div class="vcp-main">
-              ${STATE.pendingInvite ? `
-                <div class="vcp-list-item" style="border-style:solid; margin-bottom:12px;">
-                  <div style="font-weight:950; color:#111827;">Pending invite</div>
-                  <div class="vcp-muted" style="margin-top:6px;">
-                    Waiting for students to accept…
-                  </div>
-                  <div class="vcp-muted" style="margin-top:6px;">
-                    Time: <strong>${escapeHtml(String(STATE.pendingInvite.config?.minutes || 3))} min</strong> + <strong>${escapeHtml(String(STATE.pendingInvite.config?.incrementSec || 0))} sec</strong>
-                  </div>
-                  <div class="vcp-muted" style="margin-top:6px;">
-                    White: <strong>${escapeHtml(studentLabelById(STATE.pendingInvite.config?.whiteStudentId))}</strong><br>
-                    Black: <strong>${escapeHtml(studentLabelById(STATE.pendingInvite.config?.blackStudentId))}</strong>
-                  </div>
-                  <div class="vcp-muted" style="margin-top:8px;">
-                    ${STATE.pendingInvite.studentIds.map((sid) => {
-                      const r = STATE.pendingInvite.responses?.[String(sid)] || 'pending';
-                      const pill = r === 'accept' ? 'online' : r === 'decline' ? 'idle' : 'in-game';
-                      const text = r === 'accept' ? 'accepted' : r === 'decline' ? 'declined' : 'pending';
-                      return `${escapeHtml(studentLabelById(sid))}: <span class="vcp-status-pill ${pill}">${text}</span>`;
-                    }).join('<br>')}
-                  </div>
-                  <div class="vcp-btn-row" style="margin-top:10px; justify-content:flex-end;">
-                    <button id="vcpDismissInviteBtn" class="btn btn-secondary" type="button">Dismiss</button>
-                  </div>
-                </div>
-              ` : ''}
-
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
-              <div class="vcp-muted">Shows only games where you are a player.</div>
-              <div id="vcpMyGamesArea" style="margin-top:8px;">${renderMyGames()}</div>
-
-              <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
-              <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
-            </div>
+            ${renderTeacherChooseModeModal()}
           </div>
         </div>
       </div>
-
-      ${renderTeacherChooseModeModal()}
     `;
-
-    document.getElementById('vcpOnlineToggleBtn')?.addEventListener('click', () => {
-      STATE.onlineListOpen = !STATE.onlineListOpen;
-      render();
-    });
-
-    document.getElementById('vcpRefreshBtn')?.addEventListener('click', () => {
-      wsSend({ type: 'vcp_get_presence' });
-      wsSend({ type: 'vcp_get_live_games' });
-    });
-
-    root.querySelectorAll('input[type="checkbox"][data-student-id]').forEach((cb) => {
-      cb.addEventListener('change', () => {
-        const id = cb.getAttribute('data-student-id');
-        if (!id) return;
-        if (cb.checked) STATE.selected.add(id);
-        else STATE.selected.delete(id);
-        render();
-      });
-    });
-
-    document.getElementById('vcpChooseModeBtn')?.addEventListener('click', () => {
-      if (Array.from(STATE.selected).length !== 2) return;
-      openChooseModeModal();
-    });
 
     document.getElementById('vcpDismissInviteBtn')?.addEventListener('click', () => {
       STATE.pendingInvite = null;
       render();
     });
 
+    bindFixedSidebarEvents();
     bindTeacherModalEvents();
   }
 
@@ -835,79 +902,46 @@
     if (!root) return;
     const player = STATE.me;
 
-    const onlineTitle = STATE.onlineListOpen ? 'Online list' : 'Online list (collapsed)';
-    const chevron = STATE.onlineListOpen ? '▾' : '▸';
-
     root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-          <div class="vcp-subtitle">Lobby</div>
-          </div>
-          <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-            ${renderHeaderBadge()}
-          </button>
-        </div>
-        ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
-
-        <div class="vcp-section">
-          <div class="vcp-layout">
-            <div class="vcp-sidebar" aria-label="Online list sidebar">
-              <button id="vcpOnlineToggleBtn" class="vcp-sidebar-toggle" type="button" aria-label="Toggle online list">
-                <span style="font-weight:950; color:#111827;">${escapeHtml(onlineTitle)}</span>
-                <span class="vcp-muted">${escapeHtml(String(STATE.students.length || 0))}</span>
-                <span class="vcp-sidebar-chevron" aria-hidden="true">${chevron}</span>
-              </button>
-
-              ${STATE.onlineListOpen ? `
-                <div class="vcp-muted">Your status: <span class="vcp-status-pill ${escapeHtml(STATE.status)}">${escapeHtml(STATE.status)}</span></div>
-
-                <div class="vcp-sidebar-actions">
-                  <button id="vcpStudentRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+      <div class="vcp-app">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-row">
+                <div>
+                  <div class="vcp-title">V.Chess Platform</div>
+                  <div class="vcp-subtitle">Lobby</div>
                 </div>
+                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+                  ${renderHeaderBadge()}
+                </button>
+              </div>
+              ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
-                <div class="vcp-online-list" role="list">
-                  ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: false })).join('')}
-                  ${STATE.students.length === 0 ? `
-                    <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
-                  ` : ''}
-                </div>
-              ` : ''}
-            </div>
+              <div class="vcp-section">
+                <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
+                <div id="vcpMyGamesArea">${renderMyGames()}</div>
 
-            <div class="vcp-main">
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
-              <div id="vcpMyGamesArea">${renderMyGames()}</div>
+                <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
+                <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
 
-              <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
-              <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
-
-              <div class="vcp-list" style="margin-top:12px;">
-                <div class="vcp-list-item">
-                  <div style="font-weight:900; color:#111827;">Invites</div>
-                  <div class="vcp-muted" style="margin-top:6px;">${STATE.invites.length ? `${STATE.invites.length} pending` : 'No invites yet.'}</div>
+                <div class="vcp-list" style="margin-top:12px;">
+                  <div class="vcp-list-item">
+                    <div style="font-weight:900; color:#111827;">Invites</div>
+                    <div class="vcp-muted" style="margin-top:6px;">${STATE.invites.length ? `${STATE.invites.length} pending` : 'No invites yet.'}</div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            ${renderStudentInviteModal()}
           </div>
         </div>
       </div>
-
-      ${renderStudentInviteModal()}
     `;
 
-    document.getElementById('vcpOnlineToggleBtn')?.addEventListener('click', () => {
-      STATE.onlineListOpen = !STATE.onlineListOpen;
-      render();
-    });
-
-    document.getElementById('vcpStudentRefreshBtn')?.addEventListener('click', () => {
-      wsSend({ type: 'vcp_get_presence' });
-      wsSend({ type: 'vcp_get_live_games' });
-      markActivity();
-    });
-
+    bindFixedSidebarEvents();
     bindStudentInviteModalEvents();
   }
 
@@ -927,22 +961,30 @@
     }
 
     root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Session</div>
+      <div class="vcp-app">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-row">
+                <div>
+                  <div class="vcp-title">V.Chess Platform</div>
+                  <div class="vcp-subtitle">Session</div>
+                </div>
+                <div class="vcp-btn-row" style="justify-content:flex-end;">
+                  <button id="vcpSessionBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
+                </div>
+              </div>
+              <div class="vcp-section">
+                <div id="ncMount"></div>
+              </div>
+            </div>
           </div>
-          <div class="vcp-btn-row" style="justify-content:flex-end;">
-            <button id="vcpSessionBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
-          </div>
-        </div>
-        <div class="vcp-section">
-          <div id="ncMount"></div>
         </div>
       </div>
     `;
 
+    bindFixedSidebarEvents();
     bindSessionEvents();
   }
 
@@ -952,27 +994,35 @@
     const hg = STATE.historyGame || { loading: false, error: null, gameId: null, game: null };
 
     root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Session</div>
-          </div>
-          <div class="vcp-btn-row" style="justify-content:flex-end;">
-            <button id="vcpHistoryBackBtn" class="btn btn-secondary" type="button">Back</button>
-          </div>
-        </div>
+      <div class="vcp-app">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-row">
+                <div>
+                  <div class="vcp-title">V.Chess Platform</div>
+                  <div class="vcp-subtitle">Session</div>
+                </div>
+                <div class="vcp-btn-row" style="justify-content:flex-end;">
+                  <button id="vcpHistoryBackBtn" class="btn btn-secondary" type="button">Back</button>
+                </div>
+              </div>
 
-        <div class="vcp-section">
-          <div id="ncHistoryMount">
-            ${hg.loading ? `<div class="vcp-muted">Loading...</div>` : ''}
-            ${hg.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(hg.error))}</div>` : ''}
+              <div class="vcp-section">
+                <div id="ncHistoryMount">
+                  ${hg.loading ? `<div class="vcp-muted">Loading...</div>` : ''}
+                  ${hg.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(hg.error))}</div>` : ''}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     `;
 
     document.getElementById('vcpHistoryBackBtn')?.addEventListener('click', closeHistoryGame);
+    bindFixedSidebarEvents();
     bindHistoryGameEvents();
   }
 
@@ -981,25 +1031,33 @@
     if (!root) return;
     const lv = STATE.liveViewer || { loading: false, error: null, sessionId: null, session: null };
     root.innerHTML = `
-      <div class="vcp-card">
-        <div class="vcp-row">
-          <div>
-            <div class="vcp-title">V.Chess Platform</div>
-            <div class="vcp-subtitle">Live Game</div>
-          </div>
-          <div class="vcp-btn-row" style="justify-content:flex-end;">
-            <button id="vcpLiveBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
-          </div>
-        </div>
-        <div class="vcp-section">
-          <div id="ncLiveMount">
-            ${lv.loading ? `<div class="vcp-muted">Loading...</div>` : ''}
-            ${lv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(lv.error))}</div>` : ''}
+      <div class="vcp-app">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-row">
+                <div>
+                  <div class="vcp-title">V.Chess Platform</div>
+                  <div class="vcp-subtitle">Live Game</div>
+                </div>
+                <div class="vcp-btn-row" style="justify-content:flex-end;">
+                  <button id="vcpLiveBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
+                </div>
+              </div>
+              <div class="vcp-section">
+                <div id="ncLiveMount">
+                  ${lv.loading ? `<div class="vcp-muted">Loading...</div>` : ''}
+                  ${lv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(lv.error))}</div>` : ''}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     `;
     document.getElementById('vcpLiveBackBtn')?.addEventListener('click', closeLiveViewer);
+    bindFixedSidebarEvents();
     bindLiveViewerEvents();
   }
 
