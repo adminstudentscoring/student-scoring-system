@@ -914,7 +914,8 @@
             send: wsSend,
             getSession: () => STATE.activeSession,
             getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' }),
-            getPlayerLabelById: (id) => studentLabelById(id)
+            getPlayerLabelById: (id) => studentLabelById(id),
+            sessionMoveList: true
           });
         }
         if (STATE.ncApp?.applyState && STATE.activeSession?.chessState) {

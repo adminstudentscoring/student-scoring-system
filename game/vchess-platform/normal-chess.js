@@ -490,6 +490,8 @@
     const getPlayerLabelById = opts?.getPlayerLabelById || ((id) => String(id || ''));
     const isViewer = !!opts?.viewer;
     const getViewerData = opts?.getViewerData || (() => null);
+    const sessionMoveList = !!opts?.sessionMoveList;
+    const showPanel = isViewer || sessionMoveList;
 
     const UI = {
       selected: null,
@@ -497,7 +499,8 @@
       lastState: null,
       localClockBase: null, // (reserved)
       viewerPly: null,
-      viewerShareOpen: false
+      viewerShareOpen: false,
+      sessionPly: null
     };
     let pendingPromotion = null; // { from, to, isDrag }
 
@@ -664,6 +667,20 @@
       const sanMoves = Array.isArray(viewerData?.sanMoves) ? viewerData.sanMoves : [];
       const pgn = String(viewerData?.pgn || '') || buildPgnFallbackFromSan(sanMoves);
 
+      const sessionHist = Array.isArray(state?.history) ? state.history : [];
+      const sessionSanMoves = sessionMoveList
+        ? sessionHist.map((m) => String(m?.san || '')).filter(Boolean)
+        : [];
+      const sessionLastPly = sessionMoveList ? sessionSanMoves.length : 0;
+      if (sessionMoveList && (UI.sessionPly === null || UI.sessionPly === undefined)) {
+        UI.sessionPly = sessionLastPly;
+      }
+      // If user stays at latest, keep following new moves
+      if (sessionMoveList && Number(UI.sessionPly) === (sessionLastPly - 1)) {
+        // (handled below by clamp)
+      }
+      const sessionPly = sessionMoveList ? clampInt(UI.sessionPly, 0, sessionLastPly) : 0;
+
       const viewerLastPly = timelineBoards && timelineBoards.length ? Math.max(0, timelineBoards.length - 1) : 0;
       if (isViewer && timelineBoards && timelineBoards.length && (UI.viewerPly === null || UI.viewerPly === undefined)) {
         UI.viewerPly = viewerLastPly; // default: last position
@@ -747,7 +764,7 @@
 
       rootEl.innerHTML = `
         <div class="nc-root">
-          <div class="nc-layout ${isViewer ? 'nc-viewer' : ''}">
+          <div class="nc-layout ${showPanel ? 'nc-viewer' : ''}">
             <div class="nc-timers">
               <div class="nc-timer ${activeTop ? 'active' : ''}">
                 <div class="nc-timer-label"><span>${escapeHtml(String(topName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
@@ -773,27 +790,32 @@
               </div>
             </div>
 
-            ${isViewer ? `
+            ${showPanel ? `
               <div class="nc-viewer-panel" aria-label="Game viewer panel">
-                <div class="nc-viewer-toolbar" aria-label="Tools">
-                  <button class="nc-icon-btn" type="button" id="ncShareBtn" aria-label="Share" title="Share">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M18 16a3 3 0 0 0-2.4 1.2l-6.3-3.3a3.4 3.4 0 0 0 0-3.8l6.3-3.3A3 3 0 1 0 15 5a3 3 0 0 0 .1.7L8.8 9A3 3 0 1 0 9 15l6.1 3.3A3 3 0 1 0 18 16Z" fill="currentColor"/>
-                    </svg>
-                  </button>
-                  <button class="nc-icon-btn" type="button" id="ncAnalysisBtn" aria-label="Analysis" title="Analysis" disabled>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 19h16v2H4v-2Zm2-2V3h2v14H6Zm5 0V7h2v10h-2Zm5 0V11h2v6h-2Z" fill="currentColor"/>
-                    </svg>
-                  </button>
-                </div>
+                ${isViewer ? `
+                  <div class="nc-viewer-toolbar" aria-label="Tools">
+                    <button class="nc-icon-btn" type="button" id="ncShareBtn" aria-label="Share" title="Share">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18 16a3 3 0 0 0-2.4 1.2l-6.3-3.3a3.4 3.4 0 0 0 0-3.8l6.3-3.3A3 3 0 1 0 15 5a3 3 0 0 0 .1.7L8.8 9A3 3 0 1 0 9 15l6.1 3.3A3 3 0 1 0 18 16Z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    <button class="nc-icon-btn" type="button" id="ncAnalysisBtn" aria-label="Analysis" title="Analysis" disabled>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 19h16v2H4v-2Zm2-2V3h2v14H6Zm5 0V7h2v10h-2Zm5 0V11h2v6h-2Z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                  </div>
+                ` : ''}
                 <div class="nc-viewer-moves" id="ncMoveList">
-                  ${buildMovesTableHtml(sanMoves, viewerPly, viewerLastPly)}
+                  ${isViewer
+                    ? buildMovesTableHtml(sanMoves, viewerPly, viewerLastPly)
+                    : buildMovesTableHtml(sessionSanMoves, sessionPly, sessionLastPly)
+                  }
                 </div>
                 <div class="nc-viewer-nav" aria-label="Navigation">
-                  <button class="btn btn-secondary nc-nav-btn" type="button" id="ncPrevBtn" ${viewerPly <= 0 ? 'disabled' : ''}>←</button>
-                  <div class="nc-nav-label">${escapeHtml(String(viewerPly))} / ${escapeHtml(String(viewerLastPly))}</div>
-                  <button class="btn btn-secondary nc-nav-btn" type="button" id="ncNextBtn" ${viewerPly >= viewerLastPly ? 'disabled' : ''}>→</button>
+                  <button class="btn btn-secondary nc-nav-btn" type="button" id="ncPrevBtn" ${(isViewer ? viewerPly : sessionPly) <= 0 ? 'disabled' : ''}>←</button>
+                  <div class="nc-nav-label">${escapeHtml(String(isViewer ? viewerPly : sessionPly))} / ${escapeHtml(String(isViewer ? viewerLastPly : sessionLastPly))}</div>
+                  <button class="btn btn-secondary nc-nav-btn" type="button" id="ncNextBtn" ${(isViewer ? viewerPly : sessionPly) >= (isViewer ? viewerLastPly : sessionLastPly) ? 'disabled' : ''}>→</button>
                 </div>
               </div>
             ` : ''}
@@ -960,6 +982,24 @@
           btn.addEventListener('click', () => {
             const ply = Number(btn.getAttribute('data-ply') || 0);
             UI.viewerPly = clampInt(ply, 0, viewerLastPly);
+            render(UI.lastState);
+          });
+        });
+      }
+
+      if (sessionMoveList) {
+        rootEl.querySelector('#ncPrevBtn')?.addEventListener('click', () => {
+          UI.sessionPly = clampInt(Number(UI.sessionPly || 0) - 1, 0, sessionLastPly);
+          render(UI.lastState);
+        });
+        rootEl.querySelector('#ncNextBtn')?.addEventListener('click', () => {
+          UI.sessionPly = clampInt(Number(UI.sessionPly || 0) + 1, 0, sessionLastPly);
+          render(UI.lastState);
+        });
+        rootEl.querySelectorAll('.nc-move-cell[data-ply]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const ply = Number(btn.getAttribute('data-ply') || 0);
+            UI.sessionPly = clampInt(ply, 0, sessionLastPly);
             render(UI.lastState);
           });
         });
