@@ -10602,7 +10602,8 @@ async function startServer() {
     studentsByOrg: new Map(), // orgId -> Map(studentUserId -> presence)
     teachersByOrg: new Map(), // orgId -> Set(ws)
     invites: new Map(), // inviteId -> invite
-    sessions: new Map() // sessionId -> session
+    sessions: new Map(), // sessionId -> session
+    watchersBySession: new Map() // sessionId -> Set(ws)
   };
 
   function wsSend(ws, payload) {
@@ -11514,6 +11515,14 @@ async function startServer() {
       if (!pres) continue;
       for (const sWs of pres.connections) wsSend(sWs, payload);
     }
+
+    // spectators (watchers)
+    try {
+      const set = vcp.watchersBySession.get(String(session.id));
+      if (set && set.size) {
+        for (const w of Array.from(set)) wsSend(w, payload);
+      }
+    } catch {}
   }
 
   // Live games (org-wide spectator snapshots)
@@ -11537,8 +11546,8 @@ async function startServer() {
         teacherName: String(s.teacherName || ''),
         whiteId,
         blackId,
-        whiteName: wp ? String(wp.name || 'White') : 'White',
-        blackName: bp ? String(bp.name || 'Black') : 'Black',
+        whiteName: wp ? String(wp.name || 'White') : (String(s.whiteName || '') || (whiteId === String(s.teacherId || '') ? String(s.teacherName || 'Teacher') : 'White')),
+        blackName: bp ? String(bp.name || 'Black') : (String(s.blackName || '') || (blackId === String(s.teacherId || '') ? String(s.teacherName || 'Teacher') : 'Black')),
         whiteStudentId: wp ? String(wp.studentId || '') : '',
         blackStudentId: bp ? String(bp.studentId || '') : '',
         config: { minutes: Number(cfg.minutes || 3), incrementSec: Number(cfg.incrementSec || 0) },
@@ -11774,6 +11783,42 @@ async function startServer() {
         return;
       }
 
+      if (type === 'vcp_get_session') {
+        const sessionId = String(msg?.sessionId || '');
+        if (!sessionId) {
+          wsSend(ws, { type: 'vcp_error', error: 'sessionId is required' });
+          return;
+        }
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) {
+          wsSend(ws, { type: 'vcp_error', error: 'Session not found' });
+          return;
+        }
+        // Send the full session snapshot (for spectator viewer)
+        wsSend(ws, { type: 'vcp_session_snapshot', sessionId, session });
+        return;
+      }
+
+      if (type === 'vcp_watch_session') {
+        const sessionId = String(msg?.sessionId || '');
+        if (!sessionId) return;
+        const session = vcp.sessions.get(sessionId);
+        if (!session || String(session.orgId) !== String(orgId)) return;
+        if (!ws.vcpWatched) ws.vcpWatched = new Set();
+        ws.vcpWatched.add(sessionId);
+        if (!vcp.watchersBySession.has(sessionId)) vcp.watchersBySession.set(sessionId, new Set());
+        vcp.watchersBySession.get(sessionId).add(ws);
+        return;
+      }
+
+      if (type === 'vcp_unwatch_session') {
+        const sessionId = String(msg?.sessionId || '');
+        if (!sessionId) return;
+        try { ws.vcpWatched?.delete?.(sessionId); } catch {}
+        try { vcp.watchersBySession.get(sessionId)?.delete?.(ws); } catch {}
+        return;
+      }
+
       if (type === 'vcp_get_game_history') {
         const targetUserId = String(msg?.targetUserId || '');
         const pageRaw = Number(msg?.page || 1);
@@ -11889,6 +11934,64 @@ async function startServer() {
         return;
       }
 
+      // Teacher vs Student match (teacher plays as a player; only 1 student needs to accept)
+      if (type === 'vcp_invite_teacher_match') {
+        if (kind !== 'teacher') return;
+        const mode = String(msg?.mode || '');
+        const studentId = String(msg?.studentId || '');
+        const config = msg?.config || {};
+
+        if (mode !== 'chess') {
+          wsSend(ws, { type: 'vcp_error', error: 'Only Normal Chess is supported for now' });
+          return;
+        }
+        if (!studentId) {
+          wsSend(ws, { type: 'vcp_error', error: 'studentId is required' });
+          return;
+        }
+
+        const smap = vcpOrgStudentsMap(orgId);
+        const p1 = smap.get(studentId);
+        if (!p1) {
+          wsSend(ws, { type: 'vcp_error', error: 'Student is not online' });
+          return;
+        }
+        if (p1.inGame) {
+          wsSend(ws, { type: 'vcp_error', error: 'Student is already in-game' });
+          return;
+        }
+
+        const minutes = Math.max(1, Math.min(60, Number(config?.minutes) || 3));
+        const incrementSec = Math.max(0, Math.min(60, Number(config?.incrementSec) || 2));
+        const teacherId = String(userId || '');
+        const whiteStudentId = String(config?.whiteStudentId || teacherId);
+        const blackStudentId = String(config?.blackStudentId || studentId);
+        const ids = [teacherId, studentId];
+        if (!ids.includes(whiteStudentId) || !ids.includes(blackStudentId) || whiteStudentId === blackStudentId) {
+          wsSend(ws, { type: 'vcp_error', error: 'Invalid color assignment' });
+          return;
+        }
+
+        const inviteId = `vcp_inv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        const invite = {
+          id: inviteId,
+          orgId,
+          teacher: { id: teacherId, name: String(name || 'Teacher') },
+          mode: 'chess',
+          studentIds: [studentId],
+          config: { minutes, incrementSec, whiteStudentId, blackStudentId },
+          createdAt: nowIso(),
+          status: 'pending',
+          responses: {}
+        };
+        vcp.invites.set(inviteId, invite);
+
+        const payload = { type: 'vcp_invite', invite };
+        for (const sWs of p1.connections || []) wsSend(sWs, payload);
+        wsSend(ws, { type: 'vcp_invite_sent', inviteId });
+        return;
+      }
+
       if (type === 'vcp_invite_respond') {
         if (kind !== 'student') return;
         const inviteId = String(msg?.inviteId || '');
@@ -11908,18 +12011,24 @@ async function startServer() {
           return;
         }
 
-        // If both accepted -> start session
+        // If accepted -> start session (2-student or teacher-vs-student)
         const r1 = invite.responses[invite.studentIds[0]];
-        const r2 = invite.responses[invite.studentIds[1]];
-        if (r1 === 'accept' && r2 === 'accept') {
+        const r2 = invite.studentIds.length > 1 ? invite.responses[invite.studentIds[1]] : null;
+        const allAccepted = invite.studentIds.length === 1
+          ? (r1 === 'accept')
+          : (r1 === 'accept' && r2 === 'accept');
+
+        if (allAccepted) {
           invite.status = 'accepted';
           vcp.invites.set(inviteId, invite);
 
           const sessionId = `vcp_sess_${Date.now()}_${Math.random().toString(16).slice(2)}`;
           const startedAt = nowIso();
           const smap2 = vcpOrgStudentsMap(orgId);
-          const wp = smap2.get(String(invite.config?.whiteStudentId || invite.studentIds[0]));
-          const bp = smap2.get(String(invite.config?.blackStudentId || invite.studentIds[1]));
+          const whiteId = String(invite.config?.whiteStudentId || invite.studentIds[0]);
+          const blackId = String(invite.config?.blackStudentId || (invite.studentIds[1] || invite.teacher?.id || ''));
+          const wp = smap2.get(whiteId);
+          const bp = smap2.get(blackId);
           const session = {
             id: sessionId,
             orgId,
@@ -11931,8 +12040,8 @@ async function startServer() {
             chessState: null,
             createdAt: startedAt,
             startedAt,
-            whiteName: wp ? String(wp.name || 'White') : 'White',
-            blackName: bp ? String(bp.name || 'Black') : 'Black',
+            whiteName: wp ? String(wp.name || 'White') : (whiteId === String(invite.teacher?.id || '') ? String(invite.teacher?.name || 'Teacher') : 'White'),
+            blackName: bp ? String(bp.name || 'Black') : (blackId === String(invite.teacher?.id || '') ? String(invite.teacher?.name || 'Teacher') : 'Black'),
             whiteStudentId: wp ? String(wp.studentId || '') : '',
             blackStudentId: bp ? String(bp.studentId || '') : '',
             status: 'active'
@@ -11990,9 +12099,21 @@ async function startServer() {
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (String(session.mode) !== 'chess') return;
 
-        // Only participants can move (students)
-        if (kind !== 'student') return;
-        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        const cfg = session.config || {};
+        const whitePlayerId = String(cfg.whiteStudentId || '');
+        const blackPlayerId = String(cfg.blackStudentId || '');
+        const isPlayer = String(userId) === whitePlayerId || String(userId) === blackPlayerId;
+
+        // Only participants can move:
+        // - students must be in session.studentIds
+        // - teachers can only move if they are one of the two players (teacher vs student match)
+        if (kind === 'student') {
+          if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        } else if (kind === 'teacher') {
+          if (!isPlayer) return;
+        } else {
+          return;
+        }
 
         // Ensure chess state exists
         if (!session.chessState) {
@@ -12021,11 +12142,19 @@ async function startServer() {
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (String(session.mode) !== 'chess') return;
         if (String(session.status) !== 'active') return;
-        if (kind !== 'student') return;
-        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        const cfg = session.config || {};
+        const whitePlayerId = String(cfg.whiteStudentId || '');
+        const blackPlayerId = String(cfg.blackStudentId || '');
+        const isPlayer = String(userId) === whitePlayerId || String(userId) === blackPlayerId;
+        if (kind === 'student') {
+          if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        } else if (kind === 'teacher') {
+          if (!isPlayer) return;
+        } else {
+          return;
+        }
         if (!session.chessState || session.chessState.gameOver) return;
 
-        const cfg = session.config || {};
         const moverColor = String(userId) === String(cfg.whiteStudentId || '') ? 'w' : String(userId) === String(cfg.blackStudentId || '') ? 'b' : null;
         if (!moverColor) return;
 
@@ -12043,11 +12172,19 @@ async function startServer() {
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (String(session.mode) !== 'chess') return;
         if (String(session.status) !== 'active') return;
-        if (kind !== 'student') return;
-        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        const cfg = session.config || {};
+        const whitePlayerId = String(cfg.whiteStudentId || '');
+        const blackPlayerId = String(cfg.blackStudentId || '');
+        const isPlayer = String(userId) === whitePlayerId || String(userId) === blackPlayerId;
+        if (kind === 'student') {
+          if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        } else if (kind === 'teacher') {
+          if (!isPlayer) return;
+        } else {
+          return;
+        }
         if (!session.chessState || session.chessState.gameOver) return;
 
-        const cfg = session.config || {};
         const myColor = String(userId) === String(cfg.whiteStudentId || '') ? 'w' : String(userId) === String(cfg.blackStudentId || '') ? 'b' : null;
         if (!myColor) return;
 
@@ -12073,11 +12210,19 @@ async function startServer() {
         if (!session || String(session.orgId) !== String(orgId)) return;
         if (String(session.mode) !== 'chess') return;
         if (String(session.status) !== 'active') return;
-        if (kind !== 'student') return;
-        if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        const cfg = session.config || {};
+        const whitePlayerId = String(cfg.whiteStudentId || '');
+        const blackPlayerId = String(cfg.blackStudentId || '');
+        const isPlayer = String(userId) === whitePlayerId || String(userId) === blackPlayerId;
+        if (kind === 'student') {
+          if (!Array.isArray(session.studentIds) || !session.studentIds.includes(String(userId))) return;
+        } else if (kind === 'teacher') {
+          if (!isPlayer) return;
+        } else {
+          return;
+        }
         if (!session.chessState || session.chessState.gameOver) return;
 
-        const cfg = session.config || {};
         const myColor = String(userId) === String(cfg.whiteStudentId || '') ? 'w' : String(userId) === String(cfg.blackStudentId || '') ? 'b' : null;
         if (!myColor) return;
 
@@ -12089,6 +12234,14 @@ async function startServer() {
     ws.on('close', () => {
       if (!ws.vcp) return;
       const { kind, orgId, userId } = ws.vcp;
+      // Cleanup any spectator watches
+      try {
+        if (ws.vcpWatched && ws.vcpWatched.size) {
+          for (const sessionId of Array.from(ws.vcpWatched)) {
+            try { vcp.watchersBySession.get(String(sessionId))?.delete?.(ws); } catch {}
+          }
+        }
+      } catch {}
       if (kind === 'teacher') {
         try { vcpOrgTeachersSet(orgId).delete(ws); } catch {}
         return;

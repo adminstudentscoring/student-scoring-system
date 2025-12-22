@@ -9,9 +9,11 @@
     profileTargetId: null, // userId
     profileHistory: { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] },
     historyGame: { loading: false, error: null, gameId: null, game: null },
+    liveViewer: { loading: false, error: null, sessionId: null, session: null },
     // Teacher view
     students: [], // [{id,name,studentId,status,inGame}]
     selected: new Set(),
+    onlineListOpen: true,
     // Invites / sessions
     invites: [], // student-only: [{invite}]
     teacherMessages: [],
@@ -22,6 +24,8 @@
     ncSessionId: null,
     historyNcApp: null,
     historyNcKey: null,
+    liveNcApp: null,
+    liveNcKey: null,
     liveGames: [], // org-wide spectator snapshots
     uiDelegatedBound: false
   };
@@ -140,6 +144,10 @@
   }
 
   function studentLabelById(id) {
+    if (STATE.role === 'teacher' && String(id) === String(STATE.me?.id || '')) {
+      const nm = String(STATE.me?.name || 'Teacher');
+      return `${nm} (Teacher)`;
+    }
     const s = STATE.students.find((x) => String(x.id) === String(id));
     if (!s) return String(id || '');
     const nm = String(s.name || 'Unknown');
@@ -212,7 +220,7 @@
           const whiteLabel = `${String(g.whiteName || 'White')}${g.whiteStudentId ? ` (${String(g.whiteStudentId)})` : ''}`;
           const blackLabel = `${String(g.blackName || 'Black')}${g.blackStudentId ? ` (${String(g.blackStudentId)})` : ''}`;
           return `
-            <div class="vcp-live-card" data-live-session="${escapeHtml(String(g.sessionId || ''))}">
+            <div class="vcp-live-card" data-live-session="${escapeHtml(String(g.sessionId || ''))}" style="cursor:pointer;">
               <div class="vcp-live-card-header">
                 <div class="vcp-live-names">${escapeHtml(whiteLabel)} vs ${escapeHtml(blackLabel)}</div>
                 <div class="vcp-live-meta">
@@ -301,6 +309,13 @@
     STATE.uiDelegatedBound = true;
     root.addEventListener('click', (e) => {
       const target = e.target;
+
+      const live = target?.closest?.('[data-live-session]');
+      if (live) {
+        const sid = String(live.getAttribute('data-live-session') || '');
+        if (sid) openLiveViewer(sid);
+        return;
+      }
 
       const prof = target?.closest?.('[data-vcp-profile-id]');
       if (prof) {
@@ -408,6 +423,30 @@
     STATE.historyNcKey = null;
     STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
     STATE.page = 'profile';
+    render();
+  }
+
+  function openLiveViewer(sessionId) {
+    const sid = String(sessionId || '');
+    if (!sid) return;
+    try { STATE.liveNcApp?.destroy?.(); } catch {}
+    STATE.liveNcApp = null;
+    STATE.liveNcKey = null;
+    STATE.page = 'liveViewer';
+    STATE.liveViewer = { loading: true, error: null, sessionId: sid, session: null };
+    wsSend({ type: 'vcp_get_session', sessionId: sid });
+    wsSend({ type: 'vcp_watch_session', sessionId: sid });
+    render();
+  }
+
+  function closeLiveViewer() {
+    const sid = String(STATE.liveViewer?.sessionId || '');
+    if (sid) wsSend({ type: 'vcp_unwatch_session', sessionId: sid });
+    try { STATE.liveNcApp?.destroy?.(); } catch {}
+    STATE.liveNcApp = null;
+    STATE.liveNcKey = null;
+    STATE.liveViewer = { loading: false, error: null, sessionId: null, session: null };
+    STATE.page = 'lobby';
     render();
   }
 
@@ -664,6 +703,16 @@
     if (!root) return;
     const selected = Array.from(STATE.selected);
 
+    const onlineTitle = STATE.onlineListOpen ? 'Online list' : 'Online list (collapsed)';
+    const chevron = STATE.onlineListOpen ? '▾' : '▸';
+    const meItem = (STATE.me?.id && STATE.role === 'teacher') ? {
+      id: String(STATE.me.id),
+      name: `${String(STATE.me.name || 'Teacher')} (Teacher)`,
+      studentId: 'Teacher',
+      status: 'online',
+      inGame: false
+    } : null;
+
     root.innerHTML = `
       <div class="vcp-card">
         <div class="vcp-row">
@@ -680,20 +729,28 @@
         <div class="vcp-section">
           <div class="vcp-layout">
             <div class="vcp-sidebar" aria-label="Online list sidebar">
-              <div style="font-weight:900; color:#111827;">Online list</div>
-              <div class="vcp-muted">Select exactly 2 students for Normal Chess.</div>
+              <button id="vcpOnlineToggleBtn" class="vcp-sidebar-toggle" type="button" aria-label="Toggle online list">
+                <span style="font-weight:950; color:#111827;">${escapeHtml(onlineTitle)}</span>
+                <span class="vcp-muted">${escapeHtml(String(STATE.students.length || 0))}</span>
+                <span class="vcp-sidebar-chevron" aria-hidden="true">${chevron}</span>
+              </button>
 
-              <div class="vcp-sidebar-actions">
-                <button id="vcpRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-                <button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>
-              </div>
+              ${STATE.onlineListOpen ? `
+                <div class="vcp-muted">Select 2 players. You can include yourself.</div>
 
-              <div class="vcp-online-list" role="list">
-                ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: true })).join('')}
-                ${STATE.students.length === 0 ? `
-                  <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
-                ` : ''}
-              </div>
+                <div class="vcp-sidebar-actions">
+                  <button id="vcpRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+                  <button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Choose game mode</button>
+                </div>
+
+                <div class="vcp-online-list" role="list">
+                  ${meItem ? renderOnlineListItem(meItem, { selectable: true }) : ''}
+                  ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: true })).join('')}
+                  ${STATE.students.length === 0 ? `
+                    <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
+                  ` : ''}
+                </div>
+              ` : ''}
             </div>
 
             <div class="vcp-main">
@@ -724,9 +781,6 @@
                 </div>
               ` : ''}
 
-              <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
-              <div id="vcpMyGamesArea">${renderMyGames()}</div>
-
               <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
               <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
             </div>
@@ -736,6 +790,11 @@
 
       ${renderTeacherChooseModeModal()}
     `;
+
+    document.getElementById('vcpOnlineToggleBtn')?.addEventListener('click', () => {
+      STATE.onlineListOpen = !STATE.onlineListOpen;
+      render();
+    });
 
     document.getElementById('vcpRefreshBtn')?.addEventListener('click', () => {
       wsSend({ type: 'vcp_get_presence' });
@@ -770,6 +829,9 @@
     if (!root) return;
     const player = STATE.me;
 
+    const onlineTitle = STATE.onlineListOpen ? 'Online list' : 'Online list (collapsed)';
+    const chevron = STATE.onlineListOpen ? '▾' : '▸';
+
     root.innerHTML = `
       <div class="vcp-card">
         <div class="vcp-row">
@@ -786,19 +848,26 @@
         <div class="vcp-section">
           <div class="vcp-layout">
             <div class="vcp-sidebar" aria-label="Online list sidebar">
-              <div style="font-weight:900; color:#111827;">Online list</div>
-              <div class="vcp-muted">Your status: <span class="vcp-status-pill ${escapeHtml(STATE.status)}">${escapeHtml(STATE.status)}</span></div>
+              <button id="vcpOnlineToggleBtn" class="vcp-sidebar-toggle" type="button" aria-label="Toggle online list">
+                <span style="font-weight:950; color:#111827;">${escapeHtml(onlineTitle)}</span>
+                <span class="vcp-muted">${escapeHtml(String(STATE.students.length || 0))}</span>
+                <span class="vcp-sidebar-chevron" aria-hidden="true">${chevron}</span>
+              </button>
 
-              <div class="vcp-sidebar-actions">
-                <button id="vcpStudentRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-              </div>
+              ${STATE.onlineListOpen ? `
+                <div class="vcp-muted">Your status: <span class="vcp-status-pill ${escapeHtml(STATE.status)}">${escapeHtml(STATE.status)}</span></div>
 
-              <div class="vcp-online-list" role="list">
-                ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: false })).join('')}
-                ${STATE.students.length === 0 ? `
-                  <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
-                ` : ''}
-              </div>
+                <div class="vcp-sidebar-actions">
+                  <button id="vcpStudentRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+                </div>
+
+                <div class="vcp-online-list" role="list">
+                  ${STATE.students.map((s) => renderOnlineListItem(s, { selectable: false })).join('')}
+                  ${STATE.students.length === 0 ? `
+                    <div class="vcp-muted" style="margin-top:10px;">No students online.</div>
+                  ` : ''}
+                </div>
+              ` : ''}
             </div>
 
             <div class="vcp-main">
@@ -821,6 +890,11 @@
 
       ${renderStudentInviteModal()}
     `;
+
+    document.getElementById('vcpOnlineToggleBtn')?.addEventListener('click', () => {
+      STATE.onlineListOpen = !STATE.onlineListOpen;
+      render();
+    });
 
     document.getElementById('vcpStudentRefreshBtn')?.addEventListener('click', () => {
       wsSend({ type: 'vcp_get_presence' });
@@ -894,6 +968,33 @@
 
     document.getElementById('vcpHistoryBackBtn')?.addEventListener('click', closeHistoryGame);
     bindHistoryGameEvents();
+  }
+
+  function renderLiveViewerPage() {
+    const root = getRoot();
+    if (!root) return;
+    const lv = STATE.liveViewer || { loading: false, error: null, sessionId: null, session: null };
+    root.innerHTML = `
+      <div class="vcp-card">
+        <div class="vcp-row">
+          <div>
+            <div class="vcp-title">V.Chess Platform</div>
+            <div class="vcp-subtitle">Live Game</div>
+          </div>
+          <div class="vcp-btn-row" style="justify-content:flex-end;">
+            <button id="vcpLiveBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
+          </div>
+        </div>
+        <div class="vcp-section">
+          <div id="ncLiveMount">
+            ${lv.loading ? `<div class="vcp-muted">Loading...</div>` : ''}
+            ${lv.error ? `<div class="vcp-muted" style="color:#b91c1c;">${escapeHtml(String(lv.error))}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('vcpLiveBackBtn')?.addEventListener('click', closeLiveViewer);
+    bindLiveViewerEvents();
   }
 
   function bindSessionEvents() {
@@ -1004,6 +1105,43 @@
     try { STATE.historyNcApp?.applyState?.(session.chessState); } catch {}
   }
 
+  function bindLiveViewerEvents() {
+    if (STATE.page !== 'liveViewer') return;
+    const mount = document.getElementById('ncLiveMount');
+    if (!mount) return;
+    const session = STATE.liveViewer?.session || null;
+    if (!session || !session.chessState) return;
+    if (!window.NormalChess?.mountNormalChess) return;
+
+    const key = String(session.id || '');
+    if (!STATE.liveNcApp || String(STATE.liveNcKey) !== key) {
+      try { STATE.liveNcApp?.destroy?.(); } catch {}
+      STATE.liveNcKey = key;
+      const sendNoop = () => {};
+      const cfg = session?.config || {};
+      const whiteId = String(cfg.whiteStudentId || '');
+      const blackId = String(cfg.blackStudentId || '');
+      const whiteName = String(session.whiteName || 'White');
+      const blackName = String(session.blackName || 'Black');
+      STATE.liveNcApp = window.NormalChess.mountNormalChess({
+        rootEl: mount,
+        send: sendNoop,
+        getSession: () => session,
+        // Spectator mode: never allow moves
+        getIdentity: () => ({ role: 'spectator', id: String(STATE.me?.id || '') }),
+        getPlayerLabelById: (id) => {
+          const sid = String(id || '');
+          if (sid && sid === whiteId) return whiteName;
+          if (sid && sid === blackId) return blackName;
+          return '';
+        },
+        sessionMoveList: true,
+        spectator: true
+      });
+    }
+    try { STATE.liveNcApp?.applyState?.(session.chessState); } catch {}
+  }
+
   function closeSessionView() {
     if (!STATE.activeSession) return;
     try { STATE.ncApp?.destroy?.(); } catch {}
@@ -1029,10 +1167,12 @@
   function renderTeacherChooseModeModal() {
     if (!STATE.uiChooseModeOpen) return '';
     const ids = Array.from(STATE.selected);
-    const s1 = STATE.students.find(s => s.id === ids[0]) || { id: ids[0], name: 'Student A' };
-    const s2 = STATE.students.find(s => s.id === ids[1]) || { id: ids[1], name: 'Student B' };
-    const whiteId = STATE.chooseMode?.whiteStudentId || s1.id;
-    const blackId = whiteId === s1.id ? s2.id : s1.id;
+    const id1 = String(ids[0] || '');
+    const id2 = String(ids[1] || '');
+    const label1 = studentLabelById(id1) || 'Player A';
+    const label2 = studentLabelById(id2) || 'Player B';
+    const whiteId = String(STATE.chooseMode?.whiteStudentId || id1);
+    const blackId = whiteId === id1 ? id2 : id1;
     const minutes = STATE.chooseMode?.minutes ?? 3;
     const inc = STATE.chooseMode?.incrementSec ?? 2;
 
@@ -1058,14 +1198,14 @@
             <div class="vcp-form-row">
               <label style="font-weight:900; color:#111827;">White</label>
               <select id="vcpWhiteSelect" class="vcp-input">
-                <option value="${escapeHtml(s1.id)}" ${whiteId === s1.id ? 'selected' : ''}>${escapeHtml(s1.name)}</option>
-                <option value="${escapeHtml(s2.id)}" ${whiteId === s2.id ? 'selected' : ''}>${escapeHtml(s2.name)}</option>
+                <option value="${escapeHtml(id1)}" ${whiteId === id1 ? 'selected' : ''}>${escapeHtml(label1)}</option>
+                <option value="${escapeHtml(id2)}" ${whiteId === id2 ? 'selected' : ''}>${escapeHtml(label2)}</option>
               </select>
             </div>
 
             <div class="vcp-form-row">
               <label style="font-weight:900; color:#111827;">Black</label>
-              <input class="vcp-input" type="text" readonly value="${escapeHtml((blackId === s1.id ? s1.name : s2.name) || '')}">
+              <input class="vcp-input" type="text" readonly value="${escapeHtml((blackId === id1 ? label1 : label2) || '')}">
             </div>
 
             <div class="vcp-form-row">
@@ -1124,19 +1264,39 @@
       const minutes = Math.max(1, Math.min(60, minutesRaw));
       const inc = Math.max(0, Math.min(60, incRaw));
       const black = white === ids[0] ? ids[1] : ids[0];
-      wsSend({
-        type: 'vcp_invite_create',
-        mode: 'chess',
-        studentIds: ids,
-        config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black }
-      });
-      STATE.pendingInvite = {
-        inviteId: null,
-        studentIds: ids.slice(),
-        config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black },
-        createdAt: Date.now(),
-        responses: {}
-      };
+      const teacherId = String(STATE.me?.id || '');
+      const hasTeacher = teacherId && ids.includes(teacherId);
+      if (hasTeacher) {
+        const studentId = String(ids.find(x => String(x) !== teacherId) || '');
+        if (!studentId) return;
+        wsSend({
+          type: 'vcp_invite_teacher_match',
+          mode: 'chess',
+          studentId,
+          config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black }
+        });
+        STATE.pendingInvite = {
+          inviteId: null,
+          studentIds: [studentId],
+          config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black },
+          createdAt: Date.now(),
+          responses: {}
+        };
+      } else {
+        wsSend({
+          type: 'vcp_invite_create',
+          mode: 'chess',
+          studentIds: ids,
+          config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black }
+        });
+        STATE.pendingInvite = {
+          inviteId: null,
+          studentIds: ids.slice(),
+          config: { minutes, incrementSec: inc, whiteStudentId: white, blackStudentId: black },
+          createdAt: Date.now(),
+          responses: {}
+        };
+      }
       closeChooseModeModal();
       setTeacherMessage('Invite sent. Waiting for students…', 'success');
     });
@@ -1231,6 +1391,9 @@
       console.error('VCP error:', details);
       STATE.lastError = details;
       setTeacherMessage(details, 'error');
+      if (STATE.page === 'liveViewer') {
+        STATE.liveViewer = { loading: false, error: details, sessionId: String(STATE.liveViewer?.sessionId || ''), session: STATE.liveViewer?.session || null };
+      }
       render();
       return;
     }
@@ -1314,13 +1477,27 @@
       render();
       return;
     }
+    if (type === 'vcp_session_snapshot') {
+      const sid = String(msg?.sessionId || (msg?.session?.id) || '');
+      const session = msg?.session || null;
+      if (STATE.page === 'liveViewer' && sid && sid === String(STATE.liveViewer?.sessionId || '')) {
+        STATE.liveViewer = { loading: false, error: null, sessionId: sid, session };
+        render();
+      }
+      return;
+    }
     if (type === 'vcp_chess_sync') {
       const sid = String(msg?.sessionId || '');
-      if (!STATE.activeSession || String(STATE.activeSession.id) !== sid) return;
       const st = msg?.state || null;
       if (st && typeof st === 'object') {
-        STATE.activeSession.chessState = st;
-        try { STATE.ncApp?.applyState?.(st); } catch {}
+        if (STATE.activeSession && String(STATE.activeSession.id) === sid) {
+          STATE.activeSession.chessState = st;
+          try { STATE.ncApp?.applyState?.(st); } catch {}
+        }
+        if (STATE.page === 'liveViewer' && sid && sid === String(STATE.liveViewer?.sessionId || '') && STATE.liveViewer?.session) {
+          STATE.liveViewer.session.chessState = st;
+          try { STATE.liveNcApp?.applyState?.(st); } catch {}
+        }
       }
       return;
     }
@@ -1336,6 +1513,10 @@
   function render() {
     if (STATE.page === 'session') {
       renderSessionPage();
+      return;
+    }
+    if (STATE.page === 'liveViewer') {
+      renderLiveViewerPage();
       return;
     }
     if (STATE.page === 'historyGame') {
@@ -1356,6 +1537,13 @@
     STATE.profileTargetId = null;
     STATE.profileHistory = { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
     STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
+    STATE.liveViewer = { loading: false, error: null, sessionId: null, session: null };
+    try {
+      const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      STATE.onlineListOpen = !coarse;
+    } catch {
+      STATE.onlineListOpen = true;
+    }
     const studentPlayer = STATE.role === 'student' ? getStudentPlayer() : null;
     if (studentPlayer && typeof studentPlayer === 'object') {
       STATE.me = {

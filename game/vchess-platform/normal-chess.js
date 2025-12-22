@@ -517,6 +517,7 @@
     const getViewerData = opts?.getViewerData || (() => null);
     const sessionMoveList = !!opts?.sessionMoveList;
     const showPanel = isViewer || sessionMoveList;
+    const isSpectator = !!opts?.spectator;
 
     const UI = {
       selected: null,
@@ -898,7 +899,7 @@
                 <div class="nc-timer-time" id="ncTimerTopTime">${escapeHtml(formatMs(topMs))}</div>
               </div>
 
-              ${isViewer ? '' : `
+              ${(isViewer || isSpectator) ? '' : `
                 <div class="nc-actions" style="flex-direction:column;">
                   <button class="btn btn-secondary" type="button" id="ncDrawBtn" ${role !== 'student' || state?.gameOver || myDrawOffer ? 'disabled' : ''}>${myDrawOffer ? 'Draw offered' : (opponentDrawOffer ? 'Respond to draw' : 'Draw')}</button>
                   <button class="btn btn-secondary" type="button" id="ncResignBtn" ${role !== 'student' || state?.gameOver ? 'disabled' : ''}>Resign</button>
@@ -960,7 +961,7 @@
       // Game over modal (Session only; viewer would be annoying since games are usually already ended)
       try {
         const key = state?.gameOver ? `${String(state.gameOverReason || 'ended')}|${String((Array.isArray(state.history) ? state.history.length : 0))}` : null;
-        if (!isViewer && state?.gameOver && key && UI.gameOverDismissedKey !== key) {
+        if (!isViewer && !isSpectator && state?.gameOver && key && UI.gameOverDismissedKey !== key) {
           UI.lastGameOverKey = key;
           const host = document.createElement('div');
           host.innerHTML = `
