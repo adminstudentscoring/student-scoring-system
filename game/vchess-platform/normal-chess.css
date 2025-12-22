@@ -198,6 +198,18 @@
   box-shadow: none !important;
 }
 
+/* Also prevent hover color flicker caused by frequent UI re-render (tick). */
+.nc-viewer-nav .btn {
+  transition: none !important;
+}
+
+.nc-viewer-nav .btn-secondary:hover,
+.nc-viewer-nav .btn-secondary:active,
+.nc-viewer-nav .btn-secondary:focus-visible {
+  background: #6b7280 !important; /* same as base .btn-secondary */
+  color: #ffffff !important;
+}
+
 .nc-nav-btn {
   width: 52px;
   height: 34px;
@@ -208,7 +220,7 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: none;
 }
 
 .nc-nav-label {
