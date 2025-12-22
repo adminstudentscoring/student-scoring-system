@@ -225,6 +225,24 @@ window.openStudentGame = function(gameKey, options = {}) {
     }
 
     if (gameKey === 'vChessPlatform') {
+        // iOS Safari popup-blocking note:
+        // If we call window.open() AFTER an async await (e.g. fetching token),
+        // the browser may treat it as not user-initiated and block it silently.
+        // To avoid "no response" on iPad, open a blank tab synchronously first.
+        let popupWin = null;
+        if (openMode !== 'sameTab') {
+            popupWin = window.open('about:blank', '_blank');
+            if (popupWin) {
+                try {
+                    popupWin.document.title = 'Loading...';
+                    popupWin.document.body.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+                    popupWin.document.body.innerHTML = '<div style="padding:24px; color:#111827; font-weight:800;">Loading V.Chess Platform...</div>';
+                } catch (e) {
+                    // Ignore DOM write failures (some browsers restrict it)
+                }
+            }
+        }
+
         (async () => {
             try {
                 localStorage.setItem('vChessPlatformRole', 'student');
@@ -255,7 +273,16 @@ window.openStudentGame = function(gameKey, options = {}) {
             if (openMode === 'sameTab') {
                 window.location.href = url;
             } else {
-                window.open(url, '_blank');
+                if (popupWin && !popupWin.closed) {
+                    try {
+                        popupWin.location.replace(url);
+                    } catch (e) {
+                        try { popupWin.location.href = url; } catch {}
+                    }
+                } else {
+                    // Popup was blocked; fallback to same-tab navigation.
+                    window.location.href = url;
+                }
             }
         })();
         return;
