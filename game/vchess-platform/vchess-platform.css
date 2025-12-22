@@ -5,7 +5,12 @@
 }
 
 .vcp-app {
+  --vcp-sidebar-w: 180px;
   min-height: 100vh;
+}
+
+.vcp-app.is-sidebar-collapsed {
+  --vcp-sidebar-w: 56px; /* ~1.5cm on typical displays */
 }
 
 .vcp-fixed-sidebar {
@@ -13,7 +18,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 180px;
+  width: var(--vcp-sidebar-w);
   background: #ffffff;
   border-right: 1px solid #e5e7eb;
   padding: 12px 10px;
@@ -23,8 +28,39 @@
 }
 
 .vcp-app-main {
-  margin-left: 180px;
+  margin-left: var(--vcp-sidebar-w);
   padding: 12px;
+}
+
+.vcp-side-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.vcp-side-label {
+  flex: 1 1 auto;
+}
+
+.vcp-side-collapse {
+  margin-bottom: 8px;
+  justify-content: center;
+}
+
+/* Collapsed sidebar: icon-only */
+.vcp-app.is-sidebar-collapsed .vcp-fixed-sidebar {
+  padding: 10px 6px;
+}
+
+.vcp-app.is-sidebar-collapsed .vcp-fixed-sidebar .vcp-side-btn {
+  justify-content: center;
+  padding: 10px 6px;
+}
+
+.vcp-app.is-sidebar-collapsed .vcp-fixed-sidebar .vcp-side-label,
+.vcp-app.is-sidebar-collapsed .vcp-fixed-sidebar .vcp-side-meta,
+.vcp-app.is-sidebar-collapsed .vcp-fixed-sidebar .vcp-muted,
+.vcp-app.is-sidebar-collapsed .vcp-fixed-sidebar .vcp-online-list {
+  display: none !important;
 }
 
 .vcp-main-inner {

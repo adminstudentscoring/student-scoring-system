@@ -14,6 +14,7 @@
     students: [], // [{id,name,studentId,status,inGame}]
     selected: new Set(),
     onlineListOpen: true,
+    sidebarCollapsed: false,
     // Invites / sessions
     invites: [], // student-only: [{invite}]
     teacherMessages: [],
@@ -179,6 +180,10 @@
     const canSelect = isTeacher && isLobby;
     const selected = Array.from(STATE.selected);
     const chevron = STATE.onlineListOpen ? '▾' : '▸';
+    const collapsed = !!STATE.sidebarCollapsed;
+    const collapseIcon = collapsed ? '»' : '«';
+    const refreshLabel = collapsed ? '🔄' : 'Refresh';
+    const startLabel = collapsed ? '▶' : 'Start';
 
     const meItem = (STATE.me?.id && STATE.role === 'teacher') ? {
       id: String(STATE.me.id),
@@ -189,11 +194,19 @@
     } : null;
 
     return `
-      <aside class="vcp-fixed-sidebar" aria-label="VCP sidebar">
+      <aside class="vcp-fixed-sidebar ${collapsed ? 'is-collapsed' : ''}" aria-label="VCP sidebar">
+        <button id="vcpSidebarCollapseBtn" class="vcp-side-btn vcp-side-collapse" type="button" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}" title="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}">
+          <span class="vcp-side-icon" aria-hidden="true">${collapseIcon}</span>
+          <span class="vcp-side-label">${collapsed ? '' : 'Collapse'}</span>
+        </button>
         <div class="vcp-side-nav">
-          <button id="vcpNavHomeBtn" class="vcp-side-btn ${isLobby ? 'is-active' : ''}" type="button">Home</button>
+          <button id="vcpNavHomeBtn" class="vcp-side-btn ${isLobby ? 'is-active' : ''}" type="button" title="Home">
+            <span class="vcp-side-icon" aria-hidden="true">🏠</span>
+            <span class="vcp-side-label">Home</span>
+          </button>
           <button id="vcpNavOnlineBtn" class="vcp-side-btn ${STATE.onlineListOpen ? 'is-active' : ''}" type="button" aria-label="Toggle online list">
-            <span>Online list</span>
+            <span class="vcp-side-icon" aria-hidden="true">👥</span>
+            <span class="vcp-side-label">Online list</span>
             <span class="vcp-side-meta">
               <span class="vcp-side-count">${escapeHtml(String(STATE.students.length || 0))}</span>
               <span class="vcp-side-chevron" aria-hidden="true">${chevron}</span>
@@ -207,8 +220,8 @@
           `}
 
           <div class="vcp-sidebar-actions">
-            <button id="vcpSidebarRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
-            ${isTeacher && canSelect ? `<button id="vcpChooseModeBtn" class="btn btn-primary" type="button" ${selected.length === 2 ? '' : 'disabled'}>Start</button>` : ''}
+            <button id="vcpSidebarRefreshBtn" class="btn btn-secondary" type="button" title="Refresh" aria-label="Refresh">${refreshLabel}</button>
+            ${isTeacher && canSelect ? `<button id="vcpChooseModeBtn" class="btn btn-primary" type="button" title="Start" aria-label="Start" ${selected.length === 2 ? '' : 'disabled'}>${startLabel}</button>` : ''}
           </div>
 
           <div class="vcp-online-list" role="list">
@@ -224,11 +237,23 @@
   }
 
   function bindFixedSidebarEvents() {
+    document.getElementById('vcpSidebarCollapseBtn')?.addEventListener('click', () => {
+      STATE.sidebarCollapsed = !STATE.sidebarCollapsed;
+      render();
+    });
+
     document.getElementById('vcpNavHomeBtn')?.addEventListener('click', () => {
       goHome();
     });
 
     document.getElementById('vcpNavOnlineBtn')?.addEventListener('click', () => {
+      // In collapsed mode, clicking Online list should expand and show the list.
+      if (STATE.sidebarCollapsed) {
+        STATE.sidebarCollapsed = false;
+        STATE.onlineListOpen = true;
+        render();
+        return;
+      }
       STATE.onlineListOpen = !STATE.onlineListOpen;
       render();
     });
@@ -597,7 +622,7 @@
     const gameModalHtml = '';
 
     root.innerHTML = `
-      <div class="vcp-app">
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
@@ -835,7 +860,7 @@
     if (!root) return;
 
     root.innerHTML = `
-      <div class="vcp-app">
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
@@ -942,7 +967,7 @@
     }
 
     root.innerHTML = `
-      <div class="vcp-app">
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
@@ -1017,7 +1042,7 @@
     }
 
     root.innerHTML = `
-      <div class="vcp-app">
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
@@ -1050,7 +1075,7 @@
     const hg = STATE.historyGame || { loading: false, error: null, gameId: null, game: null };
 
     root.innerHTML = `
-      <div class="vcp-app">
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
@@ -1087,7 +1112,7 @@
     if (!root) return;
     const lv = STATE.liveViewer || { loading: false, error: null, sessionId: null, session: null };
     root.innerHTML = `
-      <div class="vcp-app">
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
