@@ -13,6 +13,30 @@
 
   const FILES = 'abcdefgh';
 
+  function copyTextToClipboard(text) {
+    const t = String(text ?? '');
+    if (!t) return Promise.resolve(false);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        return navigator.clipboard.writeText(t).then(() => true).catch(() => false);
+      }
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.setAttribute('readonly', 'true');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return Promise.resolve(!!ok);
+    } catch {}
+    return Promise.resolve(false);
+  }
+
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -75,6 +99,54 @@
     b[0] = backB.slice();
     b[1] = Array(8).fill('p');
     return b;
+  }
+
+  function boardToFenPlacement(board) {
+    const b = Array.isArray(board) ? board : [];
+    const ranks = [];
+    for (let r = 0; r < 8; r++) {
+      let empty = 0;
+      let out = '';
+      for (let c = 0; c < 8; c++) {
+        const p = (b[r] && b[r][c]) ? String(b[r][c]) : '';
+        if (!p) {
+          empty++;
+        } else {
+          if (empty) {
+            out += String(empty);
+            empty = 0;
+          }
+          out += p;
+        }
+      }
+      if (empty) out += String(empty);
+      ranks.push(out || '8');
+    }
+    return ranks.join('/');
+  }
+
+  function buildFenFromBoard(board, ply) {
+    const placement = boardToFenPlacement(board);
+    const side = (Number(ply || 0) % 2 === 0) ? 'w' : 'b';
+    const castling = '-';
+    const ep = '-';
+    const halfmove = 0;
+    const fullmove = Math.floor(Number(ply || 0) / 2) + 1;
+    return `${placement} ${side} ${castling} ${ep} ${halfmove} ${fullmove}`;
+  }
+
+  function buildPgnFallbackFromSan(sanMoves) {
+    const moves = Array.isArray(sanMoves) ? sanMoves.map(String) : [];
+    if (!moves.length) return '';
+    const out = [];
+    for (let i = 0; i < moves.length; i += 2) {
+      const num = Math.floor(i / 2) + 1;
+      const w = moves[i] || '';
+      const b = moves[i + 1] || '';
+      if (b) out.push(`${num}. ${w} ${b}`);
+      else out.push(`${num}. ${w}`);
+    }
+    return out.join(' ');
   }
 
   function findKing(board, color) {
@@ -424,7 +496,8 @@
       moves: [],
       lastState: null,
       localClockBase: null, // (reserved)
-      viewerPly: null
+      viewerPly: null,
+      viewerShareOpen: false
     };
     let pendingPromotion = null; // { from, to, isDrag }
 
@@ -589,6 +662,7 @@
       const timelineBoards = Array.isArray(viewerData?.timelineBoards) ? viewerData.timelineBoards : null;
       const timelineClocks = Array.isArray(viewerData?.timelineClocks) ? viewerData.timelineClocks : null;
       const sanMoves = Array.isArray(viewerData?.sanMoves) ? viewerData.sanMoves : [];
+      const pgn = String(viewerData?.pgn || '') || buildPgnFallbackFromSan(sanMoves);
 
       const viewerLastPly = timelineBoards && timelineBoards.length ? Math.max(0, timelineBoards.length - 1) : 0;
       if (isViewer && timelineBoards && timelineBoards.length && (UI.viewerPly === null || UI.viewerPly === undefined)) {
@@ -701,6 +775,18 @@
 
             ${isViewer ? `
               <div class="nc-viewer-panel" aria-label="Game viewer panel">
+                <div class="nc-viewer-toolbar" aria-label="Tools">
+                  <button class="nc-icon-btn" type="button" id="ncShareBtn" aria-label="Share" title="Share">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18 16a3 3 0 0 0-2.4 1.2l-6.3-3.3a3.4 3.4 0 0 0 0-3.8l6.3-3.3A3 3 0 1 0 15 5a3 3 0 0 0 .1.7L8.8 9A3 3 0 1 0 9 15l6.1 3.3A3 3 0 1 0 18 16Z" fill="currentColor"/>
+                    </svg>
+                  </button>
+                  <button class="nc-icon-btn" type="button" id="ncAnalysisBtn" aria-label="Analysis" title="Analysis" disabled>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 19h16v2H4v-2Zm2-2V3h2v14H6Zm5 0V7h2v10h-2Zm5 0V11h2v6h-2Z" fill="currentColor"/>
+                    </svg>
+                  </button>
+                </div>
                 <div class="nc-viewer-moves" id="ncMoveList">
                   ${buildMovesTableHtml(sanMoves, viewerPly, viewerLastPly)}
                 </div>
@@ -721,6 +807,39 @@
 
         </div>
       `;
+
+      if (isViewer && UI.viewerShareOpen) {
+        const fenNow = buildFenFromBoard(board, viewerPly);
+        const host = document.createElement('div');
+        host.innerHTML = `
+          <div class="vcp-modal-backdrop" id="ncShareBackdrop" role="presentation">
+            <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Share">
+              <div class="vcp-modal-header">
+                <div class="vcp-modal-title">Share</div>
+                <button id="ncShareClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              </div>
+              <div class="vcp-modal-body">
+                <div class="nc-share-row">
+                  <div class="nc-share-label">FEN (current position)</div>
+                  <div class="nc-share-actions">
+                    <button class="btn btn-secondary nc-share-copy" type="button" data-copy="fen">Copy</button>
+                  </div>
+                </div>
+                <textarea class="nc-share-box" readonly rows="3">${escapeHtml(fenNow)}</textarea>
+
+                <div class="nc-share-row" style="margin-top:12px;">
+                  <div class="nc-share-label">PGN</div>
+                  <div class="nc-share-actions">
+                    <button class="btn btn-secondary nc-share-copy" type="button" data-copy="pgn">Copy</button>
+                  </div>
+                </div>
+                <textarea class="nc-share-box" readonly rows="7">${escapeHtml(String(pgn || ''))}</textarea>
+              </div>
+            </div>
+          </div>
+        `;
+        rootEl.appendChild(host);
+      }
 
       // Promotion modal (simple)
       if (pendingPromotion && canMove) {
@@ -812,6 +931,23 @@
       });
 
       if (isViewer && timelineBoards && timelineBoards.length) {
+        rootEl.querySelector('#ncShareBtn')?.addEventListener('click', () => {
+          UI.viewerShareOpen = true;
+          render(UI.lastState);
+        });
+        const closeShare = () => { UI.viewerShareOpen = false; render(UI.lastState); };
+        rootEl.querySelector('#ncShareClose')?.addEventListener('click', closeShare);
+        rootEl.querySelector('#ncShareBackdrop')?.addEventListener('click', (e) => {
+          if (e.target && e.target.id === 'ncShareBackdrop') closeShare();
+        });
+        rootEl.querySelectorAll('button.nc-share-copy[data-copy]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const k = String(btn.getAttribute('data-copy') || '');
+            if (k === 'fen') await copyTextToClipboard(buildFenFromBoard(board, viewerPly));
+            if (k === 'pgn') await copyTextToClipboard(String(pgn || ''));
+          });
+        });
+
         rootEl.querySelector('#ncPrevBtn')?.addEventListener('click', () => {
           UI.viewerPly = clampInt(Number(UI.viewerPly || 0) - 1, 0, viewerLastPly);
           render(UI.lastState);

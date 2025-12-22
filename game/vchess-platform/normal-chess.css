@@ -130,6 +130,45 @@
   flex-direction: column;
 }
 
+.nc-viewer-toolbar {
+  flex: 0 0 40px;
+  height: 40px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.nc-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.nc-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nc-icon-btn:hover {
+  background: #f9fafb;
+}
+
+.nc-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .nc-viewer-moves {
   flex: 1 1 auto;
   min-height: 0;
@@ -225,6 +264,37 @@
   color: #6b7280;
   font-weight: 800;
   font-size: 13px;
+}
+
+.nc-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nc-share-label {
+  font-weight: 950;
+  color: #111827;
+}
+
+.nc-share-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nc-share-box {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  resize: none;
+  background: #ffffff;
+  color: #111827;
 }
 
 .nc-square {
