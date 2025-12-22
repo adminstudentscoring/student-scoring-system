@@ -680,10 +680,12 @@
                 <div class="nc-timer-time">${escapeHtml(formatMs(topMs))}</div>
               </div>
 
-              <div class="nc-actions" style="flex-direction:column;">
-                <button class="btn btn-secondary" type="button" id="ncDrawBtn" ${role !== 'student' || state?.gameOver || myDrawOffer ? 'disabled' : ''}>${myDrawOffer ? 'Draw offered' : (opponentDrawOffer ? 'Respond to draw' : 'Draw')}</button>
-                <button class="btn btn-secondary" type="button" id="ncResignBtn" ${role !== 'student' || state?.gameOver ? 'disabled' : ''}>Resign</button>
-              </div>
+              ${isViewer ? '' : `
+                <div class="nc-actions" style="flex-direction:column;">
+                  <button class="btn btn-secondary" type="button" id="ncDrawBtn" ${role !== 'student' || state?.gameOver || myDrawOffer ? 'disabled' : ''}>${myDrawOffer ? 'Draw offered' : (opponentDrawOffer ? 'Respond to draw' : 'Draw')}</button>
+                  <button class="btn btn-secondary" type="button" id="ncResignBtn" ${role !== 'student' || state?.gameOver ? 'disabled' : ''}>Resign</button>
+                </div>
+              `}
 
               <div class="nc-timer ${activeBottom ? 'active' : ''}">
                 <div class="nc-timer-label"><span>${escapeHtml(String(bottomName || ''))}</span><span class="nc-dot" aria-hidden="true"></span></div>
