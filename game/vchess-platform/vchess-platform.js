@@ -908,6 +908,39 @@
     if (!root) return;
     const player = STATE.me;
 
+    function renderStudentInvitesInline() {
+      if (STATE.role !== 'student') return '';
+      const items = Array.isArray(STATE.invites) ? STATE.invites : [];
+      const invites = items.map((x) => (x && typeof x === 'object' && x.invite ? x.invite : x)).filter(Boolean);
+      if (!invites.length) return '';
+      const myId = String(STATE.me?.id || '');
+      return `
+        <div class="vcp-invites-inline" style="margin: 8px 0 10px;">
+          ${invites.map((inv) => {
+            const cfg = inv?.config || {};
+            const teacherName = String(inv?.teacher?.name || 'Teacher');
+            const minutes = String(cfg.minutes || 3);
+            const inc = String(cfg.incrementSec || 0);
+            const myColor = String(cfg.whiteStudentId) === myId ? 'White' : (String(cfg.blackStudentId) === myId ? 'Black' : '');
+            const inviteId = String(inv?.id || '');
+            return `
+              <div class="vcp-list-item vcp-invite-card" data-vcp-invite-id="${escapeHtml(inviteId)}" style="border-style:solid;">
+                <div style="font-weight:950; color:#111827;">${escapeHtml(teacherName)} invited you</div>
+                <div class="vcp-muted" style="margin-top:6px;">
+                  Normal Chess · ${escapeHtml(minutes)} min + ${escapeHtml(inc)} sec
+                  ${myColor ? ` · You are <strong>${escapeHtml(myColor)}</strong>` : ''}
+                </div>
+                <div class="vcp-btn-row" style="justify-content:flex-end; margin-top:10px;">
+                  <button class="btn btn-secondary" type="button" data-vcp-invite-decline="${escapeHtml(inviteId)}">Decline</button>
+                  <button class="btn btn-primary" type="button" data-vcp-invite-accept="${escapeHtml(inviteId)}">Accept</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
     root.innerHTML = `
       <div class="vcp-app">
         ${renderFixedSidebar()}
@@ -927,28 +960,45 @@
 
               <div class="vcp-section">
                 <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
+                ${renderStudentInvitesInline()}
                 <div id="vcpMyGamesArea">${renderMyGames()}</div>
 
                 <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
                 <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
-
-                <div class="vcp-list" style="margin-top:12px;">
-                  <div class="vcp-list-item">
-                    <div style="font-weight:900; color:#111827;">Invites</div>
-                    <div class="vcp-muted" style="margin-top:6px;">${STATE.invites.length ? `${STATE.invites.length} pending` : 'No invites yet.'}</div>
-                  </div>
-                </div>
               </div>
             </div>
-
-            ${renderStudentInviteModal()}
           </div>
         </div>
       </div>
     `;
 
     bindFixedSidebarEvents();
-    bindStudentInviteModalEvents();
+
+    // Inline invites: Accept/Decline directly from "My game" area
+    const removeInviteById = (inviteId) => {
+      const id = String(inviteId || '');
+      if (!id) return;
+      STATE.invites = (Array.isArray(STATE.invites) ? STATE.invites : []).filter((x) => String((x && x.invite ? x.invite.id : x?.id) || '') !== id);
+    };
+
+    root.querySelectorAll('[data-vcp-invite-decline]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-vcp-invite-decline') || '';
+        wsSend({ type: 'vcp_invite_respond', inviteId: id, response: 'decline' });
+        removeInviteById(id);
+        render();
+      });
+    });
+
+    root.querySelectorAll('[data-vcp-invite-accept]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-vcp-invite-accept') || '';
+        wsSend({ type: 'vcp_invite_respond', inviteId: id, response: 'accept' });
+        removeInviteById(id);
+        // Server will start the session after both students accepted.
+        render();
+      });
+    });
   }
 
   function renderSessionPage() {
