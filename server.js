@@ -11485,6 +11485,17 @@ async function startServer() {
       st.gameOverReason = 'Time out';
     }
 
+    // Checkmate / stalemate detection (server-authoritative)
+    if (!st.gameOver) {
+      const sideToMove = String(st.turn || 'w');
+      const hasMove = vcpHasAnyLegalMove(st, sideToMove);
+      if (!hasMove) {
+        const inCheck = vcpIsInCheck(st.board, sideToMove);
+        st.gameOver = true;
+        st.gameOverReason = inCheck ? 'Checkmate' : 'Stalemate';
+      }
+    }
+
     session.chessState = st;
     vcp.sessions.set(String(session.id), session);
     return { ok: true };

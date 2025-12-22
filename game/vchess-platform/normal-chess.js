@@ -505,6 +505,9 @@
       moveListScrollLeft: 0,
       isUserScrollingMoveList: false,
       moveListScrollEndTimer: null
+      ,
+      lastGameOverKey: null,
+      gameOverDismissedKey: null
     };
 
     function bindTap(el, fn) {
@@ -767,6 +770,10 @@
       }
       const sessionPly = sessionMoveList ? clampInt(UI.sessionPly, 0, sessionLastPly) : 0;
 
+      const lastMove = Array.isArray(state?.history) && state.history.length ? state.history[state.history.length - 1] : null;
+      const lastFrom = lastMove && typeof lastMove === 'object' ? String(lastMove.from || '') : '';
+      const lastTo = lastMove && typeof lastMove === 'object' ? String(lastMove.to || '') : '';
+
       const viewerLastPly = timelineBoards && timelineBoards.length ? Math.max(0, timelineBoards.length - 1) : 0;
       if (isViewer && timelineBoards && timelineBoards.length && (UI.viewerPly === null || UI.viewerPly === undefined)) {
         UI.viewerPly = viewerLastPly; // default: last position
@@ -831,17 +838,25 @@
           const isSel = UI.selected === coord;
           const mv = UI.moves.find(x => x.to === coord);
           const isDragOrigin = !!(drag && drag.from && String(drag.from) === String(coord));
+          const isLastFrom = !!(lastFrom && coord === lastFrom);
+          const isLastTo = !!(lastTo && coord === lastTo);
           const cls = [
             'nc-square',
             light ? 'light' : 'dark',
             isSel ? 'nc-selected' : '',
             isDragOrigin ? 'nc-drag-origin' : '',
+            isLastFrom ? 'nc-last-from' : '',
+            isLastTo ? 'nc-last-to' : '',
             mv ? (mv.capture ? 'nc-move nc-capture' : 'nc-move') : ''
           ].filter(Boolean).join(' ');
           const epTarget = ep && coord === ep && p === '';
+          const fileLabel = (r === 7) ? String(coord[0] || '') : '';
+          const rankLabel = (c === 0) ? String(coord[1] || '') : '';
           squaresHtml.push(`
             <div class="${cls}" data-coord="${coord}">
               ${p ? `<img class="nc-piece-img" draggable="false" alt="${PIECE_UNICODE[p] || p}" src="${pieceImagePath(p)}">` : ''}
+              ${rankLabel ? `<div class="nc-coord nc-coord-rank">${escapeHtml(rankLabel)}</div>` : ''}
+              ${fileLabel ? `<div class="nc-coord nc-coord-file">${escapeHtml(fileLabel)}</div>` : ''}
               ${epTarget ? `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;"><div style="width:14%; height:14%; border-radius:999px; background: rgba(239,68,68,0.9);"></div></div>` : ''}
             </div>
           `);
@@ -916,6 +931,42 @@
 
         </div>
       `;
+
+      // Game over modal (Session only; viewer would be annoying since games are usually already ended)
+      try {
+        const key = state?.gameOver ? `${String(state.gameOverReason || 'ended')}|${String((Array.isArray(state.history) ? state.history.length : 0))}` : null;
+        if (!isViewer && state?.gameOver && key && UI.gameOverDismissedKey !== key) {
+          UI.lastGameOverKey = key;
+          const host = document.createElement('div');
+          host.innerHTML = `
+            <div class="vcp-modal-backdrop" id="ncGameOverBackdrop" role="presentation">
+              <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Game over">
+                <div class="vcp-modal-header">
+                  <div class="vcp-modal-title">Game over</div>
+                  <button id="ncGameOverClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+                </div>
+                <div class="vcp-modal-body">
+                  <div class="vcp-muted" style="margin-bottom:10px;">${escapeHtml(String(state.gameOverReason || 'ended'))}</div>
+                  <div class="vcp-btn-row" style="justify-content:flex-end;">
+                    <button id="ncGameOverOk" class="btn btn-primary" type="button">OK</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+          rootEl.appendChild(host);
+          const close = () => {
+            UI.gameOverDismissedKey = key;
+            // remove modal nodes
+            try { rootEl.querySelector('#ncGameOverBackdrop')?.remove?.(); } catch {}
+          };
+          bindTap(rootEl.querySelector('#ncGameOverClose'), close);
+          bindTap(rootEl.querySelector('#ncGameOverOk'), close);
+          rootEl.querySelector('#ncGameOverBackdrop')?.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'ncGameOverBackdrop') close();
+          });
+        }
+      } catch {}
 
       // Re-bind move list scroll tracking & restore scroll position
       try {
