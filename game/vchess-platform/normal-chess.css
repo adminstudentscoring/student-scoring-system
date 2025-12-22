@@ -241,6 +241,15 @@
   gap: 6px;
 }
 
+.nc-move-head {
+  display: block;
+}
+
+.nc-move-body {
+  display: grid;
+  gap: 6px;
+}
+
 .nc-move-row {
   display: grid;
   grid-template-columns: 48px 1fr 1fr;
@@ -352,6 +361,10 @@
     gap: 4px;
   }
 
+  .nc-move-body {
+    gap: 5px;
+  }
+
   .nc-move-row {
     grid-template-columns: 42px 1fr 1fr;
     gap: 6px;
@@ -368,9 +381,20 @@
   }
 
   .nc-move-cell {
-    padding: 5px 7px;
     font-size: 12px;
     border-radius: 9px;
+  }
+
+  /* Slightly different density targets:
+     Viewer ~14 moves before scroll, Session ~15 moves before scroll */
+  .nc-mode-viewer .nc-move-cell {
+    padding: 7px 8px;
+    min-height: 34px;
+  }
+
+  .nc-mode-session .nc-move-cell {
+    padding: 6px 7px;
+    min-height: 32px;
   }
 
   .nc-nav-btn {
