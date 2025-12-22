@@ -120,7 +120,8 @@
 }
 
 .nc-viewer-panel {
-  height: 100%;
+  height: min(560px, 72vh);
+  max-height: 560px;
   min-height: 0;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
@@ -177,8 +178,33 @@
   min-height: 0;
   overflow: auto;
   padding: 10px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin; /* firefox */
+  scrollbar-color: #cbd5e1 transparent; /* firefox */
 }
 
+.nc-viewer-moves::-webkit-scrollbar {
+  width: 10px;
+}
+
+.nc-viewer-moves::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nc-viewer-moves::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.nc-viewer-moves::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
 .nc-viewer-nav {
   flex: 0 0 50px;
   height: 50px;
