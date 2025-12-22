@@ -812,7 +812,8 @@
         : (state?.board || initialBoard());
       const turn = String(state?.turn || 'w');
       const myColor = myColorFromSession(session);
-      const canMove = role === 'student' && myColor && myColor === turn && !state?.gameOver;
+      const isPlayerRole = (role === 'student' || role === 'teacher');
+      const canMove = isPlayerRole && !isViewer && !isSpectator && myColor && myColor === turn && !state?.gameOver;
       const flip = role === 'student' && myColor === 'b';
       const castling = String(state?.castling || 'KQkq');
       const ep = state?.ep ? String(state.ep) : '';
@@ -850,8 +851,8 @@
       const activeTop = !state?.gameOver && turn === topColor;
       const activeBottom = !state?.gameOver && turn === bottomColor;
 
-      const myDrawOffer = role === 'student' && myColor && drawOffer && String(drawOffer.from) === String(myColor);
-      const opponentDrawOffer = role === 'student' && myColor && drawOffer && String(drawOffer.from) && String(drawOffer.from) !== String(myColor);
+      const myDrawOffer = isPlayerRole && myColor && drawOffer && String(drawOffer.from) === String(myColor);
+      const opponentDrawOffer = isPlayerRole && myColor && drawOffer && String(drawOffer.from) && String(drawOffer.from) !== String(myColor);
 
       const squaresHtml = [];
       for (let r = 0; r < 8; r++) {
@@ -901,8 +902,8 @@
 
               ${(isViewer || isSpectator) ? '' : `
                 <div class="nc-actions" style="flex-direction:column;">
-                  <button class="btn btn-secondary" type="button" id="ncDrawBtn" ${role !== 'student' || state?.gameOver || myDrawOffer ? 'disabled' : ''}>${myDrawOffer ? 'Draw offered' : (opponentDrawOffer ? 'Respond to draw' : 'Draw')}</button>
-                  <button class="btn btn-secondary" type="button" id="ncResignBtn" ${role !== 'student' || state?.gameOver ? 'disabled' : ''}>Resign</button>
+                  <button class="btn btn-secondary" type="button" id="ncDrawBtn" ${(!isPlayerRole || !myColor || state?.gameOver || myDrawOffer) ? 'disabled' : ''}>${myDrawOffer ? 'Draw offered' : (opponentDrawOffer ? 'Respond to draw' : 'Draw')}</button>
+                  <button class="btn btn-secondary" type="button" id="ncResignBtn" ${(!isPlayerRole || !myColor || state?.gameOver) ? 'disabled' : ''}>Resign</button>
                 </div>
               `}
 

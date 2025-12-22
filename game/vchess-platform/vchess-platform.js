@@ -242,7 +242,9 @@
     const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
     if (!uid) return [];
     if (role === 'teacher') {
-      return games.filter(g => String(g.teacherId || '') === uid);
+      // Teacher "My game" should show only games where the teacher is one of the two players
+      // (e.g., teacher-vs-student match). Games between two students should be watched via Live Game.
+      return games.filter(g => String(g.whiteId || '') === uid || String(g.blackId || '') === uid);
     }
     // student
     return games.filter(g => String(g.whiteId || '') === uid || String(g.blackId || '') === uid);
@@ -780,6 +782,10 @@
                   </div>
                 </div>
               ` : ''}
+
+              <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
+              <div class="vcp-muted">Shows only games where you are a player.</div>
+              <div id="vcpMyGamesArea" style="margin-top:8px;">${renderMyGames()}</div>
 
               <div style="font-weight:900; color:#111827; margin:14px 0 6px;">Live Game</div>
               <div id="vcpLiveGamesArea">${renderLiveGames()}</div>
