@@ -190,6 +190,14 @@
   padding: 8px 10px;
 }
 
+/* Prevent global .btn hover "lift" animation (translateY) from causing jitter on nav arrows. */
+.nc-viewer-nav .btn:hover,
+.nc-viewer-nav .btn:active,
+.nc-viewer-nav .btn:focus-visible {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 .nc-nav-btn {
   width: 52px;
   height: 34px;
@@ -200,6 +208,7 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .nc-nav-label {
