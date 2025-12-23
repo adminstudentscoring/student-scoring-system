@@ -224,6 +224,20 @@ window.openStudentGame = function(gameKey, options = {}) {
         return;
     }
 
+    if (gameKey === 'blunders') {
+        try {
+            localStorage.setItem('blundersPlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist blundersPlayers', e);
+        }
+        if (openMode === 'sameTab') {
+            window.location.href = '/game/game-window.html?game=blunders';
+        } else {
+            window.open('/game/game-window.html?game=blunders', '_blank');
+        }
+        return;
+    }
+
     if (gameKey === 'vChessPlatform') {
         // iOS Safari popup-blocking note:
         // If we call window.open() AFTER an async await (e.g. fetching token),

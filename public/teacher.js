@@ -1200,6 +1200,13 @@ function showGameSelection() {
                     <p>New game (stub). Designed for rapid iteration.</p>
                 </div>
             </div>
+            <div class="game-item" onclick="startBlunders()">
+                <div class="game-icon">💥</div>
+                <div class="game-info">
+                    <h4>Blunders</h4>
+                    <p>New game (stub). Ready for development.</p>
+                </div>
+            </div>
             <div class="game-item" onclick="startHopeMate()">
                 <div class="game-icon">✨</div>
                 <div class="game-info">
@@ -1465,6 +1472,77 @@ async function startNoBlunder() {
 }
 
 window.startNoBlunder = startNoBlunder;
+
+async function startBlunders() {
+    if (selectedGameStudents.length === 0) {
+        showNotification('Please select at least one student', 'error');
+        return;
+    }
+
+    const playerDetails = selectedGameStudents.map(id => {
+        const student = students.find(s => s.id === id) || {};
+        return {
+            id,
+            name: student.name || 'Unknown',
+            studentId: student.studentId || ''
+        };
+    });
+
+    window.blundersPlayers = playerDetails;
+    window.currentGameKey = 'blunders';
+    try {
+        localStorage.setItem('blundersPlayers', JSON.stringify(playerDetails));
+    } catch (error) {
+        console.warn('Unable to persist blunders players to localStorage:', error);
+    }
+
+    showGameArea();
+
+    const gameAreaContent = document.getElementById('gameAreaContent');
+    if (gameAreaContent) {
+        gameAreaContent.innerHTML = `
+            <div id="blundersRoot" class="blunders-root">
+                <h2>💥 Blunders</h2>
+                <p>Loading game...</p>
+            </div>
+        `;
+
+        // Ensure CSS is loaded (only once)
+        if (!document.getElementById('blundersCss')) {
+            const link = document.createElement('link');
+            link.id = 'blundersCss';
+            link.rel = 'stylesheet';
+            link.href = '/game/blunders.css';
+            document.head.appendChild(link);
+        }
+
+        const ensureScriptLoaded = () => {
+            if (window.initBlunders) {
+                window.initBlunders();
+            } else {
+                console.error('initBlunders function not found');
+            }
+        };
+
+        if (!window.blundersLoaded) {
+            const script = document.createElement('script');
+            script.src = '/game/blunders.js';
+            script.onload = () => {
+                window.blundersLoaded = true;
+                ensureScriptLoaded();
+            };
+            script.onerror = (error) => {
+                console.error('Error loading blunders.js:', error);
+                showNotification('Failed to load Blunders scripts', 'error');
+            };
+            document.body.appendChild(script);
+        } else {
+            ensureScriptLoaded();
+        }
+    }
+}
+
+window.startBlunders = startBlunders;
 
 async function startHopeMate() {
     if (selectedGameStudents.length !== 1) {
