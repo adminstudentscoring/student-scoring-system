@@ -400,38 +400,15 @@
       return { kind: 'live', key: `live:${sid}`, id: sid, label, ts: String(g.startedAt || g.createdAt || '') , active: isActive, oppId };
     });
 
-    // Ended games (keep, but avoid duplicate student names when there's a live session with that student)
-    const endedRaw = Array.isArray(STATE.teacherGameHistory?.games) ? STATE.teacherGameHistory.games : [];
-    const liveOppIds = new Set(liveTabs.map(t => String(t.oppId || '')).filter(Boolean));
-    const endedTabs = [];
-    for (const g of endedRaw) {
-      const gid = String(g?.id || '');
-      if (!gid) continue;
-      const myId = String(STATE.me?.id || '');
-      const oppName = String(String(g.whiteId || '') === myId ? (g.blackName || '') : (g.whiteName || '')) || 'Student';
-      const oppId = String(String(g.whiteId || '') === myId ? (g.blackId || '') : (g.whiteId || ''));
-      if (oppId && liveOppIds.has(oppId)) continue;
-      // Only keep the most recent ended game per opponent to avoid duplicates.
-      if (oppId && endedTabs.some(x => x.oppId === oppId)) continue;
-      endedTabs.push({
-        kind: 'ended',
-        key: `ended:${gid}`,
-        id: gid,
-        label: oppName,
-        ts: String(g.startedAt || g.endedAt || ''),
-        active: false,
-        oppId
-      });
-    }
-
-    const all = [...liveTabs, ...endedTabs];
+    // Only show active/live sessions in the session bar.
+    // Finished games are accessible via Profile -> Game history.
+    const all = [...liveTabs];
     all.sort((a, b) => new Date(a.ts || 0) - new Date(b.ts || 0));
 
     const tabsHtml = all.length ? all.map((t) => {
       if (t.kind === 'live') {
         return `<button class="vcp-session-tabbtn ${t.active ? 'active' : ''}" type="button" data-vcp-session-tab="${escapeHtml(t.id)}">${escapeHtml(t.label)}</button>`;
       }
-      return `<button class="vcp-session-tabbtn" type="button" data-vcp-game-tab="${escapeHtml(t.id)}">${escapeHtml(t.label)}</button>`;
     }).join('') : `<div class="vcp-muted">No games yet.</div>`;
 
     return `
