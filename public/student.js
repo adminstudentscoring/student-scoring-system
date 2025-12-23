@@ -39,6 +39,13 @@ async function loadData(password = '') {
         }
         
         studentData = data;
+        // Persist public access password for games opened in a new window (e.g., Blunders).
+        try {
+            if (studentAccessPassword) localStorage.setItem('studentAccessPassword', String(studentAccessPassword));
+            else localStorage.removeItem('studentAccessPassword');
+        } catch (e) {
+            // ignore
+        }
         renderDashboard();
         
     } catch (e) {

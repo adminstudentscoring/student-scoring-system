@@ -1838,6 +1838,40 @@ document.getElementById('gameZoneModal')?.addEventListener('click', (e) => {
 // Chess.com Settings Modal
 // =========================
 const CHESS_COM_SETTINGS_KEY = 'teacherChessComSettings_v1';
+let chessComSettingsSyncTimer = null;
+
+async function fetchChessComSettingsFromServer() {
+    try {
+        const resp = await apiFetch('/teachers/chesscom/settings');
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data || data.ok !== true) return null;
+        return data.settings && typeof data.settings === 'object' ? data.settings : {};
+    } catch (e) {
+        return null;
+    }
+}
+
+async function pushChessComSettingsToServer(settingsObj) {
+    try {
+        const resp = await apiFetch('/teachers/chesscom/settings', {
+            method: 'PUT',
+            body: JSON.stringify({ settings: settingsObj })
+        });
+        // ignore response body for now
+        return resp.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
+function scheduleChessComSettingsSync() {
+    if (chessComSettingsSyncTimer) clearTimeout(chessComSettingsSyncTimer);
+    chessComSettingsSyncTimer = setTimeout(async () => {
+        chessComSettingsSyncTimer = null;
+        const settings = loadChessComSettings();
+        await pushChessComSettingsToServer(settings);
+    }, 500);
+}
 
 function loadChessComSettings() {
     try {
@@ -1863,12 +1897,25 @@ function getDefaultChessComId(student) {
     return (student && (student.studentId || student.id)) ? String(student.studentId || student.id) : '';
 }
 
-function openChessComSettingsModal() {
+async function openChessComSettingsModal() {
     const modal = document.getElementById('chessComSettingsModal');
     if (!modal) return;
     modal.classList.add('show');
     const search = document.getElementById('chessComSettingsSearch');
     if (search) search.value = '';
+
+    // Best-effort: hydrate local settings from server so daily jobs can rely on server copy too.
+    try {
+        const serverSettings = await fetchChessComSettingsFromServer();
+        if (serverSettings && typeof serverSettings === 'object') {
+            const local = loadChessComSettings();
+            const merged = { ...(serverSettings || {}), ...(local || {}) };
+            saveChessComSettings(merged);
+        }
+    } catch (e) {
+        // ignore
+    }
+
     renderChessComSettingsList();
     if (search) search.focus();
 }
@@ -1976,6 +2023,7 @@ document.getElementById('chessComSettingsList')?.addEventListener('input', (e) =
     if (!settings[studentId]) settings[studentId] = {};
     settings[studentId][field] = target.value;
     saveChessComSettings(settings);
+    scheduleChessComSettingsSync();
 });
 
 document.getElementById('chessComSettingsList')?.addEventListener('click', (e) => {

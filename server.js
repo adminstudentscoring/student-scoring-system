@@ -8,6 +8,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const http = require('http');
 const WebSocket = require('ws');
+const { spawn } = require('child_process');
+const { Chess } = require('chess.js');
 
 const app = express();
 
@@ -24,6 +26,8 @@ const HOPE_MATE_LEADERBOARD_FILE = path.join(__dirname, process.env.HOPE_MATE_LE
 const HOPE_MATE_CHALLENGE_LEADERBOARD_FILE = path.join(__dirname, process.env.HOPE_MATE_CHALLENGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'hope-mate-challenge-leaderboard.json'));
 const HOPE_MATE_STAGE_PUZZLES_FILE = path.join(__dirname, process.env.HOPE_MATE_STAGE_PUZZLES_FILE || path.join(DATA_DIR, 'hope-mate-stage-puzzles.json'));
 const VCP_CHESS_GAMES_FILE = path.join(__dirname, process.env.VCP_CHESS_GAMES_FILE || path.join(DATA_DIR, 'vcp-chess-games.jsonl'));
+const CHESSCOM_SETTINGS_FILE = path.join(__dirname, process.env.CHESSCOM_SETTINGS_FILE || path.join(DATA_DIR, 'chesscom-settings.json'));
+const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_FILE || path.join(DATA_DIR, 'blunders-puzzles.json'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -157,6 +161,20 @@ async function ensureDataDir() {
   } catch {
     await fs.writeFile(VCP_CHESS_GAMES_FILE, '', 'utf8');
   }
+
+  // Ensure Chess.com settings file exists (org-scoped)
+  try {
+    await fs.access(CHESSCOM_SETTINGS_FILE);
+  } catch {
+    await fs.writeFile(CHESSCOM_SETTINGS_FILE, JSON.stringify({ orgs: {} }, null, 2), 'utf8');
+  }
+
+  // Ensure Blunders puzzles file exists
+  try {
+    await fs.access(BLUNDERS_PUZZLES_FILE);
+  } catch {
+    await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
   
   // Ensure users file exists
   try {
@@ -259,6 +277,426 @@ async function writeUsers(users) {
     console.error('Error writing users:', error);
     return false;
   }
+}
+
+// Read Chess.com settings (org-scoped)
+async function readChessComSettings() {
+  try {
+    const content = await fs.readFile(CHESSCOM_SETTINGS_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
+    return orgs && typeof orgs === 'object' ? orgs : {};
+  } catch (error) {
+    console.error('Error reading chesscom settings:', error);
+    return {};
+  }
+}
+
+async function writeChessComSettings(orgs) {
+  try {
+    const clean = orgs && typeof orgs === 'object' ? orgs : {};
+    await fs.writeFile(CHESSCOM_SETTINGS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing chesscom settings:', error);
+    return false;
+  }
+}
+
+// ===== Blunders: Puzzle storage (JSON file) =====
+async function readBlundersPuzzles() {
+  try {
+    const content = await fs.readFile(BLUNDERS_PUZZLES_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const puzzles = data && typeof data === 'object' ? (data.puzzles || []) : [];
+    return Array.isArray(puzzles) ? puzzles : [];
+  } catch (error) {
+    console.error('Error reading blunders puzzles:', error);
+    return [];
+  }
+}
+
+async function writeBlundersPuzzles(puzzles) {
+  try {
+    const arr = Array.isArray(puzzles) ? puzzles : [];
+    await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing blunders puzzles:', error);
+    return false;
+  }
+}
+
+function parseUciMove(uci) {
+  const s = String(uci || '').trim().toLowerCase();
+  if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(s)) return null;
+  const from = s.slice(0, 2);
+  const to = s.slice(2, 4);
+  const promotion = s.length === 5 ? s[4] : undefined;
+  return { from, to, promotion, uci: s };
+}
+
+function scoreToCp(score) {
+  if (!score) return 0;
+  if (typeof score.mate === 'number' && Number.isFinite(score.mate)) {
+    const sign = score.mate === 0 ? 0 : (score.mate > 0 ? 1 : -1);
+    return sign * 100000; // treat mate as huge advantage
+  }
+  if (typeof score.cp === 'number' && Number.isFinite(score.cp)) return score.cp;
+  return 0;
+}
+
+// ===== Blunders: Chess.com sync (rapid/blitz) =====
+const BLUNDERS_ALLOWED_TIME_CLASSES = new Set(['rapid', 'blitz']);
+const BLUNDERS_MAX_GAMES_PER_DAY = 10;
+const BLUNDERS_DROP_POINTS = 1.0; // > 1.0 is blunder
+const blundersLastStudentSync = new Map(); // studentId -> ms
+const blundersStudentLocks = new Map(); // studentId -> Promise
+
+async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'student-scoring-system/1.0' } });
+    const data = await resp.json().catch(() => ({}));
+    return { ok: resp.ok, status: resp.status, data };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function utcDayKeyFromEpochSec(sec) {
+  const d = new Date(Number(sec || 0) * 1000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${da}`;
+}
+
+function todayUtcKey() {
+  const d = new Date();
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${da}`;
+}
+
+async function chessComGetTodayGames(username) {
+  const u = String(username || '').trim();
+  if (!u) return [];
+  const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/games/archives`;
+  const a = await fetchJsonWithTimeout(archivesUrl, 15000);
+  const archives = Array.isArray(a.data?.archives) ? a.data.archives : [];
+  if (!archives.length) return [];
+  const lastArchiveUrl = String(archives[archives.length - 1] || '');
+  if (!lastArchiveUrl) return [];
+  const g = await fetchJsonWithTimeout(lastArchiveUrl, 20000);
+  const games = Array.isArray(g.data?.games) ? g.data.games : [];
+  const todayKey = todayUtcKey();
+  const filtered = games
+    .filter((x) => x && BLUNDERS_ALLOWED_TIME_CLASSES.has(String(x.time_class || '').toLowerCase()))
+    .filter((x) => utcDayKeyFromEpochSec(x.end_time) === todayKey)
+    .filter((x) => {
+      const w = String(x?.white?.username || '').toLowerCase();
+      const b = String(x?.black?.username || '').toLowerCase();
+      const me = u.toLowerCase();
+      return w === me || b === me;
+    })
+    .sort((a, b) => Number(b.end_time || 0) - Number(a.end_time || 0))
+    .slice(0, BLUNDERS_MAX_GAMES_PER_DAY);
+  return filtered;
+}
+
+async function syncBlundersForStudent(student) {
+  const sid = String(student?.id || '');
+  if (!sid) return { ok: false, reason: 'missing student id' };
+
+  // Throttle: at most once per hour per student (for GET auto-refresh)
+  const now = Date.now();
+  const last = blundersLastStudentSync.get(sid) || 0;
+  if (now - last < 60 * 60 * 1000) return { ok: true, skipped: true };
+
+  if (blundersStudentLocks.has(sid)) return blundersStudentLocks.get(sid);
+
+  const task = (async () => {
+    blundersLastStudentSync.set(sid, now);
+    const orgId = String(student.organizationId || '');
+    if (!orgId) return { ok: false, reason: 'missing org' };
+
+    const orgs = await readChessComSettings();
+    const orgSettings = orgs && orgs[orgId] ? orgs[orgId] : {};
+    const entry = orgSettings && orgSettings[sid] ? orgSettings[sid] : null;
+    const username = String(entry?.chessId || '').trim();
+    if (!username) return { ok: false, reason: 'missing chess.com username' };
+
+    const games = await chessComGetTodayGames(username);
+    if (!games.length) return { ok: true, games: 0, added: 0 };
+
+    const puzzles = await readBlundersPuzzles();
+    const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
+    let added = 0;
+
+    for (const game of games) {
+      const pgn = String(game.pgn || '');
+      if (!pgn) continue;
+      const me = username.toLowerCase();
+      const whiteU = String(game?.white?.username || '').toLowerCase();
+      const blackU = String(game?.black?.username || '').toLowerCase();
+      const studentColor = whiteU === me ? 'w' : (blackU === me ? 'b' : '');
+      if (!studentColor) continue;
+
+      // Parse PGN and replay to find blunders on student's moves
+      let full = null;
+      try {
+        full = new Chess();
+        full.loadPgn(pgn, { sloppy: true });
+      } catch {
+        full = null;
+      }
+      if (!full) continue;
+      const moves = full.history({ verbose: true }) || [];
+      const replay = new Chess();
+      for (let ply = 0; ply < moves.length; ply++) {
+        const beforeFen = replay.fen();
+        const turn = replay.turn();
+        const mv = moves[ply];
+        // Apply the move as recorded
+        const applied = replay.move(mv);
+        if (!applied) break;
+
+        if (turn !== studentColor) continue; // only student's moves
+
+        const afterFen = replay.fen();
+        // Evaluate best at beforeFen (student to move)
+        const best = await sfEvalFen(beforeFen, 16);
+        const bestMove = String(best.bestMove || '');
+        const bestCp = scoreToCp(best.score);
+        // Evaluate afterFen (opponent to move), invert to student's POV
+        const after = await sfEvalFen(afterFen, 16);
+        const userCp = -scoreToCp(after.score);
+        const dropCp = bestCp - userCp;
+        const dropPoints = dropCp / 100;
+        if (dropPoints <= BLUNDERS_DROP_POINTS) continue;
+
+        const key = `${orgId}|${sid}|${String(game.url || game.uuid || '')}|${ply}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+
+        puzzles.push({
+          id: `bl_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          key,
+          orgId,
+          studentId: sid,
+          chessComUsername: username,
+          gameUrl: String(game.url || ''),
+          timeClass: String(game.time_class || ''),
+          endTime: Number(game.end_time || 0),
+          studentColor,
+          startFEN: beforeFen,
+          blunderMoveUci: `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`,
+          blunderSan: String(mv.san || ''),
+          bestMoveUci: bestMove,
+          bestCp,
+          afterCp: userCp,
+          dropCp,
+          dropPoints,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          attempts: []
+        });
+        added++;
+      }
+    }
+
+    if (added) await writeBlundersPuzzles(puzzles);
+    return { ok: true, games: games.length, added };
+  })().finally(() => {
+    blundersStudentLocks.delete(sid);
+  });
+
+  blundersStudentLocks.set(sid, task);
+  return task;
+}
+
+// ===== Blunders: Stockfish runner (spawn node + wasm engine JS) =====
+let sfEngineJsPath = null;
+let sfProc = null;
+let sfInitPromise = null;
+let sfQueue = Promise.resolve();
+
+async function findStockfishEngineJs() {
+  if (sfEngineJsPath) return sfEngineJsPath;
+  const dir = path.join(__dirname, 'node_modules', 'stockfish', 'src');
+  const list = await fs.readdir(dir).catch(() => []);
+  // Prefer lite-single build (smaller, single wasm)
+  const liteSingle = list.find((f) => /^stockfish-.*-lite-single-.*\.js$/i.test(f));
+  const lite = list.find((f) => /^stockfish-.*-lite-.*\.js$/i.test(f));
+  const any = list.find((f) => /^stockfish-.*\.js$/i.test(f));
+  const chosen = liteSingle || lite || any;
+  if (!chosen) throw new Error('Stockfish engine JS not found in node_modules/stockfish/src');
+  sfEngineJsPath = path.join(dir, chosen);
+  return sfEngineJsPath;
+}
+
+function sfSpawnIfNeeded() {
+  if (sfProc && !sfProc.killed) return sfProc;
+  sfProc = null;
+  sfInitPromise = null;
+  return null;
+}
+
+async function sfInit() {
+  if (sfInitPromise) return sfInitPromise;
+  sfInitPromise = (async () => {
+    const engineJs = await findStockfishEngineJs();
+    const p = spawn(process.execPath, [engineJs], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
+    });
+    sfProc = p;
+
+    p.on('exit', () => {
+      sfProc = null;
+      sfInitPromise = null;
+    });
+
+    // Basic UCI init
+    await new Promise((resolve, reject) => {
+      let buf = '';
+      const onData = (chunk) => {
+        buf += String(chunk || '');
+        const lines = buf.split(/\r?\n/);
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          const s = line.trim();
+          if (s === 'uciok') {
+            cleanup();
+            resolve();
+            return;
+          }
+        }
+      };
+      const onErr = () => {};
+      const onExit = () => {
+        cleanup();
+        reject(new Error('Stockfish process exited during init'));
+      };
+      const cleanup = () => {
+        try { p.stdout.off('data', onData); } catch {}
+        try { p.stderr.off('data', onErr); } catch {}
+        try { p.off('exit', onExit); } catch {}
+      };
+      p.stdout.on('data', onData);
+      p.stderr.on('data', onErr);
+      p.on('exit', onExit);
+      try {
+        p.stdin.write('uci\n');
+      } catch (e) {
+        cleanup();
+        reject(e);
+      }
+    });
+
+    // Tune for analysis
+    try {
+      p.stdin.write('setoption name Threads value 1\n');
+      p.stdin.write('setoption name Hash value 64\n');
+      p.stdin.write('setoption name MultiPV value 1\n');
+      p.stdin.write('ucinewgame\n');
+      p.stdin.write('isready\n');
+    } catch {}
+
+    // Wait for readyok
+    await new Promise((resolve) => {
+      let buf = '';
+      const onData = (chunk) => {
+        buf += String(chunk || '');
+        const lines = buf.split(/\r?\n/);
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (line.trim() === 'readyok') {
+            cleanup();
+            resolve();
+            return;
+          }
+        }
+      };
+      const cleanup = () => {
+        try { p.stdout.off('data', onData); } catch {}
+      };
+      p.stdout.on('data', onData);
+    });
+
+    return true;
+  })();
+  return sfInitPromise;
+}
+
+async function sfEvalFen(fen, depth = 16) {
+  // serialize all engine work
+  sfQueue = sfQueue.then(async () => {
+    sfSpawnIfNeeded();
+    await sfInit();
+    const p = sfProc;
+    if (!p) throw new Error('Stockfish process not available');
+
+    return await new Promise((resolve, reject) => {
+      let buf = '';
+      let lastScore = { cp: 0 };
+      let lastPvMove = null;
+
+      const onData = (chunk) => {
+        buf += String(chunk || '');
+        const lines = buf.split(/\r?\n/);
+        buf = lines.pop() || '';
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line) continue;
+          if (line.startsWith('info ')) {
+            // score cp X / score mate X ; pv <move> ...
+            const mCp = line.match(/\bscore\s+cp\s+(-?\d+)\b/);
+            const mMate = line.match(/\bscore\s+mate\s+(-?\d+)\b/);
+            if (mMate) lastScore = { mate: Number(mMate[1]) };
+            else if (mCp) lastScore = { cp: Number(mCp[1]) };
+            const pv = line.match(/\bpv\s+([a-h][1-8][a-h][1-8][qrbn]?)\b/);
+            if (pv) lastPvMove = pv[1];
+          }
+          if (line.startsWith('bestmove ')) {
+            const bm = line.split(/\s+/)[1] || null;
+            cleanup();
+            resolve({ bestMove: (bm && bm !== '(none)') ? bm : (lastPvMove || null), score: lastScore });
+            return;
+          }
+        }
+      };
+      const onErr = (chunk) => {
+        // keep stderr for debugging but don't fail immediately
+        try { /* noop */ } catch {}
+      };
+      const onExit = () => {
+        cleanup();
+        reject(new Error('Stockfish process exited during analysis'));
+      };
+      const cleanup = () => {
+        try { p.stdout.off('data', onData); } catch {}
+        try { p.stderr.off('data', onErr); } catch {}
+        try { p.off('exit', onExit); } catch {}
+      };
+
+      p.stdout.on('data', onData);
+      p.stderr.on('data', onErr);
+      p.on('exit', onExit);
+
+      try {
+        p.stdin.write(`position fen ${fen}\n`);
+        p.stdin.write(`go depth ${Number(depth) || 16}\n`);
+      } catch (e) {
+        cleanup();
+        reject(e);
+      }
+    });
+  });
+  return sfQueue;
 }
 
 // Read courses data
@@ -5455,6 +5893,67 @@ app.post('/api/organizations/timetable/postpone', authenticateUser, authorizeRol
 
 // ==================== Teacher Management API ====================
 
+// Teacher: Chess.com settings (persisted on server, org-scoped)
+app.get('/api/teachers/chesscom/settings', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const orgs = await readChessComSettings();
+    const settings = (orgs && orgs[orgId] && typeof orgs[orgId] === 'object') ? orgs[orgId] : {};
+    return res.json({ ok: true, orgId, settings });
+  } catch (e) {
+    console.error('GET /api/teachers/chesscom/settings error:', e);
+    return res.status(500).json({ error: 'Failed to load settings' });
+  }
+});
+
+app.put('/api/teachers/chesscom/settings', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const incoming = req.body && typeof req.body === 'object' ? req.body : {};
+    const settings = incoming.settings && typeof incoming.settings === 'object' ? incoming.settings : null;
+    if (!settings) return res.status(400).json({ error: 'settings is required' });
+
+    // Validate + normalize
+    const clean = {};
+    for (const [studentId, entry] of Object.entries(settings)) {
+      const sid = String(studentId || '').trim();
+      if (!sid) continue;
+      const chessId = String(entry?.chessId ?? '').trim();
+      if (!chessId) continue;
+      clean[sid] = { chessId, updatedAt: new Date().toISOString() };
+    }
+
+    const orgs = await readChessComSettings();
+    orgs[orgId] = clean;
+    const ok = await writeChessComSettings(orgs);
+    if (!ok) return res.status(500).json({ error: 'Failed to save settings' });
+    return res.json({ ok: true, orgId, count: Object.keys(clean).length });
+  } catch (e) {
+    console.error('PUT /api/teachers/chesscom/settings error:', e);
+    return res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// Teacher: trigger Blunders sync (today, rapid/blitz, max 10 games per student)
+app.post('/api/teachers/blunders/sync-today', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const data = await readData();
+    const students = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
+    // Fire-and-forget per student (throttled inside)
+    for (const s of students) {
+      syncBlundersForStudent(s).catch(() => {});
+    }
+    return res.json({ ok: true, message: 'Sync started', students: students.length });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/sync-today error:', e);
+    return res.status(500).json({ error: 'Failed to start sync' });
+  }
+});
+
 // Teacher selects students for Class View
 app.post('/api/teachers/class-view/students', authenticateUser, authorizeRole('teacher'), async (req, res) => {
   try {
@@ -6162,6 +6661,181 @@ app.get('/api/public/students/:id/vcp-token', async (req, res) => {
   } catch (error) {
     console.error('Error issuing VCP token:', error);
     return res.status(500).json({ error: 'Failed to issue token' });
+  }
+});
+
+// Public Student Access: Blunders puzzles (No Auth required, Password protected)
+app.get('/api/public/students/:id/blunders', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.query;
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    const orgId = String(student.organizationId || '');
+    // Best-effort background sync (poll Chess.com) when student opens Blunders
+    syncBlundersForStudent(student).catch((e) => console.warn('blunders sync failed:', e));
+    const puzzles = await readBlundersPuzzles();
+    const mine = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.studentId || '') === String(student.id));
+    const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
+    const completed = mine.filter(p => String(p.status || '') === 'completed');
+
+    return res.json({
+      ok: true,
+      student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
+      pending,
+      completed,
+      counts: { pending: pending.length, completed: completed.length, total: mine.length }
+    });
+  } catch (e) {
+    console.error('GET /api/public/students/:id/blunders error:', e);
+    return res.status(500).json({ error: 'Failed to load blunders puzzles' });
+  }
+});
+
+// Attempt a blunders puzzle move (engine-checked)
+app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res) => {
+  try {
+    const { id, puzzleId } = req.params;
+    const { password } = req.query;
+    const { moveUci, revealBest } = req.body || {};
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    const orgId = String(student.organizationId || '');
+    const puzzles = await readBlundersPuzzles();
+    const idx = puzzles.findIndex(p => String(p.id || '') === String(puzzleId) && String(p.orgId || '') === orgId && String(p.studentId || '') === String(student.id));
+    if (idx < 0) return res.status(404).json({ error: 'Puzzle not found' });
+
+    const puzzle = puzzles[idx];
+    // Reveal-only: allow client to fetch best move without attempting any move.
+    if (revealBest && !moveUci) {
+      const startFen = String(puzzle.startFEN || '');
+      if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
+      // Use cached value if present; otherwise compute and persist.
+      let bestMove = String(puzzle.bestMoveUci || '');
+      if (!bestMove) {
+        const best = await sfEvalFen(startFen, 16);
+        bestMove = String(best.bestMove || '');
+        puzzle.bestMoveUci = bestMove;
+        puzzle.bestCp = scoreToCp(best.score);
+        puzzles[idx] = puzzle;
+        await writeBlundersPuzzles(puzzles);
+      }
+      return res.json({ ok: true, bestMove: bestMove || undefined });
+    }
+    if (String(puzzle.status || 'pending') === 'completed') {
+      return res.json({
+        ok: true,
+        alreadyCompleted: true,
+        bestMove: revealBest ? (String(puzzle.bestMoveUci || '') || undefined) : undefined
+      });
+    }
+
+    const parsed = parseUciMove(moveUci);
+    if (!parsed) return res.status(400).json({ error: 'Invalid moveUci (use UCI like e2e4 or e7e8q)' });
+
+    const startFen = String(puzzle.startFEN || '');
+    const studentColor = String(puzzle.studentColor || '');
+    if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
+
+    let chess = null;
+    try { chess = new Chess(startFen); } catch { chess = null; }
+    if (!chess) return res.status(400).json({ error: 'Invalid startFEN' });
+
+    const turn = chess.turn(); // 'w' | 'b'
+    if (studentColor && turn !== studentColor) {
+      // Still allow but warn; puzzle generator should ensure this is student's turn.
+    }
+
+    const mv = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
+    if (!mv) return res.status(400).json({ error: 'Illegal move' });
+
+    const afterFen = chess.fen();
+
+    // Evaluate best move at start (student to move)
+    const best = await sfEvalFen(startFen, 16);
+    const bestMove = String(best.bestMove || '');
+    const bestCp = scoreToCp(best.score);
+
+    // Evaluate student's move result at after position (opponent to move), invert to student's POV
+    const after = await sfEvalFen(afterFen, 16);
+    const afterCpOppPov = scoreToCp(after.score);
+    const userCp = -afterCpOppPov;
+
+    const dropCp = bestCp - userCp; // positive means worse than best for student
+    const dropPoints = dropCp / 100;
+
+    const isBest = bestMove && parsed.uci === bestMove;
+    const thresholdPoints = 1.0;
+    const okNoDrop = dropPoints <= 0;
+    const isBlunder = dropPoints > thresholdPoints;
+
+    let verdict = 'retry';
+    let ok = false;
+    if (isBest) {
+      verdict = 'best';
+      ok = true;
+    } else if (!isBlunder) {
+      verdict = okNoDrop ? 'good' : 'good';
+      ok = true;
+    } else {
+      verdict = 'blunder';
+      ok = false;
+    }
+
+    // Persist attempts + completion
+    const attempts = Array.isArray(puzzle.attempts) ? puzzle.attempts : [];
+    attempts.push({
+      at: new Date().toISOString(),
+      moveUci: parsed.uci,
+      san: String(mv.san || ''),
+      bestMove,
+      bestCp,
+      userCp,
+      dropCp
+    });
+    puzzle.attempts = attempts;
+
+    if (ok) {
+      puzzle.status = 'completed';
+      puzzle.completedAt = new Date().toISOString();
+    }
+    // Keep best fields updated (useful for later UI)
+    puzzle.bestMoveUci = bestMove;
+    puzzle.bestCp = bestCp;
+    puzzle.lastUserMoveUci = parsed.uci;
+    puzzle.lastUserCp = userCp;
+    puzzle.lastDropCp = dropCp;
+
+    puzzles[idx] = puzzle;
+    await writeBlundersPuzzles(puzzles);
+
+    return res.json({
+      ok,
+      verdict, // 'best' | 'good' | 'blunder'
+      dropPoints,
+      bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined
+    });
+  } catch (e) {
+    console.error('POST /api/public/students/:id/blunders/:puzzleId/attempt error:', e);
+    return res.status(500).json({ error: 'Failed to evaluate move' });
   }
 });
 
