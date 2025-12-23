@@ -516,7 +516,7 @@
     const isViewer = !!opts?.viewer;
     const getViewerData = opts?.getViewerData || (() => null);
     const sessionMoveList = !!opts?.sessionMoveList;
-    const showPanel = isViewer || sessionMoveList;
+    const getShell = typeof opts?.getShell === 'function' ? opts.getShell : null;
     const isSpectator = !!opts?.spectator;
 
     const UI = {
@@ -891,6 +891,14 @@
       }
 
       const modeCls = isViewer ? 'nc-mode-viewer' : (sessionMoveList ? 'nc-mode-session' : '');
+      let sidebarCollapsed = true; // default to showing move list if shell state isn't provided
+      try {
+        const shell = getShell ? getShell() : null;
+        if (shell && typeof shell === 'object' && 'sidebarCollapsed' in shell) {
+          sidebarCollapsed = !!shell.sidebarCollapsed;
+        }
+      } catch {}
+      const showPanel = isViewer || (sessionMoveList && sidebarCollapsed);
       rootEl.innerHTML = `
         <div class="nc-root">
           <div class="nc-layout ${showPanel ? 'nc-viewer' : ''} ${escapeHtml(modeCls)}">

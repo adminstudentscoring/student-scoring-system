@@ -1133,7 +1133,8 @@
             getSession: () => STATE.activeSession,
             getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' }),
             getPlayerLabelById: (id) => studentLabelById(id),
-            sessionMoveList: true
+            sessionMoveList: true,
+            getShell: () => ({ sidebarCollapsed: !!STATE.sidebarCollapsed })
           });
         }
         if (STATE.ncApp?.applyState && STATE.activeSession?.chessState) {
@@ -1216,6 +1217,7 @@
           return '';
         },
         viewer: true,
+        getShell: () => ({ sidebarCollapsed: !!STATE.sidebarCollapsed }),
         getViewerData: () => {
           const gg = STATE.historyGame?.game || null;
           return {
@@ -1269,7 +1271,8 @@
           return '';
         },
         sessionMoveList: true,
-        spectator: true
+        spectator: true,
+        getShell: () => ({ sidebarCollapsed: !!STATE.sidebarCollapsed })
       });
     }
     try { STATE.liveNcApp?.applyState?.(session.chessState); } catch {}
