@@ -89,6 +89,66 @@
   font-weight: 900;
 }
 
+/* Session multi-game bar (teacher) */
+.vcp-session-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.vcp-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-weight: 900;
+  color: #111827;
+  user-select: none;
+}
+
+.vcp-switch input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.vcp-switch-label {
+  font-size: 13px;
+}
+
+.vcp-session-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+}
+
+.vcp-session-tabbtn {
+  width: 120px; /* equal size */
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-weight: 900;
+  color: #111827;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.vcp-session-tabbtn.active {
+  border-color: rgba(16, 185, 129, 0.65);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
 .vcp-side-nav {
   display: grid;
   gap: 8px;

@@ -15,6 +15,8 @@
     selected: new Set(),
     onlineListOpen: true,
     sidebarCollapsed: false,
+    teacherAutoSwitch: false,
+    teacherGameHistory: { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] },
     // Invites / sessions
     invites: [], // student-only: [{invite}]
     teacherMessages: [],
@@ -177,7 +179,8 @@
   function renderFixedSidebar() {
     const isLobby = STATE.page === 'lobby';
     const isTeacher = STATE.role === 'teacher';
-    const canSelect = isTeacher && isLobby;
+    // Teacher should be able to invite anytime (even while in a session / profile / etc.)
+    const canSelect = isTeacher;
     const selected = Array.from(STATE.selected);
     const chevron = STATE.onlineListOpen ? '▾' : '▸';
     const collapsed = !!STATE.sidebarCollapsed;
@@ -264,7 +267,7 @@
       markActivity();
     });
 
-    // Teacher: selectable checkboxes (lobby only)
+    // Teacher: selectable checkboxes (always available)
     document.querySelectorAll('input[type="checkbox"][data-student-id]').forEach((cb) => {
       cb.addEventListener('change', () => {
         const id = cb.getAttribute('data-student-id');
@@ -275,10 +278,9 @@
       });
     });
 
-    // Teacher: choose mode button (lobby only)
+    // Teacher: choose mode button (always available)
     document.getElementById('vcpChooseModeBtn')?.addEventListener('click', () => {
       if (STATE.role !== 'teacher') return;
-      if (STATE.page !== 'lobby') return;
       if (Array.from(STATE.selected).length !== 2) return;
       openChooseModeModal();
     });
@@ -294,6 +296,106 @@
     const nm = String(s.name || 'Unknown');
     const sid = String(s.studentId || '');
     return sid ? `${nm} (${sid})` : nm;
+  }
+
+  function plainNameById(id) {
+    const uid = String(id || '');
+    if (!uid) return '';
+    if (uid === String(STATE.me?.id || '')) return String(STATE.me?.name || 'Teacher');
+    const s = STATE.students.find((x) => String(x.id) === uid);
+    if (s) return String(s.name || 'Student');
+    return uid;
+  }
+
+  function getTeacherLiveSessionsSorted() {
+    const uid = String(STATE.me?.id || '');
+    const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
+    const mine = games.filter((g) => String(g.whiteId || '') === uid || String(g.blackId || '') === uid);
+    mine.sort((a, b) => new Date(a.startedAt || a.createdAt || 0) - new Date(b.startedAt || b.createdAt || 0));
+    return mine;
+  }
+
+  function computeTeacherTurnForLive(g) {
+    const uid = String(STATE.me?.id || '');
+    const turn = String(g?.state?.turn || 'w');
+    const myColor = String(g.whiteId || '') === uid ? 'w' : (String(g.blackId || '') === uid ? 'b' : null);
+    return myColor && turn === myColor;
+  }
+
+  function autoSwitchAfterTeacherMove(currentSessionId) {
+    if (STATE.role !== 'teacher') return;
+    if (!STATE.teacherAutoSwitch) return;
+    const cur = String(currentSessionId || (STATE.activeSession?.id) || '');
+    const mine = getTeacherLiveSessionsSorted();
+    const candidate = mine.find((g) => {
+      if (!g) return false;
+      if (String(g.sessionId || '') === cur) return false;
+      if (g?.state?.gameOver) return false;
+      return !!computeTeacherTurnForLive(g);
+    });
+    if (!candidate) return;
+    openMyGame(String(candidate.sessionId || ''));
+  }
+
+  function renderTeacherSessionBar() {
+    if (STATE.role !== 'teacher') return '';
+    const curId = String(STATE.activeSession?.id || '');
+    const live = getTeacherLiveSessionsSorted();
+
+    const liveTabs = live.map((g) => {
+      const sid = String(g.sessionId || '');
+      const myId = String(STATE.me?.id || '');
+      const oppId = String(g.whiteId || '') === myId ? String(g.blackId || '') : String(g.whiteId || '');
+      const label = plainNameById(oppId) || 'Student';
+      const isActive = sid && sid === curId;
+      return { kind: 'live', key: `live:${sid}`, id: sid, label, ts: String(g.startedAt || g.createdAt || '') , active: isActive, oppId };
+    });
+
+    // Ended games (keep, but avoid duplicate student names when there's a live session with that student)
+    const endedRaw = Array.isArray(STATE.teacherGameHistory?.games) ? STATE.teacherGameHistory.games : [];
+    const liveOppIds = new Set(liveTabs.map(t => String(t.oppId || '')).filter(Boolean));
+    const endedTabs = [];
+    for (const g of endedRaw) {
+      const gid = String(g?.id || '');
+      if (!gid) continue;
+      const myId = String(STATE.me?.id || '');
+      const oppName = String(String(g.whiteId || '') === myId ? (g.blackName || '') : (g.whiteName || '')) || 'Student';
+      const oppId = String(String(g.whiteId || '') === myId ? (g.blackId || '') : (g.whiteId || ''));
+      if (oppId && liveOppIds.has(oppId)) continue;
+      // Only keep the most recent ended game per opponent to avoid duplicates.
+      if (oppId && endedTabs.some(x => x.oppId === oppId)) continue;
+      endedTabs.push({
+        kind: 'ended',
+        key: `ended:${gid}`,
+        id: gid,
+        label: oppName,
+        ts: String(g.startedAt || g.endedAt || ''),
+        active: false,
+        oppId
+      });
+    }
+
+    const all = [...liveTabs, ...endedTabs];
+    all.sort((a, b) => new Date(a.ts || 0) - new Date(b.ts || 0));
+
+    const tabsHtml = all.length ? all.map((t) => {
+      if (t.kind === 'live') {
+        return `<button class="vcp-session-tabbtn ${t.active ? 'active' : ''}" type="button" data-vcp-session-tab="${escapeHtml(t.id)}">${escapeHtml(t.label)}</button>`;
+      }
+      return `<button class="vcp-session-tabbtn" type="button" data-vcp-game-tab="${escapeHtml(t.id)}">${escapeHtml(t.label)}</button>`;
+    }).join('') : `<div class="vcp-muted">No games yet.</div>`;
+
+    return `
+      <div class="vcp-session-bar">
+        <label class="vcp-switch">
+          <input id="vcpAutoSwitchToggle" type="checkbox" ${STATE.teacherAutoSwitch ? 'checked' : ''}>
+          <span class="vcp-switch-label">Auto Switch</span>
+        </label>
+        <div class="vcp-session-tabs" id="vcpSessionTabs" role="tablist" aria-label="Your games">
+          ${tabsHtml}
+        </div>
+      </div>
+    `;
   }
 
   function pieceImagePath(p) {
@@ -493,6 +595,23 @@
       if (!sid) return;
       openMyGame(sid);
     });
+
+    // Session bar game tabs (teacher multi-game)
+    root.addEventListener('click', (e) => {
+      const target = e.target;
+      const tab = target?.closest?.('[data-vcp-session-tab]');
+      if (tab) {
+        const sid = String(tab.getAttribute('data-vcp-session-tab') || '');
+        if (sid) openMyGame(sid);
+        return;
+      }
+      const gtab = target?.closest?.('[data-vcp-game-tab]');
+      if (gtab) {
+        const gid = String(gtab.getAttribute('data-vcp-game-tab') || '');
+        if (gid) openHistoryGame(gid);
+        return;
+      }
+    });
   }
 
   function renderHeaderBadge() {
@@ -686,6 +805,7 @@
               </div>
             </div>
             ${gameModalHtml}
+            ${STATE.role === 'teacher' ? renderTeacherChooseModeModal() : ''}
           </div>
         </div>
       </div>
@@ -693,6 +813,7 @@
 
     document.getElementById('vcpProfileBackBtn')?.addEventListener('click', closeProfile);
     bindFixedSidebarEvents();
+    if (STATE.role === 'teacher') bindTeacherModalEvents();
   }
 
   function renderOnlineListItem(s, { selectable }) {
@@ -1030,9 +1151,12 @@
           <div class="vcp-main-inner">
             <div class="vcp-card">
               <div class="vcp-section">
+                ${renderTeacherSessionBar()}
                 <div id="ncMount"></div>
               </div>
             </div>
+
+            ${STATE.role === 'teacher' ? renderTeacherChooseModeModal() : ''}
           </div>
         </div>
       </div>
@@ -1040,6 +1164,7 @@
 
     bindFixedSidebarEvents();
     bindSessionEvents();
+    if (STATE.role === 'teacher') bindTeacherModalEvents();
   }
 
   function renderHistoryGamePage() {
@@ -1066,6 +1191,7 @@
                 </div>
               </div>
             </div>
+            ${STATE.role === 'teacher' ? renderTeacherChooseModeModal() : ''}
           </div>
         </div>
       </div>
@@ -1074,6 +1200,7 @@
     document.getElementById('vcpHistoryBackBtn')?.addEventListener('click', closeHistoryGame);
     bindFixedSidebarEvents();
     bindHistoryGameEvents();
+    if (STATE.role === 'teacher') bindTeacherModalEvents();
   }
 
   function renderLiveViewerPage() {
@@ -1098,6 +1225,7 @@
                 </div>
               </div>
             </div>
+            ${STATE.role === 'teacher' ? renderTeacherChooseModeModal() : ''}
           </div>
         </div>
       </div>
@@ -1105,16 +1233,35 @@
     document.getElementById('vcpLiveBackBtn')?.addEventListener('click', closeLiveViewer);
     bindFixedSidebarEvents();
     bindLiveViewerEvents();
+    if (STATE.role === 'teacher') bindTeacherModalEvents();
   }
 
   function bindSessionEvents() {
     if (!STATE.activeSession) return;
+
+    if (STATE.role === 'teacher') {
+      const toggle = document.getElementById('vcpAutoSwitchToggle');
+      if (toggle) {
+        toggle.checked = !!STATE.teacherAutoSwitch;
+        toggle.addEventListener('change', () => {
+          STATE.teacherAutoSwitch = !!toggle.checked;
+          try { localStorage.setItem('vcpTeacherAutoSwitch', STATE.teacherAutoSwitch ? '1' : '0'); } catch {}
+        });
+      }
+    }
 
     // Mount Normal Chess UI
     try {
       const mount = document.getElementById('ncMount');
       if (mount && window.NormalChess?.mountNormalChess) {
         const sessionId = String(STATE.activeSession.id || '');
+        const sendNc = (payload) => {
+          wsSend(payload);
+          if (STATE.role === 'teacher' && STATE.teacherAutoSwitch && String(payload?.type || '') === 'vcp_chess_move') {
+            // After teacher makes a move, jump to the next game where it's still teacher's turn.
+            setTimeout(() => autoSwitchAfterTeacherMove(sessionId), 0);
+          }
+        };
         // If the page re-rendered, the mount node changes; ensure we remount to the current node.
         const mountChanged = STATE._ncMountEl && STATE._ncMountEl !== mount;
         if (mountChanged) {
@@ -1129,7 +1276,7 @@
           STATE.ncSessionId = sessionId;
           STATE.ncApp = window.NormalChess.mountNormalChess({
             rootEl: mount,
-            send: wsSend,
+            send: sendNc,
             getSession: () => STATE.activeSession,
             getIdentity: () => ({ role: STATE.role, id: STATE.me?.id || '' }),
             getPlayerLabelById: (id) => studentLabelById(id),
@@ -1513,8 +1660,15 @@
       if (STATE.role === 'student' && msg?.status) STATE.status = String(msg.status);
       reconnectAttempt = 0;
       startHeartbeat();
+      // Load teacher preferences
+      if (STATE.role === 'teacher') {
+        try { STATE.teacherAutoSwitch = localStorage.getItem('vcpTeacherAutoSwitch') === '1'; } catch {}
+      }
       wsSend({ type: 'vcp_get_presence' });
       wsSend({ type: 'vcp_get_live_games' });
+      if (STATE.role === 'teacher' && STATE.me?.id) {
+        wsSend({ type: 'vcp_get_game_history', targetUserId: String(STATE.me.id), page: 1 });
+      }
       render();
       return;
     }
@@ -1545,8 +1699,7 @@
     }
     if (type === 'vcp_game_history') {
       const targetUserId = String(msg?.targetUserId || '');
-      if (!targetUserId || targetUserId !== String(STATE.profileTargetId || '')) return;
-      STATE.profileHistory = {
+      const payload = {
         loading: false,
         error: null,
         page: Number(msg?.page || 1) || 1,
@@ -1554,6 +1707,31 @@
         totalItems: Number(msg?.totalItems || 0) || 0,
         games: Array.isArray(msg?.games) ? msg.games : []
       };
+      if (targetUserId && targetUserId === String(STATE.profileTargetId || '')) {
+        STATE.profileHistory = payload;
+      }
+      // Always keep teacher's own recent history for the session tabs bar
+      if (STATE.role === 'teacher' && targetUserId && targetUserId === String(STATE.me?.id || '')) {
+        STATE.teacherGameHistory = payload;
+      }
+      // Avoid remounting the active board; patch only where possible.
+      if (STATE.page === 'session' && STATE.role === 'teacher') {
+        try {
+          const bar = document.querySelector('.vcp-session-bar');
+          if (bar) {
+            bar.outerHTML = renderTeacherSessionBar();
+            const toggle = document.getElementById('vcpAutoSwitchToggle');
+            if (toggle) {
+              toggle.checked = !!STATE.teacherAutoSwitch;
+              toggle.addEventListener('change', () => {
+                STATE.teacherAutoSwitch = !!toggle.checked;
+                try { localStorage.setItem('vcpTeacherAutoSwitch', STATE.teacherAutoSwitch ? '1' : '0'); } catch {}
+              });
+            }
+            return;
+          }
+        } catch {}
+      }
       render();
       return;
     }
@@ -1576,6 +1754,23 @@
       if (area) area.innerHTML = renderLiveGames();
       const myArea = document.getElementById('vcpMyGamesArea');
       if (myArea) myArea.innerHTML = renderMyGames();
+      // If we're inside a session, refresh the teacher session tabs bar without remounting the board.
+      if (STATE.page === 'session' && STATE.role === 'teacher') {
+        try {
+          const bar = document.querySelector('.vcp-session-bar');
+          if (bar) {
+            bar.outerHTML = renderTeacherSessionBar();
+            const toggle = document.getElementById('vcpAutoSwitchToggle');
+            if (toggle) {
+              toggle.checked = !!STATE.teacherAutoSwitch;
+              toggle.addEventListener('change', () => {
+                STATE.teacherAutoSwitch = !!toggle.checked;
+                try { localStorage.setItem('vcpTeacherAutoSwitch', STATE.teacherAutoSwitch ? '1' : '0'); } catch {}
+              });
+            }
+          }
+        } catch {}
+      }
       return;
     }
     if (type === 'vcp_invite') {
@@ -1603,12 +1798,31 @@
       return;
     }
     if (type === 'vcp_session_start') {
-      STATE.activeSession = msg.session || null;
-      if (STATE.role === 'student') STATE.status = 'in-game';
+      const incoming = msg.session || null;
+      if (STATE.role === 'student') {
+        STATE.activeSession = incoming;
+        STATE.status = 'in-game';
+        STATE.page = 'session';
+        render();
+        return;
+      }
       if (STATE.role === 'teacher') {
+        // Do NOT interrupt current view if the teacher is already playing another game.
         STATE.pendingInvite = null;
         setTeacherMessage('Session started.', 'success');
+        wsSend({ type: 'vcp_get_live_games' });
+        if (!STATE.activeSession || STATE.page !== 'session') {
+          STATE.activeSession = incoming;
+          STATE.page = 'session';
+          render();
+        } else {
+          // Stay on current session; session bar will update from live games snapshot.
+          render();
+        }
+        return;
       }
+      // fallback
+      STATE.activeSession = incoming;
       STATE.page = 'session';
       render();
       return;
