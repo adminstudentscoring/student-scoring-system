@@ -30,7 +30,8 @@
     liveNcApp: null,
     liveNcKey: null,
     liveGames: [], // org-wide spectator snapshots
-    uiDelegatedBound: false
+    uiDelegatedBound: false,
+    settingsTab: 'board'
   };
 
   let reconnectTimer = null;
@@ -44,6 +45,39 @@
   function vcpDebug(...args) {
     if (!vcpDebugOn()) return;
     try { console.log('[VCP]', ...args); } catch {}
+  }
+
+  const VCP_DEFAULTS = {
+    boardLight: '#f1f5f9',
+    boardDark: '#94a3b8'
+  };
+
+  function readBoardColors() {
+    try {
+      const light = String(localStorage.getItem('vcpBoardLight') || '') || VCP_DEFAULTS.boardLight;
+      const dark = String(localStorage.getItem('vcpBoardDark') || '') || VCP_DEFAULTS.boardDark;
+      return { light, dark };
+    } catch {
+      return { light: VCP_DEFAULTS.boardLight, dark: VCP_DEFAULTS.boardDark };
+    }
+  }
+
+  function applyBoardColors() {
+    const { light, dark } = readBoardColors();
+    try {
+      document.documentElement.style.setProperty('--vcp-board-light', light);
+      document.documentElement.style.setProperty('--vcp-board-dark', dark);
+    } catch {}
+  }
+
+  function setBoardColors({ light, dark }) {
+    const l = String(light || '').trim() || VCP_DEFAULTS.boardLight;
+    const d = String(dark || '').trim() || VCP_DEFAULTS.boardDark;
+    try {
+      localStorage.setItem('vcpBoardLight', l);
+      localStorage.setItem('vcpBoardDark', d);
+    } catch {}
+    applyBoardColors();
   }
 
   function getRoot() {
@@ -340,6 +374,8 @@
   function renderSettingsPage() {
     const root = getRoot();
     if (!root) return;
+    const tab = String(STATE.settingsTab || 'board');
+    const { light, dark } = readBoardColors();
     root.innerHTML = `
       <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
         ${renderFixedSidebar()}
@@ -347,8 +383,45 @@
           <div class="vcp-main-inner">
             <div class="vcp-card">
               <div class="vcp-section">
-                <div style="font-weight:900; color:#111827; margin-bottom:6px;">Settings</div>
-                <div class="vcp-muted"></div>
+                <div style="font-weight:900; color:#111827; margin-bottom:8px;">Settings</div>
+
+                <div class="vcp-tabs" role="tablist" aria-label="Settings tabs">
+                  <button id="vcpSettingsTabBoard" class="vcp-tabbtn ${tab === 'board' ? 'active' : ''}" type="button" role="tab" aria-selected="${tab === 'board' ? 'true' : 'false'}">棋盤</button>
+                  <button id="vcpSettingsTabGeneral" class="vcp-tabbtn ${tab === 'general' ? 'active' : ''}" type="button" role="tab" aria-selected="${tab === 'general' ? 'true' : 'false'}">General</button>
+                </div>
+
+                ${tab === 'board' ? `
+                  <div class="vcp-settings-grid">
+                    <div class="vcp-list-item">
+                      <div style="font-weight:900; color:#111827; margin-bottom:6px;">棋盤顏色</div>
+                      <div class="vcp-muted">These colors apply to Normal Chess and the mini boards.</div>
+
+                      <div class="vcp-color-row" style="margin-top:10px;">
+                        <label for="vcpBoardLightInput">Light squares</label>
+                        <input id="vcpBoardLightInput" type="color" value="${escapeHtml(light)}" />
+                      </div>
+
+                      <div class="vcp-color-row" style="margin-top:10px;">
+                        <label for="vcpBoardDarkInput">Dark squares</label>
+                        <input id="vcpBoardDarkInput" type="color" value="${escapeHtml(dark)}" />
+                      </div>
+
+                      <div class="vcp-color-row" style="margin-top:12px;">
+                        <button id="vcpBoardResetBtn" class="btn btn-secondary" type="button">Reset</button>
+                        <div class="vcp-board-preview" aria-label="Board preview">
+                          ${Array.from({ length: 16 }).map((_, i) => {
+                            const r = Math.floor(i / 4);
+                            const c = i % 4;
+                            const cls = ((r + c) % 2 === 0) ? 'light' : 'dark';
+                            return `<div class="sq ${cls}"></div>`;
+                          }).join('')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ` : `
+                  <div class="vcp-muted">Coming soon.</div>
+                `}
               </div>
             </div>
           </div>
@@ -356,6 +429,31 @@
       </div>
     `;
     bindFixedSidebarEvents();
+
+    document.getElementById('vcpSettingsTabBoard')?.addEventListener('click', () => {
+      STATE.settingsTab = 'board';
+      render();
+    });
+    document.getElementById('vcpSettingsTabGeneral')?.addEventListener('click', () => {
+      STATE.settingsTab = 'general';
+      render();
+    });
+
+    if (tab === 'board') {
+      const lightEl = document.getElementById('vcpBoardLightInput');
+      const darkEl = document.getElementById('vcpBoardDarkInput');
+      const applyFromInputs = () => {
+        const l = String(lightEl?.value || VCP_DEFAULTS.boardLight);
+        const d = String(darkEl?.value || VCP_DEFAULTS.boardDark);
+        setBoardColors({ light: l, dark: d });
+      };
+      lightEl?.addEventListener('input', () => { applyFromInputs(); });
+      darkEl?.addEventListener('input', () => { applyFromInputs(); });
+      document.getElementById('vcpBoardResetBtn')?.addEventListener('click', () => {
+        setBoardColors({ light: VCP_DEFAULTS.boardLight, dark: VCP_DEFAULTS.boardDark });
+        render();
+      });
+    }
   }
 
   function studentLabelById(id) {
@@ -1996,6 +2094,7 @@
   function init() {
     STATE.role = getRole();
     STATE.page = 'lobby';
+    STATE.settingsTab = 'board';
     STATE.profileTargetId = null;
     STATE.profileHistory = { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
     STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
@@ -2019,6 +2118,7 @@
     }
     render();
     ensureDelegatedClicks();
+    applyBoardColors();
     connectWs();
     bindActivityListeners();
     window.addEventListener('focus', () => {

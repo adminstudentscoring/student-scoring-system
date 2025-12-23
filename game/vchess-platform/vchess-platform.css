@@ -4,6 +4,11 @@
   margin: 0;
 }
 
+:root {
+  --vcp-board-light: #f1f5f9;
+  --vcp-board-dark: #94a3b8;
+}
+
 .vcp-app {
   --vcp-sidebar-w: 180px;
   min-height: 100vh;
@@ -670,8 +675,66 @@
   grid-template-rows: repeat(8, 1fr);
 }
 
-.vcp-mini-sq.light { background: #f1f5f9; }
-.vcp-mini-sq.dark { background: #94a3b8; }
+.vcp-mini-sq.light { background: var(--vcp-board-light); }
+.vcp-mini-sq.dark { background: var(--vcp-board-dark); }
+
+/* Settings tabs */
+.vcp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.vcp-tabbtn {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-weight: 950;
+  color: #111827;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.vcp-tabbtn.active {
+  border-color: rgba(59, 130, 246, 0.75);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+}
+
+.vcp-settings-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.vcp-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vcp-color-row label {
+  font-weight: 900;
+  color: #111827;
+}
+
+.vcp-board-preview {
+  width: 132px;
+  height: 132px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+.vcp-board-preview .sq.light { background: var(--vcp-board-light); }
+.vcp-board-preview .sq.dark { background: var(--vcp-board-dark); }
 
 .vcp-mini-sq {
   display: flex;

@@ -4,6 +4,11 @@
   gap: 12px;
 }
 
+:root {
+  --vcp-board-light: #f1f5f9;
+  --vcp-board-dark: #94a3b8;
+}
+
 .nc-layout {
   display: grid;
   grid-template-columns: 96px 1fr;
@@ -404,8 +409,8 @@
 }
 
 
-.nc-square.light { background: #f1f5f9; }
-.nc-square.dark { background: #94a3b8; }
+.nc-square.light { background: var(--vcp-board-light); }
+.nc-square.dark { background: var(--vcp-board-dark); }
 
 .nc-piece-img {
   width: 78%;
