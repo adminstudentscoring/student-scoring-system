@@ -337,6 +337,55 @@
     openMyGame(String(candidate.sessionId || ''));
   }
 
+  function teacherTurnForActiveSession() {
+    if (STATE.role !== 'teacher') return false;
+    const s = STATE.activeSession;
+    if (!s || String(s.mode) !== 'chess') return false;
+    const st = s.chessState || null;
+    if (!st || st.gameOver) return false;
+    const myId = String(STATE.me?.id || '');
+    const whiteId = String(s?.config?.whiteStudentId || '');
+    const blackId = String(s?.config?.blackStudentId || '');
+    const myColor = myId && myId === whiteId ? 'w' : (myId && myId === blackId ? 'b' : null);
+    if (!myColor) return false;
+    return String(st.turn || 'w') === myColor;
+  }
+
+  function updateLiveGameStateFromSync(sessionId, chessState) {
+    const sid = String(sessionId || '');
+    if (!sid || !chessState) return;
+    const games = Array.isArray(STATE.liveGames) ? STATE.liveGames : [];
+    const idx = games.findIndex((g) => String(g?.sessionId || '') === sid);
+    if (idx < 0) return;
+    const cur = games[idx];
+    games[idx] = {
+      ...cur,
+      state: {
+        ...(cur?.state && typeof cur.state === 'object' ? cur.state : {}),
+        ...chessState
+      }
+    };
+    STATE.liveGames = games;
+  }
+
+  function autoSwitchOnSyncIfNeeded() {
+    if (STATE.role !== 'teacher') return;
+    if (!STATE.teacherAutoSwitch) return;
+    // Only auto-switch while the teacher is in the session view.
+    if (STATE.page !== 'session') return;
+
+    // If current viewed session is teacher-to-move, never switch away.
+    if (teacherTurnForActiveSession()) return;
+
+    // Otherwise, jump to the earliest-created session where it's teacher-to-move.
+    const mine = getTeacherLiveSessionsSorted();
+    const candidate = mine.find((g) => g && !g?.state?.gameOver && computeTeacherTurnForLive(g));
+    const curId = String(STATE.activeSession?.id || '');
+    if (!candidate) return;
+    if (String(candidate.sessionId || '') === curId) return;
+    openMyGame(String(candidate.sessionId || ''));
+  }
+
   function renderTeacherSessionBar() {
     if (STATE.role !== 'teacher') return '';
     const curId = String(STATE.activeSession?.id || '');
@@ -1255,13 +1304,7 @@
       const mount = document.getElementById('ncMount');
       if (mount && window.NormalChess?.mountNormalChess) {
         const sessionId = String(STATE.activeSession.id || '');
-        const sendNc = (payload) => {
-          wsSend(payload);
-          if (STATE.role === 'teacher' && STATE.teacherAutoSwitch && String(payload?.type || '') === 'vcp_chess_move') {
-            // After teacher makes a move, jump to the next game where it's still teacher's turn.
-            setTimeout(() => autoSwitchAfterTeacherMove(sessionId), 0);
-          }
-        };
+        const sendNc = (payload) => wsSend(payload);
         // If the page re-rendered, the mount node changes; ensure we remount to the current node.
         const mountChanged = STATE._ncMountEl && STATE._ncMountEl !== mount;
         if (mountChanged) {
@@ -1848,7 +1891,12 @@
           STATE.liveViewer.session.chessState = st;
           try { STATE.liveNcApp?.applyState?.(st); } catch {}
         }
+        // Keep liveGames state fresh enough for auto-switch decisions.
+        updateLiveGameStateFromSync(sid, st);
       }
+      // Auto switch should happen as soon as a student moves (i.e., a sync makes a game teacher-to-move),
+      // unless the currently viewed game is already teacher-to-move.
+      try { autoSwitchOnSyncIfNeeded(); } catch {}
       return;
     }
     if (type === 'vcp_session_update') {
