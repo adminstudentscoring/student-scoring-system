@@ -200,9 +200,9 @@
           <span class="vcp-side-label">${collapsed ? '' : 'Collapse'}</span>
         </button>
         <div class="vcp-side-nav">
-          <button id="vcpNavHomeBtn" class="vcp-side-btn ${isLobby ? 'is-active' : ''}" type="button" title="Home">
+          <button id="vcpNavHomeBtn" class="vcp-side-btn ${isLobby ? 'is-active' : ''}" type="button" title="V.Chess">
             <span class="vcp-side-icon" aria-hidden="true">🏠</span>
-            <span class="vcp-side-label">Home</span>
+            <span class="vcp-side-label">V.Chess</span>
           </button>
           <button id="vcpNavOnlineBtn" class="vcp-side-btn ${STATE.onlineListOpen ? 'is-active' : ''}" type="button" aria-label="Toggle online list">
             <span class="vcp-side-icon" aria-hidden="true">👥</span>
@@ -496,14 +496,9 @@
   }
 
   function renderHeaderBadge() {
+    // Per request: show name only (no ID / role text).
     const name = String(STATE.me?.name || 'Unknown');
-    const uid = String(STATE.me?.id || '');
-    const role = String(STATE.role || '');
-    const sid = role === 'student' ? String(STATE.me?.studentId || '') : '';
-    const idLabel = role === 'teacher'
-      ? (uid ? `Teacher ID: ${uid}` : '')
-      : (sid ? `Student ID: ${sid}` : (uid ? `ID: ${uid}` : ''));
-    return `${escapeHtml(name)}${idLabel ? ` (${escapeHtml(idLabel)})` : ''}${STATE.wsReady ? '' : ' (disconnected)'}`;
+    return `${escapeHtml(name)}`;
   }
 
   // Game Viewer intentionally removed (user will redesign later).
@@ -626,17 +621,15 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-card">
-              <div class="vcp-row">
-                <div>
-                  <div class="vcp-title">V.Chess Platform</div>
-                  <div class="vcp-subtitle">Profile</div>
-                </div>
+            <div class="vcp-me-row">
+              <div class="vcp-card vcp-me-card">
                 <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
                   ${renderHeaderBadge()}
                 </button>
               </div>
+            </div>
 
+            <div class="vcp-card">
               <div class="vcp-section">
                 <div class="vcp-profile-shell">
                   <div class="vcp-profile-card">
@@ -761,7 +754,6 @@
       if (root) {
         root.innerHTML = `
           <div class="vcp-card">
-            <div class="vcp-title">V.Chess Platform</div>
             <div class="vcp-muted">Authentication token is missing. Please log in again.</div>
           </div>
         `;
@@ -864,17 +856,16 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-card">
-              <div class="vcp-row">
-                <div>
-                  <div class="vcp-title">V.Chess Platform</div>
-                  <div class="vcp-subtitle">Lobby</div>
-                </div>
+            <div class="vcp-me-row">
+              <div class="vcp-card vcp-me-card">
                 <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
                   ${renderHeaderBadge()}
                 </button>
               </div>
-              ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
+            </div>
+
+            <div class="vcp-card">
+              ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:0; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
               <div class="vcp-section">
                 ${STATE.pendingInvite ? `
@@ -971,17 +962,16 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-card">
-              <div class="vcp-row">
-                <div>
-                  <div class="vcp-title">V.Chess Platform</div>
-                  <div class="vcp-subtitle">Lobby</div>
-                </div>
+            <div class="vcp-me-row">
+              <div class="vcp-card vcp-me-card">
                 <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
                   ${renderHeaderBadge()}
                 </button>
               </div>
-              ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:8px; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
+            </div>
+
+            <div class="vcp-card">
+              ${STATE.lastError ? `<div class="vcp-muted" style="margin-top:0; color:#b91c1c;"><strong>Error:</strong> ${escapeHtml(STATE.lastError)}</div>` : ''}
 
               <div class="vcp-section">
                 <div style="font-weight:900; color:#111827; margin-bottom:6px;">My game</div>
@@ -1046,12 +1036,15 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
+            <div class="vcp-me-row">
+              <div class="vcp-card vcp-me-card">
+                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+                  ${renderHeaderBadge()}
+                </button>
+              </div>
+            </div>
             <div class="vcp-card">
               <div class="vcp-row">
-                <div>
-                  <div class="vcp-title">V.Chess Platform</div>
-                  <div class="vcp-subtitle">Session</div>
-                </div>
                 <div class="vcp-btn-row" style="justify-content:flex-end;">
                   <button id="vcpSessionBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
                 </div>
@@ -1079,12 +1072,15 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
+            <div class="vcp-me-row">
+              <div class="vcp-card vcp-me-card">
+                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+                  ${renderHeaderBadge()}
+                </button>
+              </div>
+            </div>
             <div class="vcp-card">
               <div class="vcp-row">
-                <div>
-                  <div class="vcp-title">V.Chess Platform</div>
-                  <div class="vcp-subtitle">Session</div>
-                </div>
                 <div class="vcp-btn-row" style="justify-content:flex-end;">
                   <button id="vcpHistoryBackBtn" class="btn btn-secondary" type="button">Back</button>
                 </div>
@@ -1116,12 +1112,15 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
+            <div class="vcp-me-row">
+              <div class="vcp-card vcp-me-card">
+                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
+                  ${renderHeaderBadge()}
+                </button>
+              </div>
+            </div>
             <div class="vcp-card">
               <div class="vcp-row">
-                <div>
-                  <div class="vcp-title">V.Chess Platform</div>
-                  <div class="vcp-subtitle">Live Game</div>
-                </div>
                 <div class="vcp-btn-row" style="justify-content:flex-end;">
                   <button id="vcpLiveBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
                 </div>

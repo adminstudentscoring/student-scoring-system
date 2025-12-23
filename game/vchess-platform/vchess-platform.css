@@ -68,6 +68,24 @@
   margin: 0 auto;
 }
 
+.vcp-me-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.vcp-me-card {
+  width: fit-content;
+  padding: 10px 12px;
+}
+
+.vcp-me-card .vcp-badge {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-weight: 900;
+}
+
 .vcp-side-nav {
   display: grid;
   gap: 8px;
