@@ -184,8 +184,32 @@
     render();
   }
 
+  function goSettings() {
+    // Navigate to Settings without ending any server-side session. We still teardown any mounted viewers/boards.
+    try {
+      if (STATE.page === 'liveViewer') {
+        closeLiveViewer();
+      }
+      if (STATE.page === 'historyGame') {
+        try { STATE.historyNcApp?.destroy?.(); } catch {}
+        STATE.historyNcApp = null;
+        STATE.historyNcKey = null;
+        STATE.historyGame = { loading: false, error: null, gameId: null, game: null };
+      }
+      if (STATE.page === 'profile') {
+        closeProfile();
+      }
+      if (STATE.page === 'session') {
+        closeSessionView();
+      }
+    } catch {}
+    STATE.page = 'settings';
+    render();
+  }
+
   function renderFixedSidebar() {
     const isLobby = STATE.page === 'lobby';
+    const isSettings = STATE.page === 'settings';
     const isTeacher = STATE.role === 'teacher';
     // Teacher should be able to invite anytime (even while in a session / profile / etc.)
     const canSelect = isTeacher;
@@ -223,6 +247,10 @@
               <span class="vcp-side-chevron" aria-hidden="true">${chevron}</span>
             </span>
           </button>
+          <button id="vcpNavSettingsBtn" class="vcp-side-btn ${isSettings ? 'is-active' : ''}" type="button" title="Settings" aria-label="Settings">
+            <span class="vcp-side-icon" aria-hidden="true">⚙️</span>
+            <span class="vcp-side-label">Settings</span>
+          </button>
         </div>
 
         ${STATE.onlineListOpen ? `
@@ -255,6 +283,10 @@
 
     document.getElementById('vcpNavHomeBtn')?.addEventListener('click', () => {
       goHome();
+    });
+
+    document.getElementById('vcpNavSettingsBtn')?.addEventListener('click', () => {
+      goSettings();
     });
 
     document.getElementById('vcpNavOnlineBtn')?.addEventListener('click', () => {
@@ -303,6 +335,27 @@
       if (Array.from(STATE.selected).length !== 2) return;
       openChooseModeModal();
     });
+  }
+
+  function renderSettingsPage() {
+    const root = getRoot();
+    if (!root) return;
+    root.innerHTML = `
+      <div class="vcp-app ${STATE.sidebarCollapsed ? 'is-sidebar-collapsed' : ''}">
+        ${renderFixedSidebar()}
+        <div class="vcp-app-main">
+          <div class="vcp-main-inner">
+            <div class="vcp-card">
+              <div class="vcp-section">
+                <div style="font-weight:900; color:#111827; margin-bottom:6px;">Settings</div>
+                <div class="vcp-muted"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    bindFixedSidebarEvents();
   }
 
   function studentLabelById(id) {
@@ -1930,6 +1983,10 @@
     }
     if (STATE.page === 'profile') {
       renderProfileScreen();
+      return;
+    }
+    if (STATE.page === 'settings') {
+      renderSettingsPage();
       return;
     }
     if (STATE.role === 'teacher') renderTeacher();
