@@ -64,7 +64,8 @@
 }
 
 .vcp-main-inner {
-  max-width: 980px;
+  /* Wider container to fit session UI (board + move list) on iPad */
+  max-width: 1100px; /* ~ +3cm vs previous 980px */
   margin: 0 auto;
 }
 
