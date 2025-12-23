@@ -38,6 +38,14 @@
   let heartbeatTimer = null;
   let lastPongTs = 0;
 
+  function vcpDebugOn() {
+    try { return localStorage.getItem('vcpDebug') === '1'; } catch { return false; }
+  }
+  function vcpDebug(...args) {
+    if (!vcpDebugOn()) return;
+    try { console.log('[VCP]', ...args); } catch {}
+  }
+
   function getRoot() {
     return document.getElementById('vChessPlatformRoot');
   }
@@ -272,8 +280,19 @@
       cb.addEventListener('change', () => {
         const id = cb.getAttribute('data-student-id');
         if (!id) return;
-        if (cb.checked) STATE.selected.add(id);
-        else STATE.selected.delete(id);
+        if (cb.checked) {
+          // Hard cap: exactly 2 players.
+          if (!STATE.selected.has(id) && STATE.selected.size >= 2) {
+            cb.checked = false;
+            setTeacherMessage('Please select exactly 2 players.', 'info');
+            vcpDebug('select blocked (already 2)', { tried: String(id), selected: Array.from(STATE.selected) });
+            return;
+          }
+          STATE.selected.add(id);
+        } else {
+          STATE.selected.delete(id);
+        }
+        vcpDebug('selection changed', Array.from(STATE.selected));
         render();
       });
     });
@@ -1569,6 +1588,7 @@
       const black = white === ids[0] ? ids[1] : ids[0];
       const teacherId = String(STATE.me?.id || '');
       const hasTeacher = teacherId && ids.includes(teacherId);
+      vcpDebug('start invite', { ids, teacherId, hasTeacher, white, black, minutes, inc, page: STATE.page, activeSessionId: STATE.activeSession?.id || null });
       if (hasTeacher) {
         const studentId = String(ids.find(x => String(x) !== teacherId) || '');
         if (!studentId) return;
@@ -1600,6 +1620,8 @@
           responses: {}
         };
       }
+      // Reset selection after sending invite so it won't block future multi-game starts.
+      STATE.selected = new Set();
       closeChooseModeModal();
       setTeacherMessage('Invite sent. Waiting for students…', 'success');
     });
@@ -1712,7 +1734,13 @@
       if (STATE.role === 'teacher') {
         // Ensure selected IDs still exist
         const ids = new Set(STATE.students.map(s => String(s.id)));
-        STATE.selected = new Set(Array.from(STATE.selected).filter(id => ids.has(String(id))));
+        const teacherId = String(STATE.me?.id || '');
+        STATE.selected = new Set(Array.from(STATE.selected).filter((id) => {
+          const sid = String(id);
+          if (teacherId && sid === teacherId) return true; // keep teacher selection stable
+          return ids.has(sid);
+        }));
+        vcpDebug('presence snapshot', { students: STATE.students.length, selected: Array.from(STATE.selected) });
       }
       render();
       return;
@@ -1829,6 +1857,8 @@
       if (STATE.role === 'teacher') {
         // Do NOT interrupt current view if the teacher is already playing another game.
         STATE.pendingInvite = null;
+        // Clear leftover selection to avoid "Start does nothing" due to stale third selection.
+        STATE.selected = new Set();
         setTeacherMessage('Session started.', 'success');
         wsSend({ type: 'vcp_get_live_games' });
         if (!STATE.activeSession || STATE.page !== 'session') {
