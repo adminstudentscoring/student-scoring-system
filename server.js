@@ -5938,6 +5938,7 @@ app.put('/api/teachers/chesscom/settings', authenticateUser, authorizeRole('teac
     orgs[orgId] = clean;
     const ok = await writeChessComSettings(orgs);
     if (!ok) return res.status(500).json({ error: 'Failed to save settings' });
+    console.log('[chesscom] settings saved', { orgId, count: Object.keys(clean).length });
     return res.json({ ok: true, orgId, count: Object.keys(clean).length });
   } catch (e) {
     console.error('PUT /api/teachers/chesscom/settings error:', e);
@@ -6715,6 +6716,8 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
       student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
       debug: {
         hkDay: todayHkKey(),
+        orgId: orgId || null,
+        studentInternalId: String(student.id || ''),
         chessComUsername: chessComUsername || null,
         gamesTodayRapidBlitz: gamesToday,
         gamesTodayErr

@@ -1857,10 +1857,14 @@ async function pushChessComSettingsToServer(settingsObj) {
             method: 'PUT',
             body: JSON.stringify({ settings: settingsObj })
         });
-        // ignore response body for now
-        return resp.ok;
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            console.warn('Chess.com settings server save failed:', { status: resp.status, data });
+            return { ok: false, status: resp.status, data };
+        }
+        return { ok: true, status: resp.status, data };
     } catch (e) {
-        return false;
+        return { ok: false, status: 0, data: { error: String(e?.message || e) } };
     }
 }
 
@@ -2012,9 +2016,13 @@ document.getElementById('chessComSettingsSaveBtn')?.addEventListener('click', as
     if (btn) btn.disabled = true;
     try {
         const settings = loadChessComSettings();
-        const ok = await pushChessComSettingsToServer(settings);
-        if (ok) showNotification('Chess.com settings saved to server.', 'success');
-        else showNotification('Failed to save Chess.com settings to server.', 'error');
+        const out = await pushChessComSettingsToServer(settings);
+        if (out.ok) {
+            const c = Number(out?.data?.count || 0);
+            showNotification(`Chess.com settings saved to server. (${c} students)`, 'success');
+        } else {
+            showNotification(`Failed to save Chess.com settings to server. (HTTP ${out.status || 0})`, 'error');
+        }
     } catch (e) {
         console.error('Chess.com settings save failed:', e);
         showNotification('Failed to save Chess.com settings to server.', 'error');
