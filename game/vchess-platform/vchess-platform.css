@@ -29,7 +29,8 @@
 
 .vcp-app-main {
   margin-left: var(--vcp-sidebar-w);
-  padding: 12px;
+  /* Reduce the gutter between sidebar and main content */
+  padding: 12px 12px 12px 8px;
 }
 
 .vcp-side-icon {
@@ -66,7 +67,8 @@
 .vcp-main-inner {
   /* Wider container to fit session UI (board + move list) on iPad */
   max-width: 1100px; /* ~ +3cm vs previous 980px */
-  margin: 0 auto;
+  /* Left-align (avoid extra empty space when the sidebar is open) */
+  margin: 0;
 }
 
 .vcp-me-row {
