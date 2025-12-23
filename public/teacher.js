@@ -2007,6 +2007,21 @@ function renderChessComSettingsList() {
 // Event wiring
 document.getElementById('chessComSettingsModalClose')?.addEventListener('click', closeChessComSettingsModal);
 document.getElementById('chessComSettingsCloseBtn')?.addEventListener('click', closeChessComSettingsModal);
+document.getElementById('chessComSettingsSaveBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('chessComSettingsSaveBtn');
+    if (btn) btn.disabled = true;
+    try {
+        const settings = loadChessComSettings();
+        const ok = await pushChessComSettingsToServer(settings);
+        if (ok) showNotification('Chess.com settings saved to server.', 'success');
+        else showNotification('Failed to save Chess.com settings to server.', 'error');
+    } catch (e) {
+        console.error('Chess.com settings save failed:', e);
+        showNotification('Failed to save Chess.com settings to server.', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+});
 document.getElementById('chessComSettingsSearch')?.addEventListener('input', renderChessComSettingsList);
 document.getElementById('chessComSettingsModal')?.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'chessComSettingsModal') {
