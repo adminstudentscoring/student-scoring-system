@@ -621,14 +621,6 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-me-row">
-              <div class="vcp-card vcp-me-card">
-                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-                  ${renderHeaderBadge()}
-                </button>
-              </div>
-            </div>
-
             <div class="vcp-card">
               <div class="vcp-section">
                 <div class="vcp-profile-shell">
@@ -1036,19 +1028,7 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-me-row">
-              <div class="vcp-card vcp-me-card">
-                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-                  ${renderHeaderBadge()}
-                </button>
-              </div>
-            </div>
             <div class="vcp-card">
-              <div class="vcp-row">
-                <div class="vcp-btn-row" style="justify-content:flex-end;">
-                  <button id="vcpSessionBackBtn" class="btn btn-secondary" type="button">Back to lobby</button>
-                </div>
-              </div>
               <div class="vcp-section">
                 <div id="ncMount"></div>
               </div>
@@ -1072,13 +1052,6 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-me-row">
-              <div class="vcp-card vcp-me-card">
-                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-                  ${renderHeaderBadge()}
-                </button>
-              </div>
-            </div>
             <div class="vcp-card">
               <div class="vcp-row">
                 <div class="vcp-btn-row" style="justify-content:flex-end;">
@@ -1112,13 +1085,6 @@
         ${renderFixedSidebar()}
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
-            <div class="vcp-me-row">
-              <div class="vcp-card vcp-me-card">
-                <button class="vcp-badge vcp-badge-btn" type="button" data-vcp-profile-id="${escapeHtml(String(STATE.me?.id || ''))}">
-                  ${renderHeaderBadge()}
-                </button>
-              </div>
-            </div>
             <div class="vcp-card">
               <div class="vcp-row">
                 <div class="vcp-btn-row" style="justify-content:flex-end;">
@@ -1143,8 +1109,6 @@
 
   function bindSessionEvents() {
     if (!STATE.activeSession) return;
-    // Back should NOT end the game. User can reopen via "My game".
-    document.getElementById('vcpSessionBackBtn')?.addEventListener('click', closeSessionView);
 
     // Mount Normal Chess UI
     try {
