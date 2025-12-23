@@ -365,20 +365,19 @@ async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
   }
 }
 
-function utcDayKeyFromEpochSec(sec) {
-  const d = new Date(Number(sec || 0) * 1000);
+// Day key based on Hong Kong time (UTC+8, no DST) to match your user base and Chess.com UI date.
+const HK_OFFSET_SEC = 8 * 3600;
+function hkDayKeyFromEpochSec(sec) {
+  const d = new Date((Number(sec || 0) + HK_OFFSET_SEC) * 1000);
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const da = String(d.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${da}`;
 }
 
-function todayUtcKey() {
-  const d = new Date();
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const da = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${da}`;
+function todayHkKey() {
+  const nowSec = Math.floor(Date.now() / 1000);
+  return hkDayKeyFromEpochSec(nowSec);
 }
 
 async function chessComGetTodayGames(username) {
@@ -392,10 +391,10 @@ async function chessComGetTodayGames(username) {
   if (!lastArchiveUrl) return [];
   const g = await fetchJsonWithTimeout(lastArchiveUrl, 20000);
   const games = Array.isArray(g.data?.games) ? g.data.games : [];
-  const todayKey = todayUtcKey();
+  const todayKey = todayHkKey();
   const filtered = games
     .filter((x) => x && BLUNDERS_ALLOWED_TIME_CLASSES.has(String(x.time_class || '').toLowerCase()))
-    .filter((x) => utcDayKeyFromEpochSec(x.end_time) === todayKey)
+    .filter((x) => hkDayKeyFromEpochSec(x.end_time) === todayKey)
     .filter((x) => {
       const w = String(x?.white?.username || '').toLowerCase();
       const b = String(x?.black?.username || '').toLowerCase();
@@ -405,6 +404,16 @@ async function chessComGetTodayGames(username) {
     .sort((a, b) => Number(b.end_time || 0) - Number(a.end_time || 0))
     .slice(0, BLUNDERS_MAX_GAMES_PER_DAY);
   return filtered;
+}
+
+async function getChessComUsernameForStudent(orgId, studentId) {
+  const o = String(orgId || '');
+  const sid = String(studentId || '');
+  if (!o || !sid) return '';
+  const orgs = await readChessComSettings();
+  const orgSettings = orgs && orgs[o] ? orgs[o] : {};
+  const entry = orgSettings && orgSettings[sid] ? orgSettings[sid] : null;
+  return String(entry?.chessId || '').trim();
 }
 
 async function syncBlundersForStudent(student) {
@@ -6681,6 +6690,19 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     }
 
     const orgId = String(student.organizationId || '');
+    // Diagnostics (fast): do we have chess.com username on server? how many games found today?
+    const chessComUsername = await getChessComUsernameForStudent(orgId, student.id);
+    let gamesToday = 0;
+    let gamesTodayErr = null;
+    if (chessComUsername) {
+      try {
+        const g = await chessComGetTodayGames(chessComUsername);
+        gamesToday = Array.isArray(g) ? g.length : 0;
+      } catch (e) {
+        gamesTodayErr = String(e?.message || e);
+      }
+    }
+
     // Best-effort background sync (poll Chess.com) when student opens Blunders
     syncBlundersForStudent(student).catch((e) => console.warn('blunders sync failed:', e));
     const puzzles = await readBlundersPuzzles();
@@ -6691,6 +6713,12 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     return res.json({
       ok: true,
       student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
+      debug: {
+        hkDay: todayHkKey(),
+        chessComUsername: chessComUsername || null,
+        gamesTodayRapidBlitz: gamesToday,
+        gamesTodayErr
+      },
       pending,
       completed,
       counts: { pending: pending.length, completed: completed.length, total: mine.length }

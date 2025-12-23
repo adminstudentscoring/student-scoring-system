@@ -1911,6 +1911,8 @@ async function openChessComSettingsModal() {
             const local = loadChessComSettings();
             const merged = { ...(serverSettings || {}), ...(local || {}) };
             saveChessComSettings(merged);
+            // Also push immediately so server definitely has a copy even if user doesn't edit fields.
+            await pushChessComSettingsToServer(merged);
         }
     } catch (e) {
         // ignore

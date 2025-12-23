@@ -97,6 +97,17 @@
       setStatus(`Pending: ${pending.length} · Completed: ${completed.length}`);
       if (!listEl) return;
 
+      const dbg = data?.debug || {};
+      const dbgHtml = `
+        <div style="border:1px dashed #e5e7eb; border-radius:12px; padding:10px; margin:10px 0;">
+          <div style="font-weight:900; color:#111827; margin-bottom:6px;">Debug</div>
+          <div class="blunders-muted">HK day: <strong>${escapeHtml(String(dbg.hkDay || ''))}</strong></div>
+          <div class="blunders-muted">Chess.com username (server): <strong>${escapeHtml(String(dbg.chessComUsername || ''))}</strong></div>
+          <div class="blunders-muted">Today rapid+blitz games found: <strong>${escapeHtml(String(dbg.gamesTodayRapidBlitz ?? ''))}</strong></div>
+          ${dbg.gamesTodayErr ? `<div class="blunders-muted" style="color:#b91c1c;">Fetch error: ${escapeHtml(String(dbg.gamesTodayErr))}</div>` : ``}
+        </div>
+      `;
+
       const pendingHtml = pending.map((p) => {
         const pid = String(p.id || '');
         const fen = String(p.startFEN || '');
@@ -134,6 +145,7 @@
       }).join('');
 
       listEl.innerHTML = `
+        ${dbgHtml}
         <div style="font-weight:900; color:#111827; margin:10px 0 8px;">Pending</div>
         ${pendingHtml || `<div class="blunders-muted">No pending puzzles yet. (Sync runs when you open this page.)</div>`}
         <div style="font-weight:900; color:#111827; margin:14px 0 8px;">Completed (latest 20)</div>
