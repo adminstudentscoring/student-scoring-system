@@ -361,6 +361,8 @@ async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
     const resp = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'student-scoring-system/1.0' } });
     const data = await resp.json().catch(() => ({}));
     return { ok: resp.ok, status: resp.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: { error: String(e?.message || e) } };
   } finally {
     clearTimeout(t);
   }
@@ -381,16 +383,35 @@ function todayHkKey() {
   return hkDayKeyFromEpochSec(nowSec);
 }
 
-async function chessComGetTodayGames(username) {
+async function chessComGetTodayGames(username, opts = {}) {
   const u = String(username || '').trim();
   if (!u) return [];
+  const sid = String(opts.studentId || '');
+
+  if (sid) {
+    const st0 = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, { ...st0, stage: 'fetch-archives', updatedAt: new Date().toISOString(), fetch: { label: 'archives', url: null, startedAtMs: Date.now(), timeoutMs: 15000 } });
+  }
   const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/games/archives`;
   const a = await fetchJsonWithTimeout(archivesUrl, 15000);
+  if (sid) {
+    const st1 = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, { ...st1, fetch: { ...(st1.fetch || {}), url: archivesUrl, ok: !!a.ok, status: a.status, error: a.data?.error || null } });
+  }
   const archives = Array.isArray(a.data?.archives) ? a.data.archives : [];
   if (!archives.length) return [];
   const lastArchiveUrl = String(archives[archives.length - 1] || '');
   if (!lastArchiveUrl) return [];
+
+  if (sid) {
+    const st2 = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, { ...st2, stage: 'fetch-month-archive', updatedAt: new Date().toISOString(), fetch: { label: 'month-archive', url: lastArchiveUrl, startedAtMs: Date.now(), timeoutMs: 20000 } });
+  }
   const g = await fetchJsonWithTimeout(lastArchiveUrl, 20000);
+  if (sid) {
+    const st3 = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, { ...st3, fetch: { ...(st3.fetch || {}), ok: !!g.ok, status: g.status, error: g.data?.error || null } });
+  }
   const games = Array.isArray(g.data?.games) ? g.data.games : [];
   const todayKey = todayHkKey();
   const filtered = games
@@ -404,6 +425,17 @@ async function chessComGetTodayGames(username) {
     })
     .sort((a, b) => Number(b.end_time || 0) - Number(a.end_time || 0))
     .slice(0, BLUNDERS_MAX_GAMES_PER_DAY);
+
+  if (sid) {
+    const st4 = blundersSyncState.get(sid) || {};
+    const withPgn = filtered.filter(x => typeof x?.pgn === 'string' && x.pgn.trim().length > 0).length;
+    blundersSyncState.set(sid, {
+      ...st4,
+      stage: 'filter',
+      updatedAt: new Date().toISOString(),
+      fetchSummary: { archivesCount: archives.length, rawGamesInMonth: games.length, matchedToday: filtered.length, withPgn }
+    });
+  }
   return filtered;
 }
 
@@ -449,7 +481,7 @@ async function syncBlundersForStudent(student) {
     if (!username) return { ok: false, reason: 'missing chess.com username' };
 
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
-    const games = await chessComGetTodayGames(username);
+    const games = await chessComGetTodayGames(username, { studentId: sid });
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
     if (!games.length) return { ok: true, games: 0, added: 0 };
 
@@ -6785,7 +6817,15 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
         hasStudentKey,
         gamesTodayRapidBlitz: gamesToday,
         gamesTodayErr,
-        sync: (blundersSyncState.get(String(student.id)) || null)
+        sync: (() => {
+          const st = blundersSyncState.get(String(student.id)) || null;
+          if (!st) return null;
+          if (st.fetch && typeof st.fetch.startedAtMs === 'number') {
+            const elapsedMs = Math.max(0, Date.now() - st.fetch.startedAtMs);
+            return { ...st, fetch: { ...st.fetch, elapsedMs } };
+          }
+          return st;
+        })()
       },
       pending,
       completed,

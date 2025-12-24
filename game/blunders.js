@@ -115,6 +115,15 @@
             <div class="blunders-muted">games fetched/processed: <strong>${escapeHtml(String(sync.gamesFetched ?? ''))}</strong> / <strong>${escapeHtml(String(sync.gamesProcessed ?? ''))}</strong></div>
             <div class="blunders-muted">student plies processed: <strong>${escapeHtml(String(sync.pliesProcessed ?? ''))}</strong> · blunders added: <strong>${escapeHtml(String(sync.blundersAdded ?? ''))}</strong></div>
             <div class="blunders-muted">updated: <strong>${escapeHtml(String(sync.updatedAt || ''))}</strong></div>
+            ${sync.fetch ? `
+              <div class="blunders-muted">fetch: <strong>${escapeHtml(String(sync.fetch.label || ''))}</strong> · ${escapeHtml(String(sync.fetch.status ?? ''))} · ${escapeHtml(String(Math.round(Number(sync.fetch.elapsedMs || 0) / 1000))) }s</div>
+              ${sync.fetch.url ? `<div class="blunders-muted" style="word-break:break-all;">url: ${escapeHtml(String(sync.fetch.url))}</div>` : ``}
+              ${sync.fetch.error ? `<div class="blunders-muted" style="color:#b91c1c;">fetch error: ${escapeHtml(String(sync.fetch.error))}</div>` : ``}
+            ` : ``}
+            ${sync.fetchSummary ? `
+              <div class="blunders-muted">archives: <strong>${escapeHtml(String(sync.fetchSummary.archivesCount ?? ''))}</strong> · month games: <strong>${escapeHtml(String(sync.fetchSummary.rawGamesInMonth ?? ''))}</strong></div>
+              <div class="blunders-muted">matched today: <strong>${escapeHtml(String(sync.fetchSummary.matchedToday ?? ''))}</strong> · with PGN: <strong>${escapeHtml(String(sync.fetchSummary.withPgn ?? ''))}</strong></div>
+            ` : ``}
             ${sync.lastError ? `<div class="blunders-muted" style="color:#b91c1c;">Engine/parse error: ${escapeHtml(String(sync.lastError))}</div>` : ``}
           ` : ``}
         </div>
