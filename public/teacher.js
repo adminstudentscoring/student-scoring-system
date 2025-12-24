@@ -1092,6 +1092,7 @@ function initRightSidebar() {
 // Game Zone Modal Functions
 let gameZoneModalSize = 'normal'; // 'normal', 'large', 'fullscreen'
 let selectedGameStudents = [];
+let applicationPickGameKey = null; // 'monsterFight'|'runningQueen'|'royalExchange'|'hopeMate'
 
 function openGameZoneModal() {
     const modal = document.getElementById('gameZoneModal');
@@ -1102,10 +1103,168 @@ function openGameZoneModal() {
     }
 }
 
+function openTeacherApplicationsTab() {
+    try {
+        const btn = document.getElementById('teacherApplicationsTabBtn');
+        if (typeof window.switchTeacherTab === 'function') {
+            window.switchTeacherTab('applications', btn || null);
+            return true;
+        }
+    } catch {}
+    return false;
+}
+
+function openVChessPlatformNewTab() {
+    // Same behavior as Quick Action vChessPlatformBtn: always teacher role, open a new tab.
+    try {
+        localStorage.setItem('vChessPlatformRole', 'teacher');
+        localStorage.setItem('vChessPlatformSelectedStudentIds', JSON.stringify([]));
+        localStorage.removeItem('vChessPlatformAuthToken');
+        localStorage.removeItem('vChessPlatformPlayer');
+    } catch (e) {
+        console.warn('Unable to persist vChessPlatform context to localStorage:', e);
+    }
+
+    const url = '/game/game-window.html?game=vChessPlatform&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening V.Chess Platform in current tab...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('V.Chess Platform opened in a new tab', 'success');
+}
+
+window.openVChessPlatformNewTab = openVChessPlatformNewTab;
+
+function openApplicationStudentPicker(gameKey) {
+    applicationPickGameKey = String(gameKey || '');
+    selectedGameStudents = [];
+    const modal = document.getElementById('gameZoneModal');
+    if (!modal) return;
+
+    // Title
+    const titleEl = document.getElementById('gameZoneModalTitle');
+    const label =
+        applicationPickGameKey === 'monsterFight' ? 'Monster Fight' :
+        applicationPickGameKey === 'runningQueen' ? 'Running Queen' :
+        applicationPickGameKey === 'royalExchange' ? 'Royal Exchange' :
+        applicationPickGameKey === 'hopeMate' ? 'Hope Mate' : 'Application';
+    if (titleEl) titleEl.textContent = `🎮 Application · ${label}`;
+
+    // Hide game selection + game area; show student selection only
+    const gs = document.getElementById('gameSelectionSection');
+    const ss = document.getElementById('studentSelectionSection');
+    const ga = document.getElementById('gameAreaSection');
+    if (gs) gs.style.display = 'none';
+    if (ga) ga.style.display = 'none';
+    if (ss) ss.style.display = 'block';
+
+    // Open modal and load students
+    modal.classList.add('show');
+    loadGameStudents();
+}
+
+window.openApplicationStudentPicker = openApplicationStudentPicker;
+
+function openPuzzleMonsterFightAsMe() {
+    if (!currentUser || !currentUser.id) {
+        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
+        return;
+    }
+    const player = {
+        id: String(currentUser.id),
+        name: String(currentUser.name || currentUser.email || 'Teacher'),
+        studentId: String(currentUser.teacherId || currentUser.id)
+    };
+    try {
+        localStorage.setItem('puzzleMonsterFightPlayers', JSON.stringify([player]));
+    } catch (error) {
+        console.warn('Unable to persist puzzle monster fight players to localStorage:', error);
+    }
+
+    const gameUrl = '/game/puzzle-monster-fight/index.html';
+    const gameWindow = window.open(gameUrl, 'PuzzleMonsterFight', 'width=1200,height=800,resizable=yes,scrollbars=yes');
+    if (!gameWindow) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = gameUrl;
+        return;
+    }
+    showNotification('Puzzle Monster Fight opened in new window', 'success');
+}
+
+window.openPuzzleMonsterFightAsMe = openPuzzleMonsterFightAsMe;
+
+async function confirmApplicationStudentPicker() {
+    const key = String(applicationPickGameKey || '');
+    if (!key) {
+        showNotification('Missing game selection.', 'error');
+        return;
+    }
+    if (key === 'hopeMate' && selectedGameStudents.length !== 1) {
+        showNotification('Hope Mate supports exactly 1 student. Please select one student.', 'error');
+        return;
+    }
+    if (key !== 'hopeMate' && selectedGameStudents.length === 0) {
+        showNotification('Please select at least one student', 'error');
+        return;
+    }
+
+    // Persist players for game-window based games
+    const playerDetails = selectedGameStudents.map(id => {
+        const student = students.find(s => s.id === id) || {};
+        return { id, name: student.name || 'Unknown', studentId: student.studentId || '' };
+    });
+
+    try {
+        if (key === 'runningQueen') localStorage.setItem('runningQueenPlayers', JSON.stringify(playerDetails));
+        if (key === 'royalExchange') localStorage.setItem('royalExchangePlayers', JSON.stringify(playerDetails));
+        if (key === 'hopeMate') localStorage.setItem('hopeMatePlayers', JSON.stringify(playerDetails));
+    } catch (e) {
+        console.warn('Unable to persist players to localStorage:', e);
+    }
+
+    // Launch
+    if (key === 'monsterFight') {
+        await startMonsterFight();
+    } else if (key === 'runningQueen') {
+        const url = '/game/game-window.html?game=runningQueen';
+        const w = window.open(url, '_blank');
+        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
+        else showNotification('Running Queen opened in new tab', 'success');
+    } else if (key === 'royalExchange') {
+        const url = '/game/game-window.html?game=royalExchange';
+        const w = window.open(url, '_blank');
+        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
+        else showNotification('Royal Exchange opened in new tab', 'success');
+    } else if (key === 'hopeMate') {
+        const url = '/game/game-window.html?game=hopeMate';
+        const w = window.open(url, '_blank');
+        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
+        else showNotification('Hope Mate opened in new tab', 'success');
+    }
+
+    // Close modal
+    closeGameZoneModal();
+    applicationPickGameKey = null;
+}
+
+window.confirmApplicationStudentPicker = confirmApplicationStudentPicker;
+
 function closeGameZoneModal() {
     const modal = document.getElementById('gameZoneModal');
     if (modal) {
         modal.classList.remove('show');
+        // Restore default title & sections for legacy modal usage
+        const titleEl = document.getElementById('gameZoneModalTitle');
+        if (titleEl) titleEl.textContent = '🎮 Application';
+        const gs = document.getElementById('gameSelectionSection');
+        const ss = document.getElementById('studentSelectionSection');
+        const ga = document.getElementById('gameAreaSection');
+        if (gs) gs.style.display = 'block';
+        if (ss) ss.style.display = 'block';
+        if (ga) ga.style.display = 'none';
+        applicationPickGameKey = null;
         showGameSelection();
     }
 }
@@ -1794,7 +1953,14 @@ function openGameInNewWindow() {
 window.toggleGameStudent = toggleGameStudent;
 
 // Event listeners for Game Zone
-document.getElementById('gameZoneBtn')?.addEventListener('click', openGameZoneModal);
+document.getElementById('gameZoneBtn')?.addEventListener('click', () => {
+    // "Application" in Quick Actions now jumps to the main Applications tab.
+    const ok = openTeacherApplicationsTab();
+    if (!ok) {
+        // Fallback: open old modal if tab switch isn't available.
+        openGameZoneModal();
+    }
+});
 document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
     // Quick Action entry: open V.Chess Platform directly in a new tab (no modal).
     try {
@@ -1826,6 +1992,13 @@ document.getElementById('openGameInNewWindow')?.addEventListener('click', openGa
 document.getElementById('gameStudentSearch')?.addEventListener('input', loadGameStudents);
 document.getElementById('selectAllStudents')?.addEventListener('click', selectAllGameStudents);
 document.getElementById('deselectAllStudents')?.addEventListener('click', deselectAllGameStudents);
+document.getElementById('applicationStudentPickerCancelBtn')?.addEventListener('click', closeGameZoneModal);
+document.getElementById('applicationStudentPickerConfirmBtn')?.addEventListener('click', () => {
+    confirmApplicationStudentPicker().catch((e) => {
+        console.error('Application confirm error:', e);
+        showNotification('Failed to start app', 'error');
+    });
+});
 
 // Close modal when clicking outside
 document.getElementById('gameZoneModal')?.addEventListener('click', (e) => {

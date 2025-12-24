@@ -51,6 +51,7 @@
             <button class="tab active" onclick="switchTeacherTab('students', this)" style="padding: 10px 20px; background: rgba(255, 255, 255, 0.2); border: none; cursor: pointer; font-size: 16px; color: #fff; border-bottom: 2px solid #fff; font-weight: bold; border-radius: 6px;">👥 Student Management</button>
             <button class="tab" onclick="switchTeacherTab('courses', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">📚 Course Management</button>
             <button class="tab" onclick="switchTeacherTab('statistics', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">📊 Statistics</button>
+            <button class="tab" id="teacherApplicationsTabBtn" onclick="switchTeacherTab('applications', this)" style="padding: 10px 20px; background: none; border: none; cursor: pointer; font-size: 16px; color: rgba(255, 255, 255, 0.8); border-bottom: 2px solid transparent; transition: all 0.3s; border-radius: 6px;">🧩 Application</button>
         </div>
 
         <!-- Student Management Tab -->
@@ -121,6 +122,81 @@
         <div id="statisticsTab" class="tab-content" style="display: none;">
             <!-- Content will be injected by statistics.js -->
             <p>Loading statistics...</p>
+        </div>
+
+        <!-- Applications Tab -->
+        <div id="applicationsTab" class="tab-content" style="display: none;">
+            <section class="card">
+                <h2>🧩 Application</h2>
+                <p style="color:#666; margin-bottom: 16px;">Choose an app to start.</p>
+
+                <div class="card" style="box-shadow:none; border:1px solid #eee; padding:14px; margin-bottom:14px;">
+                    <h3 style="margin: 0 0 10px; color:#111827;">Platform</h3>
+                    <div class="game-list" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
+                        <div class="game-item" onclick="openVChessPlatformNewTab()">
+                            <div class="game-icon">🌐</div>
+                            <div class="game-info">
+                                <h4>V.Chess Platform</h4>
+                                <p>Open teacher lobby in a new tab</p>
+                            </div>
+                        </div>
+                        <div class="game-item" onclick="openChessComSettingsModal()">
+                            <div class="game-icon">♟️</div>
+                            <div class="game-info">
+                                <h4>Chess.com</h4>
+                                <p>Open Chess.com settings (for Chess.com + Blunders)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="box-shadow:none; border:1px solid #eee; padding:14px; margin-bottom:14px;">
+                    <h3 style="margin: 0 0 10px; color:#111827;">Special Training</h3>
+                    <div class="game-list" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
+                        <div class="game-item" onclick="openApplicationStudentPicker('monsterFight')">
+                            <div class="game-icon">🐉</div>
+                            <div class="game-info">
+                                <h4>Monster Fight</h4>
+                                <p>Select students → Confirm → Open in new tab</p>
+                            </div>
+                        </div>
+                        <div class="game-item" onclick="openApplicationStudentPicker('runningQueen')">
+                            <div class="game-icon">♕</div>
+                            <div class="game-info">
+                                <h4>Running Queen</h4>
+                                <p>Select students → Confirm → Open in new tab</p>
+                            </div>
+                        </div>
+                        <div class="game-item" onclick="openApplicationStudentPicker('royalExchange')">
+                            <div class="game-icon">♘</div>
+                            <div class="game-info">
+                                <h4>Royal Exchange</h4>
+                                <p>Select students → Confirm → Open in new tab</p>
+                            </div>
+                        </div>
+                        <div class="game-item" onclick="openApplicationStudentPicker('hopeMate')">
+                            <div class="game-icon">✨</div>
+                            <div class="game-info">
+                                <h4>Hope Mate</h4>
+                                <p>Select 1 student → Confirm → Open in new tab</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="box-shadow:none; border:1px solid #eee; padding:14px;">
+                    <h3 style="margin: 0 0 10px; color:#111827;">Puzzle</h3>
+                    <div class="game-list" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
+                        <div class="game-item" onclick="openPuzzleMonsterFightAsMe()">
+                            <div class="game-icon">🧩</div>
+                            <div class="game-info">
+                                <h4>Puzzle Monster Fight</h4>
+                                <p>Run directly with the current teacher account</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
 
         <!-- Right Sidebar -->
@@ -332,11 +408,11 @@
         </div>
     </div>
 
-    <!-- Application Modal -->
+    <!-- Application (Student Picker) Modal -->
     <div id="gameZoneModal" class="modal">
         <div class="modal-content" id="gameZoneModalContent">
             <div class="modal-header">
-                <h2>🎮 Application</h2>
+                <h2 id="gameZoneModalTitle">🎮 Application</h2>
                 <div class="modal-header-actions">
                     <button id="gameZoneFullscreenBtn" class="btn-icon" title="Toggle Fullscreen">⛶</button>
                     <button id="gameZoneSizeBtn" class="btn-icon" title="Toggle Size">⛶</button>
@@ -369,6 +445,10 @@
                     </div>
                     <div class="student-selector-list" id="gameStudentList">
                         <!-- Students will be loaded here -->
+                    </div>
+                    <div class="modal-actions" id="applicationStudentPickerActions" style="margin-top: 12px; justify-content: flex-end; gap: 10px;">
+                        <button id="applicationStudentPickerCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+                        <button id="applicationStudentPickerConfirmBtn" class="btn btn-primary" type="button">Confirm</button>
                     </div>
                 </div>
 
