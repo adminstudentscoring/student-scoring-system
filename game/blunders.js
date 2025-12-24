@@ -1283,6 +1283,7 @@
     try {
       const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
       const bm = out?.bestMove ? String(out.bestMove) : '';
+      const engErr = out?.engineError ? String(out.engineError) : '';
       const af = out?.afterFEN ? String(out.afterFEN) : '';
       STATE.uiBoard.blunderBestMoveUci = bm;
       if (bm && af) {
@@ -1290,7 +1291,7 @@
         STATE.uiBoard.blunderMoveUci = bm;
       }
       STATE.uiBoard.blunderVerdict = bm ? 'best' : '';
-      if (!bm) setMessage('Best move not available yet.');
+      if (!bm) setMessage(engErr ? `Best move not available (${engErr})` : 'Best move not available yet.');
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
     }
@@ -1333,6 +1334,7 @@
     try {
       const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
       const bm = out?.bestMove ? String(out.bestMove) : '';
+      const engErr = out?.engineError ? String(out.engineError) : '';
       const af = out?.afterFEN ? String(out.afterFEN) : '';
       STATE.uiBoard.masterBestMoveUci = bm;
       if (bm && af) {
@@ -1340,6 +1342,7 @@
         STATE.uiBoard.masterMoveUci = bm;
       }
       STATE.uiBoard.masterVerdict = bm ? 'best' : '';
+      if (!bm && engErr) setMasterMessage(`Best move not available (${engErr})`);
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
     }

@@ -7497,29 +7497,44 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     if (revealBest && !moveUci) {
       const startFen = String(puzzle.startFEN || '');
       if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
-      let bestMove = String(puzzle.bestMoveUci || '');
-      if (!bestMove) {
-        const best = await sfEvalFen(startFen, 16);
-        bestMove = String(best.bestMove || '');
-        puzzle.bestMoveUci = bestMove;
-        puzzle.bestCp = scoreToCp(best.score);
-        await writeBlundersPuzzles(puzzles);
-      }
-      let afterFEN = '';
       try {
-        if (bestMove) {
-          const b = parseUciMove(bestMove);
-          if (b) {
-            let ch = null;
-            try { ch = new Chess(startFen); } catch { ch = null; }
-            if (ch) {
-              const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
-              if (mv) afterFEN = ch.fen();
+        let bestMove = String(puzzle.bestMoveUci || '').trim();
+        if (!bestMove) {
+          const best = await sfEvalFen(startFen, 16);
+          bestMove = String(best.bestMove || '').trim();
+          // Normalize unexpected formats
+          bestMove = bestMove.split(/\s+/)[0] || '';
+          if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) {
+            puzzle.bestMoveUci = bestMove;
+            puzzle.bestCp = scoreToCp(best.score);
+            await writeBlundersPuzzles(puzzles);
+          } else {
+            bestMove = '';
+          }
+        } else {
+          bestMove = bestMove.split(/\s+/)[0] || '';
+          if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) bestMove = '';
+        }
+
+        let afterFEN = '';
+        try {
+          if (bestMove) {
+            const b = parseUciMove(bestMove);
+            if (b) {
+              let ch = null;
+              try { ch = new Chess(startFen); } catch { ch = null; }
+              if (ch) {
+                const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
+                if (mv) afterFEN = ch.fen();
+              }
             }
           }
-        }
-      } catch {}
-      return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
+        } catch {}
+        return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
+      } catch (e) {
+        // Don't fail the whole UX on engine hiccups.
+        return res.json({ ok: true, bestMove: undefined, afterFEN: undefined, playedUci: undefined, engineError: String(e?.message || e) });
+      }
     }
 
     if (String(pr.status || 'pending') === 'completed' && !practice) {
@@ -7614,31 +7629,44 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     if (revealBest && !moveUci) {
       const startFen = String(puzzle.startFEN || '');
       if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
-      // Use cached value if present; otherwise compute and persist.
-      let bestMove = String(puzzle.bestMoveUci || '');
-      if (!bestMove) {
-        const best = await sfEvalFen(startFen, 16);
-        bestMove = String(best.bestMove || '');
-        puzzle.bestMoveUci = bestMove;
-        puzzle.bestCp = scoreToCp(best.score);
-        puzzles[idx] = puzzle;
-        await writeBlundersPuzzles(puzzles);
-      }
-      let afterFEN = '';
       try {
-        if (bestMove) {
-          const b = parseUciMove(bestMove);
-          if (b) {
-            let ch = null;
-            try { ch = new Chess(startFen); } catch { ch = null; }
-            if (ch) {
-              const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
-              if (mv) afterFEN = ch.fen();
+        // Use cached value if present; otherwise compute and persist.
+        let bestMove = String(puzzle.bestMoveUci || '').trim();
+        if (!bestMove) {
+          const best = await sfEvalFen(startFen, 16);
+          bestMove = String(best.bestMove || '').trim();
+          bestMove = bestMove.split(/\s+/)[0] || '';
+          if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) {
+            puzzle.bestMoveUci = bestMove;
+            puzzle.bestCp = scoreToCp(best.score);
+            puzzles[idx] = puzzle;
+            await writeBlundersPuzzles(puzzles);
+          } else {
+            bestMove = '';
+          }
+        } else {
+          bestMove = bestMove.split(/\s+/)[0] || '';
+          if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) bestMove = '';
+        }
+
+        let afterFEN = '';
+        try {
+          if (bestMove) {
+            const b = parseUciMove(bestMove);
+            if (b) {
+              let ch = null;
+              try { ch = new Chess(startFen); } catch { ch = null; }
+              if (ch) {
+                const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
+                if (mv) afterFEN = ch.fen();
+              }
             }
           }
-        }
-      } catch {}
-      return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
+        } catch {}
+        return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
+      } catch (e) {
+        return res.json({ ok: true, bestMove: undefined, afterFEN: undefined, playedUci: undefined, engineError: String(e?.message || e) });
+      }
     }
     if (String(puzzle.status || 'pending') === 'completed' && !practice) {
       return res.json({
