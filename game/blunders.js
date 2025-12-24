@@ -24,6 +24,7 @@
     needsRefreshAfterModal: false,
     lastAttemptWasPendingSolve: false,
     settingsTab: 'board', // 'board' | 'general'
+    teacherTab: 'students', // 'students' | 'masterGame' | 'settings'
     ui: { modalOpen: false, modalHtml: '' }
   };
 
@@ -537,13 +538,35 @@
     `;
   }
 
-  function renderTeacherModePage() {
+  function renderTeacherSidebar() {
+    const tab = String(STATE.teacherTab || 'students');
+    return `
+      <aside class="bl-sidebar" aria-label="Blunders teacher sidebar">
+        <div class="bl-side-title">💥 Blunders</div>
+        <div class="bl-side-sub">Teacher mode</div>
+        <div class="bl-nav">
+          <button class="bl-nav-btn ${tab === 'students' ? 'active' : ''}" type="button" data-bl-teacher-tab="students">
+            <span class="bl-nav-left"><span class="bl-nav-icon">👥</span>Students</span>
+          </button>
+          <button class="bl-nav-btn ${tab === 'masterGame' ? 'active' : ''}" type="button" data-bl-teacher-tab="masterGame">
+            <span class="bl-nav-left"><span class="bl-nav-icon">♟️</span>Master Game</span>
+          </button>
+          <button class="bl-nav-btn ${tab === 'settings' ? 'active' : ''}" type="button" data-bl-teacher-tab="settings">
+            <span class="bl-nav-left"><span class="bl-nav-icon">⚙️</span>Settings</span>
+          </button>
+        </div>
+      </aside>
+    `;
+  }
+
+  function renderTeacherStudentsPage() {
     return `
       <div class="bl-card">
-        <div class="bl-title">Teacher Mode · Blunders</div>
+        <div class="bl-title">Teacher Mode · Students</div>
         <div class="blunders-muted">
-          This is a teacher-only layout preview. We will add student list, filters, and management actions next.
+          UI only (no data wired yet). Next step: load a student list + per-student Blunders stats.
         </div>
+
         <div class="bl-stats" style="margin-top:12px;">
           <div class="bl-stat">
             <div class="bl-stat-label">Students</div>
@@ -558,17 +581,41 @@
             <div class="bl-stat-value">—</div>
           </div>
         </div>
+
         <div style="margin-top:12px; border:1px dashed #e5e7eb; border-radius:12px; padding:10px;">
           <div style="font-weight:900; color:#111827; margin-bottom:6px;">Planned panels</div>
-          <div class="blunders-muted">- Left: Student list (search + status)</div>
-          <div class="blunders-muted">- Right: Selected student detail (Home / Blunder / Review / Debug)</div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-          <button class="btn btn-secondary" type="button" data-bl-teacher-placeholder>General (TBD)</button>
-          <button class="btn btn-secondary" type="button" data-bl-teacher-placeholder>Board Setting</button>
+          <div class="blunders-muted">- Left: student list (search + pending badge)</div>
+          <div class="blunders-muted">- Right: selected student details (Home / Blunder / Review / Debug)</div>
         </div>
       </div>
     `;
+  }
+
+  function renderTeacherMasterGamePage() {
+    return `
+      <div class="bl-card">
+        <div class="bl-title">Teacher Mode · Master Game</div>
+        <div class="blunders-muted">UI placeholder. We’ll define how “Master Game” works next.</div>
+
+        <div style="margin-top:12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#f9fafb;">
+          <div style="font-weight:900; color:#111827; margin-bottom:6px;">Coming soon</div>
+          <div class="blunders-muted">- Select a student</div>
+          <div class="blunders-muted">- Browse “master games” / curated games</div>
+          <div class="blunders-muted">- Launch analysis / puzzles (TBD)</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTeacherModeMain() {
+    const tab = String(STATE.teacherTab || 'students');
+    if (tab === 'masterGame') return renderTeacherMasterGamePage();
+    if (tab === 'settings') return renderSettingsPage();
+    return renderTeacherStudentsPage();
+  }
+
+  function renderTeacherModePage() {
+    return renderTeacherModeMain();
   }
 
   async function refreshData(opts = {}) {
@@ -751,7 +798,7 @@
     if (role === 'teacher') {
       root.innerHTML = `
         <div class="bl-app">
-          ${renderSidebar()}
+          ${renderTeacherSidebar()}
           <main class="bl-main">
             <div class="bl-container">
               <div id="blGlobalStatus" class="blunders-muted"></div>
@@ -808,6 +855,14 @@
 
     root.addEventListener('click', async (ev) => {
       const t = ev.target;
+
+      // Teacher sidebar tabs
+      const tt = t?.closest?.('[data-bl-teacher-tab]');
+      if (tt) {
+        STATE.teacherTab = String(tt.getAttribute('data-bl-teacher-tab') || 'students');
+        render();
+        return;
+      }
 
       const nav = t?.closest?.('[data-bl-nav]');
       if (nav) {
