@@ -184,6 +184,12 @@
                             <p>Loading game...</p>
                         </div>
                     `;
+                    // Support teacher vs student rendering via querystring.
+                    const blRole = String(params.get('role') || '');
+                    if (blRole) {
+                        try { localStorage.setItem('blundersRole', blRole); } catch {}
+                        try { window.blundersRole = blRole; } catch {}
+                    }
                     try {
                         const storedPlayers = localStorage.getItem('blundersPlayers');
                         if (storedPlayers) {

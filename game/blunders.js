@@ -27,6 +27,23 @@
     ui: { modalOpen: false, modalHtml: '' }
   };
 
+  function getBlundersRole() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = String(params.get('role') || '').toLowerCase();
+      if (q === 'teacher' || q === 'student') return q;
+    } catch {}
+    try {
+      const w = String(window.blundersRole || '').toLowerCase();
+      if (w === 'teacher' || w === 'student') return w;
+    } catch {}
+    try {
+      const ls = String(localStorage.getItem('blundersRole') || '').toLowerCase();
+      if (ls === 'teacher' || ls === 'student') return ls;
+    } catch {}
+    return 'student';
+  }
+
   const VCP_DEFAULTS = {
     boardLight: '#f1f5f9',
     boardDark: '#94a3b8'
@@ -520,6 +537,40 @@
     `;
   }
 
+  function renderTeacherModePage() {
+    return `
+      <div class="bl-card">
+        <div class="bl-title">Teacher Mode · Blunders</div>
+        <div class="blunders-muted">
+          This is a teacher-only layout preview. We will add student list, filters, and management actions next.
+        </div>
+        <div class="bl-stats" style="margin-top:12px;">
+          <div class="bl-stat">
+            <div class="bl-stat-label">Students</div>
+            <div class="bl-stat-value">—</div>
+          </div>
+          <div class="bl-stat">
+            <div class="bl-stat-label">Pending puzzles</div>
+            <div class="bl-stat-value">—</div>
+          </div>
+          <div class="bl-stat">
+            <div class="bl-stat-label">Completed puzzles</div>
+            <div class="bl-stat-value">—</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; border:1px dashed #e5e7eb; border-radius:12px; padding:10px;">
+          <div style="font-weight:900; color:#111827; margin-bottom:6px;">Planned panels</div>
+          <div class="blunders-muted">- Left: Student list (search + status)</div>
+          <div class="blunders-muted">- Right: Selected student detail (Home / Blunder / Review / Debug)</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button class="btn btn-secondary" type="button" data-bl-teacher-placeholder>General (TBD)</button>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-placeholder>Board Setting</button>
+        </div>
+      </div>
+    `;
+  }
+
   async function refreshData(opts = {}) {
     if (!STATE.me?.id) return;
     const statusEl = document.getElementById('blGlobalStatus');
@@ -696,6 +747,22 @@
   function render() {
     const root = document.getElementById('blundersRoot');
     if (!root) return;
+    const role = getBlundersRole();
+    if (role === 'teacher') {
+      root.innerHTML = `
+        <div class="bl-app">
+          ${renderSidebar()}
+          <main class="bl-main">
+            <div class="bl-container">
+              <div id="blGlobalStatus" class="blunders-muted"></div>
+              ${renderTeacherModePage()}
+            </div>
+          </main>
+          ${STATE.ui.modalOpen ? STATE.ui.modalHtml : ''}
+        </div>
+      `;
+      return;
+    }
     const content =
       STATE.page === 'home' ? renderHomePage() :
       STATE.page === 'blunder' ? renderBlunderPage() :
@@ -720,6 +787,15 @@
     const root = document.getElementById('blundersRoot');
     if (!root) return;
 
+    applyBoardColors();
+
+    // Teacher mode: UI skeleton only for now.
+    if (getBlundersRole() === 'teacher') {
+      STATE.me = { id: 'teacher', name: 'Teacher', studentId: '' };
+      render();
+      return;
+    }
+
     const players = getPlayers();
     STATE.me = players[0] || null;
     if (!STATE.me || !STATE.me.id) {
@@ -727,7 +803,6 @@
       return;
     }
 
-    applyBoardColors();
     render();
     refreshData();
 

@@ -1195,6 +1195,20 @@ function openPuzzleMonsterFightAsMe() {
 
 window.openPuzzleMonsterFightAsMe = openPuzzleMonsterFightAsMe;
 
+function openBlundersTeacherMode() {
+    // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
+    const url = '/game/game-window.html?game=blunders&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening Blunders in current tab...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Blunders (teacher mode) opened in a new tab', 'success');
+}
+
+window.openBlundersTeacherMode = openBlundersTeacherMode;
+
 async function confirmApplicationStudentPicker() {
     const key = String(applicationPickGameKey || '');
     if (!key) {
