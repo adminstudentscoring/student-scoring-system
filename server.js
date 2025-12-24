@@ -29,6 +29,8 @@ const VCP_CHESS_GAMES_FILE = path.join(__dirname, process.env.VCP_CHESS_GAMES_FI
 const CHESSCOM_SETTINGS_FILE = path.join(__dirname, process.env.CHESSCOM_SETTINGS_FILE || path.join(DATA_DIR, 'chesscom-settings.json'));
 const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_FILE || path.join(DATA_DIR, 'blunders-puzzles.json'));
 const BLUNDERS_STATS_FILE = path.join(__dirname, process.env.BLUNDERS_STATS_FILE || path.join(DATA_DIR, 'blunders-stats.json'));
+const BLUNDERS_SETTINGS_FILE = path.join(__dirname, process.env.BLUNDERS_SETTINGS_FILE || path.join(DATA_DIR, 'blunders-settings.json'));
+const BLUNDERS_MASTER_PROGRESS_FILE = path.join(__dirname, process.env.BLUNDERS_MASTER_PROGRESS_FILE || path.join(DATA_DIR, 'blunders-master-progress.json'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -182,6 +184,20 @@ async function ensureDataDir() {
     await fs.access(BLUNDERS_STATS_FILE);
   } catch {
     await fs.writeFile(BLUNDERS_STATS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure Blunders settings file exists (per-student config + masters list)
+  try {
+    await fs.access(BLUNDERS_SETTINGS_FILE);
+  } catch {
+    await fs.writeFile(BLUNDERS_SETTINGS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure Blunders master progress file exists (per-student completion for master puzzles)
+  try {
+    await fs.access(BLUNDERS_MASTER_PROGRESS_FILE);
+  } catch {
+    await fs.writeFile(BLUNDERS_MASTER_PROGRESS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
   }
   
   // Ensure users file exists
@@ -391,6 +407,116 @@ async function blundersMarkGamesAnalyzed(orgId, studentId, games) {
   return { ok: true, added, total: st.analyzedCount };
 }
 
+// ===== Blunders: Settings (per-student config + masters) =====
+const BLUNDERS_DEFAULTS = {
+  maxGamesPerDay: 10,
+  thresholdPoints: 1.0,
+  masterMaxGamesPerDay: 10,
+  masterThresholdPoints: 1.0
+};
+
+function normalizeHkDayKey(ymd) {
+  const s = String(ymd || '').trim();
+  if (!s) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  return s;
+}
+
+async function readBlundersSettings() {
+  try {
+    const content = await fs.readFile(BLUNDERS_SETTINGS_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
+    return (orgs && typeof orgs === 'object') ? orgs : {};
+  } catch (error) {
+    console.error('Error reading blunders settings:', error);
+    return {};
+  }
+}
+
+async function writeBlundersSettings(orgs) {
+  try {
+    const clean = orgs && typeof orgs === 'object' ? orgs : {};
+    await fs.writeFile(BLUNDERS_SETTINGS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing blunders settings:', error);
+    return false;
+  }
+}
+
+function defaultMastersPreset() {
+  return [
+    { id: 'magnuscarlsen', name: 'MagnusCarlsen', username: 'MagnusCarlsen' },
+    { id: 'hikaru', name: 'Hikaru', username: 'Hikaru' },
+    { id: 'fabianocaruana', name: 'fabianocaruana', username: 'fabianocaruana' }
+  ];
+}
+
+function sanitizeMasterEntry(m) {
+  const name = String(m?.name || '').trim();
+  const username = String(m?.username || '').trim();
+  const id = String(m?.id || '').trim() || username.toLowerCase();
+  if (!name || !username) return null;
+  return { id, name, username };
+}
+
+async function getOrgBlundersSettings(orgId) {
+  const oid = String(orgId || '');
+  if (!oid) return { masters: defaultMastersPreset(), student: {}, master: {} };
+  const orgs = await readBlundersSettings();
+  if (!orgs[oid] || typeof orgs[oid] !== 'object') orgs[oid] = {};
+  const org = orgs[oid];
+  if (!Array.isArray(org.masters) || !org.masters.length) org.masters = defaultMastersPreset();
+  if (!org.student || typeof org.student !== 'object') org.student = {};
+  if (!org.master || typeof org.master !== 'object') org.master = {};
+  // Persist back if we auto-filled defaults
+  orgs[oid] = org;
+  await writeBlundersSettings(orgs);
+  return org;
+}
+
+async function getStudentBlundersConfig(orgId, studentId) {
+  const org = await getOrgBlundersSettings(orgId);
+  const sid = String(studentId || '');
+  const ov = (org.student && org.student[sid] && typeof org.student[sid] === 'object') ? org.student[sid] : {};
+  const maxGamesPerDay = Math.max(1, Math.min(50, Number(ov.maxGamesPerDay ?? BLUNDERS_DEFAULTS.maxGamesPerDay) || BLUNDERS_DEFAULTS.maxGamesPerDay));
+  const thresholdPoints = Math.max(0.1, Math.min(10, Number(ov.thresholdPoints ?? BLUNDERS_DEFAULTS.thresholdPoints) || BLUNDERS_DEFAULTS.thresholdPoints));
+  return { maxGamesPerDay, thresholdPoints };
+}
+
+async function getMasterBlundersConfig(orgId) {
+  const org = await getOrgBlundersSettings(orgId);
+  const ov = (org.master && typeof org.master === 'object') ? org.master : {};
+  const maxGamesPerDay = Math.max(1, Math.min(50, Number(ov.maxGamesPerDay ?? BLUNDERS_DEFAULTS.masterMaxGamesPerDay) || BLUNDERS_DEFAULTS.masterMaxGamesPerDay));
+  const thresholdPoints = Math.max(0.1, Math.min(10, Number(ov.thresholdPoints ?? BLUNDERS_DEFAULTS.masterThresholdPoints) || BLUNDERS_DEFAULTS.masterThresholdPoints));
+  return { maxGamesPerDay, thresholdPoints };
+}
+
+// ===== Blunders: Master progress (per-student completion) =====
+async function readBlundersMasterProgress() {
+  try {
+    const content = await fs.readFile(BLUNDERS_MASTER_PROGRESS_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
+    return (orgs && typeof orgs === 'object') ? orgs : {};
+  } catch (error) {
+    console.error('Error reading blunders master progress:', error);
+    return {};
+  }
+}
+
+async function writeBlundersMasterProgress(orgs) {
+  try {
+    const clean = orgs && typeof orgs === 'object' ? orgs : {};
+    await fs.writeFile(BLUNDERS_MASTER_PROGRESS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing blunders master progress:', error);
+    return false;
+  }
+}
+
 function parseUciMove(uci) {
   const s = String(uci || '').trim().toLowerCase();
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(s)) return null;
@@ -447,10 +573,12 @@ function todayHkKey() {
   return hkDayKeyFromEpochSec(nowSec);
 }
 
-async function chessComGetTodayGames(username, opts = {}) {
+async function chessComGetGamesForHkDay(username, opts = {}) {
   const u = String(username || '').trim();
   if (!u) return [];
   const sid = String(opts.studentId || '');
+  const hkDay = normalizeHkDayKey(opts.hkDayKey) || todayHkKey();
+  const limit = Math.max(1, Math.min(50, Number(opts.limit || 0) || BLUNDERS_MAX_GAMES_PER_DAY));
 
   if (sid) {
     const st0 = blundersSyncState.get(sid) || {};
@@ -464,23 +592,24 @@ async function chessComGetTodayGames(username, opts = {}) {
   }
   const archives = Array.isArray(a.data?.archives) ? a.data.archives : [];
   if (!archives.length) return [];
-  const lastArchiveUrl = String(archives[archives.length - 1] || '');
-  if (!lastArchiveUrl) return [];
+  // Find month archive URL for requested HK day
+  const ym = hkDay.slice(0, 7);
+  const monthArchiveUrl = String(archives.find((x) => String(x || '').includes(`/${ym}`)) || archives[archives.length - 1] || '');
+  if (!monthArchiveUrl) return [];
 
   if (sid) {
     const st2 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st2, stage: 'fetch-month-archive', updatedAt: new Date().toISOString(), fetch: { label: 'month-archive', url: lastArchiveUrl, startedAtMs: Date.now(), timeoutMs: 20000 } });
+    blundersSyncState.set(sid, { ...st2, stage: 'fetch-month-archive', updatedAt: new Date().toISOString(), fetch: { label: 'month-archive', url: monthArchiveUrl, startedAtMs: Date.now(), timeoutMs: 20000 } });
   }
-  const g = await fetchJsonWithTimeout(lastArchiveUrl, 20000);
+  const g = await fetchJsonWithTimeout(monthArchiveUrl, 20000);
   if (sid) {
     const st3 = blundersSyncState.get(sid) || {};
     blundersSyncState.set(sid, { ...st3, fetch: { ...(st3.fetch || {}), ok: !!g.ok, status: g.status, error: g.data?.error || null } });
   }
   const games = Array.isArray(g.data?.games) ? g.data.games : [];
-  const todayKey = todayHkKey();
   const filtered = games
     .filter((x) => x && BLUNDERS_ALLOWED_TIME_CLASSES.has(String(x.time_class || '').toLowerCase()))
-    .filter((x) => hkDayKeyFromEpochSec(x.end_time) === todayKey)
+    .filter((x) => hkDayKeyFromEpochSec(x.end_time) === hkDay)
     .filter((x) => {
       const w = String(x?.white?.username || '').toLowerCase();
       const b = String(x?.black?.username || '').toLowerCase();
@@ -488,7 +617,7 @@ async function chessComGetTodayGames(username, opts = {}) {
       return w === me || b === me;
     })
     .sort((a, b) => Number(b.end_time || 0) - Number(a.end_time || 0))
-    .slice(0, BLUNDERS_MAX_GAMES_PER_DAY);
+    .slice(0, limit);
 
   if (sid) {
     const st4 = blundersSyncState.get(sid) || {};
@@ -503,6 +632,10 @@ async function chessComGetTodayGames(username, opts = {}) {
   return filtered;
 }
 
+async function chessComGetTodayGames(username, opts = {}) {
+  return chessComGetGamesForHkDay(username, { ...opts, hkDayKey: todayHkKey() });
+}
+
 async function getChessComUsernameForStudent(orgId, studentId) {
   const o = String(orgId || '');
   const sid = String(studentId || '');
@@ -513,14 +646,17 @@ async function getChessComUsernameForStudent(orgId, studentId) {
   return String(entry?.chessId || '').trim();
 }
 
-async function syncBlundersForStudent(student) {
+async function syncBlundersForStudent(student, opts = {}) {
   const sid = String(student?.id || '');
   if (!sid) return { ok: false, reason: 'missing student id' };
+  const orgId = String(student.organizationId || '');
+  const hkDayKey = normalizeHkDayKey(opts.hkDayKey) || todayHkKey();
+  const bypassThrottle = String(opts.force || '') === '1';
 
   // Throttle: at most once per hour per student (for GET auto-refresh)
   const now = Date.now();
   const last = blundersLastStudentSync.get(sid) || 0;
-  if (now - last < 60 * 60 * 1000) return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
+  if (!bypassThrottle && now - last < 60 * 60 * 1000) return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
 
   if (blundersStudentLocks.has(sid)) return blundersStudentLocks.get(sid);
 
@@ -538,14 +674,17 @@ async function syncBlundersForStudent(student) {
       blundersAdded: 0,
       lastError: null
     });
-    const orgId = String(student.organizationId || '');
     if (!orgId) return { ok: false, reason: 'missing org' };
 
     const username = await getChessComUsernameForStudent(orgId, sid);
     if (!username) return { ok: false, reason: 'missing chess.com username' };
 
+    const cfg = await getStudentBlundersConfig(orgId, sid);
+    const maxGamesPerDay = Math.max(1, Math.min(50, Number(opts.maxGamesPerDay ?? cfg.maxGamesPerDay) || cfg.maxGamesPerDay));
+    const thresholdPoints = Math.max(0.1, Math.min(10, Number(opts.thresholdPoints ?? cfg.thresholdPoints) || cfg.thresholdPoints));
+
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
-    const games = await chessComGetTodayGames(username, { studentId: sid });
+    const games = await chessComGetGamesForHkDay(username, { studentId: sid, hkDayKey, limit: maxGamesPerDay });
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
     if (!games.length) return { ok: true, games: 0, added: 0 };
 
@@ -608,7 +747,7 @@ async function syncBlundersForStudent(student) {
         const userCp = -scoreToCp(after.score);
         const dropCp = bestCp - userCp;
         const dropPoints = dropCp / 100;
-        if (dropPoints <= BLUNDERS_DROP_POINTS) continue;
+        if (dropPoints <= thresholdPoints) continue;
 
         const key = `${orgId}|${sid}|${String(game.url || game.uuid || '')}|${ply}`;
         if (existingKeys.has(key)) continue;
@@ -651,7 +790,7 @@ async function syncBlundersForStudent(student) {
     }
 
     if (added) await writeBlundersPuzzles(puzzles);
-    return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed };
+    return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
   })().finally(() => {
     blundersStudentLocks.delete(sid);
     const st = blundersSyncState.get(sid) || {};
@@ -669,6 +808,179 @@ async function syncBlundersForStudent(student) {
     const msg = String(e?.message || e);
     const st = blundersSyncState.get(sid) || {};
     blundersSyncState.set(sid, {
+      ...st,
+      running: false,
+      stage: 'error',
+      lastError: msg,
+      updatedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString()
+    });
+    throw e;
+  });
+}
+
+// ===== Blunders: Master sync (org-scoped) =====
+const blundersMasterLocks = new Map(); // key -> Promise
+const blundersLastMasterSync = new Map(); // key -> ms
+
+async function syncBlundersForMaster(orgId, master, opts = {}) {
+  const oid = String(orgId || '');
+  const mid = String(master?.id || '');
+  const username = String(master?.username || '').trim();
+  if (!oid || !mid || !username) return { ok: false, reason: 'missing org/master/username' };
+
+  const hkDayKey = normalizeHkDayKey(opts.hkDayKey) || todayHkKey();
+  const bypassThrottle = String(opts.force || '') === '1';
+  const lockKey = `master:${oid}:${mid}:${hkDayKey}`;
+
+  const now = Date.now();
+  const last = blundersLastMasterSync.get(lockKey) || 0;
+  if (!bypassThrottle && now - last < 30 * 60 * 1000) {
+    return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
+  }
+
+  if (blundersMasterLocks.has(lockKey)) return blundersMasterLocks.get(lockKey);
+
+  const task = (async () => {
+    blundersLastMasterSync.set(lockKey, now);
+    const stKey = `master:${mid}`;
+    blundersSyncState.set(stKey, {
+      running: true,
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      finishedAt: null,
+      stage: 'init',
+      gamesFetched: 0,
+      gamesProcessed: 0,
+      pliesProcessed: 0,
+      blundersAdded: 0,
+      lastError: null
+    });
+
+    const cfg = await getMasterBlundersConfig(oid);
+    const maxGamesPerDay = Math.max(1, Math.min(50, Number(opts.maxGamesPerDay ?? cfg.maxGamesPerDay) || cfg.maxGamesPerDay));
+    const thresholdPoints = Math.max(0.1, Math.min(10, Number(opts.thresholdPoints ?? cfg.thresholdPoints) || cfg.thresholdPoints));
+
+    blundersSyncState.set(stKey, { ...(blundersSyncState.get(stKey) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
+    const games = await chessComGetGamesForHkDay(username, { hkDayKey, limit: maxGamesPerDay });
+    blundersSyncState.set(stKey, { ...(blundersSyncState.get(stKey) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
+    if (!games.length) return { ok: true, games: 0, added: 0 };
+
+    const puzzles = await readBlundersPuzzles();
+    const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
+    let added = 0;
+    let gamesProcessed = 0;
+    let pliesProcessed = 0;
+
+    for (const game of games) {
+      const pgn = String(game.pgn || '');
+      if (!pgn) continue;
+      const me = username.toLowerCase();
+      const whiteU = String(game?.white?.username || '').toLowerCase();
+      const blackU = String(game?.black?.username || '').toLowerCase();
+      const masterColor = whiteU === me ? 'w' : (blackU === me ? 'b' : '');
+      if (!masterColor) continue;
+
+      let full = null;
+      try {
+        full = new Chess();
+        full.loadPgn(pgn, { sloppy: true });
+      } catch {
+        full = null;
+      }
+      if (!full) continue;
+      const moves = full.history({ verbose: true }) || [];
+      const replay = new Chess();
+      for (let ply = 0; ply < moves.length; ply++) {
+        const beforeFen = replay.fen();
+        const turn = replay.turn();
+        const mv = moves[ply];
+        const prev = ply > 0 ? moves[ply - 1] : null;
+        const applied = replay.move(mv);
+        if (!applied) break;
+
+        if (turn !== masterColor) continue; // only master's moves
+        pliesProcessed++;
+        if (pliesProcessed % 6 === 0) {
+          blundersSyncState.set(stKey, {
+            ...(blundersSyncState.get(stKey) || {}),
+            pliesProcessed,
+            blundersAdded: added,
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        const afterFen = replay.fen();
+        const best = await sfEvalFen(beforeFen, 16);
+        const bestMove = String(best.bestMove || '');
+        const bestCp = scoreToCp(best.score);
+        const after = await sfEvalFen(afterFen, 16);
+        const userCp = -scoreToCp(after.score);
+        const dropCp = bestCp - userCp;
+        const dropPoints = dropCp / 100;
+        if (dropPoints <= thresholdPoints) continue;
+
+        const key = `${oid}|master|${mid}|${String(game.url || game.uuid || '')}|${ply}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+
+        puzzles.push({
+          id: `bm_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          key,
+          scope: 'master',
+          orgId: oid,
+          masterId: mid,
+          masterName: String(master?.name || ''),
+          chessComUsername: username,
+          gameUrl: String(game.url || ''),
+          timeClass: String(game.time_class || ''),
+          endTime: Number(game.end_time || 0),
+          playerColor: masterColor,
+          startFEN: beforeFen,
+          opponentMoveUci: prev ? `${String(prev.from || '').toLowerCase()}${String(prev.to || '').toLowerCase()}${prev.promotion ? String(prev.promotion).toLowerCase() : ''}` : '',
+          opponentSan: prev ? String(prev.san || '') : '',
+          blunderMoveUci: `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`,
+          blunderSan: String(mv.san || ''),
+          bestMoveUci: bestMove,
+          bestCp,
+          afterCp: userCp,
+          dropCp,
+          dropPoints,
+          createdAt: new Date().toISOString()
+        });
+        added++;
+      }
+      gamesProcessed++;
+      blundersSyncState.set(stKey, {
+        ...(blundersSyncState.get(stKey) || {}),
+        gamesProcessed,
+        pliesProcessed,
+        blundersAdded: added,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    if (added) await writeBlundersPuzzles(puzzles);
+    return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
+  })().finally(() => {
+    blundersMasterLocks.delete(lockKey);
+    const stKey = `master:${String(master?.id || '')}`;
+    const st = blundersSyncState.get(stKey) || {};
+    blundersSyncState.set(stKey, {
+      ...st,
+      running: false,
+      stage: 'done',
+      updatedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString()
+    });
+  });
+
+  blundersMasterLocks.set(lockKey, task);
+  return task.catch((e) => {
+    const msg = String(e?.message || e);
+    const stKey = `master:${String(master?.id || '')}`;
+    const st = blundersSyncState.get(stKey) || {};
+    blundersSyncState.set(stKey, {
       ...st,
       running: false,
       stage: 'error',
@@ -6119,6 +6431,171 @@ app.post('/api/teachers/blunders/sync-today', authenticateUser, authorizeRole('t
   }
 });
 
+// Teacher: Blunders settings & sync controls (per-student config + masters)
+app.get('/api/teachers/blunders/settings', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const org = await getOrgBlundersSettings(orgId);
+    return res.json({ ok: true, orgId, settings: org, defaults: BLUNDERS_DEFAULTS });
+  } catch (e) {
+    console.error('GET /api/teachers/blunders/settings error:', e);
+    return res.status(500).json({ error: 'Failed to load blunders settings' });
+  }
+});
+
+app.put('/api/teachers/blunders/settings', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const incoming = req.body && typeof req.body === 'object' ? req.body : {};
+    const masters = Array.isArray(incoming.masters) ? incoming.masters : null;
+    const student = (incoming.student && typeof incoming.student === 'object') ? incoming.student : null;
+    const masterCfg = (incoming.master && typeof incoming.master === 'object') ? incoming.master : null;
+
+    const orgs = await readBlundersSettings();
+    if (!orgs[orgId] || typeof orgs[orgId] !== 'object') orgs[orgId] = {};
+    const org = orgs[orgId];
+
+    if (masters) {
+      const clean = masters.map(sanitizeMasterEntry).filter(Boolean);
+      org.masters = clean.length ? clean : defaultMastersPreset();
+    }
+    if (student) {
+      const cleanStudent = {};
+      for (const [sid, cfg] of Object.entries(student)) {
+        const id = String(sid || '').trim();
+        if (!id) continue;
+        const maxGamesPerDay = Math.max(1, Math.min(50, Number(cfg?.maxGamesPerDay ?? BLUNDERS_DEFAULTS.maxGamesPerDay) || BLUNDERS_DEFAULTS.maxGamesPerDay));
+        const thresholdPoints = Math.max(0.1, Math.min(10, Number(cfg?.thresholdPoints ?? BLUNDERS_DEFAULTS.thresholdPoints) || BLUNDERS_DEFAULTS.thresholdPoints));
+        cleanStudent[id] = { maxGamesPerDay, thresholdPoints, updatedAt: new Date().toISOString() };
+      }
+      org.student = cleanStudent;
+    }
+    if (masterCfg) {
+      const maxGamesPerDay = Math.max(1, Math.min(50, Number(masterCfg?.maxGamesPerDay ?? BLUNDERS_DEFAULTS.masterMaxGamesPerDay) || BLUNDERS_DEFAULTS.masterMaxGamesPerDay));
+      const thresholdPoints = Math.max(0.1, Math.min(10, Number(masterCfg?.thresholdPoints ?? BLUNDERS_DEFAULTS.masterThresholdPoints) || BLUNDERS_DEFAULTS.masterThresholdPoints));
+      org.master = { maxGamesPerDay, thresholdPoints, updatedAt: new Date().toISOString() };
+    }
+
+    orgs[orgId] = org;
+    const ok = await writeBlundersSettings(orgs);
+    if (!ok) return res.status(500).json({ error: 'Failed to save blunders settings' });
+    return res.json({ ok: true, orgId, settings: await getOrgBlundersSettings(orgId) });
+  } catch (e) {
+    console.error('PUT /api/teachers/blunders/settings error:', e);
+    return res.status(500).json({ error: 'Failed to save blunders settings' });
+  }
+});
+
+app.get('/api/teachers/blunders/students-summary', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const data = await readData();
+    const users = await readUsers();
+    const teacher = users.find(u => u.id === req.user.id);
+    const assignedIds = (teacher && Array.isArray(teacher.assignedStudents) && teacher.assignedStudents.length) ? new Set(teacher.assignedStudents) : null;
+    const studentsAll = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
+    const students = assignedIds ? studentsAll.filter(s => assignedIds.has(s.id)) : studentsAll;
+
+    const puzzles = await readBlundersPuzzles();
+    const orgPuzzles = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master');
+    const orgsStats = await readBlundersStats();
+    const statsOrg = orgsStats?.[orgId] || {};
+    const settings = await getOrgBlundersSettings(orgId);
+
+    const out = students.map((s) => {
+      const sid = String(s.id || '');
+      const mine = orgPuzzles.filter(p => String(p.studentId || '') === sid);
+      const pending = mine.filter(p => String(p.status || 'pending') === 'pending').length;
+      const completed = mine.filter(p => String(p.status || '') === 'completed').length;
+      const analyzedGamesTotal = Number(statsOrg?.[sid]?.analyzedCount || 0) || 0;
+      const cfg = (settings.student && settings.student[sid]) ? settings.student[sid] : {};
+      return {
+        id: sid,
+        name: String(s.name || ''),
+        studentId: String(s.studentId || ''),
+        chessComUsername: null, // UI can resolve via chesscom/settings if needed
+        counts: { pending, completed, total: pending + completed },
+        analyzedGamesTotal,
+        config: {
+          maxGamesPerDay: Number(cfg.maxGamesPerDay || BLUNDERS_DEFAULTS.maxGamesPerDay),
+          thresholdPoints: Number(cfg.thresholdPoints || BLUNDERS_DEFAULTS.thresholdPoints)
+        }
+      };
+    });
+    return res.json({ ok: true, orgId, students: out });
+  } catch (e) {
+    console.error('GET /api/teachers/blunders/students-summary error:', e);
+    return res.status(500).json({ error: 'Failed to load students summary' });
+  }
+});
+
+app.post('/api/teachers/blunders/sync-student', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const studentId = String(body.studentId || '').trim();
+    const hkDayKey = normalizeHkDayKey(body.hkDayKey) || todayHkKey();
+    const force = body.force ? '1' : '0';
+    const maxGamesPerDay = body.maxGamesPerDay;
+    const thresholdPoints = body.thresholdPoints;
+    if (!studentId) return res.status(400).json({ error: 'studentId is required' });
+    const data = await readData();
+    const student = (Array.isArray(data?.students) ? data.students : []).find(s => String(s.id || '') === studentId && String(s.organizationId || '') === orgId);
+    if (!student) return res.status(404).json({ error: 'Student not found in your organization' });
+    const result = await syncBlundersForStudent(student, { hkDayKey, force, maxGamesPerDay, thresholdPoints });
+    return res.json({ ok: true, result });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/sync-student error:', e);
+    return res.status(500).json({ error: 'Failed to sync student' });
+  }
+});
+
+app.get('/api/teachers/blunders/masters-summary', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const org = await getOrgBlundersSettings(orgId);
+    const puzzles = await readBlundersPuzzles();
+    const masterPuzzles = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') === 'master');
+    const masters = (Array.isArray(org.masters) ? org.masters : []).map((m) => {
+      const mid = String(m.id || '');
+      const mine = masterPuzzles.filter(p => String(p.masterId || '') === mid);
+      return {
+        ...m,
+        counts: { total: mine.length }
+      };
+    });
+    return res.json({ ok: true, orgId, masters, masterConfig: await getMasterBlundersConfig(orgId) });
+  } catch (e) {
+    console.error('GET /api/teachers/blunders/masters-summary error:', e);
+    return res.status(500).json({ error: 'Failed to load masters summary' });
+  }
+});
+
+app.post('/api/teachers/blunders/sync-master', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const masterId = String(body.masterId || '').trim();
+    const hkDayKey = normalizeHkDayKey(body.hkDayKey) || todayHkKey();
+    const force = body.force ? '1' : '0';
+    if (!masterId) return res.status(400).json({ error: 'masterId is required' });
+    const org = await getOrgBlundersSettings(orgId);
+    const master = (Array.isArray(org.masters) ? org.masters : []).find(m => String(m.id || '') === masterId);
+    if (!master) return res.status(404).json({ error: 'Master not found' });
+    const result = await syncBlundersForMaster(orgId, master, { hkDayKey, force });
+    return res.json({ ok: true, result });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/sync-master error:', e);
+    return res.status(500).json({ error: 'Failed to sync master' });
+  }
+});
+
 // Teacher selects students for Class View
 app.post('/api/teachers/class-view/students', authenticateUser, authorizeRole('teacher'), async (req, res) => {
   try {
@@ -6856,7 +7333,8 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     let gamesTodayErr = null;
     if (chessComUsername) {
       try {
-        const g = await chessComGetTodayGames(chessComUsername);
+        const cfg = await getStudentBlundersConfig(orgId, student.id);
+        const g = await chessComGetGamesForHkDay(chessComUsername, { hkDayKey: todayHkKey(), limit: cfg.maxGamesPerDay });
         gamesToday = Array.isArray(g) ? g.length : 0;
       } catch (e) {
         gamesTodayErr = String(e?.message || e);
@@ -6869,7 +7347,7 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
         blundersLastStudentSync.delete(String(student.id));
       }
     } catch {}
-    syncBlundersForStudent(student).catch((e) => console.warn('blunders sync failed:', e));
+    syncBlundersForStudent(student, { force: String(force || '') === '1' ? '1' : '0' }).catch((e) => console.warn('blunders sync failed:', e));
     const puzzles = await readBlundersPuzzles();
     const mine = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.studentId || '') === String(student.id));
     const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
@@ -6913,6 +7391,178 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
   } catch (e) {
     console.error('GET /api/public/students/:id/blunders error:', e);
     return res.status(500).json({ error: 'Failed to load blunders puzzles' });
+  }
+});
+
+// Public Student Access: Master Game (masters + puzzles) (No Auth required, Password protected)
+app.get('/api/public/students/:id/blunders/master', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password, masterId } = req.query;
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    const orgId = String(student.organizationId || '');
+    const org = await getOrgBlundersSettings(orgId);
+    const masters = Array.isArray(org.masters) ? org.masters : defaultMastersPreset();
+
+    const puzzles = await readBlundersPuzzles();
+    const masterPuzzles = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') === 'master');
+    const progressAll = await readBlundersMasterProgress();
+    const progOrg = (progressAll?.[orgId] && typeof progressAll[orgId] === 'object') ? progressAll[orgId] : {};
+    const progStu = (progOrg?.[String(student.id)] && typeof progOrg[String(student.id)] === 'object') ? progOrg[String(student.id)] : {};
+
+    const list = masters.map((m) => {
+      const mid = String(m.id || '');
+      const mine = masterPuzzles.filter(p => String(p.masterId || '') === mid);
+      let completed = 0;
+      for (const pz of mine) {
+        const pid = String(pz.id || '');
+        if (pid && progStu[pid] && String(progStu[pid].status || '') === 'completed') completed++;
+      }
+      return {
+        id: mid,
+        name: String(m.name || ''),
+        username: String(m.username || ''),
+        counts: { total: mine.length, completed, pending: Math.max(0, mine.length - completed) }
+      };
+    });
+
+    const selectedMasterId = String(masterId || '').trim();
+    if (!selectedMasterId) {
+      return res.json({ ok: true, masters: list });
+    }
+
+    const selected = masterPuzzles
+      .filter(p => String(p.masterId || '') === selectedMasterId)
+      .sort((a, b) => Number(b.endTime || 0) - Number(a.endTime || 0));
+
+    const completedIds = new Set(Object.entries(progStu).filter(([, v]) => v && String(v.status || '') === 'completed').map(([k]) => k));
+    const pending = selected.filter(p => !completedIds.has(String(p.id || '')));
+    const completed = selected.filter(p => completedIds.has(String(p.id || '')));
+
+    return res.json({
+      ok: true,
+      masters: list,
+      masterId: selectedMasterId,
+      pending,
+      completed,
+      counts: { pending: pending.length, completed: completed.length, total: selected.length }
+    });
+  } catch (e) {
+    console.error('GET /api/public/students/:id/blunders/master error:', e);
+    return res.status(500).json({ error: 'Failed to load master puzzles' });
+  }
+});
+
+app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (req, res) => {
+  try {
+    const { id, puzzleId } = req.params;
+    const { password } = req.query;
+    const { moveUci, revealBest, practice } = req.body || {};
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    const orgId = String(student.organizationId || '');
+    const puzzles = await readBlundersPuzzles();
+    const puzzle = puzzles.find(p => String(p.id || '') === String(puzzleId) && String(p.orgId || '') === orgId && String(p.scope || '') === 'master');
+    if (!puzzle) return res.status(404).json({ error: 'Puzzle not found' });
+
+    const progressAll = await readBlundersMasterProgress();
+    if (!progressAll[orgId] || typeof progressAll[orgId] !== 'object') progressAll[orgId] = {};
+    const orgProg = progressAll[orgId];
+    const sid = String(student.id);
+    if (!orgProg[sid] || typeof orgProg[sid] !== 'object') orgProg[sid] = {};
+    const stuProg = orgProg[sid];
+    if (!stuProg[String(puzzleId)] || typeof stuProg[String(puzzleId)] !== 'object') stuProg[String(puzzleId)] = { status: 'pending', attempts: [] };
+    const pr = stuProg[String(puzzleId)];
+
+    // Reveal-only
+    if (revealBest && !moveUci) {
+      const startFen = String(puzzle.startFEN || '');
+      if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
+      let bestMove = String(puzzle.bestMoveUci || '');
+      if (!bestMove) {
+        const best = await sfEvalFen(startFen, 16);
+        bestMove = String(best.bestMove || '');
+        puzzle.bestMoveUci = bestMove;
+        puzzle.bestCp = scoreToCp(best.score);
+        await writeBlundersPuzzles(puzzles);
+      }
+      return res.json({ ok: true, bestMove: bestMove || undefined });
+    }
+
+    if (String(pr.status || 'pending') === 'completed' && !practice) {
+      return res.json({ ok: true, alreadyCompleted: true, bestMove: revealBest ? (String(puzzle.bestMoveUci || '') || undefined) : undefined });
+    }
+
+    const parsed = parseUciMove(moveUci);
+    if (!parsed) return res.status(400).json({ error: 'Invalid moveUci (use UCI like e2e4 or e7e8q)' });
+
+    const startFen = String(puzzle.startFEN || '');
+    if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
+
+    let chess = null;
+    try { chess = new Chess(startFen); } catch { chess = null; }
+    if (!chess) return res.status(400).json({ error: 'Invalid startFEN' });
+
+    const mv = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
+    if (!mv) return res.status(400).json({ error: 'Illegal move' });
+
+    const afterFen = chess.fen();
+    const best = await sfEvalFen(startFen, 16);
+    const bestMove = String(best.bestMove || '');
+    const bestCp = scoreToCp(best.score);
+    const after = await sfEvalFen(afterFen, 16);
+    const userCp = -scoreToCp(after.score);
+    const dropCp = bestCp - userCp;
+    const dropPoints = dropCp / 100;
+
+    const cfg = await getMasterBlundersConfig(orgId);
+    const thresholdPoints = cfg.thresholdPoints;
+    const isBest = bestMove && parsed.uci === bestMove;
+    const isBlunder = dropPoints > thresholdPoints;
+
+    let verdict = 'retry';
+    let ok = false;
+    if (isBest) { verdict = 'best'; ok = true; }
+    else if (!isBlunder) { verdict = 'good'; ok = true; }
+    else { verdict = 'blunder'; ok = false; }
+
+    if (!practice) {
+      const attempts = Array.isArray(pr.attempts) ? pr.attempts : [];
+      attempts.push({ at: new Date().toISOString(), moveUci: parsed.uci, san: String(mv.san || ''), bestMove, bestCp, userCp, dropCp });
+      pr.attempts = attempts;
+      if (ok) {
+        pr.status = 'completed';
+        pr.completedAt = new Date().toISOString();
+      }
+      stuProg[String(puzzleId)] = pr;
+      orgProg[sid] = stuProg;
+      progressAll[orgId] = orgProg;
+      await writeBlundersMasterProgress(progressAll);
+    }
+
+    return res.json({ ok, verdict, dropPoints, bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined });
+  } catch (e) {
+    console.error('POST /api/public/students/:id/blunders/master/:puzzleId/attempt error:', e);
+    return res.status(500).json({ error: 'Failed to evaluate move' });
   }
 });
 
@@ -6998,7 +7648,8 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     const dropPoints = dropCp / 100;
 
     const isBest = bestMove && parsed.uci === bestMove;
-    const thresholdPoints = 1.0;
+    const cfg = await getStudentBlundersConfig(orgId, student.id);
+    const thresholdPoints = cfg.thresholdPoints;
     const okNoDrop = dropPoints <= 0;
     const isBlunder = dropPoints > thresholdPoints;
 

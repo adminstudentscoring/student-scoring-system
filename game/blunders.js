@@ -10,7 +10,7 @@
   }
 
   const STATE = {
-    page: 'home', // 'home' | 'blunder' | 'review'
+    page: 'home', // 'home' | 'blunder' | 'review' | 'masterGame' | 'settings'
     mode: 'pending', // 'pending' | 'practice'
     me: null,
     data: null,
@@ -22,9 +22,31 @@
     practicePuzzle: null,
     // Post-attempt flow control
     needsRefreshAfterModal: false,
+    needsMasterRefreshAfterModal: false,
     lastAttemptWasPendingSolve: false,
     settingsTab: 'board', // 'board' | 'general'
     teacherTab: 'students', // 'students' | 'masterGame' | 'settings'
+    // Student Master Game
+    master: {
+      loading: false,
+      error: '',
+      masters: [],
+      selectedMasterId: '',
+      pending: [],
+      completed: [],
+      countsByMaster: {}, // id -> {pending,completed,total}
+      currentIndex: 0
+    },
+    // Teacher mode data
+    teacher: {
+      loading: false,
+      error: '',
+      students: [],
+      masters: [],
+      masterConfig: { maxGamesPerDay: 10, thresholdPoints: 1.0 },
+      edits: { student: {}, masters: null, masterCfg: null },
+      lastLoadedAt: ''
+    },
     ui: { modalOpen: false, modalHtml: '' }
   };
 
@@ -99,10 +121,76 @@
     }
   }
 
+  function getStudentPasswordQueryWith(extraParams) {
+    const base = getStudentPasswordQuery(); // '' or '?password=...'
+    const parts = [];
+    if (base.startsWith('?')) parts.push(base.slice(1));
+    if (extraParams && typeof extraParams === 'object') {
+      for (const [k, v] of Object.entries(extraParams)) {
+        if (v === undefined || v === null || v === '') continue;
+        parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+      }
+    }
+    return parts.length ? `?${parts.join('&')}` : '';
+  }
+
   async function fetchMyBlunders(studentId, opts = {}) {
     const qs = getStudentPasswordQuery();
     const forceQs = opts.force ? (qs ? `${qs}&force=1` : '?force=1') : qs;
     const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders${forceQs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function fetchMasterList(studentId) {
+    const qs = getStudentPasswordQueryWith({});
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/master${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function fetchMasterPuzzles(studentId, masterId) {
+    const qs = getStudentPasswordQueryWith({ masterId });
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/master${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function submitMasterAttempt(studentId, puzzleId, moveUci, revealBest, practice) {
+    const qs = getStudentPasswordQueryWith({});
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/master/${encodeURIComponent(String(puzzleId))}/attempt${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moveUci, revealBest: !!revealBest, practice: !!practice })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  function getTeacherAuthHeader() {
+    try {
+      const t = String(localStorage.getItem('authToken') || '').trim();
+      if (!t) return {};
+      return { Authorization: `Bearer ${t}` };
+    } catch {
+      return {};
+    }
+  }
+
+  async function teacherApi(path, opts = {}) {
+    const resp = await fetch(`/api${path}`, {
+      method: opts.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getTeacherAuthHeader(),
+        ...(opts.headers || {})
+      },
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+    });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
     return data;
@@ -221,11 +309,20 @@
     STATE.ui.modalOpen = false;
     STATE.ui.modalHtml = '';
     const shouldRefresh = !!STATE.needsRefreshAfterModal;
+    const shouldRefreshMaster = !!STATE.needsMasterRefreshAfterModal;
     STATE.needsRefreshAfterModal = false;
+    STATE.needsMasterRefreshAfterModal = false;
     if (shouldRefresh) {
       // Fire-and-forget; render immediately and refresh in background.
       render();
       refreshData();
+      return;
+    }
+    if (shouldRefreshMaster) {
+      render();
+      const mid = String(STATE.master.selectedMasterId || '');
+      if (mid) ensureMasterPuzzlesLoaded(mid).catch(() => {});
+      else ensureMasterGameLoaded().catch(() => {});
       return;
     }
     render();
@@ -234,6 +331,54 @@
   function setPage(page) {
     STATE.page = page;
     render();
+  }
+
+  async function ensureMasterGameLoaded() {
+    if (!STATE.me?.id) return;
+    if (STATE.master.loading) return;
+    STATE.master.loading = true;
+    STATE.master.error = '';
+    render();
+    try {
+      const data = await fetchMasterList(STATE.me.id);
+      const masters = Array.isArray(data?.masters) ? data.masters : [];
+      STATE.master.masters = masters;
+      STATE.master.countsByMaster = Object.fromEntries(masters.map(m => [String(m.id || ''), m.counts || {}]));
+      // Auto-select first master with pending puzzles (or first)
+      const withPending = masters.find(m => Number(m?.counts?.pending || 0) > 0) || masters[0] || null;
+      STATE.master.selectedMasterId = withPending ? String(withPending.id || '') : '';
+      STATE.master.loading = false;
+      render();
+      if (STATE.master.selectedMasterId) {
+        await ensureMasterPuzzlesLoaded(STATE.master.selectedMasterId);
+      }
+    } catch (e) {
+      STATE.master.loading = false;
+      STATE.master.error = String(e?.message || e);
+      render();
+    }
+  }
+
+  async function ensureMasterPuzzlesLoaded(masterId) {
+    if (!STATE.me?.id) return;
+    const mid = String(masterId || '').trim();
+    if (!mid) return;
+    STATE.master.loading = true;
+    STATE.master.error = '';
+    STATE.master.selectedMasterId = mid;
+    STATE.master.currentIndex = 0;
+    render();
+    try {
+      const data = await fetchMasterPuzzles(STATE.me.id, mid);
+      STATE.master.pending = Array.isArray(data?.pending) ? data.pending : [];
+      STATE.master.completed = Array.isArray(data?.completed) ? data.completed : [];
+      STATE.master.loading = false;
+      render();
+    } catch (e) {
+      STATE.master.loading = false;
+      STATE.master.error = String(e?.message || e);
+      render();
+    }
   }
 
   function setBlunderModePending() {
@@ -265,6 +410,12 @@
     const pendingCount = Array.isArray(STATE.pending) ? STATE.pending.length : 0;
     const completedCount = Array.isArray(STATE.completed) ? STATE.completed.length : 0;
     const me = STATE.me;
+    const masterTotalPending = (() => {
+      const ms = Array.isArray(STATE.master?.masters) ? STATE.master.masters : [];
+      if (!ms.length) return '';
+      const sum = ms.reduce((acc, m) => acc + Number(m?.counts?.pending || 0), 0);
+      return String(sum || '');
+    })();
     return `
       <aside class="bl-sidebar" aria-label="Blunders sidebar">
         <div class="bl-side-title">💥 Blunders</div>
@@ -280,6 +431,10 @@
           <button class="bl-nav-btn ${STATE.page === 'review' ? 'active' : ''}" type="button" data-bl-nav="review">
             <span class="bl-nav-left"><span class="bl-nav-icon">🧠</span>Review</span>
             <span class="bl-badge">${escapeHtml(String(completedCount))}</span>
+          </button>
+          <button class="bl-nav-btn ${STATE.page === 'masterGame' ? 'active' : ''}" type="button" data-bl-nav="masterGame">
+            <span class="bl-nav-left"><span class="bl-nav-icon">♟️</span>Master Game</span>
+            ${masterTotalPending ? `<span class="bl-badge">${escapeHtml(masterTotalPending)}</span>` : ``}
           </button>
           <button class="bl-nav-btn ${STATE.page === 'settings' ? 'active' : ''}" type="button" data-bl-nav="settings">
             <span class="bl-nav-left"><span class="bl-nav-icon">⚙️</span>Settings</span>
@@ -496,6 +651,70 @@
     `;
   }
 
+  function renderStudentMasterGamePage() {
+    const masters = Array.isArray(STATE.master.masters) ? STATE.master.masters : [];
+    const selectedId = String(STATE.master.selectedMasterId || '');
+    const selected = masters.find(m => String(m.id || '') === selectedId) || null;
+    const puzzle = (Array.isArray(STATE.master.pending) && STATE.master.pending.length)
+      ? STATE.master.pending[Math.max(0, Math.min(STATE.master.pending.length - 1, Number(STATE.master.currentIndex) || 0))]
+      : null;
+    const flip = puzzle ? String(puzzle.playerColor || puzzle.studentColor || '') === 'b' : false;
+    const dropVal = puzzle ? Number(puzzle.dropPoints ?? (Number(puzzle.dropCp || 0) / 100)) : 0;
+    const infoLine = puzzle ? `${String(puzzle.blunderSan || puzzle.blunderMoveUci || '')} · Drop ${dropVal.toFixed(2)}` : '';
+
+    return `
+      <div class="bl-card">
+        <div class="bl-title">Master Game</div>
+        <div class="blunders-muted">Solve blunders from master games (teacher-curated via Master settings).</div>
+
+        <div style="margin-top:12px;">
+          <div class="blunders-muted" style="margin-bottom:8px;">Masters</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            ${masters.map((m) => {
+              const mid = String(m.id || '');
+              const active = mid === selectedId;
+              const pending = Number(m?.counts?.pending || 0);
+              return `
+                <button class="btn ${active ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-master="${escapeHtml(mid)}">
+                  ${escapeHtml(String(m.name || 'Master'))}${pending ? ` <span style="opacity:.9;">(${pending})</span>` : ''}
+                </button>
+              `;
+            }).join('') || `<div class="blunders-muted">No masters configured yet.</div>`}
+          </div>
+        </div>
+
+        ${STATE.master.loading ? `<div class="blunders-muted" style="margin-top:12px;">Loading...</div>` : ``}
+        ${STATE.master.error ? `<div class="blunders-muted" style="margin-top:12px; color:#b91c1c;">${escapeHtml(STATE.master.error)}</div>` : ``}
+
+        ${selected ? `
+          <div class="bl-board-wrap" style="margin-top:12px;">
+            <div>
+              ${puzzle ? renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom) : `<div class="bl-card" style="box-shadow:none;"><div class="blunders-muted">No pending puzzles for this master.</div></div>`}
+            </div>
+            <div>
+              <div class="bl-card" style="box-shadow:none;">
+                <div style="font-weight:950; color:#111827;">${escapeHtml(String(selected.name || 'Master'))}</div>
+                <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(String(selected.username || ''))}</div>
+                ${puzzle ? `
+                  <div class="blunders-muted" style="margin-top:10px;">${escapeHtml(infoLine)}</div>
+                  <div class="blunders-muted" style="margin-top:6px;">Opponent just played: <strong>${escapeHtml(String(puzzle.opponentSan || puzzle.opponentMoveUci || '') || '(game start)')}</strong></div>
+                  ${puzzle.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(puzzle.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(puzzle.gameUrl))}</a></div>` : ''}
+                  <div class="blunders-muted" style="margin-top:10px;">Click a piece, then click a target square.</div>
+                  <div class="bl-btn-row cols-3">
+                    <button class="btn btn-secondary" type="button" data-bl-master-reveal>Reveal best</button>
+                    <button class="btn btn-secondary" type="button" data-bl-master-prev ${STATE.master.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
+                    <button class="btn btn-secondary" type="button" data-bl-master-next ${STATE.master.currentIndex >= (STATE.master.pending.length - 1) ? 'disabled' : ''}>Next</button>
+                  </div>
+                  <div class="blunders-muted" id="blMasterMsg" style="margin-top:10px;"></div>
+                ` : ``}
+              </div>
+            </div>
+          </div>
+        ` : ``}
+      </div>
+    `;
+  }
+
   function renderSettingsPage() {
     const tab = String(STATE.settingsTab || 'board');
     const { light, dark } = readBoardColors();
@@ -560,48 +779,184 @@
   }
 
   function renderTeacherStudentsPage() {
+    const loading = !!STATE.teacher.loading;
+    const err = String(STATE.teacher.error || '');
+    const rows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+    const today = (() => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    })();
+    const totalPending = rows.reduce((a, s) => a + Number(s?.counts?.pending || 0), 0);
+    const totalCompleted = rows.reduce((a, s) => a + Number(s?.counts?.completed || 0), 0);
+
     return `
       <div class="bl-card">
-        <div class="bl-title">Teacher Mode · Students</div>
-        <div class="blunders-muted">
-          UI only (no data wired yet). Next step: load a student list + per-student Blunders stats.
-        </div>
+        <div class="bl-title">Teacher · Students</div>
+        <div class="blunders-muted">Per-student fetch limit + blunder threshold + date-based sync.</div>
 
         <div class="bl-stats" style="margin-top:12px;">
           <div class="bl-stat">
             <div class="bl-stat-label">Students</div>
-            <div class="bl-stat-value">—</div>
+            <div class="bl-stat-value">${escapeHtml(String(rows.length))}</div>
           </div>
           <div class="bl-stat">
-            <div class="bl-stat-label">Pending puzzles</div>
-            <div class="bl-stat-value">—</div>
+            <div class="bl-stat-label">Pending</div>
+            <div class="bl-stat-value">${escapeHtml(String(totalPending))}</div>
           </div>
           <div class="bl-stat">
-            <div class="bl-stat-label">Completed puzzles</div>
-            <div class="bl-stat-value">—</div>
+            <div class="bl-stat-label">Completed</div>
+            <div class="bl-stat-value">${escapeHtml(String(totalCompleted))}</div>
           </div>
         </div>
 
-        <div style="margin-top:12px; border:1px dashed #e5e7eb; border-radius:12px; padding:10px;">
-          <div style="font-weight:900; color:#111827; margin-bottom:6px;">Planned panels</div>
-          <div class="blunders-muted">- Left: student list (search + pending badge)</div>
-          <div class="blunders-muted">- Right: selected student details (Home / Blunder / Review / Debug)</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button class="btn btn-secondary" type="button" data-bl-teacher-refresh-students ${loading ? 'disabled' : ''}>Refresh</button>
+          <button class="btn btn-primary" type="button" data-bl-teacher-save-students ${loading ? 'disabled' : ''}>Save settings</button>
+        </div>
+        ${loading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
+        ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
+
+        <div style="margin-top:12px; overflow:auto;">
+          <table style="width:100%; border-collapse:separate; border-spacing:0 8px;">
+            <thead>
+              <tr class="blunders-muted" style="text-align:left;">
+                <th style="padding:6px 8px;">Student</th>
+                <th style="padding:6px 8px;">Pending</th>
+                <th style="padding:6px 8px;">Completed</th>
+                <th style="padding:6px 8px;">Analyzed games</th>
+                <th style="padding:6px 8px;">Max games/day</th>
+                <th style="padding:6px 8px;">Threshold</th>
+                <th style="padding:6px 8px;">Date</th>
+                <th style="padding:6px 8px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((s) => {
+                const sid = String(s.id || '');
+                const nm = String(s.name || '');
+                const sid2 = String(s.studentId || '');
+                const cfg = s.config || {};
+                const maxGames = Number((STATE.teacher.edits.student?.[sid]?.maxGamesPerDay) ?? cfg.maxGamesPerDay ?? 10) || 10;
+                const thr = Number((STATE.teacher.edits.student?.[sid]?.thresholdPoints) ?? cfg.thresholdPoints ?? 1.0) || 1.0;
+                return `
+                  <tr style="background:#fff; border:1px solid #e5e7eb;">
+                    <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
+                      <div style="font-weight:900; color:#111827;">${escapeHtml(nm)}</div>
+                      <div class="blunders-muted">${escapeHtml(sid2)}</div>
+                    </td>
+                    <td style="padding:10px 8px;">${escapeHtml(String(s?.counts?.pending || 0))}</td>
+                    <td style="padding:10px 8px;">${escapeHtml(String(s?.counts?.completed || 0))}</td>
+                    <td style="padding:10px 8px;">${escapeHtml(String(s?.analyzedGamesTotal || 0))}</td>
+                    <td style="padding:10px 8px;">
+                      <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(maxGames))}" data-bl-teacher-student-max="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                    </td>
+                    <td style="padding:10px 8px;">
+                      <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-student-thr="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                    </td>
+                    <td style="padding:10px 8px;">
+                      <input type="date" value="${escapeHtml(today)}" data-bl-teacher-student-date="${escapeHtml(sid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                    </td>
+                    <td style="padding:10px 8px; border-radius:0 12px 12px 0;">
+                      <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student="${escapeHtml(sid)}">Sync</button>
+                      <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student-force="${escapeHtml(sid)}">Force</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
         </div>
       </div>
     `;
   }
 
   function renderTeacherMasterGamePage() {
+    const loading = !!STATE.teacher.loading;
+    const err = String(STATE.teacher.error || '');
+    const masters = Array.isArray(STATE.teacher.masters) ? STATE.teacher.masters : [];
+    const cfg = STATE.teacher.masterConfig || { maxGamesPerDay: 10, thresholdPoints: 1.0 };
+    const maxGames = Number((STATE.teacher.edits.masterCfg?.maxGamesPerDay) ?? cfg.maxGamesPerDay ?? 10) || 10;
+    const thr = Number((STATE.teacher.edits.masterCfg?.thresholdPoints) ?? cfg.thresholdPoints ?? 1.0) || 1.0;
+    const today = (() => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    })();
+    const editMasters = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : null;
+    const rows = editMasters || masters;
+
     return `
       <div class="bl-card">
-        <div class="bl-title">Teacher Mode · Master Game</div>
-        <div class="blunders-muted">UI placeholder. We’ll define how “Master Game” works next.</div>
+        <div class="bl-title">Teacher · Master Game</div>
+        <div class="blunders-muted">Configure masters + run the same Blunder analysis on their games.</div>
 
-        <div style="margin-top:12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#f9fafb;">
-          <div style="font-weight:900; color:#111827; margin-bottom:6px;">Coming soon</div>
-          <div class="blunders-muted">- Select a student</div>
-          <div class="blunders-muted">- Browse “master games” / curated games</div>
-          <div class="blunders-muted">- Launch analysis / puzzles (TBD)</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button class="btn btn-secondary" type="button" data-bl-teacher-refresh-masters ${loading ? 'disabled' : ''}>Refresh</button>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-masters-presets ${loading ? 'disabled' : ''}>Presets</button>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-masters-add ${loading ? 'disabled' : ''}>Add master</button>
+          <button class="btn btn-primary" type="button" data-bl-teacher-save-masters ${loading ? 'disabled' : ''}>Save</button>
+        </div>
+
+        <div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          <div>
+            <div class="blunders-muted">Master max games/day</div>
+            <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(maxGames))}" data-bl-teacher-mastercfg-max style="width:130px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+          </div>
+          <div>
+            <div class="blunders-muted">Master threshold</div>
+            <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-mastercfg-thr style="width:130px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+          </div>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-save-mastercfg>Save config</button>
+        </div>
+
+        ${loading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
+        ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
+
+        <div style="margin-top:12px; overflow:auto;">
+          <table style="width:100%; border-collapse:separate; border-spacing:0 8px;">
+            <thead>
+              <tr class="blunders-muted" style="text-align:left;">
+                <th style="padding:6px 8px;">Name</th>
+                <th style="padding:6px 8px;">Chess.com username</th>
+                <th style="padding:6px 8px;">Total puzzles</th>
+                <th style="padding:6px 8px;">Sync date</th>
+                <th style="padding:6px 8px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((m, i) => {
+                const mid = String(m.id || '');
+                const name = String(m.name || '');
+                const user = String(m.username || '');
+                const total = Number(m?.counts?.total || 0);
+                return `
+                  <tr style="background:#fff; border:1px solid #e5e7eb;">
+                    <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
+                      <input type="text" value="${escapeHtml(name)}" data-bl-teacher-master-name="${escapeHtml(String(i))}" style="width:180px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <div class="blunders-muted" style="margin-top:4px;">id: ${escapeHtml(mid || '(auto)')}</div>
+                    </td>
+                    <td style="padding:10px 8px;">
+                      <input type="text" value="${escapeHtml(user)}" data-bl-teacher-master-user="${escapeHtml(String(i))}" style="width:220px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                    </td>
+                    <td style="padding:10px 8px;">${escapeHtml(String(total))}</td>
+                    <td style="padding:10px 8px;">
+                      <input type="date" value="${escapeHtml(today)}" data-bl-teacher-master-date="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                    </td>
+                    <td style="padding:10px 8px; border-radius:0 12px 12px 0;">
+                      <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master="${escapeHtml(mid)}">Sync</button>
+                      <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master-force="${escapeHtml(mid)}">Force</button>
+                      <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-master-del="${escapeHtml(String(i))}">Remove</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
         </div>
       </div>
     `;
@@ -636,8 +991,73 @@
     }
   }
 
+  async function teacherLoad(tab) {
+    STATE.teacher.loading = true;
+    STATE.teacher.error = '';
+    render();
+    try {
+      if (tab === 'masterGame') {
+        const data = await teacherApi('/teachers/blunders/masters-summary');
+        STATE.teacher.masters = Array.isArray(data?.masters) ? data.masters : [];
+        STATE.teacher.masterConfig = data?.masterConfig || { maxGamesPerDay: 10, thresholdPoints: 1.0 };
+        if (!Array.isArray(STATE.teacher.edits.masters)) STATE.teacher.edits.masters = STATE.teacher.masters.map((m) => ({ ...m }));
+      } else if (tab === 'settings') {
+        // Reuse Settings UI (board colors), no server call needed.
+      } else {
+        const data = await teacherApi('/teachers/blunders/students-summary');
+        STATE.teacher.students = Array.isArray(data?.students) ? data.students : [];
+      }
+      STATE.teacher.loading = false;
+      STATE.teacher.lastLoadedAt = new Date().toISOString();
+      render();
+    } catch (e) {
+      STATE.teacher.loading = false;
+      STATE.teacher.error = String(e?.message || e);
+      render();
+    }
+  }
+
+  async function teacherSaveStudentSettings() {
+    const map = STATE.teacher.edits.student && typeof STATE.teacher.edits.student === 'object' ? STATE.teacher.edits.student : {};
+    await teacherApi('/teachers/blunders/settings', { method: 'PUT', body: { student: map } });
+  }
+
+  async function teacherSaveMasters() {
+    const masters = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : [];
+    await teacherApi('/teachers/blunders/settings', { method: 'PUT', body: { masters } });
+  }
+
+  async function teacherSaveMasterConfig() {
+    const cfg = STATE.teacher.edits.masterCfg && typeof STATE.teacher.edits.masterCfg === 'object' ? STATE.teacher.edits.masterCfg : null;
+    if (!cfg) return;
+    await teacherApi('/teachers/blunders/settings', { method: 'PUT', body: { master: cfg } });
+  }
+
+  async function teacherSyncStudent(studentId, hkDayKey, force) {
+    const sid = String(studentId || '').trim();
+    if (!sid) return;
+    const edit = STATE.teacher.edits.student?.[sid] || {};
+    const maxGamesPerDay = edit.maxGamesPerDay;
+    const thresholdPoints = edit.thresholdPoints;
+    await teacherApi('/teachers/blunders/sync-student', {
+      method: 'POST',
+      body: { studentId: sid, hkDayKey, force: !!force, maxGamesPerDay, thresholdPoints }
+    });
+  }
+
+  async function teacherSyncMaster(masterId, hkDayKey, force) {
+    const mid = String(masterId || '').trim();
+    if (!mid) return;
+    await teacherApi('/teachers/blunders/sync-master', { method: 'POST', body: { masterId: mid, hkDayKey, force: !!force } });
+  }
+
   function setMessage(txt) {
     const el = document.getElementById('blBlunderMsg');
+    if (el) el.textContent = String(txt || '');
+  }
+
+  function setMasterMessage(txt) {
+    const el = document.getElementById('blMasterMsg');
     if (el) el.textContent = String(txt || '');
   }
 
@@ -772,6 +1192,46 @@
     submitMoveUci(baseUci);
   }
 
+  function handleMasterBoardClick(sq) {
+    const puzzle = masterCurrentPuzzle();
+    if (!puzzle) return;
+    const parsed = parseFenBoard(String(puzzle.startFEN || ''));
+    if (!parsed) return;
+    const turn = String(parsed.turn || 'w');
+    const rc = squareToRC(sq);
+    if (!rc) return;
+    const piece = parsed.board[rc.r][rc.c];
+
+    if (!STATE.selectedFrom) {
+      if (!piece) return;
+      const isWhite = piece === piece.toUpperCase();
+      if ((turn === 'w' && !isWhite) || (turn === 'b' && isWhite)) return;
+      STATE.selectedFrom = sq;
+      render();
+      return;
+    }
+
+    const from = STATE.selectedFrom;
+    if (from === sq) {
+      STATE.selectedFrom = null;
+      render();
+      return;
+    }
+
+    const fromRc = squareToRC(from);
+    const movingPiece = fromRc ? parsed.board[fromRc.r][fromRc.c] : '';
+    const movingPawn = movingPiece && movingPiece.toLowerCase() === 'p';
+    const toRank = Number(String(sq[1]));
+    const promoRank = (turn === 'w') ? 8 : 1;
+    const baseUci = `${from}${sq}`.toLowerCase();
+    if (movingPawn && toRank === promoRank) {
+      // Promotion picker uses submitMoveUci; for Master Game we just default to queen for now.
+      submitMasterMoveUci(`${baseUci}q`);
+      return;
+    }
+    submitMasterMoveUci(baseUci);
+  }
+
   async function revealBestMove() {
     const puzzle = currentPuzzle();
     if (!puzzle || !STATE.me?.id) return;
@@ -788,6 +1248,53 @@
       }
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
+    }
+  }
+
+  function masterCurrentPuzzle() {
+    const list = Array.isArray(STATE.master.pending) ? STATE.master.pending : [];
+    if (!list.length) return null;
+    const idx = Math.max(0, Math.min(list.length - 1, Number(STATE.master.currentIndex) || 0));
+    return list[idx] || null;
+  }
+
+  async function submitMasterMoveUci(uci) {
+    const puzzle = masterCurrentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    try {
+      setMasterMessage('');
+      const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, false);
+      if (out.ok) {
+        openResultModal({ verdict: out.verdict, isPractice: false, bestMove: out.bestMove || '' });
+        // Refresh master puzzles list after modal closes
+        STATE.needsMasterRefreshAfterModal = true;
+      } else {
+        openResultModal({ verdict: 'blunder', isPractice: false });
+      }
+    } catch (e) {
+      setMasterMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      STATE.promoPending = null;
+      render();
+    }
+  }
+
+  async function revealMasterBestMove() {
+    const puzzle = masterCurrentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    try {
+      const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
+      const bm = out?.bestMove ? String(out.bestMove) : '';
+      if (STATE.ui.modalOpen) {
+        const bestEl = document.getElementById('blResultBest');
+        if (bestEl) bestEl.innerHTML = bm ? `Best move: <strong>${escapeHtml(bm)}</strong>` : 'Best move not available yet.';
+        else openResultModal({ verdict: 'good', isPractice: false, bestMove: bm });
+      } else {
+        setMasterMessage(bm ? `Best move: ${bm}` : 'Best move not available yet.');
+      }
+    } catch (e) {
+      setMasterMessage(`Error: ${e?.message || e}`);
     }
   }
 
@@ -813,6 +1320,7 @@
     const content =
       STATE.page === 'home' ? renderHomePage() :
       STATE.page === 'blunder' ? renderBlunderPage() :
+      STATE.page === 'masterGame' ? renderStudentMasterGamePage() :
       STATE.page === 'review' ? renderReviewPage() :
       renderSettingsPage();
 
@@ -836,22 +1344,21 @@
 
     applyBoardColors();
 
-    // Teacher mode: UI skeleton only for now.
-    if (getBlundersRole() === 'teacher') {
+    const role = getBlundersRole();
+    if (role === 'teacher') {
       STATE.me = { id: 'teacher', name: 'Teacher', studentId: '' };
       render();
-      return;
+      teacherLoad(STATE.teacherTab || 'students').catch(() => {});
+    } else {
+      const players = getPlayers();
+      STATE.me = players[0] || null;
+      if (!STATE.me || !STATE.me.id) {
+        root.innerHTML = `<div class="bl-card"><div class="bl-title">Blunders</div><div class="blunders-muted">Missing student identity.</div></div>`;
+        return;
+      }
+      render();
+      refreshData();
     }
-
-    const players = getPlayers();
-    STATE.me = players[0] || null;
-    if (!STATE.me || !STATE.me.id) {
-      root.innerHTML = `<div class="bl-card"><div class="bl-title">Blunders</div><div class="blunders-muted">Missing student identity.</div></div>`;
-      return;
-    }
-
-    render();
-    refreshData();
 
     root.addEventListener('click', async (ev) => {
       const t = ev.target;
@@ -861,13 +1368,92 @@
       if (tt) {
         STATE.teacherTab = String(tt.getAttribute('data-bl-teacher-tab') || 'students');
         render();
+        teacherLoad(STATE.teacherTab).catch(() => {});
         return;
+      }
+
+      // Teacher actions
+      if (t?.closest?.('[data-bl-teacher-refresh-students]')) return teacherLoad('students');
+      if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
+      if (t?.closest?.('[data-bl-teacher-save-students]')) {
+        try { await teacherSaveStudentSettings(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
+        return teacherLoad('students');
+      }
+      if (t?.closest?.('[data-bl-teacher-save-masters]')) {
+        try { await teacherSaveMasters(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
+        return teacherLoad('masterGame');
+      }
+      if (t?.closest?.('[data-bl-teacher-save-mastercfg]')) {
+        try { await teacherSaveMasterConfig(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
+        return teacherLoad('masterGame');
+      }
+      if (t?.closest?.('[data-bl-teacher-masters-presets]')) {
+        STATE.teacher.edits.masters = [
+          { id: 'magnuscarlsen', name: 'MagnusCarlsen', username: 'MagnusCarlsen' },
+          { id: 'hikaru', name: 'Hikaru', username: 'Hikaru' },
+          { id: 'fabianocaruana', name: 'fabianocaruana', username: 'fabianocaruana' }
+        ];
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-masters-add]')) {
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters.slice() : [];
+        cur.push({ id: '', name: '', username: '' });
+        STATE.teacher.edits.masters = cur;
+        render();
+        return;
+      }
+      const delM = t?.closest?.('[data-bl-teacher-master-del]');
+      if (delM) {
+        const idx = Number(delM.getAttribute('data-bl-teacher-master-del'));
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters.slice() : [];
+        if (!Number.isNaN(idx) && idx >= 0 && idx < cur.length) cur.splice(idx, 1);
+        STATE.teacher.edits.masters = cur;
+        render();
+        return;
+      }
+      const syncStu = t?.closest?.('[data-bl-teacher-sync-student]');
+      if (syncStu) {
+        const sid = String(syncStu.getAttribute('data-bl-teacher-sync-student') || '');
+        const dateEl = root.querySelector(`[data-bl-teacher-student-date="${CSS.escape(sid)}"]`);
+        const hkDayKey = String(dateEl?.value || '');
+        try { await teacherSyncStudent(sid, hkDayKey, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        return teacherLoad('students');
+      }
+      const syncStuF = t?.closest?.('[data-bl-teacher-sync-student-force]');
+      if (syncStuF) {
+        const sid = String(syncStuF.getAttribute('data-bl-teacher-sync-student-force') || '');
+        const dateEl = root.querySelector(`[data-bl-teacher-student-date="${CSS.escape(sid)}"]`);
+        const hkDayKey = String(dateEl?.value || '');
+        try { await teacherSyncStudent(sid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        return teacherLoad('students');
+      }
+      const syncM = t?.closest?.('[data-bl-teacher-sync-master]');
+      if (syncM) {
+        const mid = String(syncM.getAttribute('data-bl-teacher-sync-master') || '');
+        const dateEl = root.querySelector(`[data-bl-teacher-master-date="${CSS.escape(mid)}"]`);
+        const hkDayKey = String(dateEl?.value || '');
+        try { await teacherSyncMaster(mid, hkDayKey, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        return teacherLoad('masterGame');
+      }
+      const syncMF = t?.closest?.('[data-bl-teacher-sync-master-force]');
+      if (syncMF) {
+        const mid = String(syncMF.getAttribute('data-bl-teacher-sync-master-force') || '');
+        const dateEl = root.querySelector(`[data-bl-teacher-master-date="${CSS.escape(mid)}"]`);
+        const hkDayKey = String(dateEl?.value || '');
+        try { await teacherSyncMaster(mid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        return teacherLoad('masterGame');
       }
 
       const nav = t?.closest?.('[data-bl-nav]');
       if (nav) {
         const key = String(nav.getAttribute('data-bl-nav') || '');
-        if (key) setPage(key);
+        if (key) {
+          setPage(key);
+          if (key === 'masterGame') {
+            ensureMasterGameLoaded().catch(() => {});
+          }
+        }
         return;
       }
 
@@ -919,10 +1505,15 @@
           return;
         }
         if (action === 'best') {
-          revealBestMove();
+          if (STATE.page === 'masterGame') revealMasterBestMove();
+          else revealBestMove();
           return;
         }
         if (action === 'next') {
+          if (STATE.page === 'masterGame') {
+            closeModal();
+            return;
+          }
           closeModal();
           if (STATE.mode === 'practice') {
             const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
@@ -959,10 +1550,39 @@
         return;
       }
 
+      if (t?.closest?.('[data-bl-master-reveal]')) {
+        revealMasterBestMove();
+        return;
+      }
+      if (t?.closest?.('[data-bl-master-prev]')) {
+        STATE.master.currentIndex = Math.max(0, Number(STATE.master.currentIndex || 0) - 1);
+        STATE.selectedFrom = null;
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-master-next]')) {
+        const max = Math.max(0, (Array.isArray(STATE.master.pending) ? STATE.master.pending.length : 0) - 1);
+        STATE.master.currentIndex = Math.min(max, Number(STATE.master.currentIndex || 0) + 1);
+        STATE.selectedFrom = null;
+        render();
+        return;
+      }
+      const mb = t?.closest?.('[data-bl-master]');
+      if (mb) {
+        const mid = String(mb.getAttribute('data-bl-master') || '');
+        ensureMasterPuzzlesLoaded(mid).catch(() => {});
+        return;
+      }
+
       const sqEl = t?.closest?.('[data-bl-sq]');
       if (sqEl && STATE.page === 'blunder') {
         const sq = String(sqEl.getAttribute('data-bl-sq') || '');
         handleBoardClick(sq);
+        return;
+      }
+      if (sqEl && STATE.page === 'masterGame') {
+        const sq = String(sqEl.getAttribute('data-bl-sq') || '');
+        handleMasterBoardClick(sq);
         return;
       }
 
@@ -1019,6 +1639,63 @@
         const dark = String(darkEl?.value || '').trim() || VCP_DEFAULTS.boardDark;
         setBoardColors({ light, dark });
         // Re-render to refresh preview + input values
+        render();
+      }
+    });
+
+    root.addEventListener('input', (ev) => {
+      const el = ev.target;
+      // Teacher inputs
+      const maxEl = el?.closest?.('[data-bl-teacher-student-max]');
+      if (maxEl) {
+        const sid = String(maxEl.getAttribute('data-bl-teacher-student-max') || '');
+        const v = Number(maxEl.value);
+        if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+        STATE.teacher.edits.student[sid].maxGamesPerDay = Number.isFinite(v) ? v : 10;
+        return;
+      }
+      const thrEl = el?.closest?.('[data-bl-teacher-student-thr]');
+      if (thrEl) {
+        const sid = String(thrEl.getAttribute('data-bl-teacher-student-thr') || '');
+        const v = Number(thrEl.value);
+        if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+        STATE.teacher.edits.student[sid].thresholdPoints = Number.isFinite(v) ? v : 1.0;
+        return;
+      }
+      const mn = el?.closest?.('[data-bl-teacher-master-name]');
+      if (mn) {
+        const idx = Number(mn.getAttribute('data-bl-teacher-master-name'));
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : [];
+        if (!Number.isNaN(idx) && cur[idx]) cur[idx].name = String(mn.value || '');
+        return;
+      }
+      const mu = el?.closest?.('[data-bl-teacher-master-user]');
+      if (mu) {
+        const idx = Number(mu.getAttribute('data-bl-teacher-master-user'));
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : [];
+        if (!Number.isNaN(idx) && cur[idx]) cur[idx].username = String(mu.value || '');
+        return;
+      }
+      const mm = el?.closest?.('[data-bl-teacher-mastercfg-max]');
+      if (mm) {
+        const v = Number(mm.value);
+        if (!STATE.teacher.edits.masterCfg) STATE.teacher.edits.masterCfg = {};
+        STATE.teacher.edits.masterCfg.maxGamesPerDay = Number.isFinite(v) ? v : 10;
+        return;
+      }
+      const mt = el?.closest?.('[data-bl-teacher-mastercfg-thr]');
+      if (mt) {
+        const v = Number(mt.value);
+        if (!STATE.teacher.edits.masterCfg) STATE.teacher.edits.masterCfg = {};
+        STATE.teacher.edits.masterCfg.thresholdPoints = Number.isFinite(v) ? v : 1.0;
+        return;
+      }
+
+      // Student settings inputs
+      if (el?.closest?.('#blBoardLightInput') || el?.closest?.('#blBoardDarkInput')) {
+        const light = document.getElementById('blBoardLightInput')?.value;
+        const dark = document.getElementById('blBoardDarkInput')?.value;
+        setBoardColors({ light, dark });
         render();
       }
     });
