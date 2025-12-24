@@ -20,6 +20,9 @@
     selectedFrom: null,
     promoPending: null, // { baseUci }
     practicePuzzle: null,
+    // Post-attempt flow control
+    needsRefreshAfterModal: false,
+    lastAttemptWasPendingSolve: false,
     ui: { modalOpen: false, modalHtml: '' }
   };
 
@@ -165,6 +168,14 @@
   function closeModal() {
     STATE.ui.modalOpen = false;
     STATE.ui.modalHtml = '';
+    const shouldRefresh = !!STATE.needsRefreshAfterModal;
+    STATE.needsRefreshAfterModal = false;
+    if (shouldRefresh) {
+      // Fire-and-forget; render immediately and refresh in background.
+      render();
+      refreshData();
+      return;
+    }
     render();
   }
 
@@ -178,6 +189,7 @@
     STATE.practicePuzzle = null;
     STATE.currentIndex = 0;
     STATE.selectedFrom = null;
+    STATE.lastAttemptWasPendingSolve = false;
     render();
   }
 
@@ -185,6 +197,7 @@
     STATE.mode = 'practice';
     STATE.practicePuzzle = puzzle || null;
     STATE.selectedFrom = null;
+    STATE.lastAttemptWasPendingSolve = false;
     render();
   }
 
@@ -278,6 +291,9 @@
     const parsed = parseFenBoard(fen);
     if (!parsed) return `<div class="blunders-muted">Invalid FEN.</div>`;
     const squares = displaySquares(!!flip);
+    const oppUci = String(puzzle?.opponentMoveUci || '');
+    const hlFrom = oppUci && oppUci.length >= 4 ? oppUci.slice(0, 2) : '';
+    const hlTo = oppUci && oppUci.length >= 4 ? oppUci.slice(2, 4) : '';
     return `
       <div class="bl-board" id="blBoard" role="grid" aria-label="Chessboard">
         ${squares.map((sq) => {
@@ -285,10 +301,12 @@
           const piece = rc ? parsed.board[rc.r][rc.c] : '';
           const light = !isDarkSquare(sq);
           const isSel = selectedFrom && selectedFrom === sq;
+          const isLastFrom = hlFrom && sq === hlFrom;
+          const isLastTo = hlTo && sq === hlTo;
           const showRank = sq[0] === (flip ? 'h' : 'a');
           const showFile = sq[1] === (flip ? '8' : '1');
           return `
-            <div class="bl-sq ${light ? 'light' : 'dark'} ${isSel ? 'selected' : ''}" data-bl-sq="${escapeHtml(sq)}" role="gridcell" aria-label="${escapeHtml(sq)}">
+            <div class="bl-sq ${light ? 'light' : 'dark'} ${isSel ? 'selected' : ''} ${isLastFrom ? 'bl-last-from' : ''} ${isLastTo ? 'bl-last-to' : ''}" data-bl-sq="${escapeHtml(sq)}" role="gridcell" aria-label="${escapeHtml(sq)}">
               ${piece ? `<img class="bl-piece" draggable="false" alt="${escapeHtml(piece)}" src="${pieceImagePath(piece)}">` : ''}
               ${showRank ? `<span class="bl-coord bl-coord-rank">${escapeHtml(sq[1])}</span>` : ''}
               ${showFile ? `<span class="bl-coord bl-coord-file">${escapeHtml(sq[0])}</span>` : ''}
@@ -306,6 +324,7 @@
     const modeLabel = STATE.mode === 'practice' ? 'Practice (Random)' : 'Pending';
     const dropVal = puzzle ? Number(puzzle.dropPoints ?? (Number(puzzle.dropCp || 0) / 100)) : 0;
     const infoLine = puzzle ? `${String(puzzle.blunderSan || puzzle.blunderMoveUci || '')} · Drop ${dropVal.toFixed(2)}` : '';
+    const oppLine = puzzle ? (String(puzzle.opponentSan || puzzle.opponentMoveUci || '') || '(game start)') : '';
     return `
       <div class="bl-card">
         <div class="bl-title">Blunder</div>
@@ -320,17 +339,21 @@
               <div class="bl-card" style="box-shadow:none;">
                 <div style="font-weight:950; color:#111827;">Puzzle</div>
                 <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(infoLine)}</div>
+                <div class="blunders-muted" style="margin-top:6px;">Opponent just played: <strong>${escapeHtml(oppLine)}</strong></div>
                 ${puzzle.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(puzzle.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(puzzle.gameUrl))}</a></div>` : ''}
                 <div class="blunders-muted" style="margin-top:10px;">Click a piece, then click a target square.</div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-                  <button class="btn btn-secondary" type="button" data-bl-reveal>Reveal best</button>
-                  ${STATE.mode === 'pending' ? `
+                ${STATE.mode === 'pending' ? `
+                  <div class="bl-btn-row cols-3">
+                    <button class="btn btn-secondary" type="button" data-bl-reveal>Reveal best</button>
                     <button class="btn btn-secondary" type="button" data-bl-prev ${STATE.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
                     <button class="btn btn-secondary" type="button" data-bl-next ${STATE.currentIndex >= pendingCount - 1 ? 'disabled' : ''}>Next</button>
-                  ` : `
+                  </div>
+                ` : `
+                  <div class="bl-btn-row cols-2">
+                    <button class="btn btn-secondary" type="button" data-bl-reveal>Reveal best</button>
                     <button class="btn btn-secondary" type="button" data-bl-back-review>Back to Review</button>
-                  `}
-                </div>
+                  </div>
+                `}
                 <div class="blunders-muted" id="blBlunderMsg" style="margin-top:10px;"></div>
                 <details style="margin-top:12px;">
                   <summary class="blunders-muted" style="cursor:pointer;">Show FEN</summary>
@@ -441,25 +464,81 @@
     `);
   }
 
+  function openResultModal(opts) {
+    const verdict = String(opts?.verdict || '');
+    const bestMove = String(opts?.bestMove || '');
+    const isPractice = !!opts?.isPractice;
+    const iconClass = verdict === 'best' ? 'best' : (verdict === 'good' ? 'good' : 'blunder');
+    const iconGlyph = verdict === 'best' ? '👑' : (verdict === 'good' ? '✅' : '⚠️');
+    const heroText = verdict === 'best' ? 'Best Move' : (verdict === 'good' ? 'Good move' : 'STILL BLUNDER!!');
+    const subText =
+      verdict === 'best' ? 'Perfect. You found the best move.' :
+      verdict === 'good' ? 'Still fine but not the best.' :
+      'STILL BLUNDER!! Try again.';
+    const bestHtml = bestMove ? `<div class="blunders-muted" style="margin-top:10px;">Best move: <strong>${escapeHtml(bestMove)}</strong></div>` : `<div id="blResultBest" class="blunders-muted" style="margin-top:10px;"></div>`;
+
+    let actionsHtml = '';
+    if (verdict === 'best') {
+      actionsHtml = `
+        <div class="bl-result-actions one">
+          <button class="btn btn-primary" type="button" data-bl-result="next">${isPractice ? 'Next (Random)' : 'Next'}</button>
+        </div>
+      `;
+    } else if (verdict === 'good') {
+      actionsHtml = `
+        <div class="bl-result-actions">
+          <button class="btn btn-secondary" type="button" data-bl-result="best">Best move</button>
+          <button class="btn btn-primary" type="button" data-bl-result="retry">Retry</button>
+        </div>
+      `;
+    } else {
+      actionsHtml = `
+        <div class="bl-result-actions one">
+          <button class="btn btn-primary" type="button" data-bl-result="retry">Retry</button>
+        </div>
+      `;
+    }
+
+    openModal('Result', `
+      <div class="bl-result-hero">
+        <span class="bl-result-icon ${iconClass}">${escapeHtml(iconGlyph)}</span>
+        <span>${escapeHtml(heroText)}</span>
+      </div>
+      <div class="blunders-muted" style="margin-top:8px;">${escapeHtml(subText)}</div>
+      ${bestHtml}
+      ${actionsHtml}
+    `);
+  }
+
   async function submitMoveUci(uci) {
     const puzzle = currentPuzzle();
     if (!puzzle || !STATE.me?.id) return;
     const isPractice = STATE.mode === 'practice';
     try {
-      setMessage('Checking...');
+      setMessage('');
       const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, isPractice);
       if (out.ok) {
-        setMessage(out.verdict === 'best' ? 'Correct (best move).' : 'Correct (no blunder).');
-        if (!isPractice) await refreshData();
+        openResultModal({ verdict: out.verdict, isPractice, bestMove: out.bestMove || '' });
+        // For GOOD move on pending: keep board as-is for optional retry, refresh after modal closes.
+        // For BEST on pending: refresh when user clicks Next.
+        if (!isPractice && out.verdict === 'good') {
+          STATE.needsRefreshAfterModal = true;
+          STATE.lastAttemptWasPendingSolve = true;
+        } else if (!isPractice && out.verdict === 'best') {
+          STATE.needsRefreshAfterModal = false;
+          STATE.lastAttemptWasPendingSolve = true;
+        } else {
+          STATE.lastAttemptWasPendingSolve = false;
+        }
       } else {
-        setMessage(`Retry. Drop: ${Number(out.dropPoints || 0).toFixed(2)}`);
+        openResultModal({ verdict: 'blunder', isPractice });
+        STATE.lastAttemptWasPendingSolve = false;
       }
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
     } finally {
       STATE.selectedFrom = null;
       STATE.promoPending = null;
-      closeModal();
       render();
     }
   }
@@ -507,10 +586,16 @@
     const puzzle = currentPuzzle();
     if (!puzzle || !STATE.me?.id) return;
     try {
-      setMessage('Revealing...');
       const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
-      if (out?.bestMove) setMessage(`Best move: ${out.bestMove}`);
-      else setMessage('Best move not available yet.');
+      const bm = out?.bestMove ? String(out.bestMove) : '';
+      if (STATE.ui.modalOpen) {
+        const bestEl = document.getElementById('blResultBest');
+        if (bestEl) bestEl.innerHTML = bm ? `Best move: <strong>${escapeHtml(bm)}</strong>` : 'Best move not available yet.';
+        else openResultModal({ verdict: 'good', isPractice: (STATE.mode === 'practice'), bestMove: bm });
+      } else {
+        if (bm) setMessage(`Best move: ${bm}`);
+        else setMessage('Best move not available yet.');
+      }
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
     }
@@ -582,6 +667,42 @@
       if (t?.closest?.('[data-bl-back-review]')) {
         setPage('review');
         return;
+      }
+
+      const resultBtn = t?.closest?.('[data-bl-result]');
+      if (resultBtn) {
+        const action = String(resultBtn.getAttribute('data-bl-result') || '');
+        if (action === 'retry') {
+          // If the last attempt solved a pending puzzle (good/best), retry should be practice (non-destructive).
+          if (STATE.lastAttemptWasPendingSolve && STATE.mode !== 'practice') {
+            const pz = currentPuzzle();
+            if (pz) setBlunderModePractice(pz);
+          }
+          closeModal();
+          return;
+        }
+        if (action === 'best') {
+          revealBestMove();
+          return;
+        }
+        if (action === 'next') {
+          closeModal();
+          if (STATE.mode === 'practice') {
+            const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
+            if (completed.length) {
+              const pick = completed[Math.floor(Math.random() * completed.length)];
+              setBlunderModePractice(pick);
+              setPage('blunder');
+              return;
+            }
+            return;
+          }
+          // Pending mode: move to next pending after refresh
+          await refreshData();
+          setBlunderModePending();
+          setPage('blunder');
+          return;
+        }
       }
 
       if (t?.closest?.('#blModalClose') || t?.id === 'blModalBackdrop') {

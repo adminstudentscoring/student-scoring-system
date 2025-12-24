@@ -582,6 +582,7 @@ async function syncBlundersForStudent(student) {
         const beforeFen = replay.fen();
         const turn = replay.turn();
         const mv = moves[ply];
+        const prev = ply > 0 ? moves[ply - 1] : null;
         // Apply the move as recorded
         const applied = replay.move(mv);
         if (!applied) break;
@@ -624,6 +625,8 @@ async function syncBlundersForStudent(student) {
           endTime: Number(game.end_time || 0),
           studentColor,
           startFEN: beforeFen,
+          opponentMoveUci: prev ? `${String(prev.from || '').toLowerCase()}${String(prev.to || '').toLowerCase()}${prev.promotion ? String(prev.promotion).toLowerCase() : ''}` : '',
+          opponentSan: prev ? String(prev.san || '') : '',
           blunderMoveUci: `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`,
           blunderSan: String(mv.san || ''),
           bestMoveUci: bestMove,

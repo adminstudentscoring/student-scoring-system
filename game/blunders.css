@@ -197,6 +197,70 @@
   outline-offset: -3px;
 }
 
+.bl-sq.bl-last-from {
+  box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.95);
+}
+
+.bl-sq.bl-last-to {
+  box-shadow: inset 0 0 0 3px rgba(34, 197, 94, 0.95);
+}
+
+.bl-sq.bl-last-from::after,
+.bl-sq.bl-last-to::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.10);
+  pointer-events: none;
+}
+
+.bl-sq.bl-last-from.bl-last-to {
+  box-shadow:
+    inset 0 0 0 3px rgba(245, 158, 11, 0.95),
+    inset 0 0 0 6px rgba(34, 197, 94, 0.85);
+}
+
+/* Equal-width buttons (Blunder page) */
+.bl-btn-row {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.bl-btn-row.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bl-btn-row.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bl-btn-row .btn { width: 100%; }
+
+/* Result modal visuals */
+.bl-result-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 950;
+  color: #111827;
+  font-size: 18px;
+}
+.bl-result-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+.bl-result-icon.best { background: #ecfdf5; border-color: #86efac; }
+.bl-result-icon.good { background: #eff6ff; border-color: #93c5fd; }
+.bl-result-icon.blunder { background: #fef2f2; border-color: #fecaca; }
+.bl-result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.bl-result-actions.one { grid-template-columns: 1fr; }
+
 .bl-piece {
   width: 78%;
   height: 78%;
