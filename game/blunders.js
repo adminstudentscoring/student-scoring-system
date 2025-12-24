@@ -47,6 +47,18 @@
       edits: { student: {}, masters: null, masterCfg: null },
       lastLoadedAt: ''
     },
+    uiBoard: {
+      // Student blunders
+      blunderFen: '',
+      blunderMoveUci: '',
+      blunderVerdict: '',
+      blunderBestMoveUci: '',
+      // Master game
+      masterFen: '',
+      masterMoveUci: '',
+      masterVerdict: '',
+      masterBestMoveUci: ''
+    },
     ui: { modalOpen: false, modalHtml: '' }
   };
 
@@ -496,14 +508,17 @@
     `;
   }
 
-  function renderBoardForPuzzle(puzzle, flip, selectedFrom) {
-    const fen = String(puzzle?.startFEN || '');
+  function renderBoardForPuzzle(puzzle, flip, selectedFrom, opts = {}) {
+    const fen = String(opts.fenOverride || puzzle?.startFEN || '');
     const parsed = parseFenBoard(fen);
     if (!parsed) return `<div class="blunders-muted">Invalid FEN.</div>`;
     const squares = displaySquares(!!flip);
     const oppUci = String(puzzle?.opponentMoveUci || '');
     const hlFrom = oppUci && oppUci.length >= 4 ? oppUci.slice(0, 2) : '';
     const hlTo = oppUci && oppUci.length >= 4 ? oppUci.slice(2, 4) : '';
+    const myUci = String(opts.myMoveUci || '');
+    const myFrom = myUci && myUci.length >= 4 ? myUci.slice(0, 2) : '';
+    const myTo = myUci && myUci.length >= 4 ? myUci.slice(2, 4) : '';
     return `
       <div class="bl-board" id="blBoard" role="grid" aria-label="Chessboard">
         ${squares.map((sq) => {
@@ -513,10 +528,12 @@
           const isSel = selectedFrom && selectedFrom === sq;
           const isLastFrom = hlFrom && sq === hlFrom;
           const isLastTo = hlTo && sq === hlTo;
+          const isMyFrom = myFrom && sq === myFrom;
+          const isMyTo = myTo && sq === myTo;
           const showRank = sq[0] === (flip ? 'h' : 'a');
           const showFile = sq[1] === (flip ? '8' : '1');
           return `
-            <div class="bl-sq ${light ? 'light' : 'dark'} ${isSel ? 'selected' : ''} ${isLastFrom ? 'bl-last-from' : ''} ${isLastTo ? 'bl-last-to' : ''}" data-bl-sq="${escapeHtml(sq)}" role="gridcell" aria-label="${escapeHtml(sq)}">
+            <div class="bl-sq ${light ? 'light' : 'dark'} ${isSel ? 'selected' : ''} ${isLastFrom ? 'bl-last-from' : ''} ${isLastTo ? 'bl-last-to' : ''} ${isMyFrom ? 'bl-my-from' : ''} ${isMyTo ? 'bl-my-to' : ''}" data-bl-sq="${escapeHtml(sq)}" role="gridcell" aria-label="${escapeHtml(sq)}">
               ${piece ? `<img class="bl-piece" draggable="false" alt="${escapeHtml(piece)}" src="${pieceImagePath(piece)}">` : ''}
               ${showRank ? `<span class="bl-coord bl-coord-rank">${escapeHtml(sq[1])}</span>` : ''}
               ${showFile ? `<span class="bl-coord bl-coord-file">${escapeHtml(sq[0])}</span>` : ''}
@@ -535,6 +552,8 @@
     const dropVal = puzzle ? Number(puzzle.dropPoints ?? (Number(puzzle.dropCp || 0) / 100)) : 0;
     const infoLine = puzzle ? `${String(puzzle.blunderSan || puzzle.blunderMoveUci || '')} · Drop ${dropVal.toFixed(2)}` : '';
     const oppLine = puzzle ? (String(puzzle.opponentSan || puzzle.opponentMoveUci || '') || '(game start)') : '';
+    const fenOverride = String(STATE.uiBoard.blunderFen || puzzle?.startFEN || '');
+    const myMoveUci = String(STATE.uiBoard.blunderMoveUci || '');
     return `
       <div class="bl-card">
         <div class="bl-title">Blunder</div>
@@ -543,7 +562,7 @@
         ${puzzle ? `
           <div class="bl-board-wrap">
             <div>
-              ${renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom)}
+              ${renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom, { fenOverride, myMoveUci })}
             </div>
             <div>
               <div class="bl-card" style="box-shadow:none;">
@@ -570,6 +589,7 @@
                   <div style="margin-top:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; color:#111827; word-break:break-all;">${escapeHtml(String(puzzle.startFEN || ''))}</div>
                 </details>
               </div>
+              ${renderInlineResultPanel('blunder')}
             </div>
           </div>
         ` : `
@@ -689,7 +709,7 @@
         ${selected ? `
           <div class="bl-board-wrap" style="margin-top:12px;">
             <div>
-              ${puzzle ? renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom) : `<div class="bl-card" style="box-shadow:none;"><div class="blunders-muted">No pending puzzles for this master.</div></div>`}
+              ${puzzle ? renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom, { fenOverride: (STATE.uiBoard.masterFen || puzzle.startFEN), myMoveUci: (STATE.uiBoard.masterMoveUci || '') }) : `<div class="bl-card" style="box-shadow:none;"><div class="blunders-muted">No pending puzzles for this master.</div></div>`}
             </div>
             <div>
               <div class="bl-card" style="box-shadow:none;">
@@ -708,6 +728,7 @@
                   <div class="blunders-muted" id="blMasterMsg" style="margin-top:10px;"></div>
                 ` : ``}
               </div>
+              ${renderInlineResultPanel('master')}
             </div>
           </div>
         ` : ``}
@@ -1061,6 +1082,70 @@
     if (el) el.textContent = String(txt || '');
   }
 
+  function clearInlineResult(scope) {
+    if (scope === 'master') {
+      STATE.uiBoard.masterVerdict = '';
+      STATE.uiBoard.masterMoveUci = '';
+      STATE.uiBoard.masterBestMoveUci = '';
+      STATE.uiBoard.masterFen = '';
+    } else {
+      STATE.uiBoard.blunderVerdict = '';
+      STATE.uiBoard.blunderMoveUci = '';
+      STATE.uiBoard.blunderBestMoveUci = '';
+      STATE.uiBoard.blunderFen = '';
+    }
+  }
+
+  function renderInlineResultPanel(scope) {
+    const isMaster = scope === 'master';
+    const verdict = String(isMaster ? STATE.uiBoard.masterVerdict : STATE.uiBoard.blunderVerdict);
+    const moveUci = String(isMaster ? STATE.uiBoard.masterMoveUci : STATE.uiBoard.blunderMoveUci);
+    const bestUci = String(isMaster ? STATE.uiBoard.masterBestMoveUci : STATE.uiBoard.blunderBestMoveUci);
+
+    const title =
+      verdict === 'best' ? 'Best Move' :
+      verdict === 'good' ? 'Good move' :
+      verdict === 'blunder' ? 'STILL BLUNDER!!' :
+      'Result';
+
+    const sub =
+      verdict === 'best' ? 'Perfect. You found the best move.' :
+      verdict === 'good' ? 'Correct, but not the best.' :
+      verdict === 'blunder' ? 'Try again.' :
+      'Your result will appear here.';
+
+    const icon =
+      verdict === 'best' ? '👑' :
+      verdict === 'good' ? '✅' :
+      verdict === 'blunder' ? '⚠️' : 'ℹ️';
+
+    const mvLine = moveUci ? `Move: ${moveUci}` : '';
+    const bmLine = bestUci ? `Best: ${bestUci}` : '';
+
+    const canShowBest = verdict === 'good' || verdict === 'blunder' || !verdict;
+    const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
+    const retryBtn = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${isMaster ? 'master' : 'blunder'}">Retry</button>`;
+
+    return `
+      <div class="bl-card bl-inline-result" style="box-shadow:none; margin-top:12px;">
+        <div class="bl-inline-head">
+          <span class="bl-inline-ico">${escapeHtml(icon)}</span>
+          <div>
+            <div class="bl-inline-title">${escapeHtml(title)}</div>
+            <div class="blunders-muted">${escapeHtml(sub)}</div>
+          </div>
+        </div>
+        <div class="blunders-muted" style="margin-top:10px;">
+          ${escapeHtml(mvLine)}${mvLine && bmLine ? '<br>' : ''}${escapeHtml(bmLine)}
+        </div>
+        <div class="bl-inline-actions">
+          ${showBestBtn}
+          ${retryBtn}
+        </div>
+      </div>
+    `;
+  }
+
   function openPromotionPicker(baseUci) {
     STATE.promoPending = { baseUci };
     openModal('Promotion', `
@@ -1074,51 +1159,7 @@
     `);
   }
 
-  function openResultModal(opts) {
-    const verdict = String(opts?.verdict || '');
-    const bestMove = String(opts?.bestMove || '');
-    const isPractice = !!opts?.isPractice;
-    const iconClass = verdict === 'best' ? 'best' : (verdict === 'good' ? 'good' : 'blunder');
-    const iconGlyph = verdict === 'best' ? '👑' : (verdict === 'good' ? '✅' : '⚠️');
-    const heroText = verdict === 'best' ? 'Best Move' : (verdict === 'good' ? 'Good move' : 'STILL BLUNDER!!');
-    const subText =
-      verdict === 'best' ? 'Perfect. You found the best move.' :
-      verdict === 'good' ? 'Still fine but not the best.' :
-      'STILL BLUNDER!! Try again.';
-    const bestHtml = bestMove ? `<div class="blunders-muted" style="margin-top:10px;">Best move: <strong>${escapeHtml(bestMove)}</strong></div>` : `<div id="blResultBest" class="blunders-muted" style="margin-top:10px;"></div>`;
-
-    let actionsHtml = '';
-    if (verdict === 'best') {
-      actionsHtml = `
-        <div class="bl-result-actions one">
-          <button class="btn btn-primary" type="button" data-bl-result="next">${isPractice ? 'Next (Random)' : 'Next'}</button>
-        </div>
-      `;
-    } else if (verdict === 'good') {
-      actionsHtml = `
-        <div class="bl-result-actions">
-          <button class="btn btn-secondary" type="button" data-bl-result="best">Best move</button>
-          <button class="btn btn-primary" type="button" data-bl-result="retry">Retry</button>
-        </div>
-      `;
-    } else {
-      actionsHtml = `
-        <div class="bl-result-actions one">
-          <button class="btn btn-primary" type="button" data-bl-result="retry">Retry</button>
-        </div>
-      `;
-    }
-
-    openModal('Result', `
-      <div class="bl-result-hero">
-        <span class="bl-result-icon ${iconClass}">${escapeHtml(iconGlyph)}</span>
-        <span>${escapeHtml(heroText)}</span>
-      </div>
-      <div class="blunders-muted" style="margin-top:8px;">${escapeHtml(subText)}</div>
-      ${bestHtml}
-      ${actionsHtml}
-    `);
-  }
+  // Result modal removed: use inline result panel instead.
 
   async function submitMoveUci(uci) {
     const puzzle = currentPuzzle();
@@ -1128,20 +1169,19 @@
       setMessage('');
       const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, isPractice);
       if (out.ok) {
-        openResultModal({ verdict: out.verdict, isPractice, bestMove: out.bestMove || '' });
-        // For GOOD move on pending: keep board as-is for optional retry, refresh after modal closes.
-        // For BEST on pending: refresh when user clicks Next.
-        if (!isPractice && out.verdict === 'good') {
-          STATE.needsRefreshAfterModal = true;
-          STATE.lastAttemptWasPendingSolve = true;
-        } else if (!isPractice && out.verdict === 'best') {
-          STATE.needsRefreshAfterModal = false;
+        STATE.uiBoard.blunderVerdict = String(out.verdict || '');
+        STATE.uiBoard.blunderMoveUci = String(out.playedUci || uci || '');
+        STATE.uiBoard.blunderFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
+        // For GOOD/BEST on pending: allow retry (practice) or show best; do not auto-refresh.
+        if (!isPractice && (out.verdict === 'good' || out.verdict === 'best')) {
           STATE.lastAttemptWasPendingSolve = true;
         } else {
           STATE.lastAttemptWasPendingSolve = false;
         }
       } else {
-        openResultModal({ verdict: 'blunder', isPractice });
+        STATE.uiBoard.blunderVerdict = 'blunder';
+        STATE.uiBoard.blunderMoveUci = String(uci || '');
+        STATE.uiBoard.blunderFen = String(puzzle.startFEN || '');
         STATE.lastAttemptWasPendingSolve = false;
       }
     } catch (e) {
@@ -1154,6 +1194,8 @@
   }
 
   function handleBoardClick(sq) {
+    // After answering, board is frozen until Retry (per UX request)
+    if (STATE.uiBoard.blunderVerdict) return;
     const puzzle = currentPuzzle();
     if (!puzzle) return;
     const parsed = parseFenBoard(String(puzzle.startFEN || ''));
@@ -1186,13 +1228,16 @@
     const promoRank = (turn === 'w') ? 8 : 1;
     const baseUci = `${from}${sq}`.toLowerCase();
     if (movingPawn && toRank === promoRank) {
-      openPromotionPicker(baseUci);
+      // No popups: default promotion to queen.
+      submitMoveUci(`${baseUci}q`);
       return;
     }
     submitMoveUci(baseUci);
   }
 
   function handleMasterBoardClick(sq) {
+    // After answering, board is frozen until Retry (per UX request)
+    if (STATE.uiBoard.masterVerdict) return;
     const puzzle = masterCurrentPuzzle();
     if (!puzzle) return;
     const parsed = parseFenBoard(String(puzzle.startFEN || ''));
@@ -1238,14 +1283,14 @@
     try {
       const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
       const bm = out?.bestMove ? String(out.bestMove) : '';
-      if (STATE.ui.modalOpen) {
-        const bestEl = document.getElementById('blResultBest');
-        if (bestEl) bestEl.innerHTML = bm ? `Best move: <strong>${escapeHtml(bm)}</strong>` : 'Best move not available yet.';
-        else openResultModal({ verdict: 'good', isPractice: (STATE.mode === 'practice'), bestMove: bm });
-      } else {
-        if (bm) setMessage(`Best move: ${bm}`);
-        else setMessage('Best move not available yet.');
+      const af = out?.afterFEN ? String(out.afterFEN) : '';
+      STATE.uiBoard.blunderBestMoveUci = bm;
+      if (bm && af) {
+        STATE.uiBoard.blunderFen = af;
+        STATE.uiBoard.blunderMoveUci = bm;
       }
+      STATE.uiBoard.blunderVerdict = bm ? 'best' : '';
+      if (!bm) setMessage('Best move not available yet.');
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
     }
@@ -1265,11 +1310,13 @@
       setMasterMessage('');
       const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, false);
       if (out.ok) {
-        openResultModal({ verdict: out.verdict, isPractice: false, bestMove: out.bestMove || '' });
-        // Refresh master puzzles list after modal closes
-        STATE.needsMasterRefreshAfterModal = true;
+        STATE.uiBoard.masterVerdict = String(out.verdict || '');
+        STATE.uiBoard.masterMoveUci = String(out.playedUci || uci || '');
+        STATE.uiBoard.masterFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
       } else {
-        openResultModal({ verdict: 'blunder', isPractice: false });
+        STATE.uiBoard.masterVerdict = 'blunder';
+        STATE.uiBoard.masterMoveUci = String(uci || '');
+        STATE.uiBoard.masterFen = String(puzzle.startFEN || '');
       }
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
@@ -1286,13 +1333,13 @@
     try {
       const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
       const bm = out?.bestMove ? String(out.bestMove) : '';
-      if (STATE.ui.modalOpen) {
-        const bestEl = document.getElementById('blResultBest');
-        if (bestEl) bestEl.innerHTML = bm ? `Best move: <strong>${escapeHtml(bm)}</strong>` : 'Best move not available yet.';
-        else openResultModal({ verdict: 'good', isPractice: false, bestMove: bm });
-      } else {
-        setMasterMessage(bm ? `Best move: ${bm}` : 'Best move not available yet.');
+      const af = out?.afterFEN ? String(out.afterFEN) : '';
+      STATE.uiBoard.masterBestMoveUci = bm;
+      if (bm && af) {
+        STATE.uiBoard.masterFen = af;
+        STATE.uiBoard.masterMoveUci = bm;
       }
+      STATE.uiBoard.masterVerdict = bm ? 'best' : '';
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
     }
@@ -1478,70 +1525,19 @@
       if (t?.closest?.('[data-bl-prev]')) {
         STATE.currentIndex = Math.max(0, STATE.currentIndex - 1);
         STATE.selectedFrom = null;
+        clearInlineResult('blunder');
         render();
         return;
       }
       if (t?.closest?.('[data-bl-next]')) {
         STATE.currentIndex = Math.min((STATE.pending.length - 1), STATE.currentIndex + 1);
         STATE.selectedFrom = null;
+        clearInlineResult('blunder');
         render();
         return;
       }
       if (t?.closest?.('[data-bl-back-review]')) {
         setPage('review');
-        return;
-      }
-
-      const resultBtn = t?.closest?.('[data-bl-result]');
-      if (resultBtn) {
-        const action = String(resultBtn.getAttribute('data-bl-result') || '');
-        if (action === 'retry') {
-          // If the last attempt solved a pending puzzle (good/best), retry should be practice (non-destructive).
-          if (STATE.lastAttemptWasPendingSolve && STATE.mode !== 'practice') {
-            const pz = currentPuzzle();
-            if (pz) setBlunderModePractice(pz);
-          }
-          closeModal();
-          return;
-        }
-        if (action === 'best') {
-          if (STATE.page === 'masterGame') revealMasterBestMove();
-          else revealBestMove();
-          return;
-        }
-        if (action === 'next') {
-          if (STATE.page === 'masterGame') {
-            closeModal();
-            return;
-          }
-          closeModal();
-          if (STATE.mode === 'practice') {
-            const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
-            if (completed.length) {
-              const pick = completed[Math.floor(Math.random() * completed.length)];
-              setBlunderModePractice(pick);
-              setPage('blunder');
-              return;
-            }
-            return;
-          }
-          // Pending mode: move to next pending after refresh
-          await refreshData();
-          setBlunderModePending();
-          setPage('blunder');
-          return;
-        }
-      }
-
-      if (t?.closest?.('#blModalClose') || t?.id === 'blModalBackdrop') {
-        closeModal();
-        return;
-      }
-      const promo = t?.closest?.('[data-bl-promo]');
-      if (promo && STATE.promoPending) {
-        const p = String(promo.getAttribute('data-bl-promo') || '').toLowerCase();
-        const uci = `${STATE.promoPending.baseUci}${p}`;
-        submitMoveUci(uci);
         return;
       }
 
@@ -1554,9 +1550,48 @@
         revealMasterBestMove();
         return;
       }
+
+      const inlineBest = t?.closest?.('[data-bl-inline-best]');
+      if (inlineBest) {
+        const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
+        if (scope === 'master') revealMasterBestMove();
+        else revealBestMove();
+        return;
+      }
+      const inlineRetry = t?.closest?.('[data-bl-inline-retry]');
+      if (inlineRetry) {
+        const scope = String(inlineRetry.getAttribute('data-bl-inline-retry') || '');
+        if (scope === 'master') {
+          const pz = masterCurrentPuzzle();
+          if (pz) {
+            STATE.uiBoard.masterFen = String(pz.startFEN || '');
+          }
+          STATE.uiBoard.masterMoveUci = '';
+          STATE.uiBoard.masterVerdict = '';
+          STATE.uiBoard.masterBestMoveUci = '';
+          STATE.selectedFrom = null;
+          render();
+          return;
+        }
+        const pz = currentPuzzle();
+        // If the last attempt solved a pending puzzle (good/best), retry should be practice (non-destructive).
+        if (STATE.lastAttemptWasPendingSolve && STATE.mode !== 'practice') {
+          if (pz) setBlunderModePractice(pz);
+        }
+        if (pz) {
+          STATE.uiBoard.blunderFen = String(pz.startFEN || '');
+        }
+        STATE.uiBoard.blunderMoveUci = '';
+        STATE.uiBoard.blunderVerdict = '';
+        STATE.uiBoard.blunderBestMoveUci = '';
+        STATE.selectedFrom = null;
+        render();
+        return;
+      }
       if (t?.closest?.('[data-bl-master-prev]')) {
         STATE.master.currentIndex = Math.max(0, Number(STATE.master.currentIndex || 0) - 1);
         STATE.selectedFrom = null;
+        clearInlineResult('master');
         render();
         return;
       }
@@ -1564,6 +1599,7 @@
         const max = Math.max(0, (Array.isArray(STATE.master.pending) ? STATE.master.pending.length : 0) - 1);
         STATE.master.currentIndex = Math.min(max, Number(STATE.master.currentIndex || 0) + 1);
         STATE.selectedFrom = null;
+        clearInlineResult('master');
         render();
         return;
       }

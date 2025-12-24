@@ -7493,7 +7493,7 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     if (!stuProg[String(puzzleId)] || typeof stuProg[String(puzzleId)] !== 'object') stuProg[String(puzzleId)] = { status: 'pending', attempts: [] };
     const pr = stuProg[String(puzzleId)];
 
-    // Reveal-only
+    // Reveal-only (return best move + afterFEN so client can animate on board)
     if (revealBest && !moveUci) {
       const startFen = String(puzzle.startFEN || '');
       if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
@@ -7505,7 +7505,21 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
         puzzle.bestCp = scoreToCp(best.score);
         await writeBlundersPuzzles(puzzles);
       }
-      return res.json({ ok: true, bestMove: bestMove || undefined });
+      let afterFEN = '';
+      try {
+        if (bestMove) {
+          const b = parseUciMove(bestMove);
+          if (b) {
+            let ch = null;
+            try { ch = new Chess(startFen); } catch { ch = null; }
+            if (ch) {
+              const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
+              if (mv) afterFEN = ch.fen();
+            }
+          }
+        }
+      } catch {}
+      return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
     }
 
     if (String(pr.status || 'pending') === 'completed' && !practice) {
@@ -7559,7 +7573,14 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
       await writeBlundersMasterProgress(progressAll);
     }
 
-    return res.json({ ok, verdict, dropPoints, bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined });
+    return res.json({
+      ok,
+      verdict,
+      dropPoints,
+      afterFEN: afterFen,
+      playedUci: parsed.uci,
+      bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined
+    });
   } catch (e) {
     console.error('POST /api/public/students/:id/blunders/master/:puzzleId/attempt error:', e);
     return res.status(500).json({ error: 'Failed to evaluate move' });
@@ -7589,7 +7610,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     if (idx < 0) return res.status(404).json({ error: 'Puzzle not found' });
 
     const puzzle = puzzles[idx];
-    // Reveal-only: allow client to fetch best move without attempting any move.
+    // Reveal-only: return best move + afterFEN so client can animate on board.
     if (revealBest && !moveUci) {
       const startFen = String(puzzle.startFEN || '');
       if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
@@ -7603,7 +7624,21 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
         puzzles[idx] = puzzle;
         await writeBlundersPuzzles(puzzles);
       }
-      return res.json({ ok: true, bestMove: bestMove || undefined });
+      let afterFEN = '';
+      try {
+        if (bestMove) {
+          const b = parseUciMove(bestMove);
+          if (b) {
+            let ch = null;
+            try { ch = new Chess(startFen); } catch { ch = null; }
+            if (ch) {
+              const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
+              if (mv) afterFEN = ch.fen();
+            }
+          }
+        }
+      } catch {}
+      return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
     }
     if (String(puzzle.status || 'pending') === 'completed' && !practice) {
       return res.json({
@@ -7699,6 +7734,8 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
       ok,
       verdict, // 'best' | 'good' | 'blunder'
       dropPoints,
+      afterFEN: afterFen,
+      playedUci: parsed.uci,
       bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined
     });
   } catch (e) {
