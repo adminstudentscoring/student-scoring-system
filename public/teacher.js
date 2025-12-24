@@ -2344,6 +2344,7 @@ window.createParticleEffect = createParticleEffect;
 let currentShareStudentId = null;
 let currentShareDestination = 'dashboard';
 let currentShareStudentPublicLinkBase = '';
+let currentShareDestinationGroup = 'dashboard'; // 'dashboard' | 'application'
 
 function buildStudentPublicLink(baseLink, destination) {
     try {
@@ -2387,17 +2388,71 @@ function initShareDestinationTabs() {
     if (container.dataset.initialized === '1') return;
     container.dataset.initialized = '1';
 
-    container.querySelectorAll('.share-dest-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const dest = btn.getAttribute('data-share-dest') || 'dashboard';
-            currentShareDestination = dest;
-            container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
-            container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.add('btn-secondary'));
+    const appOptions = document.getElementById('shareApplicationOptions');
+
+    const setPrimaryActive = (destKey) => {
+        container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
+        container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.add('btn-secondary'));
+        const btn = container.querySelector(`[data-share-dest="${CSS.escape(String(destKey || 'dashboard'))}"]`);
+        if (btn) {
             btn.classList.remove('btn-secondary');
             btn.classList.add('btn-info');
-            updateShareLinkInput();
+        }
+    };
+
+    const setAppActive = (destKey) => {
+        if (!appOptions) return;
+        appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
+        appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
+        const btn = appOptions.querySelector(`[data-share-dest="${CSS.escape(String(destKey || ''))}"]`);
+        if (btn) {
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-info');
+        }
+    };
+
+    const showAppOptions = (show) => {
+        if (!appOptions) return;
+        appOptions.style.display = show ? 'block' : 'none';
+    };
+
+    container.querySelectorAll('.share-dest-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const dest = String(btn.getAttribute('data-share-dest') || 'dashboard');
+            if (dest === 'dashboard') {
+                currentShareDestinationGroup = 'dashboard';
+                currentShareDestination = 'dashboard';
+                showAppOptions(false);
+                setPrimaryActive('dashboard');
+                updateShareLinkInput();
+                return;
+            }
+            if (dest === 'application') {
+                currentShareDestinationGroup = 'application';
+                showAppOptions(true);
+                setPrimaryActive('application');
+                // Do NOT change the link until a sub-option is picked.
+                if (currentShareDestination !== 'dashboard') setAppActive(currentShareDestination);
+                return;
+            }
         });
     });
+
+    if (appOptions && appOptions.dataset.initialized !== '1') {
+        appOptions.dataset.initialized = '1';
+        appOptions.querySelectorAll('.share-app-dest').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const dest = String(btn.getAttribute('data-share-dest') || '');
+                if (!dest) return;
+                currentShareDestinationGroup = 'application';
+                currentShareDestination = dest;
+                showAppOptions(true);
+                setPrimaryActive('application');
+                setAppActive(dest);
+                updateShareLinkInput();
+            });
+        });
+    }
 }
 
 window.openShareModal = function(studentId) {
@@ -2412,6 +2467,7 @@ window.openShareModal = function(studentId) {
         // Initialize destination tabs + default selection
         initShareDestinationTabs();
         currentShareDestination = 'dashboard';
+        currentShareDestinationGroup = 'dashboard';
         const tabs = document.getElementById('shareDestinationTabs');
         if (tabs) {
             tabs.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
@@ -2421,6 +2477,12 @@ window.openShareModal = function(studentId) {
                 defaultBtn.classList.remove('btn-secondary');
                 defaultBtn.classList.add('btn-info');
             }
+        }
+        const appOptions = document.getElementById('shareApplicationOptions');
+        if (appOptions) {
+            appOptions.style.display = 'none';
+            appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
+            appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
         }
         
         // Set Link

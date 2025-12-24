@@ -369,9 +369,16 @@
                     <label>Share Destination:</label>
                     <div id="shareDestinationTabs" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button type="button" class="btn btn-secondary btn-small share-dest-tab active" data-share-dest="dashboard">Dashboard</button>
-                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_runningQueen">Game: Running Queen</button>
-                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_royalExchange">Game: Royal Exchange</button>
-                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_chessCom">Game: Chess.com</button>
+                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="application">Application</button>
+                    </div>
+                    <div id="shareApplicationOptions" style="display:none; margin-top:10px; padding:10px; border:1px solid #eee; border-radius:12px; background:#f9fafb;">
+                        <div style="font-weight:800; color:#111827; margin-bottom:8px;">Choose an application:</div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="game_runningQueen">Running Queen</button>
+                            <button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="game_royalExchange">Royal Exchange</button>
+                            <button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="game_chessCom">Chess.com</button>
+                        </div>
+                        <small style="color:#666;">Pick one to generate the link. (Dashboard link stays unchanged.)</small>
                     </div>
                     <small style="color:#666;">The link will open the student dashboard at the selected section.</small>
                 </div>

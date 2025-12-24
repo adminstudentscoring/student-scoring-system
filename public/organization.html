@@ -840,9 +840,16 @@
                     <label>Share Destination:</label>
                     <div id="shareDestinationTabs" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button type="button" class="btn btn-secondary btn-small share-dest-tab active" data-share-dest="dashboard">Dashboard</button>
-                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_runningQueen">Game: Running Queen</button>
-                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_royalExchange">Game: Royal Exchange</button>
-                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="game_chessCom">Game: Chess.com</button>
+                        <button type="button" class="btn btn-secondary btn-small share-dest-tab" data-share-dest="application">Application</button>
+                    </div>
+                    <div id="shareApplicationOptions" style="display:none; margin-top:10px; padding:10px; border:1px solid #eee; border-radius:12px; background:#f9fafb;">
+                        <div style="font-weight:800; color:#111827; margin-bottom:8px;">Choose an application:</div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="game_runningQueen">Running Queen</button>
+                            <button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="game_royalExchange">Royal Exchange</button>
+                            <button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="game_chessCom">Chess.com</button>
+                        </div>
+                        <small style="color:#666;">Pick one to generate the link. (Dashboard link stays unchanged.)</small>
                     </div>
                     <small style="color:#666;">The link will open the student dashboard at the selected section.</small>
                 </div>
@@ -2218,6 +2225,7 @@
         // Share Access Functions
         let currentShareStudentId = null;
         let currentShareDestination = 'dashboard';
+        let currentShareDestinationGroup = 'dashboard'; // 'dashboard' | 'application'
         let currentShareStudentPublicLinkBase = '';
 
         function buildStudentPublicLink(baseLink, destination) {
@@ -2262,17 +2270,70 @@
             if (container.dataset.initialized === '1') return;
             container.dataset.initialized = '1';
 
-            container.querySelectorAll('.share-dest-tab').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const dest = btn.getAttribute('data-share-dest') || 'dashboard';
-                    currentShareDestination = dest;
-                    container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
-                    container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.add('btn-secondary'));
+            const appOptions = document.getElementById('shareApplicationOptions');
+
+            const setPrimaryActive = (destKey) => {
+                container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
+                container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.add('btn-secondary'));
+                const btn = container.querySelector(`[data-share-dest="${CSS.escape(String(destKey || 'dashboard'))}"]`);
+                if (btn) {
                     btn.classList.remove('btn-secondary');
                     btn.classList.add('btn-info');
-                    updateShareLinkInput();
+                }
+            };
+
+            const setAppActive = (destKey) => {
+                if (!appOptions) return;
+                appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
+                appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
+                const btn = appOptions.querySelector(`[data-share-dest="${CSS.escape(String(destKey || ''))}"]`);
+                if (btn) {
+                    btn.classList.remove('btn-secondary');
+                    btn.classList.add('btn-info');
+                }
+            };
+
+            const showAppOptions = (show) => {
+                if (!appOptions) return;
+                appOptions.style.display = show ? 'block' : 'none';
+            };
+
+            container.querySelectorAll('.share-dest-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const dest = String(btn.getAttribute('data-share-dest') || 'dashboard');
+                    if (dest === 'dashboard') {
+                        currentShareDestinationGroup = 'dashboard';
+                        currentShareDestination = 'dashboard';
+                        showAppOptions(false);
+                        setPrimaryActive('dashboard');
+                        updateShareLinkInput();
+                        return;
+                    }
+                    if (dest === 'application') {
+                        currentShareDestinationGroup = 'application';
+                        showAppOptions(true);
+                        setPrimaryActive('application');
+                        if (currentShareDestination !== 'dashboard') setAppActive(currentShareDestination);
+                        return;
+                    }
                 });
             });
+
+            if (appOptions && appOptions.dataset.initialized !== '1') {
+                appOptions.dataset.initialized = '1';
+                appOptions.querySelectorAll('.share-app-dest').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const dest = String(btn.getAttribute('data-share-dest') || '');
+                        if (!dest) return;
+                        currentShareDestinationGroup = 'application';
+                        currentShareDestination = dest;
+                        showAppOptions(true);
+                        setPrimaryActive('application');
+                        setAppActive(dest);
+                        updateShareLinkInput();
+                    });
+                });
+            }
         }
 
         function openShareModal(studentId) {
@@ -2287,6 +2348,7 @@
                 // Initialize destination tabs + default selection
                 initShareDestinationTabs();
                 currentShareDestination = 'dashboard';
+                currentShareDestinationGroup = 'dashboard';
                 const tabs = document.getElementById('shareDestinationTabs');
                 if (tabs) {
                     tabs.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
@@ -2296,6 +2358,12 @@
                         defaultBtn.classList.remove('btn-secondary');
                         defaultBtn.classList.add('btn-info');
                     }
+                }
+                const appOptions = document.getElementById('shareApplicationOptions');
+                if (appOptions) {
+                    appOptions.style.display = 'none';
+                    appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
+                    appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
                 }
                 
                 // Set Link
