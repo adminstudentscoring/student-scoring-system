@@ -28,6 +28,7 @@ const HOPE_MATE_STAGE_PUZZLES_FILE = path.join(__dirname, process.env.HOPE_MATE_
 const VCP_CHESS_GAMES_FILE = path.join(__dirname, process.env.VCP_CHESS_GAMES_FILE || path.join(DATA_DIR, 'vcp-chess-games.jsonl'));
 const CHESSCOM_SETTINGS_FILE = path.join(__dirname, process.env.CHESSCOM_SETTINGS_FILE || path.join(DATA_DIR, 'chesscom-settings.json'));
 const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_FILE || path.join(DATA_DIR, 'blunders-puzzles.json'));
+const BLUNDERS_STATS_FILE = path.join(__dirname, process.env.BLUNDERS_STATS_FILE || path.join(DATA_DIR, 'blunders-stats.json'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -174,6 +175,13 @@ async function ensureDataDir() {
     await fs.access(BLUNDERS_PUZZLES_FILE);
   } catch {
     await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure Blunders stats file exists (cumulative analyzed games)
+  try {
+    await fs.access(BLUNDERS_STATS_FILE);
+  } catch {
+    await fs.writeFile(BLUNDERS_STATS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
   }
   
   // Ensure users file exists
@@ -325,6 +333,62 @@ async function writeBlundersPuzzles(puzzles) {
     console.error('Error writing blunders puzzles:', error);
     return false;
   }
+}
+
+// ===== Blunders: Stats (cumulative analyzed games) =====
+async function readBlundersStats() {
+  try {
+    const content = await fs.readFile(BLUNDERS_STATS_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
+    return (orgs && typeof orgs === 'object') ? orgs : {};
+  } catch (error) {
+    console.error('Error reading blunders stats:', error);
+    return {};
+  }
+}
+
+async function writeBlundersStats(orgs) {
+  try {
+    const clean = orgs && typeof orgs === 'object' ? orgs : {};
+    await fs.writeFile(BLUNDERS_STATS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing blunders stats:', error);
+    return false;
+  }
+}
+
+async function blundersMarkGamesAnalyzed(orgId, studentId, games) {
+  const oid = String(orgId || '');
+  const sid = String(studentId || '');
+  if (!oid || !sid) return { ok: false };
+  const list = Array.isArray(games) ? games : [];
+  const orgs = await readBlundersStats();
+  if (!orgs[oid] || typeof orgs[oid] !== 'object') orgs[oid] = {};
+  const org = orgs[oid];
+  if (!org[sid] || typeof org[sid] !== 'object') org[sid] = { analyzed: {}, analyzedCount: 0, lastSyncAt: null };
+  const st = org[sid];
+  if (!st.analyzed || typeof st.analyzed !== 'object') st.analyzed = {};
+  let added = 0;
+  for (const g of list) {
+    const key = String(g?.url || g?.uuid || '').trim();
+    if (!key) continue;
+    if (st.analyzed[key]) continue;
+    st.analyzed[key] = {
+      url: String(g?.url || ''),
+      uuid: String(g?.uuid || ''),
+      endTime: Number(g?.end_time || 0),
+      timeClass: String(g?.time_class || '')
+    };
+    added++;
+  }
+  st.analyzedCount = Object.keys(st.analyzed).length;
+  st.lastSyncAt = new Date().toISOString();
+  org[sid] = st;
+  orgs[oid] = org;
+  await writeBlundersStats(orgs);
+  return { ok: true, added, total: st.analyzedCount };
 }
 
 function parseUciMove(uci) {
@@ -484,6 +548,9 @@ async function syncBlundersForStudent(student) {
     const games = await chessComGetTodayGames(username, { studentId: sid });
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
     if (!games.length) return { ok: true, games: 0, added: 0 };
+
+    // Record analyzed games (cumulative) even if no blunders are found later.
+    try { await blundersMarkGamesAnalyzed(orgId, sid, games); } catch {}
 
     const puzzles = await readBlundersPuzzles();
     const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
@@ -6805,6 +6872,14 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
     const completed = mine.filter(p => String(p.status || '') === 'completed');
 
+    // Cumulative analyzed games count
+    let analyzedGamesTotal = 0;
+    try {
+      const orgs = await readBlundersStats();
+      const st = orgs?.[orgId]?.[String(student.id)] || null;
+      analyzedGamesTotal = Number(st?.analyzedCount || 0) || 0;
+    } catch {}
+
     return res.json({
       ok: true,
       student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
@@ -6827,6 +6902,7 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
           return st;
         })()
       },
+      stats: { analyzedGamesTotal },
       pending,
       completed,
       counts: { pending: pending.length, completed: completed.length, total: mine.length }
@@ -6842,7 +6918,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
   try {
     const { id, puzzleId } = req.params;
     const { password } = req.query;
-    const { moveUci, revealBest } = req.body || {};
+    const { moveUci, revealBest, practice } = req.body || {};
 
     const data = await readData();
     const student = data.students.find(s => s.id === id);
@@ -6876,7 +6952,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
       }
       return res.json({ ok: true, bestMove: bestMove || undefined });
     }
-    if (String(puzzle.status || 'pending') === 'completed') {
+    if (String(puzzle.status || 'pending') === 'completed' && !practice) {
       return res.json({
         ok: true,
         alreadyCompleted: true,
@@ -6936,32 +7012,34 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
       ok = false;
     }
 
-    // Persist attempts + completion
-    const attempts = Array.isArray(puzzle.attempts) ? puzzle.attempts : [];
-    attempts.push({
-      at: new Date().toISOString(),
-      moveUci: parsed.uci,
-      san: String(mv.san || ''),
-      bestMove,
-      bestCp,
-      userCp,
-      dropCp
-    });
-    puzzle.attempts = attempts;
+    if (!practice) {
+      // Persist attempts + completion
+      const attempts = Array.isArray(puzzle.attempts) ? puzzle.attempts : [];
+      attempts.push({
+        at: new Date().toISOString(),
+        moveUci: parsed.uci,
+        san: String(mv.san || ''),
+        bestMove,
+        bestCp,
+        userCp,
+        dropCp
+      });
+      puzzle.attempts = attempts;
 
-    if (ok) {
-      puzzle.status = 'completed';
-      puzzle.completedAt = new Date().toISOString();
+      if (ok) {
+        puzzle.status = 'completed';
+        puzzle.completedAt = new Date().toISOString();
+      }
+      // Keep best fields updated (useful for later UI)
+      puzzle.bestMoveUci = bestMove;
+      puzzle.bestCp = bestCp;
+      puzzle.lastUserMoveUci = parsed.uci;
+      puzzle.lastUserCp = userCp;
+      puzzle.lastDropCp = dropCp;
+
+      puzzles[idx] = puzzle;
+      await writeBlundersPuzzles(puzzles);
     }
-    // Keep best fields updated (useful for later UI)
-    puzzle.bestMoveUci = bestMove;
-    puzzle.bestCp = bestCp;
-    puzzle.lastUserMoveUci = parsed.uci;
-    puzzle.lastUserCp = userCp;
-    puzzle.lastDropCp = dropCp;
-
-    puzzles[idx] = puzzle;
-    await writeBlundersPuzzles(puzzles);
 
     return res.json({
       ok,
