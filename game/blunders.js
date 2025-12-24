@@ -23,8 +23,42 @@
     // Post-attempt flow control
     needsRefreshAfterModal: false,
     lastAttemptWasPendingSolve: false,
+    settingsTab: 'board', // 'board' | 'general'
     ui: { modalOpen: false, modalHtml: '' }
   };
+
+  const VCP_DEFAULTS = {
+    boardLight: '#f1f5f9',
+    boardDark: '#94a3b8'
+  };
+
+  function readBoardColors() {
+    try {
+      const light = String(localStorage.getItem('vcpBoardLight') || '') || VCP_DEFAULTS.boardLight;
+      const dark = String(localStorage.getItem('vcpBoardDark') || '') || VCP_DEFAULTS.boardDark;
+      return { light, dark };
+    } catch {
+      return { light: VCP_DEFAULTS.boardLight, dark: VCP_DEFAULTS.boardDark };
+    }
+  }
+
+  function applyBoardColors() {
+    const { light, dark } = readBoardColors();
+    try {
+      document.documentElement.style.setProperty('--vcp-board-light', light);
+      document.documentElement.style.setProperty('--vcp-board-dark', dark);
+    } catch {}
+  }
+
+  function setBoardColors({ light, dark }) {
+    const l = String(light || '').trim() || VCP_DEFAULTS.boardLight;
+    const d = String(dark || '').trim() || VCP_DEFAULTS.boardDark;
+    try {
+      localStorage.setItem('vcpBoardLight', l);
+      localStorage.setItem('vcpBoardDark', d);
+    } catch {}
+    applyBoardColors();
+  }
 
   function getPlayers() {
     const fromWindow = Array.isArray(window.blundersPlayers) ? window.blundersPlayers : null;
@@ -229,6 +263,9 @@
             <span class="bl-nav-left"><span class="bl-nav-icon">🧠</span>Review</span>
             <span class="bl-badge">${escapeHtml(String(completedCount))}</span>
           </button>
+          <button class="bl-nav-btn ${STATE.page === 'settings' ? 'active' : ''}" type="button" data-bl-nav="settings">
+            <span class="bl-nav-left"><span class="bl-nav-icon">⚙️</span>Settings</span>
+          </button>
         </div>
       </aside>
     `;
@@ -428,6 +465,61 @@
     `;
   }
 
+  function renderBoardPreview(light, dark) {
+    // Use the shared CSS variables for preview. (We also set them inline to show the chosen colors immediately.)
+    const squares = displaySquares(false);
+    return `
+      <div class="bl-board-preview" style="--vcp-board-light:${escapeHtml(light)}; --vcp-board-dark:${escapeHtml(dark)};">
+        ${squares.map((sq) => {
+          const isLight = !isDarkSquare(sq);
+          return `<div class="sq ${isLight ? 'light' : 'dark'}"></div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function renderSettingsPage() {
+    const tab = String(STATE.settingsTab || 'board');
+    const { light, dark } = readBoardColors();
+    return `
+      <div class="bl-card">
+        <div class="bl-title">Settings</div>
+        <div class="blunders-muted">Chess Board Setting: adjust board colors. General: coming soon.</div>
+
+        <div class="bl-settings-tabs" role="tablist" aria-label="Settings tabs">
+          <button class="bl-settings-tab-btn ${tab === 'board' ? 'active' : ''}" type="button" data-bl-settings-tab="board" role="tab" aria-selected="${tab === 'board' ? 'true' : 'false'}">Chess Board Setting</button>
+          <button class="bl-settings-tab-btn ${tab === 'general' ? 'active' : ''}" type="button" data-bl-settings-tab="general" role="tab" aria-selected="${tab === 'general' ? 'true' : 'false'}">General</button>
+        </div>
+
+        ${tab === 'board' ? `
+          <div class="bl-settings-panel" role="tabpanel" aria-label="Chess Board Setting">
+            <div class="bl-settings-grid">
+              <div class="bl-settings-row">
+                <label for="blBoardLightInput">Light squares</label>
+                <input id="blBoardLightInput" type="color" value="${escapeHtml(light)}" />
+              </div>
+              <div class="bl-settings-row">
+                <label for="blBoardDarkInput">Dark squares</label>
+                <input id="blBoardDarkInput" type="color" value="${escapeHtml(dark)}" />
+              </div>
+              <div class="bl-settings-row">
+                <button id="blBoardResetBtn" class="btn btn-secondary" type="button">Reset</button>
+              </div>
+            </div>
+            <div style="margin-top:12px;">
+              <div class="blunders-muted" style="margin-bottom:8px;">Preview</div>
+              ${renderBoardPreview(light, dark)}
+            </div>
+          </div>
+        ` : `
+          <div class="bl-settings-panel" role="tabpanel" aria-label="General">
+            <div class="blunders-muted">To be developed.</div>
+          </div>
+        `}
+      </div>
+    `;
+  }
+
   async function refreshData(opts = {}) {
     if (!STATE.me?.id) return;
     const statusEl = document.getElementById('blGlobalStatus');
@@ -607,7 +699,8 @@
     const content =
       STATE.page === 'home' ? renderHomePage() :
       STATE.page === 'blunder' ? renderBlunderPage() :
-      renderReviewPage();
+      STATE.page === 'review' ? renderReviewPage() :
+      renderSettingsPage();
 
     root.innerHTML = `
       <div class="bl-app">
@@ -634,6 +727,7 @@
       return;
     }
 
+    applyBoardColors();
     render();
     refreshData();
 
@@ -644,6 +738,19 @@
       if (nav) {
         const key = String(nav.getAttribute('data-bl-nav') || '');
         if (key) setPage(key);
+        return;
+      }
+
+      const setTab = t?.closest?.('[data-bl-settings-tab]');
+      if (setTab) {
+        STATE.settingsTab = String(setTab.getAttribute('data-bl-settings-tab') || 'board');
+        render();
+        return;
+      }
+
+      if (t?.closest?.('#blBoardResetBtn')) {
+        setBoardColors({ light: VCP_DEFAULTS.boardLight, dark: VCP_DEFAULTS.boardDark });
+        render();
         return;
       }
 
@@ -769,6 +876,20 @@
         setBlunderModePractice(pick);
         setPage('blunder');
         return;
+      }
+    });
+
+    root.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      if (t.id === 'blBoardLightInput' || t.id === 'blBoardDarkInput') {
+        const lightEl = document.getElementById('blBoardLightInput');
+        const darkEl = document.getElementById('blBoardDarkInput');
+        const light = String(lightEl?.value || '').trim() || VCP_DEFAULTS.boardLight;
+        const dark = String(darkEl?.value || '').trim() || VCP_DEFAULTS.boardDark;
+        setBoardColors({ light, dark });
+        // Re-render to refresh preview + input values
+        render();
       }
     });
   }
