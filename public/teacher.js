@@ -2346,27 +2346,36 @@ let currentShareDestination = 'dashboard';
 let currentShareStudentPublicLinkBase = '';
 let currentShareDestinationGroup = 'dashboard'; // 'dashboard' | 'application'
 
+// Shareable Application destinations (single source of truth for both link builder + UI).
+// Add a new entry here (and the student must support openStudentGame(openGame)).
+const SHARE_APP_DEST_ORDER = [
+    'game_vChessPlatform',
+    'game_chessCom',
+    'game_runningQueen',
+    'game_royalExchange',
+    'game_hopeMate',
+    'game_blunders'
+];
+
+const SHARE_APP_DEST_MAP = {
+    game_vChessPlatform: { label: 'V.Chess Platform', openGame: 'vChessPlatform' },
+    game_chessCom: { label: 'Chess.com', openGame: 'chessCom' },
+    game_runningQueen: { label: 'Running Queen', openGame: 'runningQueen' },
+    game_royalExchange: { label: 'Royal Exchange', openGame: 'royalExchange' },
+    game_hopeMate: { label: 'Hope Mate', openGame: 'hopeMate' },
+    game_blunders: { label: 'Blunders', openGame: 'blunders' }
+};
+
 function buildStudentPublicLink(baseLink, destination) {
     try {
         const url = new URL(baseLink, window.location.origin);
         if (destination === 'dashboard') {
             return url.toString();
         }
-        if (destination === 'game_runningQueen') {
+        const cfg = SHARE_APP_DEST_MAP[String(destination || '')];
+        if (cfg && cfg.openGame) {
             url.searchParams.set('openTab', 'game');
-            url.searchParams.set('openGame', 'runningQueen');
-            url.searchParams.set('autoStart', '1');
-            return url.toString();
-        }
-        if (destination === 'game_royalExchange') {
-            url.searchParams.set('openTab', 'game');
-            url.searchParams.set('openGame', 'royalExchange');
-            url.searchParams.set('autoStart', '1');
-            return url.toString();
-        }
-        if (destination === 'game_chessCom') {
-            url.searchParams.set('openTab', 'game');
-            url.searchParams.set('openGame', 'chessCom');
+            url.searchParams.set('openGame', String(cfg.openGame));
             url.searchParams.set('autoStart', '1');
             return url.toString();
         }
@@ -2389,6 +2398,7 @@ function initShareDestinationTabs() {
     container.dataset.initialized = '1';
 
     const appOptions = document.getElementById('shareApplicationOptions');
+    const appButtons = document.getElementById('shareApplicationOptionsButtons');
 
     const setPrimaryActive = (destKey) => {
         container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
@@ -2438,19 +2448,29 @@ function initShareDestinationTabs() {
         });
     });
 
+    // Build Application options dynamically (so new apps appear automatically when added to mapping).
+    if (appButtons && appButtons.dataset.built !== '1') {
+        appButtons.dataset.built = '1';
+        const keys = SHARE_APP_DEST_ORDER.filter(k => !!SHARE_APP_DEST_MAP[k]);
+        appButtons.innerHTML = keys.map((k) => {
+            const cfg = SHARE_APP_DEST_MAP[k];
+            return `<button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="${escapeHtml(k)}">${escapeHtml(cfg.label)}</button>`;
+        }).join('');
+    }
     if (appOptions && appOptions.dataset.initialized !== '1') {
         appOptions.dataset.initialized = '1';
-        appOptions.querySelectorAll('.share-app-dest').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const dest = String(btn.getAttribute('data-share-dest') || '');
-                if (!dest) return;
-                currentShareDestinationGroup = 'application';
-                currentShareDestination = dest;
-                showAppOptions(true);
-                setPrimaryActive('application');
-                setAppActive(dest);
-                updateShareLinkInput();
-            });
+        appOptions.addEventListener('click', (ev) => {
+            const t = ev.target;
+            const btn = t && t.closest ? t.closest('.share-app-dest') : null;
+            if (!btn) return;
+            const dest = String(btn.getAttribute('data-share-dest') || '');
+            if (!dest) return;
+            currentShareDestinationGroup = 'application';
+            currentShareDestination = dest;
+            showAppOptions(true);
+            setPrimaryActive('application');
+            setAppActive(dest);
+            updateShareLinkInput();
         });
     }
 }
@@ -2479,8 +2499,19 @@ window.openShareModal = function(studentId) {
             }
         }
         const appOptions = document.getElementById('shareApplicationOptions');
+        const appButtons = document.getElementById('shareApplicationOptionsButtons');
         if (appOptions) {
             appOptions.style.display = 'none';
+            // Ensure buttons exist (built in initShareDestinationTabs), and reset their visual state.
+            if (appButtons && appButtons.dataset.built !== '1') {
+                // If modal opened before init ran for some reason, ensure build now.
+                appButtons.dataset.built = '1';
+                const keys = SHARE_APP_DEST_ORDER.filter(k => !!SHARE_APP_DEST_MAP[k]);
+                appButtons.innerHTML = keys.map((k) => {
+                    const cfg = SHARE_APP_DEST_MAP[k];
+                    return `<button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="${escapeHtml(k)}">${escapeHtml(cfg.label)}</button>`;
+                }).join('');
+            }
             appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
             appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
         }
