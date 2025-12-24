@@ -5935,7 +5935,9 @@ app.put('/api/teachers/chesscom/settings', authenticateUser, authorizeRole('teac
     }
 
     const orgs = await readChessComSettings();
-    orgs[orgId] = clean;
+    const prev = (orgs && orgs[orgId] && typeof orgs[orgId] === 'object') ? orgs[orgId] : {};
+    // Merge updates so partial pushes won't wipe existing mappings.
+    orgs[orgId] = { ...prev, ...clean };
     const ok = await writeChessComSettings(orgs);
     if (!ok) return res.status(500).json({ error: 'Failed to save settings' });
     console.log('[chesscom] settings saved', { orgId, count: Object.keys(clean).length });

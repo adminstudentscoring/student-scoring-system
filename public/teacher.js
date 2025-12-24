@@ -1877,6 +1877,21 @@ function scheduleChessComSettingsSync() {
     }, 500);
 }
 
+function buildFullChessComSettingsSnapshot() {
+    const local = loadChessComSettings();
+    const all = Array.isArray(students) ? students : [];
+    const out = {};
+    for (const s of all) {
+        const sid = s && (s.id != null) ? String(s.id) : '';
+        if (!sid) continue;
+        const entry = local[sid] || {};
+        const chessId = (entry.chessId != null ? String(entry.chessId) : getDefaultChessComId(s)).trim();
+        if (!chessId) continue;
+        out[sid] = { chessId };
+    }
+    return out;
+}
+
 function loadChessComSettings() {
     try {
         const raw = localStorage.getItem(CHESS_COM_SETTINGS_KEY);
@@ -2015,8 +2030,24 @@ document.getElementById('chessComSettingsSaveBtn')?.addEventListener('click', as
     const btn = document.getElementById('chessComSettingsSaveBtn');
     if (btn) btn.disabled = true;
     try {
-        const settings = loadChessComSettings();
-        const out = await pushChessComSettingsToServer(settings);
+        // Save should persist ALL students (including defaults shown in UI),
+        // not only the ones the teacher manually edited.
+        const full = buildFullChessComSettingsSnapshot();
+
+        // Keep local storage in sync (preserve passwords while ensuring chessId is present for all).
+        try {
+            const local = loadChessComSettings();
+            const mergedLocal = { ...(local || {}) };
+            for (const [sid, v] of Object.entries(full)) {
+                if (!mergedLocal[sid]) mergedLocal[sid] = {};
+                mergedLocal[sid].chessId = v.chessId;
+            }
+            saveChessComSettings(mergedLocal);
+        } catch (e) {
+            // ignore
+        }
+
+        const out = await pushChessComSettingsToServer(full);
         if (out.ok) {
             const c = Number(out?.data?.count || 0);
             const orgId = out?.data?.orgId ? String(out.data.orgId) : '';
