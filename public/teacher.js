@@ -2019,7 +2019,8 @@ document.getElementById('chessComSettingsSaveBtn')?.addEventListener('click', as
         const out = await pushChessComSettingsToServer(settings);
         if (out.ok) {
             const c = Number(out?.data?.count || 0);
-            showNotification(`Chess.com settings saved to server. (${c} students)`, 'success');
+            const orgId = out?.data?.orgId ? String(out.data.orgId) : '';
+            showNotification(`Chess.com settings saved to server. (${c} students)${orgId ? ` · org=${orgId}` : ''}`, 'success');
         } else {
             showNotification(`Failed to save Chess.com settings to server. (HTTP ${out.status || 0})`, 'error');
         }

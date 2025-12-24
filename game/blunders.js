@@ -102,7 +102,11 @@
         <div style="border:1px dashed #e5e7eb; border-radius:12px; padding:10px; margin:10px 0;">
           <div style="font-weight:900; color:#111827; margin-bottom:6px;">Debug</div>
           <div class="blunders-muted">HK day: <strong>${escapeHtml(String(dbg.hkDay || ''))}</strong></div>
+          <div class="blunders-muted">Org ID: <strong>${escapeHtml(String(dbg.orgId || ''))}</strong></div>
+          <div class="blunders-muted">Student internal ID: <strong>${escapeHtml(String(dbg.studentInternalId || ''))}</strong></div>
           <div class="blunders-muted">Chess.com username (server): <strong>${escapeHtml(String(dbg.chessComUsername || ''))}</strong></div>
+          <div class="blunders-muted">Org settings count: <strong>${escapeHtml(String(dbg.orgSettingsCount ?? ''))}</strong></div>
+          <div class="blunders-muted">Has mapping for this student: <strong>${escapeHtml(String(dbg.hasStudentKey ?? ''))}</strong></div>
           <div class="blunders-muted">Today rapid+blitz games found: <strong>${escapeHtml(String(dbg.gamesTodayRapidBlitz ?? ''))}</strong></div>
           ${dbg.gamesTodayErr ? `<div class="blunders-muted" style="color:#b91c1c;">Fetch error: ${escapeHtml(String(dbg.gamesTodayErr))}</div>` : ``}
         </div>

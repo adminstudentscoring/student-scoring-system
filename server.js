@@ -6693,6 +6693,10 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     const orgId = String(student.organizationId || '');
     // Diagnostics (fast): do we have chess.com username on server? how many games found today?
     const chessComUsername = await getChessComUsernameForStudent(orgId, student.id);
+    const orgsAll = await readChessComSettings();
+    const orgSettings = (orgsAll && orgsAll[orgId] && typeof orgsAll[orgId] === 'object') ? orgsAll[orgId] : {};
+    const orgSettingsCount = orgSettings ? Object.keys(orgSettings).length : 0;
+    const hasStudentKey = !!(orgSettings && Object.prototype.hasOwnProperty.call(orgSettings, String(student.id)));
     let gamesToday = 0;
     let gamesTodayErr = null;
     if (chessComUsername) {
@@ -6719,6 +6723,8 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
         orgId: orgId || null,
         studentInternalId: String(student.id || ''),
         chessComUsername: chessComUsername || null,
+        orgSettingsCount,
+        hasStudentKey,
         gamesTodayRapidBlitz: gamesToday,
         gamesTodayErr
       },
