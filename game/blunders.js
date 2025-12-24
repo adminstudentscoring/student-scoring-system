@@ -98,6 +98,7 @@
       if (!listEl) return;
 
       const dbg = data?.debug || {};
+      const sync = dbg?.sync || null;
       const dbgHtml = `
         <div style="border:1px dashed #e5e7eb; border-radius:12px; padding:10px; margin:10px 0;">
           <div style="font-weight:900; color:#111827; margin-bottom:6px;">Debug</div>
@@ -109,6 +110,13 @@
           <div class="blunders-muted">Has mapping for this student: <strong>${escapeHtml(String(dbg.hasStudentKey ?? ''))}</strong></div>
           <div class="blunders-muted">Today rapid+blitz games found: <strong>${escapeHtml(String(dbg.gamesTodayRapidBlitz ?? ''))}</strong></div>
           ${dbg.gamesTodayErr ? `<div class="blunders-muted" style="color:#b91c1c;">Fetch error: ${escapeHtml(String(dbg.gamesTodayErr))}</div>` : ``}
+          ${sync ? `
+            <div class="blunders-muted" style="margin-top:8px;">Analysis: <strong>${escapeHtml(sync.running ? 'running' : 'idle')}</strong> · stage: <strong>${escapeHtml(String(sync.stage || ''))}</strong></div>
+            <div class="blunders-muted">games fetched/processed: <strong>${escapeHtml(String(sync.gamesFetched ?? ''))}</strong> / <strong>${escapeHtml(String(sync.gamesProcessed ?? ''))}</strong></div>
+            <div class="blunders-muted">student plies processed: <strong>${escapeHtml(String(sync.pliesProcessed ?? ''))}</strong> · blunders added: <strong>${escapeHtml(String(sync.blundersAdded ?? ''))}</strong></div>
+            <div class="blunders-muted">updated: <strong>${escapeHtml(String(sync.updatedAt || ''))}</strong></div>
+            ${sync.lastError ? `<div class="blunders-muted" style="color:#b91c1c;">Engine/parse error: ${escapeHtml(String(sync.lastError))}</div>` : ``}
+          ` : ``}
         </div>
       `;
 

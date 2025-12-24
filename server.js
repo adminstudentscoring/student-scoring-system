@@ -352,6 +352,7 @@ const BLUNDERS_MAX_GAMES_PER_DAY = 10;
 const BLUNDERS_DROP_POINTS = 1.0; // > 1.0 is blunder
 const blundersLastStudentSync = new Map(); // studentId -> ms
 const blundersStudentLocks = new Map(); // studentId -> Promise
+const blundersSyncState = new Map(); // studentId -> { running, startedAt, updatedAt, finishedAt, stage, gamesFetched, gamesProcessed, pliesProcessed, blundersAdded, lastError }
 
 async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
   const ac = new AbortController();
@@ -423,27 +424,40 @@ async function syncBlundersForStudent(student) {
   // Throttle: at most once per hour per student (for GET auto-refresh)
   const now = Date.now();
   const last = blundersLastStudentSync.get(sid) || 0;
-  if (now - last < 60 * 60 * 1000) return { ok: true, skipped: true };
+  if (now - last < 60 * 60 * 1000) return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
 
   if (blundersStudentLocks.has(sid)) return blundersStudentLocks.get(sid);
 
   const task = (async () => {
     blundersLastStudentSync.set(sid, now);
+    blundersSyncState.set(sid, {
+      running: true,
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      finishedAt: null,
+      stage: 'init',
+      gamesFetched: 0,
+      gamesProcessed: 0,
+      pliesProcessed: 0,
+      blundersAdded: 0,
+      lastError: null
+    });
     const orgId = String(student.organizationId || '');
     if (!orgId) return { ok: false, reason: 'missing org' };
 
-    const orgs = await readChessComSettings();
-    const orgSettings = orgs && orgs[orgId] ? orgs[orgId] : {};
-    const entry = orgSettings && orgSettings[sid] ? orgSettings[sid] : null;
-    const username = String(entry?.chessId || '').trim();
+    const username = await getChessComUsernameForStudent(orgId, sid);
     if (!username) return { ok: false, reason: 'missing chess.com username' };
 
+    blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
     const games = await chessComGetTodayGames(username);
+    blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
     if (!games.length) return { ok: true, games: 0, added: 0 };
 
     const puzzles = await readBlundersPuzzles();
     const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
     let added = 0;
+    let gamesProcessed = 0;
+    let pliesProcessed = 0;
 
     for (const game of games) {
       const pgn = String(game.pgn || '');
@@ -474,6 +488,15 @@ async function syncBlundersForStudent(student) {
         if (!applied) break;
 
         if (turn !== studentColor) continue; // only student's moves
+        pliesProcessed++;
+        if (pliesProcessed % 6 === 0) {
+          blundersSyncState.set(sid, {
+            ...(blundersSyncState.get(sid) || {}),
+            pliesProcessed,
+            blundersAdded: added,
+            updatedAt: new Date().toISOString()
+          });
+        }
 
         const afterFen = replay.fen();
         // Evaluate best at beforeFen (student to move)
@@ -515,16 +538,44 @@ async function syncBlundersForStudent(student) {
         });
         added++;
       }
+      gamesProcessed++;
+      blundersSyncState.set(sid, {
+        ...(blundersSyncState.get(sid) || {}),
+        gamesProcessed,
+        pliesProcessed,
+        blundersAdded: added,
+        updatedAt: new Date().toISOString()
+      });
     }
 
     if (added) await writeBlundersPuzzles(puzzles);
-    return { ok: true, games: games.length, added };
+    return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed };
   })().finally(() => {
     blundersStudentLocks.delete(sid);
+    const st = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, {
+      ...st,
+      running: false,
+      stage: 'done',
+      updatedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString()
+    });
   });
 
   blundersStudentLocks.set(sid, task);
-  return task;
+  return task.catch((e) => {
+    const msg = String(e?.message || e);
+    const st = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, {
+      ...st,
+      running: false,
+      stage: 'error',
+      lastError: msg,
+      updatedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString()
+    });
+    throw e;
+  });
 }
 
 // ===== Blunders: Stockfish runner (spawn node + wasm engine JS) =====
@@ -6680,7 +6731,7 @@ app.get('/api/public/students/:id/vcp-token', async (req, res) => {
 app.get('/api/public/students/:id/blunders', async (req, res) => {
   try {
     const { id } = req.params;
-    const { password } = req.query;
+    const { password, force } = req.query;
 
     const data = await readData();
     const student = data.students.find(s => s.id === id);
@@ -6711,6 +6762,11 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     }
 
     // Best-effort background sync (poll Chess.com) when student opens Blunders
+    try {
+      if (String(force || '') === '1') {
+        blundersLastStudentSync.delete(String(student.id));
+      }
+    } catch {}
     syncBlundersForStudent(student).catch((e) => console.warn('blunders sync failed:', e));
     const puzzles = await readBlundersPuzzles();
     const mine = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.studentId || '') === String(student.id));
@@ -6728,7 +6784,8 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
         orgSettingsCount,
         hasStudentKey,
         gamesTodayRapidBlitz: gamesToday,
-        gamesTodayErr
+        gamesTodayErr,
+        sync: (blundersSyncState.get(String(student.id)) || null)
       },
       pending,
       completed,
