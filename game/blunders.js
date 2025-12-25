@@ -59,11 +59,13 @@
       blunderMoveUci: '',
       blunderVerdict: '',
       blunderBestMoveUci: '',
+      blunderBestOrigin: '', // '' | 'attempt' | 'revealed'
       // Master game
       masterFen: '',
       masterMoveUci: '',
       masterVerdict: '',
-      masterBestMoveUci: ''
+      masterBestMoveUci: '',
+      masterBestOrigin: '' // '' | 'attempt' | 'revealed'
     },
     ui: { modalOpen: false, modalHtml: '' }
   };
@@ -591,13 +593,11 @@
                 <div class="blunders-muted" style="margin-top:10px;">Click a piece, then click a target square.</div>
                 ${STATE.mode === 'pending' ? `
                   <div class="bl-btn-row cols-3">
-                    <button class="btn btn-secondary" type="button" data-bl-reveal>Reveal best</button>
                     <button class="btn btn-secondary" type="button" data-bl-prev ${STATE.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
                     <button class="btn btn-secondary" type="button" data-bl-next ${STATE.currentIndex >= pendingCount - 1 ? 'disabled' : ''}>Next</button>
                   </div>
                 ` : `
                   <div class="bl-btn-row cols-2">
-                    <button class="btn btn-secondary" type="button" data-bl-reveal>Reveal best</button>
                     <button class="btn btn-secondary" type="button" data-bl-back-review>Back to Review</button>
                   </div>
                 `}
@@ -808,7 +808,6 @@
                   ${puzzle.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(puzzle.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(puzzle.gameUrl))}</a></div>` : ''}
                   <div class="blunders-muted" style="margin-top:10px;">Click a piece, then click a target square.</div>
                   <div class="bl-btn-row cols-3">
-                    <button class="btn btn-secondary" type="button" data-bl-master-reveal>Reveal best</button>
                     <button class="btn btn-secondary" type="button" data-bl-master-prev ${STATE.master.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
                     <button class="btn btn-secondary" type="button" data-bl-master-next ${STATE.master.currentIndex >= (STATE.master.pending.length - 1) ? 'disabled' : ''}>Next</button>
                   </div>
@@ -1269,11 +1268,13 @@
       STATE.uiBoard.masterVerdict = '';
       STATE.uiBoard.masterMoveUci = '';
       STATE.uiBoard.masterBestMoveUci = '';
+      STATE.uiBoard.masterBestOrigin = '';
       STATE.uiBoard.masterFen = '';
     } else {
       STATE.uiBoard.blunderVerdict = '';
       STATE.uiBoard.blunderMoveUci = '';
       STATE.uiBoard.blunderBestMoveUci = '';
+      STATE.uiBoard.blunderBestOrigin = '';
       STATE.uiBoard.blunderFen = '';
     }
   }
@@ -1283,6 +1284,7 @@
     const verdict = String(isMaster ? STATE.uiBoard.masterVerdict : STATE.uiBoard.blunderVerdict);
     const moveUci = String(isMaster ? STATE.uiBoard.masterMoveUci : STATE.uiBoard.blunderMoveUci);
     const bestUci = String(isMaster ? STATE.uiBoard.masterBestMoveUci : STATE.uiBoard.blunderBestMoveUci);
+    const origin = String(isMaster ? STATE.uiBoard.masterBestOrigin : STATE.uiBoard.blunderBestOrigin);
 
     const title =
       verdict === 'best' ? 'Best Move' :
@@ -1307,7 +1309,10 @@
     const canShowBest = verdict === 'good' || verdict === 'blunder' || !verdict;
     const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
     const retryBtn = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${isMaster ? 'master' : 'blunder'}">Retry</button>`;
-    const nextBtn = verdict === 'best' ? `<button class="btn btn-secondary" type="button" data-bl-inline-next="${isMaster ? 'master' : 'blunder'}">${isMaster ? 'Next' : (STATE.mode === 'practice' ? 'Next (Random)' : 'Next')}</button>` : '';
+    // Next is only shown when the player FOUND the best move (not when best move was revealed).
+    const nextBtn = (verdict === 'best' && origin === 'attempt')
+      ? `<button class="btn btn-secondary" type="button" data-bl-inline-next="${isMaster ? 'master' : 'blunder'}">${isMaster ? 'Next' : (STATE.mode === 'practice' ? 'Next (Random)' : 'Next')}</button>`
+      : '';
 
     return `
       <div class="bl-card bl-inline-result" style="box-shadow:none; margin-top:12px;">
@@ -1357,6 +1362,7 @@
         STATE.uiBoard.blunderVerdict = String(out.verdict || '');
         STATE.uiBoard.blunderMoveUci = String(out.playedUci || uci || '');
         STATE.uiBoard.blunderFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
+        STATE.uiBoard.blunderBestOrigin = 'attempt';
         // For GOOD/BEST on pending: allow retry (practice) or show best; do not auto-refresh.
         if (!isPractice && (out.verdict === 'good' || out.verdict === 'best')) {
           STATE.lastAttemptWasPendingSolve = true;
@@ -1367,6 +1373,7 @@
         STATE.uiBoard.blunderVerdict = 'blunder';
         STATE.uiBoard.blunderMoveUci = String(uci || '');
         STATE.uiBoard.blunderFen = String(puzzle.startFEN || '');
+        STATE.uiBoard.blunderBestOrigin = 'attempt';
         STATE.lastAttemptWasPendingSolve = false;
       }
     } catch (e) {
@@ -1476,6 +1483,7 @@
         STATE.uiBoard.blunderMoveUci = bm;
       }
       STATE.uiBoard.blunderVerdict = bm ? 'best' : '';
+      STATE.uiBoard.blunderBestOrigin = 'revealed';
       if (!bm) setMessage(engErr ? `Best move not available (${engErr})` : 'Best move not available yet.');
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
@@ -1502,10 +1510,12 @@
         STATE.uiBoard.masterVerdict = String(out.verdict || '');
         STATE.uiBoard.masterMoveUci = String(out.playedUci || uci || '');
         STATE.uiBoard.masterFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
+        STATE.uiBoard.masterBestOrigin = 'attempt';
       } else {
         STATE.uiBoard.masterVerdict = 'blunder';
         STATE.uiBoard.masterMoveUci = String(uci || '');
         STATE.uiBoard.masterFen = String(puzzle.startFEN || '');
+        STATE.uiBoard.masterBestOrigin = 'attempt';
       }
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
@@ -1530,6 +1540,7 @@
         STATE.uiBoard.masterMoveUci = bm;
       }
       STATE.uiBoard.masterVerdict = bm ? 'best' : '';
+      STATE.uiBoard.masterBestOrigin = 'revealed';
       if (!bm && engErr) setMasterMessage(`Best move not available (${engErr})`);
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
@@ -1833,15 +1844,7 @@
         return;
       }
 
-      if (t?.closest?.('[data-bl-reveal]')) {
-        revealBestMove();
-        return;
-      }
-
-      if (t?.closest?.('[data-bl-master-reveal]')) {
-        revealMasterBestMove();
-        return;
-      }
+      // Reveal buttons removed (use "Show best move" in the Result panel instead).
 
       const inlineBest = t?.closest?.('[data-bl-inline-best]');
       if (inlineBest) {
