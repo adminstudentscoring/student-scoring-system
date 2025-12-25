@@ -31,6 +31,7 @@ const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_
 const BLUNDERS_STATS_FILE = path.join(__dirname, process.env.BLUNDERS_STATS_FILE || path.join(DATA_DIR, 'blunders-stats.json'));
 const BLUNDERS_SETTINGS_FILE = path.join(__dirname, process.env.BLUNDERS_SETTINGS_FILE || path.join(DATA_DIR, 'blunders-settings.json'));
 const BLUNDERS_MASTER_PROGRESS_FILE = path.join(__dirname, process.env.BLUNDERS_MASTER_PROGRESS_FILE || path.join(DATA_DIR, 'blunders-master-progress.json'));
+const CHESSCOM_RATINGS_FILE = path.join(__dirname, process.env.CHESSCOM_RATINGS_FILE || path.join(DATA_DIR, 'chesscom-ratings.json'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -198,6 +199,13 @@ async function ensureDataDir() {
     await fs.access(BLUNDERS_MASTER_PROGRESS_FILE);
   } catch {
     await fs.writeFile(BLUNDERS_MASTER_PROGRESS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure Chess.com ratings cache exists (daily refresh)
+  try {
+    await fs.access(CHESSCOM_RATINGS_FILE);
+  } catch {
+    await fs.writeFile(CHESSCOM_RATINGS_FILE, JSON.stringify({ orgs: {}, meta: { lastRunHkDay: null, lastRunAt: null } }, null, 2), 'utf8');
   }
   
   // Ensure users file exists
@@ -517,6 +525,135 @@ async function writeBlundersMasterProgress(orgs) {
   }
 }
 
+// ===== Chess.com ratings cache (daily refresh) =====
+const CHESSCOM_RATINGS_REFRESH_HK_HOUR = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_HOUR || 5); // default 05:00 HK
+const CHESSCOM_RATINGS_REFRESH_HK_MIN = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_MIN || 0);
+
+async function readChessComRatings() {
+  try {
+    const content = await fs.readFile(CHESSCOM_RATINGS_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
+    const meta = data && typeof data === 'object' ? (data.meta || {}) : {};
+    return { orgs: (orgs && typeof orgs === 'object') ? orgs : {}, meta: (meta && typeof meta === 'object') ? meta : {} };
+  } catch (error) {
+    console.error('Error reading chesscom ratings:', error);
+    return { orgs: {}, meta: {} };
+  }
+}
+
+async function writeChessComRatings(orgs, meta) {
+  try {
+    const cleanOrgs = orgs && typeof orgs === 'object' ? orgs : {};
+    const cleanMeta = meta && typeof meta === 'object' ? meta : {};
+    await fs.writeFile(CHESSCOM_RATINGS_FILE, JSON.stringify({ orgs: cleanOrgs, meta: cleanMeta }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing chesscom ratings:', error);
+    return false;
+  }
+}
+
+function pickChessComRating(stats) {
+  // Prefer rapid, then blitz.
+  const r = Number(stats?.chess_rapid?.last?.rating);
+  if (Number.isFinite(r) && r > 0) return { rating: r, source: 'rapid' };
+  const b = Number(stats?.chess_blitz?.last?.rating);
+  if (Number.isFinite(b) && b > 0) return { rating: b, source: 'blitz' };
+  return { rating: null, source: null };
+}
+
+async function fetchChessComStats(username) {
+  const u = String(username || '').trim();
+  if (!u) return { ok: false, status: 0, data: { error: 'missing username' } };
+  const url = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/stats`;
+  return await fetchJsonWithTimeout(url, 15000);
+}
+
+async function getCachedChessComRating(orgId, studentId, chessId) {
+  const oid = String(orgId || '');
+  const sid = String(studentId || '');
+  const cid = String(chessId || '').trim();
+  if (!oid || !sid || !cid) return { rating: null, source: null, updatedAt: null };
+  const { orgs } = await readChessComRatings();
+  const org = orgs[oid] && typeof orgs[oid] === 'object' ? orgs[oid] : {};
+  const ent = org[sid] && typeof org[sid] === 'object' ? org[sid] : null;
+  if (!ent || String(ent.chessId || '') !== cid) return { rating: null, source: null, updatedAt: null };
+  return { rating: Number(ent.rating ?? null), source: ent.source || null, updatedAt: ent.updatedAt || null };
+}
+
+async function refreshChessComRatingsForOrg(orgId) {
+  const oid = String(orgId || '');
+  if (!oid) return { ok: false, updated: 0 };
+  const data = await readData();
+  const students = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === oid) : [];
+  const orgSettings = await getOrgBlundersSettings(oid);
+  // Use chesscom settings mapping (studentId -> chessId)
+  const chessSettingsAll = await readChessComSettings();
+  const mapping = (chessSettingsAll && chessSettingsAll[oid] && typeof chessSettingsAll[oid] === 'object') ? chessSettingsAll[oid] : {};
+
+  const { orgs, meta } = await readChessComRatings();
+  if (!orgs[oid] || typeof orgs[oid] !== 'object') orgs[oid] = {};
+  const bucket = orgs[oid];
+
+  let updated = 0;
+  for (const s of students) {
+    const sid = String(s.id || '');
+    const chessId = String(mapping?.[sid]?.chessId || '').trim();
+    if (!chessId) continue;
+    const resp = await fetchChessComStats(chessId);
+    if (!resp.ok) continue;
+    const picked = pickChessComRating(resp.data);
+    bucket[sid] = {
+      chessId,
+      rating: picked.rating,
+      source: picked.source,
+      updatedAt: new Date().toISOString()
+    };
+    updated++;
+  }
+  orgs[oid] = bucket;
+  meta.lastRunAt = new Date().toISOString();
+  meta.lastRunHkDay = todayHkKey();
+  await writeChessComRatings(orgs, meta);
+  return { ok: true, updated };
+}
+
+function computeNextRatingsRunIso() {
+  const now = hkNow();
+  // Build next run in HK date space, then convert back to UTC ISO via subtracting offset.
+  let y = now.y, m = now.m, d = now.d;
+  const afterToday =
+    (now.hh > CHESSCOM_RATINGS_REFRESH_HK_HOUR) ||
+    (now.hh === CHESSCOM_RATINGS_REFRESH_HK_HOUR && now.mm >= CHESSCOM_RATINGS_REFRESH_HK_MIN);
+  if (afterToday) {
+    const t = new Date(Date.UTC(y, m - 1, d) + 24 * 3600 * 1000);
+    y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
+  }
+  const runUtcMs = Date.UTC(y, m - 1, d, CHESSCOM_RATINGS_REFRESH_HK_HOUR, CHESSCOM_RATINGS_REFRESH_HK_MIN) - HK_OFFSET_SEC * 1000;
+  return new Date(runUtcMs).toISOString();
+}
+
+async function maybeRunChessComRatingsRefreshAllOrgs() {
+  const { meta } = await readChessComRatings();
+  const hk = hkNow();
+  const hkDay = todayHkKey();
+  const alreadyRanToday = String(meta?.lastRunHkDay || '') === hkDay;
+  const isAfterTarget =
+    (hk.hh > CHESSCOM_RATINGS_REFRESH_HK_HOUR) ||
+    (hk.hh === CHESSCOM_RATINGS_REFRESH_HK_HOUR && hk.mm >= CHESSCOM_RATINGS_REFRESH_HK_MIN);
+  if (alreadyRanToday || !isAfterTarget) return { ok: true, skipped: true };
+
+  // Run refresh for all orgs that have mappings.
+  const chessSettingsAll = await readChessComSettings();
+  const orgs = chessSettingsAll && chessSettingsAll.orgs ? chessSettingsAll.orgs : chessSettingsAll; // backward compatibility
+  const orgIds = orgs && typeof orgs === 'object' ? Object.keys(orgs) : [];
+  for (const oid of orgIds) {
+    await refreshChessComRatingsForOrg(oid).catch(() => {});
+  }
+  return { ok: true, ran: true };
+}
+
 function parseUciMove(uci) {
   const s = String(uci || '').trim().toLowerCase();
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(s)) return null;
@@ -571,6 +708,25 @@ function hkDayKeyFromEpochSec(sec) {
 function todayHkKey() {
   const nowSec = Math.floor(Date.now() / 1000);
   return hkDayKeyFromEpochSec(nowSec);
+}
+
+function hkNow() {
+  // Create a Date object representing HK local time (using UTC math, since HK has no DST).
+  const d = new Date(Date.now() + HK_OFFSET_SEC * 1000);
+  return {
+    y: d.getUTCFullYear(),
+    m: d.getUTCMonth() + 1,
+    d: d.getUTCDate(),
+    hh: d.getUTCHours(),
+    mm: d.getUTCMinutes(),
+    ss: d.getUTCSeconds()
+  };
+}
+
+function pad2(n) { return String(Number(n) || 0).padStart(2, '0'); }
+
+function formatHkTime(hh, mm) {
+  return `${pad2(hh)}:${pad2(mm)} HK`;
 }
 
 async function chessComGetGamesForHkDay(username, opts = {}) {
@@ -6504,6 +6660,8 @@ app.get('/api/teachers/blunders/students-summary', authenticateUser, authorizeRo
     const orgsStats = await readBlundersStats();
     const statsOrg = orgsStats?.[orgId] || {};
     const settings = await getOrgBlundersSettings(orgId);
+    const chessSettings = await readChessComSettings();
+    const chessMap = (chessSettings && chessSettings[orgId] && typeof chessSettings[orgId] === 'object') ? chessSettings[orgId] : {};
 
     const out = students.map((s) => {
       const sid = String(s.id || '');
@@ -6512,11 +6670,15 @@ app.get('/api/teachers/blunders/students-summary', authenticateUser, authorizeRo
       const completed = mine.filter(p => String(p.status || '') === 'completed').length;
       const analyzedGamesTotal = Number(statsOrg?.[sid]?.analyzedCount || 0) || 0;
       const cfg = (settings.student && settings.student[sid]) ? settings.student[sid] : {};
+      const chessId = String(chessMap?.[sid]?.chessId || '').trim();
       return {
         id: sid,
         name: String(s.name || ''),
         studentId: String(s.studentId || ''),
-        chessComUsername: null, // UI can resolve via chesscom/settings if needed
+        chessComUsername: chessId || null,
+        chessComRating: null,
+        chessComRatingSource: null,
+        chessComRatingUpdatedAt: null,
         counts: { pending, completed, total: pending + completed },
         analyzedGamesTotal,
         config: {
@@ -6525,7 +6687,31 @@ app.get('/api/teachers/blunders/students-summary', authenticateUser, authorizeRo
         }
       };
     });
-    return res.json({ ok: true, orgId, students: out });
+
+    // Attach cached ratings (daily refresh)
+    try {
+      const { orgs, meta } = await readChessComRatings();
+      const bucket = (orgs && orgs[orgId] && typeof orgs[orgId] === 'object') ? orgs[orgId] : {};
+      for (const s of out) {
+        const sid = String(s.id || '');
+        const ent = bucket[sid] && typeof bucket[sid] === 'object' ? bucket[sid] : null;
+        if (ent && String(ent.chessId || '') === String(s.chessComUsername || '')) {
+          s.chessComRating = (ent.rating === null || ent.rating === undefined) ? null : Number(ent.rating);
+          s.chessComRatingSource = ent.source || null;
+          s.chessComRatingUpdatedAt = ent.updatedAt || null;
+        }
+      }
+      const schedule = {
+        time: formatHkTime(CHESSCOM_RATINGS_REFRESH_HK_HOUR, CHESSCOM_RATINGS_REFRESH_HK_MIN),
+        lastRunAt: meta?.lastRunAt || null,
+        lastRunHkDay: meta?.lastRunHkDay || null,
+        nextRunAt: computeNextRatingsRunIso()
+      };
+      return res.json({ ok: true, orgId, students: out, ratingsSchedule: schedule });
+    } catch {
+      const schedule = { time: formatHkTime(CHESSCOM_RATINGS_REFRESH_HK_HOUR, CHESSCOM_RATINGS_REFRESH_HK_MIN), lastRunAt: null, lastRunHkDay: null, nextRunAt: computeNextRatingsRunIso() };
+      return res.json({ ok: true, orgId, students: out, ratingsSchedule: schedule });
+    }
   } catch (e) {
     console.error('GET /api/teachers/blunders/students-summary error:', e);
     return res.status(500).json({ error: 'Failed to load students summary' });
@@ -13874,6 +14060,15 @@ async function startServer() {
     console.log(`Environment: ${NODE_ENV}`);
     console.log(`Data file: ${DATA_FILE}`);
   });
+
+  // Daily Chess.com ratings refresh (HK time). Safe + lightweight (cached).
+  // - Runs after the configured HK time once per HK day.
+  // - Also safe to call on-demand via teacher UI (we use cached values there).
+  try {
+    setInterval(() => {
+      maybeRunChessComRatingsRefreshAllOrgs().catch(() => {});
+    }, 5 * 60 * 1000);
+  } catch {}
 
   // Make wss available globally for broadcast
   global.wss = wss;

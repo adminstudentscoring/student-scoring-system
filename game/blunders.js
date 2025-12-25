@@ -45,7 +45,13 @@
       masters: [],
       masterConfig: { maxGamesPerDay: 10, thresholdPoints: 1.0 },
       edits: { student: {}, masters: null, masterCfg: null },
-      lastLoadedAt: ''
+      lastLoadedAt: '',
+      ratingsSchedule: null,
+      // Teacher Students UI
+      search: '',
+      selectedIds: [],
+      bulkMaxGames: 10,
+      bulkThreshold: 1.0
     },
     uiBoard: {
       // Student blunders
@@ -225,6 +231,17 @@
       const d = new Date(String(iso || ''));
       if (Number.isNaN(d.getTime())) return '';
       return d.toLocaleString();
+    } catch {
+      return '';
+    }
+  }
+
+  function fmtIsoUtc(iso) {
+    try {
+      const d = new Date(String(iso || ''));
+      if (Number.isNaN(d.getTime())) return '';
+      const s = d.toISOString();
+      return `${s.slice(0, 10)} ${s.slice(11, 16)} UTC`;
     } catch {
       return '';
     }
@@ -872,7 +889,7 @@
   function renderTeacherStudentsPage() {
     const loading = !!STATE.teacher.loading;
     const err = String(STATE.teacher.error || '');
-    const rows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+    const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
     const today = (() => {
       const d = new Date();
       const y = d.getFullYear();
@@ -880,18 +897,41 @@
       const da = String(d.getDate()).padStart(2, '0');
       return `${y}-${m}-${da}`;
     })();
-    const totalPending = rows.reduce((a, s) => a + Number(s?.counts?.pending || 0), 0);
-    const totalCompleted = rows.reduce((a, s) => a + Number(s?.counts?.completed || 0), 0);
+    const q = String(STATE.teacher.search || '').trim().toLowerCase();
+    const rows = !q ? allRows : allRows.filter((s) => {
+      const name = String(s?.name || '').toLowerCase();
+      const sid = String(s?.studentId || '').toLowerCase();
+      const chessId = String(s?.chessComUsername || '').toLowerCase();
+      return name.includes(q) || sid.includes(q) || chessId.includes(q);
+    });
+
+    const selectedSet = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+    const allFilteredSelected = rows.length > 0 && rows.every(s => selectedSet.has(String(s?.id || '')));
+
+    const totalPending = allRows.reduce((a, s) => a + Number(s?.counts?.pending || 0), 0);
+    const totalCompleted = allRows.reduce((a, s) => a + Number(s?.counts?.completed || 0), 0);
+    const schedule = STATE.teacher.ratingsSchedule;
+    const scheduleLine = schedule
+      ? `Automatic Chess.com rating refresh: <strong>daily at ${escapeHtml(String(schedule.time || ''))}</strong>.`
+      : `Automatic Chess.com rating refresh: <strong>daily</strong>.`;
+    const lastRun = schedule?.lastRunAt ? fmtIsoUtc(schedule.lastRunAt) : '—';
+    const nextRun = schedule?.nextRunAt ? fmtIsoUtc(schedule.nextRunAt) : '—';
+    const selectedCount = Array.from(selectedSet).filter((id) => allRows.some(r => String(r.id || '') === id)).length;
 
     return `
       <div class="bl-card">
         <div class="bl-title">Teacher · Students</div>
-        <div class="blunders-muted">Per-student fetch limit + blunder threshold + date-based sync.</div>
+        <div class="blunders-muted">Per-student fetch limit + blunder threshold + date-based sync (date format: <strong>YYYY-MM-DD</strong>).</div>
+
+        <div class="bl-card" style="box-shadow:none; margin-top:10px;">
+          <div class="blunders-muted">${scheduleLine}</div>
+          <div class="blunders-muted" style="margin-top:6px;">Last run: <strong>${escapeHtml(lastRun)}</strong> · Next run: <strong>${escapeHtml(nextRun)}</strong></div>
+        </div>
 
         <div class="bl-stats" style="margin-top:12px;">
           <div class="bl-stat">
             <div class="bl-stat-label">Students</div>
-            <div class="bl-stat-value">${escapeHtml(String(rows.length))}</div>
+            <div class="bl-stat-value">${escapeHtml(String(allRows.length))}</div>
           </div>
           <div class="bl-stat">
             <div class="bl-stat-label">Pending</div>
@@ -903,18 +943,45 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:center;">
           <button class="btn btn-secondary" type="button" data-bl-teacher-refresh-students ${loading ? 'disabled' : ''}>Refresh</button>
           <button class="btn btn-primary" type="button" data-bl-teacher-save-students ${loading ? 'disabled' : ''}>Save settings</button>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-sync-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Sync selected (${escapeHtml(String(selectedCount))})</button>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Force selected</button>
         </div>
         ${loading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
         ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
+
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1 1 260px;">
+            <div class="blunders-muted">Search</div>
+            <input type="text" value="${escapeHtml(String(STATE.teacher.search || ''))}" placeholder="Search name / student id / chess.com id" data-bl-teacher-search style="width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
+          </div>
+          <div>
+            <div class="blunders-muted">Set ALL Max games/day</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(Number(STATE.teacher.bulkMaxGames || 10) || 10))}" data-bl-teacher-bulk-max style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
+              <button class="btn btn-secondary" type="button" data-bl-teacher-apply-max-all ${loading ? 'disabled' : ''}>Apply</button>
+            </div>
+          </div>
+          <div>
+            <div class="blunders-muted">Set ALL Threshold</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(Number(STATE.teacher.bulkThreshold || 1) || 1))}" data-bl-teacher-bulk-thr style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
+              <button class="btn btn-secondary" type="button" data-bl-teacher-apply-thr-all ${loading ? 'disabled' : ''}>Apply</button>
+            </div>
+          </div>
+        </div>
 
         <div style="margin-top:12px; overflow:auto;">
           <table style="width:100%; border-collapse:separate; border-spacing:0 8px;">
             <thead>
               <tr class="blunders-muted" style="text-align:left;">
+                <th style="padding:6px 8px; width:42px;">
+                  <input type="checkbox" data-bl-teacher-select-all ${allFilteredSelected ? 'checked' : ''} aria-label="Select all">
+                </th>
                 <th style="padding:6px 8px;">Student</th>
+                <th style="padding:6px 8px;">Chess.com rating</th>
                 <th style="padding:6px 8px;">Pending</th>
                 <th style="padding:6px 8px;">Completed</th>
                 <th style="padding:6px 8px;">Analyzed games</th>
@@ -932,12 +999,21 @@
                 const cfg = s.config || {};
                 const maxGames = Number((STATE.teacher.edits.student?.[sid]?.maxGamesPerDay) ?? cfg.maxGamesPerDay ?? 10) || 10;
                 const thr = Number((STATE.teacher.edits.student?.[sid]?.thresholdPoints) ?? cfg.thresholdPoints ?? 1.0) || 1.0;
+                const chessId = String(s.chessComUsername || '');
+                const r = (s.chessComRating === null || s.chessComRating === undefined) ? '' : String(s.chessComRating);
+                const rs = String(s.chessComRatingSource || '');
+                const ratingLabel = r ? `${r}${rs ? ` (${rs})` : ''}` : '—';
+                const isChecked = selectedSet.has(sid);
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
-                      <div style="font-weight:900; color:#111827;">${escapeHtml(nm)}</div>
-                      <div class="blunders-muted">${escapeHtml(sid2)}</div>
+                      <input type="checkbox" data-bl-teacher-select="${escapeHtml(sid)}" ${isChecked ? 'checked' : ''} aria-label="Select student">
                     </td>
+                    <td style="padding:10px 8px;">
+                      <div style="font-weight:900; color:#111827;">${escapeHtml(nm)}</div>
+                      <div class="blunders-muted">${escapeHtml(sid2)}${chessId ? ` · ${escapeHtml(chessId)}` : ''}</div>
+                    </td>
+                    <td style="padding:10px 8px;">${escapeHtml(ratingLabel)}</td>
                     <td style="padding:10px 8px;">${escapeHtml(String(s?.counts?.pending || 0))}</td>
                     <td style="padding:10px 8px;">${escapeHtml(String(s?.counts?.completed || 0))}</td>
                     <td style="padding:10px 8px;">${escapeHtml(String(s?.analyzedGamesTotal || 0))}</td>
@@ -948,9 +1024,9 @@
                       <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-student-thr="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px;">
-                      <input type="date" value="${escapeHtml(today)}" data-bl-teacher-student-date="${escapeHtml(sid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="text" value="${escapeHtml(today)}" inputmode="numeric" placeholder="YYYY-MM-DD" data-bl-teacher-student-date="${escapeHtml(sid)}" style="width:110px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
-                    <td style="padding:10px 8px; border-radius:0 12px 12px 0;">
+                    <td style="padding:10px 8px; border-radius:0 12px 12px 0; white-space:nowrap;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student="${escapeHtml(sid)}">Sync</button>
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student-force="${escapeHtml(sid)}">Force</button>
                     </td>
@@ -1102,6 +1178,7 @@
       } else {
         const data = await teacherApi('/teachers/blunders/students-summary');
         STATE.teacher.students = Array.isArray(data?.students) ? data.students : [];
+        STATE.teacher.ratingsSchedule = data?.ratingsSchedule || null;
       }
       STATE.teacher.loading = false;
       STATE.teacher.lastLoadedAt = new Date().toISOString();
@@ -1145,6 +1222,36 @@
     const mid = String(masterId || '').trim();
     if (!mid) return;
     await teacherApi('/teachers/blunders/sync-master', { method: 'POST', body: { masterId: mid, hkDayKey, force: !!force } });
+  }
+
+  async function teacherBulkSyncSelected(force) {
+    const selected = Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : [];
+    const ids = selected.filter(Boolean);
+    if (!ids.length) return;
+    const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+    const idSet = new Set(allRows.map(s => String(s.id || '')));
+    const valid = ids.filter(id => idSet.has(id));
+    if (!valid.length) return;
+
+    STATE.teacher.loading = true;
+    STATE.teacher.error = '';
+    render();
+    try {
+      for (let i = 0; i < valid.length; i++) {
+        const sid = valid[i];
+        const dateEl = document.querySelector(`[data-bl-teacher-student-date="${CSS.escape(sid)}"]`);
+        const hkDayKey = String(dateEl?.value || '').trim();
+        STATE.teacher.error = `Syncing ${i + 1}/${valid.length}...`;
+        render();
+        await teacherSyncStudent(sid, hkDayKey, !!force);
+      }
+      STATE.teacher.error = '';
+    } catch (e) {
+      STATE.teacher.error = String(e?.message || e);
+    } finally {
+      STATE.teacher.loading = false;
+      await teacherLoad('students').catch(() => {});
+    }
   }
 
   function setMessage(txt) {
@@ -1509,6 +1616,32 @@
       // Teacher actions
       if (t?.closest?.('[data-bl-teacher-refresh-students]')) return teacherLoad('students');
       if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
+      if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
+      if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
+      if (t?.closest?.('[data-bl-teacher-apply-max-all]')) {
+        const v = Number(STATE.teacher.bulkMaxGames || 10) || 10;
+        const all = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+        for (const s of all) {
+          const sid = String(s?.id || '');
+          if (!sid) continue;
+          if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+          STATE.teacher.edits.student[sid].maxGamesPerDay = v;
+        }
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-apply-thr-all]')) {
+        const v = Number(STATE.teacher.bulkThreshold || 1.0) || 1.0;
+        const all = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+        for (const s of all) {
+          const sid = String(s?.id || '');
+          if (!sid) continue;
+          if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+          STATE.teacher.edits.student[sid].thresholdPoints = v;
+        }
+        render();
+        return;
+      }
       if (t?.closest?.('[data-bl-teacher-save-students]')) {
         try { await teacherSaveStudentSettings(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
         return teacherLoad('students');
@@ -1588,6 +1721,39 @@
             ensureMasterGameLoaded().catch(() => {});
           }
         }
+        return;
+      }
+
+      const selAll = t?.closest?.('[data-bl-teacher-select-all]');
+      if (selAll) {
+        const checked = !!selAll.checked;
+        const q = String(STATE.teacher.search || '').trim().toLowerCase();
+        const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+        const rows = !q ? allRows : allRows.filter((s) => {
+          const name = String(s?.name || '').toLowerCase();
+          const sid2 = String(s?.studentId || '').toLowerCase();
+          const chessId = String(s?.chessComUsername || '').toLowerCase();
+          return name.includes(q) || sid2.includes(q) || chessId.includes(q);
+        });
+        const cur = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (checked) {
+          for (const s of rows) cur.add(String(s?.id || ''));
+        } else {
+          for (const s of rows) cur.delete(String(s?.id || ''));
+        }
+        STATE.teacher.selectedIds = Array.from(cur).filter(Boolean);
+        render();
+        return;
+      }
+      const selOne = t?.closest?.('[data-bl-teacher-select]');
+      if (selOne) {
+        const sid = String(selOne.getAttribute('data-bl-teacher-select') || '');
+        const checked = !!selOne.checked;
+        const cur = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (checked) cur.add(sid);
+        else cur.delete(sid);
+        STATE.teacher.selectedIds = Array.from(cur).filter(Boolean);
+        render();
         return;
       }
 
@@ -1839,6 +2005,22 @@
     root.addEventListener('input', (ev) => {
       const el = ev.target;
       // Teacher inputs
+      const sEl = el?.closest?.('[data-bl-teacher-search]');
+      if (sEl) {
+        STATE.teacher.search = String(sEl.value || '');
+        render();
+        return;
+      }
+      const bm = el?.closest?.('[data-bl-teacher-bulk-max]');
+      if (bm) {
+        STATE.teacher.bulkMaxGames = Number(bm.value);
+        return;
+      }
+      const bt = el?.closest?.('[data-bl-teacher-bulk-thr]');
+      if (bt) {
+        STATE.teacher.bulkThreshold = Number(bt.value);
+        return;
+      }
       const maxEl = el?.closest?.('[data-bl-teacher-student-max]');
       if (maxEl) {
         const sid = String(maxEl.getAttribute('data-bl-teacher-student-max') || '');
