@@ -1294,6 +1294,9 @@
       if (!bm) setMessage(engErr ? `Best move not available (${engErr})` : 'Best move not available yet.');
     } catch (e) {
       setMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      render();
     }
   }
 
@@ -1345,6 +1348,9 @@
       if (!bm && engErr) setMasterMessage(`Best move not available (${engErr})`);
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      render();
     }
   }
 
