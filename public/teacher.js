@@ -1198,6 +1198,11 @@ window.openPuzzleMonsterFightAsMe = openPuzzleMonsterFightAsMe;
 function openBlundersTeacherMode() {
     // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
     const url = '/game/game-window.html?game=blunders&role=teacher';
+    // Ensure Blunders teacher window can always access teacher auth, even if localStorage timing differs.
+    try {
+        const t = String(localStorage.getItem('authToken') || '').trim();
+        if (t) localStorage.setItem('blundersTeacherAuthToken', t);
+    } catch {}
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening Blunders in current tab...', 'warning');

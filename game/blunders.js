@@ -193,7 +193,7 @@
 
   function getTeacherAuthHeader() {
     try {
-      const t = String(localStorage.getItem('authToken') || '').trim();
+      const t = String(localStorage.getItem('authToken') || localStorage.getItem('blundersTeacherAuthToken') || '').trim();
       if (!t) return {};
       return { Authorization: `Bearer ${t}` };
     } catch {
@@ -212,7 +212,12 @@
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    if (!resp.ok) {
+      if (resp.status === 401) {
+        throw new Error('Authentication required. Please open Blunders from the Teacher Dashboard while logged in.');
+      }
+      throw new Error(data?.error || `HTTP ${resp.status}`);
+    }
     return data;
   }
 
@@ -957,17 +962,17 @@
             <input type="text" value="${escapeHtml(String(STATE.teacher.search || ''))}" placeholder="Search name / student id / chess.com id" data-bl-teacher-search style="width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
           </div>
           <div>
-            <div class="blunders-muted">Set ALL Max games/day</div>
+            <div class="blunders-muted">Set selected Max games/day</div>
             <div style="display:flex; gap:8px; align-items:center;">
               <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(Number(STATE.teacher.bulkMaxGames || 10) || 10))}" data-bl-teacher-bulk-max style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
-              <button class="btn btn-secondary" type="button" data-bl-teacher-apply-max-all ${loading ? 'disabled' : ''}>Apply</button>
+              <button class="btn btn-secondary" type="button" data-bl-teacher-apply-max-selected ${loading ? 'disabled' : ''}>Apply</button>
             </div>
           </div>
           <div>
-            <div class="blunders-muted">Set ALL Threshold</div>
+            <div class="blunders-muted">Set selected Threshold</div>
             <div style="display:flex; gap:8px; align-items:center;">
               <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(Number(STATE.teacher.bulkThreshold || 1) || 1))}" data-bl-teacher-bulk-thr style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
-              <button class="btn btn-secondary" type="button" data-bl-teacher-apply-thr-all ${loading ? 'disabled' : ''}>Apply</button>
+              <button class="btn btn-secondary" type="button" data-bl-teacher-apply-thr-selected ${loading ? 'disabled' : ''}>Apply</button>
             </div>
           </div>
         </div>
@@ -1629,27 +1634,37 @@
       if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
       if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
       if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
-      if (t?.closest?.('[data-bl-teacher-apply-max-all]')) {
+      if (t?.closest?.('[data-bl-teacher-apply-max-selected]')) {
         const v = Number(STATE.teacher.bulkMaxGames || 10) || 10;
-        const all = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
-        for (const s of all) {
-          const sid = String(s?.id || '');
+        const selected = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (!selected.size) {
+          STATE.teacher.error = 'Please select at least one student.';
+          render();
+          return;
+        }
+        for (const sid of Array.from(selected)) {
           if (!sid) continue;
           if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
           STATE.teacher.edits.student[sid].maxGamesPerDay = v;
         }
+        STATE.teacher.error = '';
         render();
         return;
       }
-      if (t?.closest?.('[data-bl-teacher-apply-thr-all]')) {
+      if (t?.closest?.('[data-bl-teacher-apply-thr-selected]')) {
         const v = Number(STATE.teacher.bulkThreshold || 1.0) || 1.0;
-        const all = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
-        for (const s of all) {
-          const sid = String(s?.id || '');
+        const selected = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (!selected.size) {
+          STATE.teacher.error = 'Please select at least one student.';
+          render();
+          return;
+        }
+        for (const sid of Array.from(selected)) {
           if (!sid) continue;
           if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
           STATE.teacher.edits.student[sid].thresholdPoints = v;
         }
+        STATE.teacher.error = '';
         render();
         return;
       }
