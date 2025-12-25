@@ -378,12 +378,13 @@
     STATE.master.loading = true;
     STATE.master.error = '';
     STATE.master.selectedMasterId = mid;
-    STATE.master.currentIndex = 0;
     render();
     try {
       const data = await fetchMasterPuzzles(STATE.me.id, mid);
       STATE.master.pending = Array.isArray(data?.pending) ? data.pending : [];
       STATE.master.completed = Array.isArray(data?.completed) ? data.completed : [];
+      const max = Math.max(0, STATE.master.pending.length - 1);
+      STATE.master.currentIndex = Math.max(0, Math.min(Number(STATE.master.currentIndex || 0), max));
       STATE.master.loading = false;
       render();
     } catch (e) {
@@ -1125,6 +1126,7 @@
     const canShowBest = verdict === 'good' || verdict === 'blunder' || !verdict;
     const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
     const retryBtn = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${isMaster ? 'master' : 'blunder'}">Retry</button>`;
+    const nextBtn = verdict === 'best' ? `<button class="btn btn-secondary" type="button" data-bl-inline-next="${isMaster ? 'master' : 'blunder'}">${isMaster ? 'Next' : (STATE.mode === 'practice' ? 'Next (Random)' : 'Next')}</button>` : '';
 
     return `
       <div class="bl-card bl-inline-result" style="box-shadow:none; margin-top:12px;">
@@ -1139,7 +1141,7 @@
           ${escapeHtml(mvLine)}${mvLine && bmLine ? '<br>' : ''}${escapeHtml(bmLine)}
         </div>
         <div class="bl-inline-actions">
-          ${showBestBtn}
+          ${showBestBtn || nextBtn}
           ${retryBtn}
         </div>
       </div>
@@ -1565,6 +1567,37 @@
         const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
         if (scope === 'master') revealMasterBestMove();
         else revealBestMove();
+        return;
+      }
+      const inlineNext = t?.closest?.('[data-bl-inline-next]');
+      if (inlineNext) {
+        const scope = String(inlineNext.getAttribute('data-bl-inline-next') || '');
+        if (scope === 'master') {
+          const mid = String(STATE.master.selectedMasterId || '');
+          // after solving/revealing, refresh list so completed moves out, then keep current index to show next.
+          clearInlineResult('master');
+          STATE.selectedFrom = null;
+          await ensureMasterPuzzlesLoaded(mid);
+          return;
+        }
+        // blunder
+        clearInlineResult('blunder');
+        STATE.selectedFrom = null;
+        if (STATE.mode === 'practice') {
+          const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
+          if (completed.length) {
+            const pick = completed[Math.floor(Math.random() * completed.length)];
+            setBlunderModePractice(pick);
+            setPage('blunder');
+            return;
+          }
+          render();
+          return;
+        }
+        // pending: refresh list so solved puzzle disappears, then stay at same index (now points to next)
+        await refreshData();
+        setBlunderModePending();
+        setPage('blunder');
         return;
       }
       const inlineRetry = t?.closest?.('[data-bl-inline-retry]');
