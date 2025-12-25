@@ -636,6 +636,14 @@
       const bestCp = Number(p?.bestCp ?? 0);
       return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
     };
+    const bucketKeyOf = (p) => {
+      if (isMissMate(p)) return 'missMate';
+      const d = dropOf(p);
+      if (d <= 1.5) return 'd1';
+      if (d <= 2.0) return 'd2';
+      if (d <= 3.0) return 'd3';
+      return 'd4';
+    };
     const sorted = completed.slice().sort((a, b) => {
       // Keep mate-miss near top by drop, then by time
       const da = dropOf(a);
@@ -700,7 +708,14 @@
         <div class="blunders-muted">Completed puzzles you can revisit.</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-bl-refresh>Refresh</button>
-          <button class="btn btn-primary" type="button" data-bl-random ${completed.length ? '' : 'disabled'}>Random Practice</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <span class="blunders-muted" style="margin-right:2px;">Practice:</span>
+            <button class="btn btn-primary" type="button" data-bl-review-practice="random" ${completed.length ? '' : 'disabled'}>Random</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d1" ${groups.d1.length ? '' : 'disabled'}>1–1.5</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d2" ${groups.d2.length ? '' : 'disabled'}>1.51–2</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d3" ${groups.d3.length ? '' : 'disabled'}>2.01–3</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d4" ${groups.d4.length ? '' : 'disabled'}>3.01+</button>
+          </div>
         </div>
         ${completed.length ? `
           ${renderGroup('Miss the mate', groups.missMate, true)}
@@ -1586,6 +1601,45 @@
       if (t?.closest?.('[data-bl-force]')) return refreshData({ force: true });
       if (t?.closest?.('[data-bl-go-blunder]')) { setBlunderModePending(); return setPage('blunder'); }
       if (t?.closest?.('[data-bl-go-review]')) return setPage('review');
+
+      const rp = t?.closest?.('[data-bl-review-practice]');
+      if (rp) {
+        const key = String(rp.getAttribute('data-bl-review-practice') || '');
+        const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
+        if (!completed.length) return;
+
+        const isMissMate = (p) => {
+          const bestCp = Number(p?.bestCp ?? 0);
+          return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
+        };
+        const dropOf = (p) => {
+          const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
+          return Number.isFinite(d) ? d : 0;
+        };
+        const bucketKeyOf = (p) => {
+          if (isMissMate(p)) return 'missMate';
+          const d = dropOf(p);
+          if (d <= 1.5) return 'd1';
+          if (d <= 2.0) return 'd2';
+          if (d <= 3.0) return 'd3';
+          return 'd4';
+        };
+
+        let pool = [];
+        if (key === 'random') {
+          // Random = pick from the requested 4 drop buckets (exclude miss-mate, since it's its own category)
+          pool = completed.filter(p => bucketKeyOf(p) !== 'missMate');
+        } else {
+          pool = completed.filter(p => bucketKeyOf(p) === key);
+        }
+        if (!pool.length) return;
+
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        setBlunderModePractice(pick);
+        clearInlineResult('blunder');
+        setPage('blunder');
+        return;
+      }
 
       if (t?.closest?.('[data-bl-prev]')) {
         STATE.currentIndex = Math.max(0, STATE.currentIndex - 1);
