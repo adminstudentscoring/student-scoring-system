@@ -1184,10 +1184,10 @@
       verdict === 'blunder' ? 'Try again.' :
       'Your result will appear here.';
 
-    const icon =
-      verdict === 'best' ? '👑' :
-      verdict === 'good' ? '✅' :
-      verdict === 'blunder' ? '⚠️' : 'ℹ️';
+    const iconSrc =
+      verdict === 'best' ? '/game/Sign/Best_move.jpeg' :
+      verdict === 'good' ? '/game/Sign/Good_move.jpeg' :
+      verdict === 'blunder' ? '/game/Sign/Blunder_move.jpeg' : '';
 
     const mvLine = moveUci ? `Move: ${moveUci}` : '';
     const bmLine = bestUci ? `Best: ${bestUci}` : '';
@@ -1200,7 +1200,9 @@
     return `
       <div class="bl-card bl-inline-result" style="box-shadow:none; margin-top:12px;">
         <div class="bl-inline-head">
-          <span class="bl-inline-ico">${escapeHtml(icon)}</span>
+          <span class="bl-inline-ico">
+            ${iconSrc ? `<img class="bl-inline-ico-img" src="${escapeHtml(iconSrc)}" alt="${escapeHtml(title)}" draggable="false">` : `<span class="bl-inline-ico-fallback">ℹ️</span>`}
+          </span>
           <div>
             <div class="bl-inline-title">${escapeHtml(title)}</div>
             <div class="blunders-muted">${escapeHtml(sub)}</div>

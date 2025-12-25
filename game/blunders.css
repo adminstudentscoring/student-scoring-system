@@ -247,6 +247,23 @@
   align-items: center;
   justify-content: center;
   font-weight: 950;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.bl-inline-ico-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bl-inline-ico-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .bl-inline-title {
