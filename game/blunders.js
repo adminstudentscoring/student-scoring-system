@@ -1066,8 +1066,13 @@
 
   async function refreshData(opts = {}) {
     if (!STATE.me?.id) return;
-    const statusEl = document.getElementById('blGlobalStatus');
-    const setStatus = (t) => { if (statusEl) statusEl.textContent = String(t || ''); };
+    const setStatus = (t) => {
+      const statusEl = document.getElementById('blGlobalStatus');
+      if (!statusEl) return;
+      const txt = String(t || '');
+      statusEl.textContent = txt;
+      statusEl.style.display = txt ? 'block' : 'none';
+    };
     try {
       setStatus('Loading...');
       const data = await fetchMyBlunders(STATE.me.id, opts);
@@ -1437,7 +1442,7 @@
           ${renderTeacherSidebar()}
           <main class="bl-main">
             <div class="bl-container">
-              <div id="blGlobalStatus" class="blunders-muted"></div>
+              <div id="blGlobalStatus" class="bl-global-status blunders-muted"></div>
               ${renderTeacherModePage()}
             </div>
           </main>
@@ -1458,7 +1463,7 @@
         ${renderSidebar()}
         <main class="bl-main">
           <div class="bl-container">
-            <div id="blGlobalStatus" class="blunders-muted"></div>
+            <div id="blGlobalStatus" class="bl-global-status blunders-muted"></div>
             ${content}
           </div>
         </main>

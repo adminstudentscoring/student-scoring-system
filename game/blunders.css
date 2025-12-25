@@ -32,6 +32,29 @@
   margin: 0 auto;
 }
 
+.bl-global-status {
+  position: fixed;
+  left: calc(var(--bl-sidebar-w) + 12px);
+  bottom: 12px;
+  z-index: 50;
+  display: none;
+  max-width: min(520px, 80vw);
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .bl-global-status {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+}
+
 .bl-side-title {
   font-weight: 950;
   color: #111827;
