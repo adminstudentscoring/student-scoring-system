@@ -628,6 +628,72 @@
 
   function renderReviewPage() {
     const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
+    const dropOf = (p) => {
+      const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
+      return Number.isFinite(d) ? d : 0;
+    };
+    const isMissMate = (p) => {
+      const bestCp = Number(p?.bestCp ?? 0);
+      return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
+    };
+    const sorted = completed.slice().sort((a, b) => {
+      // Keep mate-miss near top by drop, then by time
+      const da = dropOf(a);
+      const db = dropOf(b);
+      if (db !== da) return db - da;
+      const ta = Date.parse(String(a?.completedAt || a?.createdAt || '')) || 0;
+      const tb = Date.parse(String(b?.completedAt || b?.createdAt || '')) || 0;
+      return tb - ta;
+    });
+
+    const groups = {
+      missMate: [],
+      d1: [],
+      d2: [],
+      d3: [],
+      d4: []
+    };
+    for (const p of sorted) {
+      if (isMissMate(p)) {
+        groups.missMate.push(p);
+        continue;
+      }
+      const d = dropOf(p);
+      if (d <= 1.5) groups.d1.push(p);
+      else if (d <= 2.0) groups.d2.push(p);
+      else if (d <= 3.0) groups.d3.push(p);
+      else groups.d4.push(p);
+    }
+
+    const renderGroup = (title, items, openByDefault) => {
+      const arr = Array.isArray(items) ? items : [];
+      if (!arr.length) return '';
+      return `
+        <details ${openByDefault ? 'open' : ''} style="margin-top:12px;">
+          <summary class="blunders-muted" style="cursor:pointer; font-weight:950; color:#111827;">
+            ${escapeHtml(title)} <span class="bl-badge" style="margin-left:8px;">${escapeHtml(String(arr.length))}</span>
+          </summary>
+          <div class="bl-grid" style="margin-top:10px;">
+            ${arr.map((p) => {
+              const drop = dropOf(p);
+              const label = isMissMate(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
+              return `
+                <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
+                  <div style="display:flex; gap:10px; align-items:center;">
+                    ${renderMiniBoardFromFen(String(p.startFEN || ''))}
+                    <div style="flex:1 1 auto;">
+                      <div style="font-weight:950; color:#111827;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
+                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)}</div>
+                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(fmtTs(p.completedAt || p.createdAt))}</div>
+                    </div>
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </details>
+      `;
+    };
     return `
       <div class="bl-card">
         <div class="bl-title">Review</div>
@@ -637,23 +703,11 @@
           <button class="btn btn-primary" type="button" data-bl-random ${completed.length ? '' : 'disabled'}>Random Practice</button>
         </div>
         ${completed.length ? `
-          <div class="bl-grid">
-            ${completed.map((p) => {
-              const drop = typeof p.dropPoints === 'number' ? p.dropPoints : (Number(p.dropCp || 0) / 100);
-              return `
-                <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
-                  <div style="display:flex; gap:10px; align-items:center;">
-                    ${renderMiniBoardFromFen(String(p.startFEN || ''))}
-                    <div style="flex:1 1 auto;">
-                      <div style="font-weight:950; color:#111827;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
-                      <div class="blunders-muted" style="margin-top:6px;">Drop ${escapeHtml(drop.toFixed(2))}</div>
-                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(fmtTs(p.completedAt || p.createdAt))}</div>
-                    </div>
-                  </div>
-                </button>
-              `;
-            }).join('')}
-          </div>
+          ${renderGroup('Miss the mate', groups.missMate, true)}
+          ${renderGroup('Drop 1.00–1.50', groups.d1, true)}
+          ${renderGroup('Drop 1.51–2.00', groups.d2, false)}
+          ${renderGroup('Drop 2.01–3.00', groups.d3, false)}
+          ${renderGroup('Drop 3.01+', groups.d4, false)}
         ` : `<div class="blunders-muted" style="margin-top:12px;">No completed puzzles yet.</div>`}
       </div>
     `;
