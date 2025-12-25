@@ -673,6 +673,35 @@ function scoreToCp(score) {
   return 0;
 }
 
+// ===== Blunders: tolerant verdict rules =====
+// 1) Treat a move as "best" if it's within 20% of the best score, with a small-score floor.
+// 2) Compare any candidate move directly against the best (by score drop).
+// 3) If best position is mate or a huge advantage (>= +8.0), but the move still keeps >= +5.0, treat as "good".
+const BLUNDERS_BEST_TOL_RATIO = 0.20;
+const BLUNDERS_BEST_TOL_MIN_CP = 10; // 0.10
+const BLUNDERS_MATE_OR_HUGE_CP = 800; // 8.0
+const BLUNDERS_GOOD_IF_STILL_AHEAD_CP = 500; // 5.0
+
+function blundersVerdictFromScores(bestCp, userCp, thresholdPoints) {
+  const b = Number(bestCp || 0);
+  const u = Number(userCp || 0);
+  const thrP = Math.max(0, Number(thresholdPoints || 0));
+
+  const dropCp = b - u; // positive => worse than best
+  const tolCp = Math.max(Math.round(Math.abs(b) * BLUNDERS_BEST_TOL_RATIO), BLUNDERS_BEST_TOL_MIN_CP);
+  const isBestLike = dropCp <= tolCp;
+
+  const isMateOrHugeWin = b >= 100000 || b >= BLUNDERS_MATE_OR_HUGE_CP;
+  const stillBigWin = u >= BLUNDERS_GOOD_IF_STILL_AHEAD_CP;
+  const allowGoodInMateOrHuge = isMateOrHugeWin && stillBigWin;
+
+  const dropPoints = dropCp / 100;
+  if (isBestLike) return { verdict: 'best', ok: true, dropCp, dropPoints, tolCp, bestLike: true };
+  if (allowGoodInMateOrHuge) return { verdict: 'good', ok: true, dropCp, dropPoints, tolCp, bestLike: false, hugeSaved: true };
+  if (dropPoints > thrP) return { verdict: 'blunder', ok: false, dropCp, dropPoints, tolCp, bestLike: false };
+  return { verdict: 'good', ok: true, dropCp, dropPoints, tolCp, bestLike: false };
+}
+
 // ===== Blunders: Chess.com sync (rapid/blitz) =====
 const BLUNDERS_ALLOWED_TIME_CLASSES = new Set(['rapid', 'blitz']);
 const BLUNDERS_MAX_GAMES_PER_DAY = 10;
@@ -901,9 +930,10 @@ async function syncBlundersForStudent(student, opts = {}) {
         // Evaluate afterFen (opponent to move), invert to student's POV
         const after = await sfEvalFen(afterFen, 16);
         const userCp = -scoreToCp(after.score);
-        const dropCp = bestCp - userCp;
-        const dropPoints = dropCp / 100;
-        if (dropPoints <= thresholdPoints) continue;
+        const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
+        const dropCp = v.dropCp;
+        const dropPoints = v.dropPoints;
+        if (v.verdict !== 'blunder') continue;
 
         const key = `${orgId}|${sid}|${String(game.url || game.uuid || '')}|${ply}`;
         if (existingKeys.has(key)) continue;
@@ -1072,9 +1102,10 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
         const bestCp = scoreToCp(best.score);
         const after = await sfEvalFen(afterFen, 16);
         const userCp = -scoreToCp(after.score);
-        const dropCp = bestCp - userCp;
-        const dropPoints = dropCp / 100;
-        if (dropPoints <= thresholdPoints) continue;
+        const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
+        const dropCp = v.dropCp;
+        const dropPoints = v.dropPoints;
+        if (v.verdict !== 'blunder') continue;
 
         const key = `${oid}|master|${mid}|${String(game.url || game.uuid || '')}|${ply}`;
         if (existingKeys.has(key)) continue;
@@ -7751,14 +7782,9 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
 
     const cfg = await getMasterBlundersConfig(orgId);
     const thresholdPoints = cfg.thresholdPoints;
-    const isBest = bestMove && parsed.uci === bestMove;
-    const isBlunder = dropPoints > thresholdPoints;
-
-    let verdict = 'retry';
-    let ok = false;
-    if (isBest) { verdict = 'best'; ok = true; }
-    else if (!isBlunder) { verdict = 'good'; ok = true; }
-    else { verdict = 'blunder'; ok = false; }
+    const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
+    const verdict = v.verdict; // 'best' | 'good' | 'blunder'
+    const ok = !!v.ok;
 
     if (!practice) {
       const attempts = Array.isArray(pr.attempts) ? pr.attempts : [];
@@ -7774,13 +7800,14 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
       await writeBlundersMasterProgress(progressAll);
     }
 
+    const exposeBest = !!revealBest || (bestMove && parsed.uci === bestMove);
     return res.json({
       ok,
       verdict,
       dropPoints,
       afterFEN: afterFen,
       playedUci: parsed.uci,
-      bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined
+      bestMove: exposeBest ? bestMove : undefined
     });
   } catch (e) {
     console.error('POST /api/public/students/:id/blunders/master/:puzzleId/attempt error:', e);
@@ -7899,21 +7926,9 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     const isBest = bestMove && parsed.uci === bestMove;
     const cfg = await getStudentBlundersConfig(orgId, student.id);
     const thresholdPoints = cfg.thresholdPoints;
-    const okNoDrop = dropPoints <= 0;
-    const isBlunder = dropPoints > thresholdPoints;
-
-    let verdict = 'retry';
-    let ok = false;
-    if (isBest) {
-      verdict = 'best';
-      ok = true;
-    } else if (!isBlunder) {
-      verdict = okNoDrop ? 'good' : 'good';
-      ok = true;
-    } else {
-      verdict = 'blunder';
-      ok = false;
-    }
+    const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
+    const verdict = v.verdict; // 'best' | 'good' | 'blunder'
+    const ok = !!v.ok;
 
     if (!practice) {
       // Persist attempts + completion
@@ -7944,13 +7959,14 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
       await writeBlundersPuzzles(puzzles);
     }
 
+    const exposeBest = !!revealBest || (bestMove && parsed.uci === bestMove);
     return res.json({
       ok,
       verdict, // 'best' | 'good' | 'blunder'
       dropPoints,
       afterFEN: afterFen,
       playedUci: parsed.uci,
-      bestMove: (ok && (verdict === 'best' || revealBest)) ? bestMove : undefined
+      bestMove: exposeBest ? bestMove : undefined
     });
   } catch (e) {
     console.error('POST /api/public/students/:id/blunders/:puzzleId/attempt error:', e);
