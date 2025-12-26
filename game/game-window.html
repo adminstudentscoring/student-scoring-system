@@ -72,8 +72,9 @@
             }
 
             try {
-                // Allow per-game layout overrides via CSS (avoid outer paddings for fixed-sidebar apps like Blunders)
+                // Allow per-game layout overrides via CSS (avoid outer paddings for fixed-sidebar apps like Blunders/Running Queen)
                 document.body.classList.toggle('game-is-blunders', gameKey === 'blunders');
+                document.body.classList.toggle('game-is-running-queen', gameKey === 'runningQueen');
 
                 if (gameKey === 'runningQueen') {
                     content.innerHTML = `

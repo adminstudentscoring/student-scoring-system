@@ -9,6 +9,136 @@
     width: 100%;
 }
 
+/* Game window overrides: remove outer paddings for fixed sidebar layout */
+body.game-is-running-queen {
+    padding: 0 !important;
+}
+body.game-is-running-queen .game-window-container {
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    min-height: 100vh !important;
+}
+body.game-is-running-queen .game-area-content {
+    padding: 0 !important;
+}
+
+/* App shell (Blunders-like structure) */
+.rq-app {
+    --rq-sidebar-w: 180px;
+    min-height: 100vh;
+    color: #111827;
+}
+
+.rq-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--rq-sidebar-w);
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    padding: 12px 10px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rq-main {
+    margin-left: var(--rq-sidebar-w);
+    padding: 12px;
+}
+
+.rq-container {
+    width: min(980px, 100%);
+    max-width: 980px;
+    margin: 0 auto;
+}
+
+.rq-card.rq-root-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 14px;
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+}
+
+.rq-title {
+    font-weight: 950;
+    font-size: 20px;
+    margin-bottom: 6px;
+    color: #111827;
+}
+
+.rq-muted {
+    color: #6b7280;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.rq-side-title {
+    font-weight: 950;
+    color: #111827;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.rq-side-sub {
+    color: #6b7280;
+    font-weight: 800;
+    font-size: 12px;
+    margin-bottom: 10px;
+}
+
+.rq-nav {
+    display: grid;
+    gap: 8px;
+}
+
+.rq-nav-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 10px 10px;
+    cursor: pointer;
+    text-align: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    font-weight: 950;
+    color: #111827;
+}
+
+.rq-nav-btn:hover,
+.rq-nav-btn:focus-visible {
+    background: #f3f4f6;
+    outline: none;
+}
+
+.rq-board-wrap {
+    display: grid;
+    grid-template-columns: min(700px, 72vh, 100%) 1fr;
+    gap: 12px;
+    align-items: start;
+    margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+    .rq-sidebar { width: 160px; }
+    .rq-main { margin-left: 160px; }
+    .rq-board-wrap { grid-template-columns: 1fr; }
+}
+
+/* iPad: reduce hover/transition repaint */
+@media (pointer: coarse) {
+    .rq-nav-btn {
+        transition: none !important;
+    }
+}
+
 .rq-wrapper {
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
@@ -253,7 +383,6 @@
 }
 
 .rq-board-panel {
-    grid-area: board;
     background: rgba(19, 24, 39, 0.95);
     border-radius: 18px;
     padding: 20px;

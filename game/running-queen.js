@@ -161,121 +161,145 @@
 
   function buildLayout() {
     return `
-      <div class="rq-wrapper">
-        <div class="rq-config-panel">
-          <h3>Configuration</h3>
-          <div class="rq-mode-toggle" role="group" aria-label="Mode selection">
-            <button type="button" class="rq-mode-button ${state.mode === 'classic' ? 'active' : ''}" data-mode="classic">Classic</button>
-            <button type="button" class="rq-mode-button ${state.mode === 'timed' ? 'active' : ''}" data-mode="timed">Timed</button>
-            <button type="button" class="rq-mode-button ${state.mode === 'infinite' ? 'active' : ''}" data-mode="infinite">Infinite</button>
+      <div class="rq-app">
+        <aside class="rq-sidebar" aria-label="Running Queen sidebar">
+          <div class="rq-side-title">♕ Running Queen</div>
+          <div class="rq-side-sub">${escapeHtml(state.players[0]?.name || '—')}${state.players[0]?.studentId ? ` (${escapeHtml(state.players[0].studentId)})` : ''}</div>
+          <div class="rq-nav">
+            <button type="button" class="rq-nav-btn" data-rq-scroll="top">Home</button>
+            <button type="button" class="rq-nav-btn" data-modal-open="rules">Rules</button>
+            <button type="button" class="rq-nav-btn" data-modal-open="leaderboard">Leaderboards</button>
           </div>
-          <div class="rq-config-grid">
-            <div class="rq-mode-classic ${state.mode === 'classic' ? 'visible' : ''}">
-              <label for="rqBoardSizeInput">Board Size</label>
-              <div class="rq-config-field">
-                <input type="number" id="rqBoardSizeInput" min="4" max="12" value="${state.boardSize}">
-                <div class="rq-preset-row">
-                  ${BOARD_PRESETS.map(size => `<button type="button" class="rq-preset-button" data-board-size="${size}">${size}×${size}</button>`).join('')}
+        </aside>
+
+        <main class="rq-main">
+          <div class="rq-container">
+            <div class="rq-card rq-root-card">
+              <div class="rq-title">Running Queen</div>
+              <div class="rq-muted">Drag queens or click squares to move. Avoid illegal/unsafe moves.</div>
+
+              <div class="rq-board-wrap">
+                <div class="rq-board-panel">
+                  <div class="rq-status-bar">
+                    <div class="rq-status-item">
+                      <span class="rq-status-label">Round</span>
+                      <span class="rq-status-value"><span id="rqRoundDisplay">${state.currentRound}</span> / <span id="rqTotalRounds">${state.totalRounds}</span></span>
+                    </div>
+                    <div class="rq-status-item">
+                      <span class="rq-status-label">Current Player</span>
+                      <span class="rq-status-value" id="rqPlayerDisplay">${escapeHtml(state.players[0]?.name || '—')}</span>
+                    </div>
+                    <div class="rq-status-item">
+                      <span class="rq-status-label">Mission</span>
+                      <span class="rq-status-value" id="rqMissionStatus">Awaiting start</span>
+                    </div>
+                    <div class="rq-status-item rq-timer-block ${state.mode === 'timed' ? 'visible' : ''}">
+                      <span class="rq-status-label">Timer</span>
+                      <span class="rq-status-value" id="rqTimerDisplay">00:00</span>
+                    </div>
+                    <div class="rq-status-actions">
+                      <button type="button" id="rqRulesButton" class="rq-status-button">Rules</button>
+                      <button type="button" id="rqLeaderboardButton" class="rq-status-button">Leaderboards</button>
+                    </div>
+                  </div>
+
+                  <div class="rq-scoreboard" id="rqScoreboard"></div>
+                  <div class="rq-board-container">
+                    <div class="rq-board-shell">
+                      <div class="rq-board-col-labels">
+                        ${generateColumnLabels(state.boardSize)}
+                      </div>
+                      <div class="rq-board-row-labels">
+                        ${generateRowLabels(state.boardSize)}
+                      </div>
+                      <div id="rqBoard" class="rq-board"></div>
+                    </div>
+                  </div>
+
+                  <div id="rqInfiniteFailOverlay" class="rq-fail-overlay hidden" role="dialog" aria-live="assertive">
+                    <div class="rq-fail-card">
+                      <h3 class="rq-fail-title">Defeat</h3>
+                      <p class="rq-fail-message">Infinite run ended. Try again?</p>
+                      <div class="rq-fail-actions">
+                        <button type="button" id="rqFailRetryButton" class="rq-primary">Retry</button>
+                        <button type="button" id="rqFailCancelButton" class="rq-secondary">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rq-config-panel">
+                  <h3>Configuration</h3>
+                  <div class="rq-mode-toggle" role="group" aria-label="Mode selection">
+                    <button type="button" class="rq-mode-button ${state.mode === 'classic' ? 'active' : ''}" data-mode="classic">Classic</button>
+                    <button type="button" class="rq-mode-button ${state.mode === 'timed' ? 'active' : ''}" data-mode="timed">Timed</button>
+                    <button type="button" class="rq-mode-button ${state.mode === 'infinite' ? 'active' : ''}" data-mode="infinite">Infinite</button>
+                  </div>
+                  <div class="rq-config-grid">
+                    <div class="rq-mode-classic ${state.mode === 'classic' ? 'visible' : ''}">
+                      <label for="rqBoardSizeInput">Board Size</label>
+                      <div class="rq-config-field">
+                        <input type="number" id="rqBoardSizeInput" min="4" max="12" value="${state.boardSize}">
+                        <div class="rq-preset-row">
+                          ${BOARD_PRESETS.map(size => `<button type="button" class="rq-preset-button" data-board-size="${size}">${size}×${size}</button>`).join('')}
+                        </div>
+                      </div>
+                      <label for="rqQueenCountInput">Queens</label>
+                      <div class="rq-config-field">
+                        <input type="number" id="rqQueenCountInput" min="2" max="10" value="${state.queenCount}">
+                        <div class="rq-preset-row">
+                          ${QUEEN_PRESETS.map(count => `<button type="button" class="rq-preset-button" data-queen-count="${count}">${count}</button>`).join('')}
+                        </div>
+                      </div>
+                      <label for="rqRoundCountInput">Total Rounds</label>
+                      <div class="rq-config-field">
+                        <input type="number" id="rqRoundCountInput" min="1" max="20" value="${state.totalRounds}">
+                      </div>
+                      <label for="rqGoalStepsInput">Goal Steps</label>
+                      <div class="rq-config-field">
+                        <input type="number" id="rqGoalStepsInput" min="1" max="1000" value="${state.goalSteps}">
+                      </div>
+                    </div>
+                    <div class="rq-mode-timed ${state.mode === 'timed' ? 'visible' : ''}">
+                      <div class="rq-config-field">
+                        <label>Queen Count</label>
+                        <div class="rq-toggle-group" role="group">
+                          <button type="button" class="rq-toggle-button ${state.timedQueenCount === 4 ? 'active' : ''}" data-timed-queens="4">4 Queens</button>
+                          <button type="button" class="rq-toggle-button ${state.timedQueenCount === 5 ? 'active' : ''}" data-timed-queens="5">5 Queens</button>
+                        </div>
+                      </div>
+                      <div class="rq-config-field">
+                        <label>Timer Duration</label>
+                        <div class="rq-toggle-group" role="group">
+                          <button type="button" class="rq-toggle-button ${state.timerDuration === 60000 ? 'active' : ''}" data-timer-duration="60000">1 Minute</button>
+                          <button type="button" class="rq-toggle-button ${state.timerDuration === 120000 ? 'active' : ''}" data-timer-duration="120000">2 Minutes</button>
+                          <button type="button" class="rq-toggle-button ${state.timerDuration === 180000 ? 'active' : ''}" data-timer-duration="180000">3 Minutes</button>
+                        </div>
+                      </div>
+                      <p class="rq-mode-description">Accumulate as many safe moves as possible before the timer expires. Any illegal move ends the run.</p>
+                    </div>
+                    <div class="rq-mode-infinite ${state.mode === 'infinite' ? 'visible' : ''}">
+                      <div class="rq-config-field">
+                        <label>Queen Count</label>
+                        <div class="rq-toggle-group" role="group">
+                          <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 4 ? 'active' : ''}" data-infinite-queens="4">4 Queens</button>
+                          <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 5 ? 'active' : ''}" data-infinite-queens="5">5 Queens</button>
+                        </div>
+                      </div>
+                      <p class="rq-mode-description">Play indefinitely until an illegal or unsafe move occurs. Every successful move adds to your score.</p>
+                    </div>
+                  </div>
+                  <div class="rq-config-actions">
+                    <button type="button" id="rqStartButton" class="rq-primary">Start Game</button>
+                    <button type="button" id="rqRestartButton" class="rq-secondary rq-green" disabled>Restart</button>
+                    <button type="button" id="rqResetButton" class="rq-secondary rq-green" disabled>Reset</button>
+                  </div>
                 </div>
               </div>
-              <label for="rqQueenCountInput">Queens</label>
-              <div class="rq-config-field">
-                <input type="number" id="rqQueenCountInput" min="2" max="10" value="${state.queenCount}">
-                <div class="rq-preset-row">
-                  ${QUEEN_PRESETS.map(count => `<button type="button" class="rq-preset-button" data-queen-count="${count}">${count}</button>`).join('')}
-                </div>
-              </div>
-              <label for="rqRoundCountInput">Total Rounds</label>
-              <div class="rq-config-field">
-                <input type="number" id="rqRoundCountInput" min="1" max="20" value="${state.totalRounds}">
-              </div>
-              <label for="rqGoalStepsInput">Goal Steps</label>
-              <div class="rq-config-field">
-                <input type="number" id="rqGoalStepsInput" min="1" max="1000" value="${state.goalSteps}">
-              </div>
-            </div>
-            <div class="rq-mode-timed ${state.mode === 'timed' ? 'visible' : ''}">
-              <div class="rq-config-field">
-                <label>Queen Count</label>
-                <div class="rq-toggle-group" role="group">
-                  <button type="button" class="rq-toggle-button ${state.timedQueenCount === 4 ? 'active' : ''}" data-timed-queens="4">4 Queens</button>
-                  <button type="button" class="rq-toggle-button ${state.timedQueenCount === 5 ? 'active' : ''}" data-timed-queens="5">5 Queens</button>
-                </div>
-              </div>
-              <div class="rq-config-field">
-                <label>Timer Duration</label>
-                <div class="rq-toggle-group" role="group">
-                  <button type="button" class="rq-toggle-button ${state.timerDuration === 60000 ? 'active' : ''}" data-timer-duration="60000">1 Minute</button>
-                  <button type="button" class="rq-toggle-button ${state.timerDuration === 120000 ? 'active' : ''}" data-timer-duration="120000">2 Minutes</button>
-                  <button type="button" class="rq-toggle-button ${state.timerDuration === 180000 ? 'active' : ''}" data-timer-duration="180000">3 Minutes</button>
-                </div>
-              </div>
-              <p class="rq-mode-description">Accumulate as many safe moves as possible before the timer expires. Any illegal move ends the run.</p>
-            </div>
-            <div class="rq-mode-infinite ${state.mode === 'infinite' ? 'visible' : ''}">
-              <div class="rq-config-field">
-                <label>Queen Count</label>
-                <div class="rq-toggle-group" role="group">
-                  <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 4 ? 'active' : ''}" data-infinite-queens="4">4 Queens</button>
-                  <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 5 ? 'active' : ''}" data-infinite-queens="5">5 Queens</button>
-                </div>
-              </div>
-              <p class="rq-mode-description">Play indefinitely until an illegal or unsafe move occurs. Every successful move adds to your score.</p>
             </div>
           </div>
-          <div class="rq-config-actions">
-            <button type="button" id="rqStartButton" class="rq-primary">Start Game</button>
-            <button type="button" id="rqRestartButton" class="rq-secondary rq-green" disabled>Restart</button>
-            <button type="button" id="rqResetButton" class="rq-secondary rq-green" disabled>Reset</button>
-          </div>
-        </div>
-        <div class="rq-board-panel">
-        <div class="rq-status-bar">
-          <div class="rq-status-item">
-            <span class="rq-status-label">Round</span>
-            <span class="rq-status-value"><span id="rqRoundDisplay">${state.currentRound}</span> / <span id="rqTotalRounds">${state.totalRounds}</span></span>
-          </div>
-          <div class="rq-status-item">
-            <span class="rq-status-label">Current Player</span>
-            <span class="rq-status-value" id="rqPlayerDisplay">${state.players[0]?.name || '—'}</span>
-          </div>
-          <div class="rq-status-item">
-            <span class="rq-status-label">Mission</span>
-            <span class="rq-status-value" id="rqMissionStatus">Awaiting start</span>
-          </div>
-          <div class="rq-status-item rq-timer-block ${state.mode === 'timed' ? 'visible' : ''}">
-            <span class="rq-status-label">Timer</span>
-            <span class="rq-status-value" id="rqTimerDisplay">00:00</span>
-          </div>
-          <div class="rq-status-actions">
-            <button type="button" id="rqRulesButton" class="rq-status-button">Rules</button>
-            <button type="button" id="rqLeaderboardButton" class="rq-status-button">Leaderboards</button>
-          </div>
-        </div>
-          <div class="rq-scoreboard" id="rqScoreboard"></div>
-          <div class="rq-board-container">
-            <div class="rq-board-shell">
-              <div class="rq-board-col-labels">
-                ${generateColumnLabels(state.boardSize)}
-              </div>
-              <div class="rq-board-row-labels">
-                ${generateRowLabels(state.boardSize)}
-              </div>
-              <div id="rqBoard" class="rq-board"></div>
-            </div>
-          </div>
-          <div id="rqInfiniteFailOverlay" class="rq-fail-overlay hidden" role="dialog" aria-live="assertive">
-            <div class="rq-fail-card">
-              <h3 class="rq-fail-title">Defeat</h3>
-              <p class="rq-fail-message">Infinite run ended. Try again?</p>
-              <div class="rq-fail-actions">
-                <button type="button" id="rqFailRetryButton" class="rq-primary">Retry</button>
-                <button type="button" id="rqFailCancelButton" class="rq-secondary">Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </main>
+
       <div id="rqPopupContainer" class="rq-popup-container" aria-live="assertive"></div>
       <div id="rqLeaderboardOverlay" class="rq-modal-overlay hidden" aria-hidden="true">
         <div id="rqLeaderboardModal" class="rq-modal" role="dialog" aria-modal="true" aria-labelledby="rqLeaderboardTitle">
@@ -311,6 +335,7 @@
           <div class="rq-modal-body rq-rules-body"></div>
         </div>
       </div>
+      </div>
     `;
   }
 
@@ -340,6 +365,24 @@
   }
 
   function attachListeners(container) {
+    container.querySelectorAll('[data-rq-scroll="top"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { window.scrollTo(0, 0); }
+      });
+    });
+
+    // Sidebar shortcuts
+    container.querySelectorAll('[data-modal-open]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = String(btn.getAttribute('data-modal-open') || '');
+        if (key === 'leaderboard') {
+          openLeaderboardModal(state.mode === 'infinite' ? 'infinite' : 'timed');
+        } else if (key === 'rules') {
+          openRulesModal();
+        }
+      });
+    });
+
     container.querySelectorAll('.rq-mode-button').forEach(button => {
       button.addEventListener('click', () => {
         const mode = button.getAttribute('data-mode');
