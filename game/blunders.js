@@ -1426,24 +1426,16 @@
     try {
       setMessage('');
       const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, isPractice);
-      if (out.ok) {
-        STATE.uiBoard.blunderVerdict = String(out.verdict || '');
-        STATE.uiBoard.blunderMoveUci = String(out.playedUci || uci || '');
-        STATE.uiBoard.blunderMoveSan = String(out.playedSan || '');
-        STATE.uiBoard.blunderFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
-        STATE.uiBoard.blunderBestOrigin = 'attempt';
-        // For GOOD/BEST on pending: allow retry (practice) or show best; do not auto-refresh.
-        if (!isPractice && (out.verdict === 'good' || out.verdict === 'best')) {
-          STATE.lastAttemptWasPendingSolve = true;
-        } else {
-          STATE.lastAttemptWasPendingSolve = false;
-        }
+      // Always apply the played move on board (even when verdict is blunder).
+      STATE.uiBoard.blunderVerdict = String(out?.verdict || (out?.ok ? 'good' : 'blunder'));
+      STATE.uiBoard.blunderMoveUci = String(out?.playedUci || uci || '');
+      STATE.uiBoard.blunderMoveSan = String(out?.playedSan || '');
+      STATE.uiBoard.blunderFen = String(out?.afterFEN || '') || String(puzzle.startFEN || '');
+      STATE.uiBoard.blunderBestOrigin = 'attempt';
+      // For GOOD/BEST on pending: allow retry (practice) or show best; do not auto-refresh.
+      if (!isPractice && (STATE.uiBoard.blunderVerdict === 'good' || STATE.uiBoard.blunderVerdict === 'best')) {
+        STATE.lastAttemptWasPendingSolve = true;
       } else {
-        STATE.uiBoard.blunderVerdict = 'blunder';
-        STATE.uiBoard.blunderMoveUci = String(uci || '');
-        STATE.uiBoard.blunderMoveSan = '';
-        STATE.uiBoard.blunderFen = String(puzzle.startFEN || '');
-        STATE.uiBoard.blunderBestOrigin = 'attempt';
         STATE.lastAttemptWasPendingSolve = false;
       }
     } catch (e) {
@@ -1578,19 +1570,11 @@
     try {
       setMasterMessage('');
       const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, false);
-      if (out.ok) {
-        STATE.uiBoard.masterVerdict = String(out.verdict || '');
-        STATE.uiBoard.masterMoveUci = String(out.playedUci || uci || '');
-        STATE.uiBoard.masterMoveSan = String(out.playedSan || '');
-        STATE.uiBoard.masterFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
-        STATE.uiBoard.masterBestOrigin = 'attempt';
-      } else {
-        STATE.uiBoard.masterVerdict = 'blunder';
-        STATE.uiBoard.masterMoveUci = String(uci || '');
-        STATE.uiBoard.masterMoveSan = '';
-        STATE.uiBoard.masterFen = String(puzzle.startFEN || '');
-        STATE.uiBoard.masterBestOrigin = 'attempt';
-      }
+      STATE.uiBoard.masterVerdict = String(out?.verdict || (out?.ok ? 'good' : 'blunder'));
+      STATE.uiBoard.masterMoveUci = String(out?.playedUci || uci || '');
+      STATE.uiBoard.masterMoveSan = String(out?.playedSan || '');
+      STATE.uiBoard.masterFen = String(out?.afterFEN || '') || String(puzzle.startFEN || '');
+      STATE.uiBoard.masterBestOrigin = 'attempt';
     } catch (e) {
       setMasterMessage(`Error: ${e?.message || e}`);
     } finally {
