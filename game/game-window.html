@@ -72,6 +72,9 @@
             }
 
             try {
+                // Allow per-game layout overrides via CSS (avoid outer paddings for fixed-sidebar apps like Blunders)
+                document.body.classList.toggle('game-is-blunders', gameKey === 'blunders');
+
                 if (gameKey === 'runningQueen') {
                     content.innerHTML = `
                         <div id="runningQueenGame" class="running-queen-root">

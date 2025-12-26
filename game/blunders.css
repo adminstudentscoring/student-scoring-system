@@ -3,6 +3,20 @@
   color: #111827;
 }
 
+/* Game window overrides (Blunders uses a fixed sidebar; remove outer paddings so gap control is exact) */
+body.game-is-blunders {
+  padding: 0 !important;
+}
+body.game-is-blunders .game-window-container {
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  min-height: 100vh !important;
+}
+body.game-is-blunders .game-area-content {
+  padding: 0 !important;
+}
+
 /* App shell */
 .bl-app {
   --bl-sidebar-w: 180px;
