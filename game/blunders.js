@@ -25,6 +25,7 @@
     needsMasterRefreshAfterModal: false,
     lastAttemptWasPendingSolve: false,
     settingsTab: 'board', // 'board' | 'general'
+    reviewDuration: 'all', // 'week' | 'month' | 'halfYear' | 'year' | 'all'
     teacherTab: 'students', // 'students' | 'masterGame' | 'settings'
     // Student Master Game
     master: {
@@ -256,6 +257,39 @@
     } catch {
       return '';
     }
+  }
+
+  function parseIsoMs(iso) {
+    const t = Date.parse(String(iso || ''));
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function reviewDurationStartMs(key) {
+    const now = new Date();
+    const k = String(key || 'all');
+    if (k === 'week') return Date.now() - 7 * 24 * 3600 * 1000;
+    if (k === 'month') return Date.now() - 30 * 24 * 3600 * 1000;
+    if (k === 'halfYear') {
+      const d = new Date(now.getTime());
+      d.setMonth(d.getMonth() - 6);
+      return d.getTime();
+    }
+    if (k === 'year') {
+      const d = new Date(now.getTime());
+      d.setFullYear(d.getFullYear() - 1);
+      return d.getTime();
+    }
+    return 0; // all
+  }
+
+  function getReviewCompletedFiltered() {
+    const all = Array.isArray(STATE.completed) ? STATE.completed : [];
+    const start = reviewDurationStartMs(STATE.reviewDuration);
+    if (!start) return all;
+    return all.filter((p) => {
+      const ms = parseIsoMs(p?.completedAt || p?.createdAt || '');
+      return ms >= start;
+    });
   }
 
   function pieceImagePath(p) {
@@ -653,7 +687,8 @@
   }
 
   function renderReviewPage() {
-    const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
+    const completedAll = Array.isArray(STATE.completed) ? STATE.completed : [];
+    const completed = getReviewCompletedFiltered();
     const dropOf = (p) => {
       const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
       return Number.isFinite(d) ? d : 0;
@@ -728,6 +763,14 @@
         </details>
       `;
     };
+    const dur = String(STATE.reviewDuration || 'all');
+    const durBtns = [
+      { k: 'week', label: 'Last 7 days' },
+      { k: 'month', label: 'Last 30 days' },
+      { k: 'halfYear', label: 'Last 6 months' },
+      { k: 'year', label: 'Last 12 months' },
+      { k: 'all', label: 'All time' }
+    ];
     return `
       <div class="bl-card">
         <div class="bl-title">Review</div>
@@ -742,6 +785,16 @@
             <button class="btn btn-secondary" type="button" data-bl-review-practice="d3" ${groups.d3.length ? '' : 'disabled'}>2.01–3</button>
             <button class="btn btn-secondary" type="button" data-bl-review-practice="d4" ${groups.d4.length ? '' : 'disabled'}>3.01+</button>
           </div>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
+          <span class="blunders-muted" style="margin-right:2px;">Duration:</span>
+          ${durBtns.map(b => `
+            <button class="btn ${dur === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-review-duration="${escapeHtml(b.k)}">
+              ${escapeHtml(b.label)}
+            </button>
+          `).join('')}
+          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(completed.length))}</strong> of <strong>${escapeHtml(String(completedAll.length))}</strong></span>
         </div>
         ${completed.length ? `
           ${renderGroup('Miss the mate', groups.missMate, true)}
@@ -1822,7 +1875,7 @@
       const rp = t?.closest?.('[data-bl-review-practice]');
       if (rp) {
         const key = String(rp.getAttribute('data-bl-review-practice') || '');
-        const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
+        const completed = getReviewCompletedFiltered();
         if (!completed.length) return;
 
         const isMissMate = (p) => {
@@ -1855,6 +1908,13 @@
         setBlunderModePractice(pick);
         clearInlineResult('blunder');
         setPage('blunder');
+        return;
+      }
+
+      const rd = t?.closest?.('[data-bl-review-duration]');
+      if (rd) {
+        STATE.reviewDuration = String(rd.getAttribute('data-bl-review-duration') || 'all');
+        render();
         return;
       }
 
