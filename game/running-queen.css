@@ -118,6 +118,42 @@ body.game-is-running-queen .game-area-content {
     outline: none;
 }
 
+.rq-side-section {
+    margin-top: 12px;
+}
+
+.rq-side-section-title {
+    color: #6b7280;
+    font-weight: 900;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.rq-config-panel--sidebar {
+    padding: 0;
+    background: rgba(19, 24, 39, 0.95);
+    border-radius: 14px;
+    padding: 12px;
+    border: 1px solid rgba(63, 80, 140, 0.35);
+    box-shadow: 0 14px 28px rgba(9, 11, 22, 0.55);
+}
+
+.rq-board-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rq-side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rq-config-actions--right {
+    margin-top: 0;
+}
+
 .rq-board-wrap {
     display: grid;
     grid-template-columns: min(700px, 72vh, 100%) 1fr;

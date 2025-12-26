@@ -13,8 +13,7 @@
   const DEFAULT_CONFIG = {
     boardSize: 8,
     queenCount: 4,
-    totalRounds: 3,
-    goalSteps: 6
+    timerDuration: 120000
   };
 
   const BOARD_PRESETS = [5, 8, 10];
@@ -63,9 +62,6 @@
     players: [],
     boardSize: DEFAULT_CONFIG.boardSize,
     queenCount: DEFAULT_CONFIG.queenCount,
-    totalRounds: DEFAULT_CONFIG.totalRounds,
-    goalSteps: DEFAULT_CONFIG.goalSteps,
-    currentRound: 1,
     currentPlayerIndex: 0,
     queens: [],
     selectedQueenIndex: null,
@@ -78,19 +74,15 @@
     lastMovedQueenIndex: null,
     boardEl: null,
     logEl: null,
-    roundDisplayEl: null,
-    totalRoundsEl: null,
     playerDisplayEl: null,
-    missionStatusEl: null,
     startButton: null,
-    resetButton: null,
     restartButton: null,
     scoreboardEl: null,
     highlightTimeout: null,
     mode: 'infinite',
     timedQueenCount: 4,
     infiniteQueenCount: 4,
-    timerDuration: 120000,
+    timerDuration: DEFAULT_CONFIG.timerDuration,
     remainingTime: 0,
     timerIntervalId: null,
     leaderboard: [],
@@ -161,7 +153,6 @@
     cacheDomReferences(container);
     attachListeners(container);
     resetGameState(true);
-    announceRoundStart();
     renderBoard();
     renderLog();
     updateScoreboard();
@@ -179,6 +170,45 @@
             <button type="button" class="rq-nav-btn" data-modal-open="rules">Rules</button>
             <button type="button" class="rq-nav-btn" data-modal-open="leaderboard">Leaderboards</button>
           </div>
+
+          <!-- Configuration (moved into sidebar under Home) -->
+          <div class="rq-side-section">
+            <div class="rq-side-section-title">Configuration</div>
+            <div class="rq-config-panel rq-config-panel--sidebar">
+              <div class="rq-mode-toggle" role="group" aria-label="Mode selection">
+                <button type="button" class="rq-mode-button ${state.mode === 'timed' ? 'active' : ''}" data-mode="timed">Timed</button>
+                <button type="button" class="rq-mode-button ${state.mode === 'infinite' ? 'active' : ''}" data-mode="infinite">Infinite</button>
+              </div>
+              <div class="rq-config-grid">
+                <div class="rq-mode-timed ${state.mode === 'timed' ? 'visible' : ''}">
+                  <div class="rq-config-field">
+                    <label>Queen Count</label>
+                    <div class="rq-toggle-group" role="group">
+                      <button type="button" class="rq-toggle-button ${state.timedQueenCount === 4 ? 'active' : ''}" data-timed-queens="4">4 Queens</button>
+                      <button type="button" class="rq-toggle-button ${state.timedQueenCount === 5 ? 'active' : ''}" data-timed-queens="5">5 Queens</button>
+                    </div>
+                  </div>
+                  <div class="rq-config-field">
+                    <label>Timer Duration</label>
+                    <div class="rq-toggle-group" role="group">
+                      <button type="button" class="rq-toggle-button ${state.timerDuration === 60000 ? 'active' : ''}" data-timer-duration="60000">1 Minute</button>
+                      <button type="button" class="rq-toggle-button ${state.timerDuration === 120000 ? 'active' : ''}" data-timer-duration="120000">2 Minutes</button>
+                      <button type="button" class="rq-toggle-button ${state.timerDuration === 180000 ? 'active' : ''}" data-timer-duration="180000">3 Minutes</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="rq-mode-infinite ${state.mode === 'infinite' ? 'visible' : ''}">
+                  <div class="rq-config-field">
+                    <label>Queen Count</label>
+                    <div class="rq-toggle-group" role="group">
+                      <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 4 ? 'active' : ''}" data-infinite-queens="4">4 Queens</button>
+                      <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 5 ? 'active' : ''}" data-infinite-queens="5">5 Queens</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </aside>
 
         <main class="rq-main">
@@ -188,31 +218,7 @@
               <div class="rq-muted">Drag queens or click squares to move. Avoid illegal/unsafe moves.</div>
 
               <div class="rq-board-wrap">
-                <div class="rq-board-panel">
-                  <div class="rq-status-bar">
-                    <div class="rq-status-item">
-                      <span class="rq-status-label">Round</span>
-                      <span class="rq-status-value"><span id="rqRoundDisplay">${state.currentRound}</span> / <span id="rqTotalRounds">${state.totalRounds}</span></span>
-                    </div>
-                    <div class="rq-status-item">
-                      <span class="rq-status-label">Current Player</span>
-                      <span class="rq-status-value" id="rqPlayerDisplay">${escapeHtml(state.players[0]?.name || '—')}</span>
-                    </div>
-                    <div class="rq-status-item">
-                      <span class="rq-status-label">Mission</span>
-                      <span class="rq-status-value" id="rqMissionStatus">Awaiting start</span>
-                    </div>
-                    <div class="rq-status-item rq-timer-block ${state.mode === 'timed' ? 'visible' : ''}">
-                      <span class="rq-status-label">Timer</span>
-                      <span class="rq-status-value" id="rqTimerDisplay">00:00</span>
-                    </div>
-                    <div class="rq-status-actions">
-                      <button type="button" id="rqRulesButton" class="rq-status-button">Rules</button>
-                      <button type="button" id="rqLeaderboardButton" class="rq-status-button">Leaderboards</button>
-                    </div>
-                  </div>
-
-                  <div class="rq-scoreboard" id="rqScoreboard"></div>
+                <div class="rq-board-col">
                   <div class="rq-board-container">
                     <div class="rq-board-shell">
                       <div class="rq-board-col-labels">
@@ -237,71 +243,27 @@
                   </div>
                 </div>
 
-                <div class="rq-config-panel">
-                  <h3>Configuration</h3>
-                  <div class="rq-mode-toggle" role="group" aria-label="Mode selection">
-                    <button type="button" class="rq-mode-button ${state.mode === 'classic' ? 'active' : ''}" data-mode="classic">Classic</button>
-                    <button type="button" class="rq-mode-button ${state.mode === 'timed' ? 'active' : ''}" data-mode="timed">Timed</button>
-                    <button type="button" class="rq-mode-button ${state.mode === 'infinite' ? 'active' : ''}" data-mode="infinite">Infinite</button>
-                  </div>
-                  <div class="rq-config-grid">
-                    <div class="rq-mode-classic ${state.mode === 'classic' ? 'visible' : ''}">
-                      <label for="rqBoardSizeInput">Board Size</label>
-                      <div class="rq-config-field">
-                        <input type="number" id="rqBoardSizeInput" min="4" max="12" value="${state.boardSize}">
-                        <div class="rq-preset-row">
-                          ${BOARD_PRESETS.map(size => `<button type="button" class="rq-preset-button" data-board-size="${size}">${size}×${size}</button>`).join('')}
-                        </div>
-                      </div>
-                      <label for="rqQueenCountInput">Queens</label>
-                      <div class="rq-config-field">
-                        <input type="number" id="rqQueenCountInput" min="2" max="10" value="${state.queenCount}">
-                        <div class="rq-preset-row">
-                          ${QUEEN_PRESETS.map(count => `<button type="button" class="rq-preset-button" data-queen-count="${count}">${count}</button>`).join('')}
-                        </div>
-                      </div>
-                      <label for="rqRoundCountInput">Total Rounds</label>
-                      <div class="rq-config-field">
-                        <input type="number" id="rqRoundCountInput" min="1" max="20" value="${state.totalRounds}">
-                      </div>
-                      <label for="rqGoalStepsInput">Goal Steps</label>
-                      <div class="rq-config-field">
-                        <input type="number" id="rqGoalStepsInput" min="1" max="1000" value="${state.goalSteps}">
-                      </div>
+                <div class="rq-side-panel">
+                  <div class="rq-status-bar rq-status-bar--right">
+                    <div class="rq-status-item">
+                      <span class="rq-status-label">Current Player</span>
+                      <span class="rq-status-value" id="rqPlayerDisplay">${escapeHtml(state.players[0]?.name || '—')}</span>
                     </div>
-                    <div class="rq-mode-timed ${state.mode === 'timed' ? 'visible' : ''}">
-                      <div class="rq-config-field">
-                        <label>Queen Count</label>
-                        <div class="rq-toggle-group" role="group">
-                          <button type="button" class="rq-toggle-button ${state.timedQueenCount === 4 ? 'active' : ''}" data-timed-queens="4">4 Queens</button>
-                          <button type="button" class="rq-toggle-button ${state.timedQueenCount === 5 ? 'active' : ''}" data-timed-queens="5">5 Queens</button>
-                        </div>
-                      </div>
-                      <div class="rq-config-field">
-                        <label>Timer Duration</label>
-                        <div class="rq-toggle-group" role="group">
-                          <button type="button" class="rq-toggle-button ${state.timerDuration === 60000 ? 'active' : ''}" data-timer-duration="60000">1 Minute</button>
-                          <button type="button" class="rq-toggle-button ${state.timerDuration === 120000 ? 'active' : ''}" data-timer-duration="120000">2 Minutes</button>
-                          <button type="button" class="rq-toggle-button ${state.timerDuration === 180000 ? 'active' : ''}" data-timer-duration="180000">3 Minutes</button>
-                        </div>
-                      </div>
-                      <p class="rq-mode-description">Accumulate as many safe moves as possible before the timer expires. Any illegal move ends the run.</p>
+                    <div class="rq-status-item rq-timer-block ${state.mode === 'timed' ? 'visible' : ''}">
+                      <span class="rq-status-label">Timer</span>
+                      <span class="rq-status-value" id="rqTimerDisplay">00:00</span>
                     </div>
-                    <div class="rq-mode-infinite ${state.mode === 'infinite' ? 'visible' : ''}">
-                      <div class="rq-config-field">
-                        <label>Queen Count</label>
-                        <div class="rq-toggle-group" role="group">
-                          <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 4 ? 'active' : ''}" data-infinite-queens="4">4 Queens</button>
-                          <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 5 ? 'active' : ''}" data-infinite-queens="5">5 Queens</button>
-                        </div>
-                      </div>
-                      <p class="rq-mode-description">Play indefinitely until an illegal or unsafe move occurs. Every successful move adds to your score.</p>
+                    <div class="rq-status-actions">
+                      <button type="button" id="rqRulesButton" class="rq-status-button">Rules</button>
+                      <button type="button" id="rqLeaderboardButton" class="rq-status-button">Leaderboards</button>
                     </div>
                   </div>
-                  <div class="rq-config-actions">
+
+                  <div class="rq-scoreboard" id="rqScoreboard"></div>
+
+                  <div class="rq-config-actions rq-config-actions--right">
                     <button type="button" id="rqStartButton" class="rq-primary">Start Game</button>
                     <button type="button" id="rqRestartButton" class="rq-secondary rq-green" disabled>Restart</button>
-                    <button type="button" id="rqResetButton" class="rq-secondary rq-green" disabled>Reset</button>
                   </div>
                 </div>
               </div>
@@ -351,12 +313,8 @@
   function cacheDomReferences(container) {
     state.boardEl = container.querySelector('#rqBoard');
     state.logEl = container.querySelector('#rqLogList');
-    state.roundDisplayEl = container.querySelector('#rqRoundDisplay');
-    state.totalRoundsEl = container.querySelector('#rqTotalRounds');
     state.playerDisplayEl = container.querySelector('#rqPlayerDisplay');
-    state.missionStatusEl = container.querySelector('#rqMissionStatus');
     state.startButton = container.querySelector('#rqStartButton');
-    state.resetButton = container.querySelector('#rqResetButton');
     state.restartButton = container.querySelector('#rqRestartButton');
     state.scoreboardEl = container.querySelector('#rqScoreboard');
     state.leaderboardOverlayEl = container.querySelector('#rqLeaderboardOverlay');
@@ -431,41 +389,12 @@
       });
     });
 
-    container.querySelectorAll('[data-board-size]').forEach(button => {
-      button.addEventListener('click', () => {
-        const size = parseInt(button.getAttribute('data-board-size'), 10);
-        const input = container.querySelector('#rqBoardSizeInput');
-        if (input) {
-          input.value = size;
-        }
-      });
-    });
-
-    container.querySelectorAll('[data-queen-count]').forEach(button => {
-      button.addEventListener('click', () => {
-        const count = parseInt(button.getAttribute('data-queen-count'), 10);
-        const input = container.querySelector('#rqQueenCountInput');
-        if (input) {
-          input.value = count;
-        }
-      });
-    });
+    // Classic mode removed (no board-size / queen-count inputs)
 
     const startButton = container.querySelector('#rqStartButton');
     if (startButton) {
       startButton.addEventListener('click', () => {
         startGame(container);
-      });
-    }
-
-    const resetButton = container.querySelector('#rqResetButton');
-    if (resetButton) {
-      resetButton.addEventListener('click', () => {
-        resetGameState(true);
-        renderBoard();
-        renderLog();
-        announceRoundStart();
-        updateScoreboard();
       });
     }
 
@@ -569,26 +498,14 @@
   }
 
   function switchMode(mode) {
-    if (!['classic', 'timed', 'infinite'].includes(mode)) {
+    if (!['timed', 'infinite'].includes(mode)) {
       return;
     }
     stopTimer();
     state.mode = mode;
-    if (mode === 'timed') {
-      state.boardSize = 8;
-      state.queenCount = state.timedQueenCount;
-      state.totalRounds = Number.MAX_SAFE_INTEGER;
-      state.goalSteps = DEFAULT_CONFIG.goalSteps;
-      state.remainingTime = state.timerDuration;
-    } else if (mode === 'infinite') {
-      state.boardSize = 8;
-      state.queenCount = state.infiniteQueenCount;
-      state.totalRounds = Number.MAX_SAFE_INTEGER;
-      state.goalSteps = DEFAULT_CONFIG.goalSteps;
-      state.remainingTime = 0;
-    } else {
-      state.remainingTime = 0;
-    }
+    state.boardSize = 8;
+    state.queenCount = mode === 'timed' ? state.timedQueenCount : state.infiniteQueenCount;
+    state.remainingTime = mode === 'timed' ? state.timerDuration : 0;
     updateModeVisibility();
     resetGameState(true);
     renderBoard();
@@ -604,17 +521,9 @@
       const mode = button.getAttribute('data-mode');
       button.classList.toggle('active', mode === state.mode);
     });
-    const classicSection = container.querySelector('.rq-mode-classic');
     const timedSection = container.querySelector('.rq-mode-timed');
     const infiniteSection = container.querySelector('.rq-mode-infinite');
     const timerBlock = container.querySelector('.rq-timer-block');
-    const boardInput = container.querySelector('#rqBoardSizeInput');
-    const queenInput = container.querySelector('#rqQueenCountInput');
-    const roundInput = container.querySelector('#rqRoundCountInput');
-    const goalInput = container.querySelector('#rqGoalStepsInput');
-    if (classicSection) {
-      classicSection.classList.toggle('visible', state.mode === 'classic');
-    }
     if (timedSection) {
       timedSection.classList.toggle('visible', state.mode === 'timed');
       timedSection.querySelectorAll('[data-timed-queens]').forEach(button => {
@@ -635,18 +544,6 @@
         const value = parseInt(button.getAttribute('data-infinite-queens'), 10);
         button.classList.toggle('active', value === state.infiniteQueenCount);
       });
-    }
-    if (boardInput) {
-      boardInput.disabled = state.mode !== 'classic';
-    }
-    if (queenInput) {
-      queenInput.disabled = state.mode !== 'classic';
-    }
-    if (roundInput) {
-      roundInput.disabled = state.mode !== 'classic';
-    }
-    if (goalInput) {
-      goalInput.disabled = state.mode !== 'classic';
     }
     if (state.mode === 'timed') {
       state.remainingTime = state.timerDuration;
@@ -672,21 +569,11 @@
     hideInfiniteFailOverlay();
     resetPositionTracking();
     if (resetConfig) {
-      state.boardSize = DEFAULT_CONFIG.boardSize;
-      state.queenCount = DEFAULT_CONFIG.queenCount;
-      state.totalRounds = DEFAULT_CONFIG.totalRounds;
-      state.goalSteps = DEFAULT_CONFIG.goalSteps;
-      const boardInput = document.getElementById('rqBoardSizeInput');
-      const queenInput = document.getElementById('rqQueenCountInput');
-      const roundInput = document.getElementById('rqRoundCountInput');
-      const goalInput = document.getElementById('rqGoalStepsInput');
-      if (boardInput) boardInput.value = state.boardSize;
-      if (queenInput) queenInput.value = state.queenCount;
-      if (roundInput) roundInput.value = state.totalRounds;
-      if (goalInput) goalInput.value = state.goalSteps;
+      state.timedQueenCount = 4;
+      state.infiniteQueenCount = 4;
+      state.timerDuration = DEFAULT_CONFIG.timerDuration;
     }
 
-    state.currentRound = 1;
     state.currentPlayerIndex = 0;
     state.selectedQueenIndex = null;
     state.violationOccurred = false;
@@ -697,28 +584,12 @@
     state.totalSuccessCount = 0;
     state.lastMovedQueenIndex = null;
     state.players = state.players.map(player => ({ ...player, success: 0 }));
+    state.boardSize = 8;
+    state.queenCount = state.mode === 'timed' ? state.timedQueenCount : state.infiniteQueenCount;
+    state.remainingTime = state.mode === 'timed' ? state.timerDuration : 0;
     updateStatusDisplay();
-    updateMissionStatus('Awaiting start');
     if (state.startButton) state.startButton.disabled = false;
-    if (state.resetButton) state.resetButton.disabled = true;
     if (state.restartButton) state.restartButton.disabled = true;
-    updateScoreboard();
-  }
-
-  function handleClassicFailure(message) {
-    if (state.mode !== 'classic' || !state.gameActive) {
-      return;
-    }
-    stopTimer();
-    state.gameActive = false;
-    state.selectedQueenIndex = null;
-    state.lastMovedQueenIndex = null;
-    renderBoard();
-    appendLog(message, 'error');
-    updateMissionStatus('Failed');
-    showPopup(message, 'error');
-    SOUND_ENGINE.playFail();
-    if (state.startButton) state.startButton.disabled = false;
     updateScoreboard();
   }
 
@@ -726,38 +597,10 @@
     hideInfiniteFailOverlay();
     stopTimer();
     resetPositionTracking();
-    let boardSize = state.boardSize;
-    let queenCount = state.queenCount;
-    let totalRounds = state.totalRounds;
-    let goalSteps = state.goalSteps;
-
-    if (state.mode === 'timed') {
-      boardSize = 8;
-      queenCount = state.timedQueenCount;
-      totalRounds = Number.MAX_SAFE_INTEGER;
-      goalSteps = DEFAULT_CONFIG.goalSteps;
-    } else if (state.mode === 'infinite') {
-      boardSize = 8;
-      queenCount = state.infiniteQueenCount;
-      totalRounds = Number.MAX_SAFE_INTEGER;
-      goalSteps = DEFAULT_CONFIG.goalSteps;
-    } else {
-      const boardInput = container.querySelector('#rqBoardSizeInput');
-      const queenInput = container.querySelector('#rqQueenCountInput');
-      const roundInput = container.querySelector('#rqRoundCountInput');
-      const goalInput = container.querySelector('#rqGoalStepsInput');
-      boardSize = clamp(parseInt(boardInput?.value, 10) || DEFAULT_CONFIG.boardSize, 4, 12);
-      queenCount = clamp(parseInt(queenInput?.value, 10) || DEFAULT_CONFIG.queenCount, 2, boardSize);
-      totalRounds = clamp(parseInt(roundInput?.value, 10) || DEFAULT_CONFIG.totalRounds, 1, 20);
-      goalSteps = clamp(parseInt(goalInput?.value, 10) || DEFAULT_CONFIG.goalSteps, 1, 1000);
-    }
-
-    state.boardSize = boardSize;
+    // Timed / Infinite only (Classic removed)
+    state.boardSize = 8;
+    const queenCount = state.mode === 'timed' ? state.timedQueenCount : state.infiniteQueenCount;
     state.queenCount = queenCount;
-    state.totalRounds = totalRounds;
-    state.goalSteps = goalSteps;
-
-    state.currentRound = 1;
     state.currentPlayerIndex = 0;
     state.violationOccurred = false;
     state.gameActive = true;
@@ -766,23 +609,17 @@
     state.lastMovedQueenIndex = null;
     state.players = state.players.map(player => ({ ...player, success: 0 }));
     if (state.startButton) state.startButton.disabled = true;
-    if (state.resetButton) state.resetButton.disabled = false;
     if (state.restartButton) state.restartButton.disabled = false;
     state.remainingTime = state.mode === 'timed' ? state.timerDuration : 0;
 
-    state.totalRoundsEl.textContent = state.mode === 'classic'
-      ? String(totalRounds)
-      : '∞';
     clearLog();
     if (state.mode === 'timed') {
       appendLog(`Timed mode started with ${queenCount} queens. Duration: ${formatDuration(state.timerDuration)}.`, 'info');
     } else if (state.mode === 'infinite') {
       appendLog(`Infinite mode started with ${queenCount} queens. Play until a mistake occurs.`, 'info');
-    } else {
-      appendLog(`Game started with a ${boardSize}×${boardSize} board, ${queenCount} queens, goal ${goalSteps} steps.`, 'info');
     }
 
-    state.queens = generateSafeQueenPositions(boardSize, queenCount);
+    state.queens = generateSafeQueenPositions(state.boardSize, queenCount);
     if (state.queens.length !== queenCount) {
       appendLog('Unable to generate a valid starting layout. Please adjust settings.', 'error');
       showPopup('Unable to create starting positions. Try different settings.', 'error');
@@ -795,13 +632,8 @@
     recordPositionAndCheckRepetition();
 
     updateStatusDisplay();
-    updateMissionStatus(state.mode === 'timed' ? 'Timed run ready' : 'Running');
-    announceRoundStart();
     if (state.mode === 'timed') {
       startTimer();
-      updateMissionStatus('Timed run active');
-    } else if (state.mode === 'infinite') {
-      updateMissionStatus('Infinite run');
     }
     renderBoard();
     renderLog();
@@ -868,29 +700,9 @@
     stopTimer();
     resetPositionTracking();
 
-    if (state.mode === 'timed') {
-      state.boardSize = 8;
-      state.queenCount = state.timedQueenCount;
-      state.totalRounds = Number.MAX_SAFE_INTEGER;
-      state.goalSteps = DEFAULT_CONFIG.goalSteps;
-    } else if (state.mode === 'infinite') {
-      state.boardSize = 8;
-      state.queenCount = state.infiniteQueenCount;
-      state.totalRounds = Number.MAX_SAFE_INTEGER;
-      state.goalSteps = DEFAULT_CONFIG.goalSteps;
-    } else {
-      const boardInput = container.querySelector('#rqBoardSizeInput');
-      const queenInput = container.querySelector('#rqQueenCountInput');
-      const roundInput = container.querySelector('#rqRoundCountInput');
-      const goalInput = container.querySelector('#rqGoalStepsInput');
-
-      state.boardSize = clamp(parseInt(boardInput?.value, 10) || state.boardSize, 4, 12);
-      state.queenCount = clamp(parseInt(queenInput?.value, 10) || state.queenCount, 2, state.boardSize);
-      state.totalRounds = clamp(parseInt(roundInput?.value, 10) || state.totalRounds, 1, 20);
-      state.goalSteps = clamp(parseInt(goalInput?.value, 10) || state.goalSteps, 1, 1000);
-    }
-
-    state.currentRound = 1;
+    // Timed / Infinite only (Classic removed)
+    state.boardSize = 8;
+    state.queenCount = state.mode === 'timed' ? state.timedQueenCount : state.infiniteQueenCount;
     state.currentPlayerIndex = 0;
     state.violationOccurred = false;
     state.gameActive = true;
@@ -912,29 +724,18 @@
     // Track starting position (counts toward repetition rule)
     recordPositionAndCheckRepetition();
 
-    state.totalRoundsEl.textContent = state.mode === 'classic'
-      ? String(state.totalRounds)
-      : '∞';
     if (state.startButton) state.startButton.disabled = true;
-    if (state.resetButton) state.resetButton.disabled = false;
     if (state.restartButton) state.restartButton.disabled = false;
-    updateMissionStatus('Running');
-    announceRoundStart();
     appendLog(
       state.mode === 'timed'
         ? `Timed mode restarted with ${state.queenCount} queens, duration ${formatDuration(state.timerDuration)}.`
         : state.mode === 'infinite'
           ? `Infinite mode restarted with ${state.queenCount} queens.`
-          : `Game restarted with a ${state.boardSize}×${state.boardSize} board, goal ${state.goalSteps} steps.`,
+          : `Infinite mode restarted with ${state.queenCount} queens.`,
       'info'
     );
     if (state.mode === 'timed') {
       startTimer();
-      updateMissionStatus('Timed run active');
-    } else if (state.mode === 'infinite') {
-      updateMissionStatus('Infinite run');
-    } else {
-      updateMissionStatus('Running');
     }
     renderBoard();
     updateScoreboard();
@@ -1172,24 +973,14 @@
     }
 
     if (state.lastMovedQueenIndex !== null && state.lastMovedQueenIndex === queenIndex) {
-      if (state.mode === 'classic') {
-        showPopup('Cannot move the same queen twice in a row.', 'error');
-      } else if (state.mode === 'timed') {
-        handleTimedFailure('Timed challenge failed: same queen moved consecutively.');
-      } else if (state.mode === 'infinite') {
-        handleInfiniteFailure('Infinite run ended: same queen moved consecutively.');
-      }
+      if (state.mode === 'timed') handleTimedFailure('Timed challenge failed: same queen moved consecutively.');
+      else handleInfiniteFailure('Infinite run ended: same queen moved consecutively.');
       return;
     }
 
     if (!isValidQueenMove(queen.row, queen.col, targetRow, targetCol)) {
-      if (state.mode === 'classic') {
-        showPopup('Invalid queen move. Please use a straight or diagonal path.', 'error');
-      } else if (state.mode === 'timed') {
-        handleTimedFailure('Timed challenge failed: invalid queen move.');
-      } else if (state.mode === 'infinite') {
-        handleInfiniteFailure('Infinite run ended: invalid queen move.');
-      }
+      if (state.mode === 'timed') handleTimedFailure('Timed challenge failed: invalid queen move.');
+      else handleInfiniteFailure('Infinite run ended: invalid queen move.');
       return;
     }
 
@@ -1197,24 +988,14 @@
     const colDelta = Math.abs(targetCol - queen.col);
     const moveDistance = Math.max(rowDelta, colDelta);
     if (moveDistance < 2) {
-      if (state.mode === 'classic') {
-        showPopup('Queens must move at least two squares.', 'error');
-      } else if (state.mode === 'timed') {
-        handleTimedFailure('Timed challenge failed: move was less than two squares.');
-      } else if (state.mode === 'infinite') {
-        handleInfiniteFailure('Infinite run ended: move was less than two squares.');
-      }
+      if (state.mode === 'timed') handleTimedFailure('Timed challenge failed: move was less than two squares.');
+      else handleInfiniteFailure('Infinite run ended: move was less than two squares.');
       return;
     }
 
     if (!isPathClear(queen.row, queen.col, targetRow, targetCol)) {
-      if (state.mode === 'classic') {
-        showPopup('Path is blocked by another queen.', 'error');
-      } else if (state.mode === 'timed') {
-        handleTimedFailure('Timed challenge failed: path blocked by another queen.');
-      } else if (state.mode === 'infinite') {
-        handleInfiniteFailure('Infinite run ended: path blocked by another queen.');
-      }
+      if (state.mode === 'timed') handleTimedFailure('Timed challenge failed: path blocked by another queen.');
+      else handleInfiniteFailure('Infinite run ended: path blocked by another queen.');
       return;
     }
 
@@ -1242,12 +1023,7 @@
       state.players[state.currentPlayerIndex].success += 1;
       state.totalSuccessCount += 1;
       appendLog(`${currentPlayer.name} moved safely to ${formatCoordinate(endCell)}.`, 'success');
-      if (state.mode === 'classic') {
-        showPopup(`${currentPlayer.name} moved safely!`, 'success');
-        SOUND_ENGINE.playSuccess();
-      } else {
-        SOUND_ENGINE.playSuccess();
-      }
+      SOUND_ENGINE.playSuccess();
       updateScoreboard();
       state.lastMovedQueenIndex = queenIndex;
       // Repetition rule: third time the same position appears -> immediate loss (includes starting position).
@@ -1258,13 +1034,7 @@
           handleTimedFailure(`Timed challenge failed: ${repetitionMessage}`);
         } else if (state.mode === 'infinite') {
           handleInfiniteFailure(`Infinite run ended: ${repetitionMessage}`);
-        } else {
-          handleClassicFailure(`Mission failed: ${repetitionMessage}`);
         }
-        return;
-      }
-      if (state.mode === 'classic' && state.totalSuccessCount >= state.goalSteps) {
-        finalizeGame(true);
         return;
       }
     } else {
@@ -1285,22 +1055,6 @@
         updateScoreboard();
         SOUND_ENGINE.playFail();
         handleInfiniteFailure(failureMessage);
-        return;
-      }
-      appendLog(failureMessage, 'error');
-      showPopup(`${currentPlayer.name}'s move is under attack!`, 'error');
-      SOUND_ENGINE.playFail();
-      state.violationOccurred = true;
-      queen.row = originalPosition.row;
-      queen.col = originalPosition.col;
-      renderBoard();
-      updateScoreboard();
-      state.lastMovedQueenIndex = queenIndex;
-      // In classic mode, unsafe moves snap back but still advance the turn;
-      // this can create repeated positions, so enforce threefold repetition here too.
-      const repetition = recordPositionAndCheckRepetition();
-      if (repetition) {
-        handleClassicFailure(`Mission failed: Threefold repetition detected. Position repeated ${repetition.count} times.`);
         return;
       }
     }
@@ -1344,26 +1098,8 @@
   }
 
   function advanceTurn() {
-    if (state.mode === 'timed') {
-      state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-      updateStatusDisplay();
-      return;
-    }
-
-    state.currentPlayerIndex += 1;
-    if (state.currentPlayerIndex >= state.players.length) {
-      state.currentPlayerIndex = 0;
-      state.currentRound += 1;
-      if (state.currentRound <= state.totalRounds) {
-        announceRoundStart();
-      }
-    }
-
-    if (state.currentRound > state.totalRounds) {
-      finalizeGame(false);
-    } else {
-      updateStatusDisplay();
-    }
+    state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+    updateStatusDisplay();
   }
 
   function finalizeGame(goalAchievedEarly, options = {}) {
@@ -1380,7 +1116,6 @@
         ? `Time's up! Final score: ${state.totalSuccessCount} steps.`
         : `Timed run ended. Final score: ${state.totalSuccessCount} steps.`);
       appendLog(message, status === 'success' ? 'success' : 'error');
-      updateMissionStatus(status === 'success' ? 'Completed' : 'Failed');
       recordLeaderboardEntry({
         mode: 'timed',
         score: state.totalSuccessCount,
@@ -1401,7 +1136,6 @@
       const status = goalAchievedEarly ? 'success' : 'fail';
       const message = options.message || `Infinite run ended. Final score: ${state.totalSuccessCount} steps.`;
       appendLog(message, status === 'success' ? 'success' : 'error');
-      updateMissionStatus(status === 'success' ? 'Completed' : 'Failed');
       recordLeaderboardEntry({
         mode: 'infinite',
         score: state.totalSuccessCount,
@@ -1417,66 +1151,13 @@
       updateScoreboard();
       return;
     }
-
-    if (state.totalSuccessCount >= state.goalSteps) {
-      appendLog('Mission success! Goal steps achieved.', 'success');
-      updateMissionStatus('Success');
-      showPopup('Mission success! All players earn +10 points!', 'success');
-      SOUND_ENGINE.playSuccess();
-      awardSuccessPoints();
-    } else {
-      appendLog('Mission failed. Goal steps not reached within the limit.', 'error');
-      updateMissionStatus('Failed');
-      showPopup('Mission failed. Goal not reached.', 'error');
-      SOUND_ENGINE.playFail();
-    }
-    if (state.startButton) state.startButton.disabled = false;
-    updateScoreboard();
-  }
-
-  async function awardSuccessPoints() {
-    const payload = { points: 10 };
-    for (const player of state.players) {
-      try {
-        await fetch(`${API_BASE}/students/${player.id}/answer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } catch (error) {
-        console.error('Failed to award points to', player.name, error);
-      }
-    }
   }
 
   function updateStatusDisplay() {
-    if (state.roundDisplayEl) {
-      state.roundDisplayEl.textContent = state.mode === 'classic'
-        ? String(clamp(state.currentRound, 1, state.totalRounds))
-        : '—';
-    }
-    if (state.totalRoundsEl) {
-      state.totalRoundsEl.textContent = state.mode === 'classic' ? String(state.totalRounds) : '∞';
-    }
     if (state.playerDisplayEl) {
       const player = state.players[state.currentPlayerIndex];
       state.playerDisplayEl.textContent = player ? player.name : '—';
     }
-  }
-
-  function updateMissionStatus(text) {
-    if (state.missionStatusEl) {
-      state.missionStatusEl.textContent = text;
-    }
-  }
-
-  function announceRoundStart() {
-    if (state.mode === 'classic') {
-      clearLog();
-      appendLog(`Round ${state.currentRound} begins. Keep the queens safe!`, 'info');
-    }
-    updateStatusDisplay();
-    updateScoreboard();
   }
 
   function appendLog(text, type = 'info') {
@@ -1570,21 +1251,6 @@
       `;
       return;
     }
-
-    state.scoreboardEl.innerHTML = `
-      <div class="rq-score-summary">
-        <span class="rq-score-total-label">Total Success</span>
-        <span class="rq-score-total-value">${state.totalSuccessCount} / ${state.goalSteps}</span>
-      </div>
-      <div class="rq-score-list">
-        ${state.players.map(player => `
-          <div class="rq-score-item">
-            <span class="rq-score-name">${player.name}</span>
-            <span class="rq-score-value">${player.success || 0}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
   }
 
   function showPopup(message, type) {
