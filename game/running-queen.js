@@ -1,6 +1,15 @@
 (() => {
   const API_BASE = window.API_BASE || '/api';
 
+  function escapeHtml(v) {
+    return String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   const DEFAULT_CONFIG = {
     boardSize: 8,
     queenCount: 4,
