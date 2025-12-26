@@ -25,11 +25,13 @@
 
 .bl-main {
   margin-left: var(--bl-sidebar-w);
-  padding: 12px 12px 12px var(--bl-main-gap);
+  /* Keep left/right outer whitespace ~0.5cm */
+  padding: 12px var(--bl-main-gap);
 }
 
 .bl-container {
-  max-width: 980px;
+  /* Full width so fullscreen doesn't leave large empty area on the right */
+  max-width: none;
   margin: 0;
 }
 
