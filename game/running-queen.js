@@ -183,26 +183,40 @@
                 <div class="rq-mode-timed ${state.mode === 'timed' ? 'visible' : ''}">
                   <div class="rq-config-field">
                     <label>Queen Count</label>
-                    <div class="rq-toggle-group" role="group">
-                      <button type="button" class="rq-toggle-button ${state.timedQueenCount === 4 ? 'active' : ''}" data-timed-queens="4">4 Queens</button>
-                      <button type="button" class="rq-toggle-button ${state.timedQueenCount === 5 ? 'active' : ''}" data-timed-queens="5">5 Queens</button>
+                    <div class="rq-toggle-group rq-toggle-group--two-col" role="group">
+                      <button type="button" class="rq-toggle-button ${state.timedQueenCount === 4 ? 'active' : ''}" data-timed-queens="4">
+                        <span class="rq-toggle-top">4</span><span class="rq-toggle-bottom">Queens</span>
+                      </button>
+                      <button type="button" class="rq-toggle-button ${state.timedQueenCount === 5 ? 'active' : ''}" data-timed-queens="5">
+                        <span class="rq-toggle-top">5</span><span class="rq-toggle-bottom">Queens</span>
+                      </button>
                     </div>
                   </div>
                   <div class="rq-config-field">
                     <label>Timer Duration</label>
-                    <div class="rq-toggle-group" role="group">
-                      <button type="button" class="rq-toggle-button ${state.timerDuration === 60000 ? 'active' : ''}" data-timer-duration="60000">1 Minute</button>
-                      <button type="button" class="rq-toggle-button ${state.timerDuration === 120000 ? 'active' : ''}" data-timer-duration="120000">2 Minutes</button>
-                      <button type="button" class="rq-toggle-button ${state.timerDuration === 180000 ? 'active' : ''}" data-timer-duration="180000">3 Minutes</button>
+                    <div class="rq-toggle-group rq-toggle-group--vertical" role="group">
+                      <button type="button" class="rq-toggle-button ${state.timerDuration === 60000 ? 'active' : ''}" data-timer-duration="60000">
+                        <span class="rq-toggle-top">1</span><span class="rq-toggle-bottom">Minute</span>
+                      </button>
+                      <button type="button" class="rq-toggle-button ${state.timerDuration === 120000 ? 'active' : ''}" data-timer-duration="120000">
+                        <span class="rq-toggle-top">2</span><span class="rq-toggle-bottom">Minutes</span>
+                      </button>
+                      <button type="button" class="rq-toggle-button ${state.timerDuration === 180000 ? 'active' : ''}" data-timer-duration="180000">
+                        <span class="rq-toggle-top">3</span><span class="rq-toggle-bottom">Minutes</span>
+                      </button>
                     </div>
                   </div>
                 </div>
                 <div class="rq-mode-infinite ${state.mode === 'infinite' ? 'visible' : ''}">
                   <div class="rq-config-field">
                     <label>Queen Count</label>
-                    <div class="rq-toggle-group" role="group">
-                      <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 4 ? 'active' : ''}" data-infinite-queens="4">4 Queens</button>
-                      <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 5 ? 'active' : ''}" data-infinite-queens="5">5 Queens</button>
+                    <div class="rq-toggle-group rq-toggle-group--two-col" role="group">
+                      <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 4 ? 'active' : ''}" data-infinite-queens="4">
+                        <span class="rq-toggle-top">4</span><span class="rq-toggle-bottom">Queens</span>
+                      </button>
+                      <button type="button" class="rq-toggle-button ${state.infiniteQueenCount === 5 ? 'active' : ''}" data-infinite-queens="5">
+                        <span class="rq-toggle-top">5</span><span class="rq-toggle-bottom">Queens</span>
+                      </button>
                     </div>
                   </div>
                 </div>
