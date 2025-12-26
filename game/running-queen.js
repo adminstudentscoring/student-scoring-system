@@ -253,10 +253,6 @@
                       <span class="rq-status-label">Timer</span>
                       <span class="rq-status-value" id="rqTimerDisplay">00:00</span>
                     </div>
-                    <div class="rq-status-actions">
-                      <button type="button" id="rqRulesButton" class="rq-status-button">Rules</button>
-                      <button type="button" id="rqLeaderboardButton" class="rq-status-button">Leaderboards</button>
-                    </div>
                   </div>
 
                   <div class="rq-scoreboard" id="rqScoreboard"></div>

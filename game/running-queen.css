@@ -138,6 +138,24 @@ body.game-is-running-queen .game-area-content {
     box-shadow: 0 14px 28px rgba(9, 11, 22, 0.55);
 }
 
+.rq-config-panel--sidebar .rq-mode-toggle {
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+
+.rq-config-panel--sidebar .rq-mode-button {
+    padding: 8px 8px;
+    font-size: 12px;
+    border-radius: 10px;
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.rq-config-panel--sidebar .rq-mode-button:hover,
+.rq-config-panel--sidebar .rq-mode-button:focus-visible {
+    transform: none;
+}
+
 .rq-board-col {
     display: flex;
     flex-direction: column;
