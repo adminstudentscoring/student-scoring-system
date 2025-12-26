@@ -702,6 +702,20 @@ function blundersVerdictFromScores(bestCp, userCp, thresholdPoints) {
   return { verdict: 'good', ok: true, dropCp, dropPoints, tolCp, bestLike: false };
 }
 
+function uciToSanAtFen(fen, uci) {
+  const startFen = String(fen || '');
+  const u = String(uci || '').trim().toLowerCase();
+  if (!startFen || !u) return '';
+  const parsed = parseUciMove(u);
+  if (!parsed) return '';
+  let chess = null;
+  try { chess = new Chess(startFen); } catch { chess = null; }
+  if (!chess) return '';
+  const mv = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
+  if (!mv) return '';
+  return String(mv.san || '');
+}
+
 // ===== Blunders: Chess.com sync (rapid/blitz) =====
 const BLUNDERS_ALLOWED_TIME_CLASSES = new Set(['rapid', 'blitz']);
 const BLUNDERS_MAX_GAMES_PER_DAY = 10;
@@ -7710,7 +7724,7 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     if (!stuProg[String(puzzleId)] || typeof stuProg[String(puzzleId)] !== 'object') stuProg[String(puzzleId)] = { status: 'pending', attempts: [] };
     const pr = stuProg[String(puzzleId)];
 
-    // Reveal-only (return best move + afterFEN so client can animate on board)
+    // Reveal-only (return best move + SAN + afterFEN so client can animate on board)
     if (revealBest && !moveUci) {
       const startFen = String(puzzle.startFEN || '');
       if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
@@ -7734,6 +7748,7 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
         }
 
         let afterFEN = '';
+        let bestSan = '';
         try {
           if (bestMove) {
             const b = parseUciMove(bestMove);
@@ -7742,12 +7757,22 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
               try { ch = new Chess(startFen); } catch { ch = null; }
               if (ch) {
                 const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
-                if (mv) afterFEN = ch.fen();
+                if (mv) {
+                  afterFEN = ch.fen();
+                  bestSan = String(mv.san || '');
+                }
               }
             }
           }
         } catch {}
-        return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
+        return res.json({
+          ok: true,
+          bestMove: bestMove || undefined,
+          bestSan: bestSan || undefined,
+          afterFEN: afterFEN || undefined,
+          playedUci: bestMove || undefined,
+          playedSan: bestSan || undefined
+        });
       } catch (e) {
         // Don't fail the whole UX on engine hiccups.
         return res.json({ ok: true, bestMove: undefined, afterFEN: undefined, playedUci: undefined, engineError: String(e?.message || e) });
@@ -7772,6 +7797,7 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     if (!mv) return res.status(400).json({ error: 'Illegal move' });
 
     const afterFen = chess.fen();
+    const playedSan = String(mv.san || '');
     const best = await sfEvalFen(startFen, 16);
     const bestMove = String(best.bestMove || '');
     const bestCp = scoreToCp(best.score);
@@ -7801,13 +7827,16 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     }
 
     const exposeBest = !!revealBest || (bestMove && parsed.uci === bestMove);
+    const bestSan = exposeBest ? uciToSanAtFen(startFen, bestMove) : '';
     return res.json({
       ok,
       verdict,
       dropPoints,
       afterFEN: afterFen,
       playedUci: parsed.uci,
-      bestMove: exposeBest ? bestMove : undefined
+      playedSan: playedSan || undefined,
+      bestMove: exposeBest ? bestMove : undefined,
+      bestSan: bestSan || undefined
     });
   } catch (e) {
     console.error('POST /api/public/students/:id/blunders/master/:puzzleId/attempt error:', e);
@@ -7838,7 +7867,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     if (idx < 0) return res.status(404).json({ error: 'Puzzle not found' });
 
     const puzzle = puzzles[idx];
-    // Reveal-only: return best move + afterFEN so client can animate on board.
+    // Reveal-only: return best move + SAN + afterFEN so client can animate on board.
     if (revealBest && !moveUci) {
       const startFen = String(puzzle.startFEN || '');
       if (!startFen) return res.status(400).json({ error: 'Puzzle missing startFEN' });
@@ -7863,6 +7892,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
         }
 
         let afterFEN = '';
+        let bestSan = '';
         try {
           if (bestMove) {
             const b = parseUciMove(bestMove);
@@ -7871,12 +7901,22 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
               try { ch = new Chess(startFen); } catch { ch = null; }
               if (ch) {
                 const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
-                if (mv) afterFEN = ch.fen();
+                if (mv) {
+                  afterFEN = ch.fen();
+                  bestSan = String(mv.san || '');
+                }
               }
             }
           }
         } catch {}
-        return res.json({ ok: true, bestMove: bestMove || undefined, afterFEN: afterFEN || undefined, playedUci: bestMove || undefined });
+        return res.json({
+          ok: true,
+          bestMove: bestMove || undefined,
+          bestSan: bestSan || undefined,
+          afterFEN: afterFEN || undefined,
+          playedUci: bestMove || undefined,
+          playedSan: bestSan || undefined
+        });
       } catch (e) {
         return res.json({ ok: true, bestMove: undefined, afterFEN: undefined, playedUci: undefined, engineError: String(e?.message || e) });
       }
@@ -7909,6 +7949,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     if (!mv) return res.status(400).json({ error: 'Illegal move' });
 
     const afterFen = chess.fen();
+    const playedSan = String(mv.san || '');
 
     // Evaluate best move at start (student to move)
     const best = await sfEvalFen(startFen, 16);
@@ -7960,13 +8001,16 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     }
 
     const exposeBest = !!revealBest || (bestMove && parsed.uci === bestMove);
+    const bestSan = exposeBest ? uciToSanAtFen(startFen, bestMove) : '';
     return res.json({
       ok,
       verdict, // 'best' | 'good' | 'blunder'
       dropPoints,
       afterFEN: afterFen,
       playedUci: parsed.uci,
-      bestMove: exposeBest ? bestMove : undefined
+      playedSan: playedSan || undefined,
+      bestMove: exposeBest ? bestMove : undefined,
+      bestSan: bestSan || undefined
     });
   } catch (e) {
     console.error('POST /api/public/students/:id/blunders/:puzzleId/attempt error:', e);

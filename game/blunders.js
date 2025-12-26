@@ -57,14 +57,18 @@
       // Student blunders
       blunderFen: '',
       blunderMoveUci: '',
+      blunderMoveSan: '',
       blunderVerdict: '',
       blunderBestMoveUci: '',
+      blunderBestMoveSan: '',
       blunderBestOrigin: '', // '' | 'attempt' | 'revealed'
       // Master game
       masterFen: '',
       masterMoveUci: '',
+      masterMoveSan: '',
       masterVerdict: '',
       masterBestMoveUci: '',
+      masterBestMoveSan: '',
       masterBestOrigin: '' // '' | 'attempt' | 'revealed'
     },
     ui: { modalOpen: false, modalHtml: '' }
@@ -1272,13 +1276,17 @@
     if (scope === 'master') {
       STATE.uiBoard.masterVerdict = '';
       STATE.uiBoard.masterMoveUci = '';
+      STATE.uiBoard.masterMoveSan = '';
       STATE.uiBoard.masterBestMoveUci = '';
+      STATE.uiBoard.masterBestMoveSan = '';
       STATE.uiBoard.masterBestOrigin = '';
       STATE.uiBoard.masterFen = '';
     } else {
       STATE.uiBoard.blunderVerdict = '';
       STATE.uiBoard.blunderMoveUci = '';
+      STATE.uiBoard.blunderMoveSan = '';
       STATE.uiBoard.blunderBestMoveUci = '';
+      STATE.uiBoard.blunderBestMoveSan = '';
       STATE.uiBoard.blunderBestOrigin = '';
       STATE.uiBoard.blunderFen = '';
     }
@@ -1288,7 +1296,9 @@
     const isMaster = scope === 'master';
     const verdict = String(isMaster ? STATE.uiBoard.masterVerdict : STATE.uiBoard.blunderVerdict);
     const moveUci = String(isMaster ? STATE.uiBoard.masterMoveUci : STATE.uiBoard.blunderMoveUci);
+    const moveSan = String(isMaster ? STATE.uiBoard.masterMoveSan : STATE.uiBoard.blunderMoveSan);
     const bestUci = String(isMaster ? STATE.uiBoard.masterBestMoveUci : STATE.uiBoard.blunderBestMoveUci);
+    const bestSan = String(isMaster ? STATE.uiBoard.masterBestMoveSan : STATE.uiBoard.blunderBestMoveSan);
     const origin = String(isMaster ? STATE.uiBoard.masterBestOrigin : STATE.uiBoard.blunderBestOrigin);
 
     const title =
@@ -1308,8 +1318,8 @@
       verdict === 'good' ? '/game/Sign/Good_move.jpeg' :
       verdict === 'blunder' ? '/game/Sign/Blunder_move.jpeg' : '';
 
-    const mvLine = moveUci ? `Move: ${moveUci}` : '';
-    const bmLine = bestUci ? `Best: ${bestUci}` : '';
+    const mvLine = (moveSan || moveUci) ? `Move: ${moveSan || moveUci}` : '';
+    const bmLine = (bestSan || bestUci) ? `Best: ${bestSan || bestUci}` : '';
 
     const canShowBest = verdict === 'good' || verdict === 'blunder' || !verdict;
     const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
@@ -1366,6 +1376,7 @@
       if (out.ok) {
         STATE.uiBoard.blunderVerdict = String(out.verdict || '');
         STATE.uiBoard.blunderMoveUci = String(out.playedUci || uci || '');
+        STATE.uiBoard.blunderMoveSan = String(out.playedSan || '');
         STATE.uiBoard.blunderFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
         STATE.uiBoard.blunderBestOrigin = 'attempt';
         // For GOOD/BEST on pending: allow retry (practice) or show best; do not auto-refresh.
@@ -1377,6 +1388,7 @@
       } else {
         STATE.uiBoard.blunderVerdict = 'blunder';
         STATE.uiBoard.blunderMoveUci = String(uci || '');
+        STATE.uiBoard.blunderMoveSan = '';
         STATE.uiBoard.blunderFen = String(puzzle.startFEN || '');
         STATE.uiBoard.blunderBestOrigin = 'attempt';
         STATE.lastAttemptWasPendingSolve = false;
@@ -1483,9 +1495,11 @@
       const engErr = out?.engineError ? String(out.engineError) : '';
       const af = out?.afterFEN ? String(out.afterFEN) : '';
       STATE.uiBoard.blunderBestMoveUci = bm;
+      STATE.uiBoard.blunderBestMoveSan = out?.bestSan ? String(out.bestSan) : '';
       if (bm && af) {
         STATE.uiBoard.blunderFen = af;
         STATE.uiBoard.blunderMoveUci = bm;
+        STATE.uiBoard.blunderMoveSan = STATE.uiBoard.blunderBestMoveSan;
       }
       STATE.uiBoard.blunderVerdict = bm ? 'best' : '';
       STATE.uiBoard.blunderBestOrigin = 'revealed';
@@ -1514,11 +1528,13 @@
       if (out.ok) {
         STATE.uiBoard.masterVerdict = String(out.verdict || '');
         STATE.uiBoard.masterMoveUci = String(out.playedUci || uci || '');
+        STATE.uiBoard.masterMoveSan = String(out.playedSan || '');
         STATE.uiBoard.masterFen = String(out.afterFEN || '') || String(puzzle.startFEN || '');
         STATE.uiBoard.masterBestOrigin = 'attempt';
       } else {
         STATE.uiBoard.masterVerdict = 'blunder';
         STATE.uiBoard.masterMoveUci = String(uci || '');
+        STATE.uiBoard.masterMoveSan = '';
         STATE.uiBoard.masterFen = String(puzzle.startFEN || '');
         STATE.uiBoard.masterBestOrigin = 'attempt';
       }
@@ -1540,9 +1556,11 @@
       const engErr = out?.engineError ? String(out.engineError) : '';
       const af = out?.afterFEN ? String(out.afterFEN) : '';
       STATE.uiBoard.masterBestMoveUci = bm;
+      STATE.uiBoard.masterBestMoveSan = out?.bestSan ? String(out.bestSan) : '';
       if (bm && af) {
         STATE.uiBoard.masterFen = af;
         STATE.uiBoard.masterMoveUci = bm;
+        STATE.uiBoard.masterMoveSan = STATE.uiBoard.masterBestMoveSan;
       }
       STATE.uiBoard.masterVerdict = bm ? 'best' : '';
       STATE.uiBoard.masterBestOrigin = 'revealed';
