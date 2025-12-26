@@ -6,6 +6,7 @@
 /* App shell */
 .bl-app {
   --bl-sidebar-w: 180px;
+  --bl-main-gap: 0.5cm; /* target gap between sidebar and main content */
   min-height: 100vh;
 }
 
@@ -24,17 +25,17 @@
 
 .bl-main {
   margin-left: var(--bl-sidebar-w);
-  padding: 12px;
+  padding: 12px 12px 12px var(--bl-main-gap);
 }
 
 .bl-container {
   max-width: 980px;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .bl-global-status {
   position: fixed;
-  left: calc(var(--bl-sidebar-w) + 12px);
+  left: calc(var(--bl-sidebar-w) + var(--bl-main-gap));
   bottom: 12px;
   z-index: 50;
   display: none;
@@ -45,19 +46,6 @@
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
   pointer-events: none;
-}
-
-/* Narrow/zoomed layout: keep the main card close to sidebar (≈0.5cm gap). */
-@media (max-width: 1400px) {
-  .bl-main {
-    padding: 12px 12px 12px 0.5cm;
-  }
-  .bl-container {
-    margin: 0;
-  }
-  .bl-global-status {
-    left: calc(var(--bl-sidebar-w) + 0.5cm);
-  }
 }
 
 @media (max-width: 900px) {
