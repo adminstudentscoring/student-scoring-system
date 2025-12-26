@@ -39,14 +39,14 @@ body.game-is-blunders .game-area-content {
 
 .bl-main {
   margin-left: var(--bl-sidebar-w);
-  /* Keep left/right outer whitespace ~0.5cm */
-  padding: 12px var(--bl-main-gap);
+  padding: 12px;
 }
 
 .bl-container {
-  /* Full width so fullscreen doesn't leave large empty area on the right */
-  max-width: none;
-  margin: 0;
+  /* Center the white card and cap its width (like the previous layout / Fig 2). */
+  width: min(980px, 100%);
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 .bl-global-status {
