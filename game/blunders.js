@@ -614,7 +614,6 @@
     const modeLabel = STATE.mode === 'practice' ? 'Practice (Random)' : 'Pending';
     const dropVal = puzzle ? Number(puzzle.dropPoints ?? (Number(puzzle.dropCp || 0) / 100)) : 0;
     const infoLine = puzzle ? `${String(puzzle.blunderSan || puzzle.blunderMoveUci || '')} · Drop ${dropVal.toFixed(2)}` : '';
-    const oppLine = puzzle ? (String(puzzle.opponentSan || puzzle.opponentMoveUci || '') || '(game start)') : '';
     const fenOverride = String(STATE.uiBoard.blunderFen || puzzle?.startFEN || '');
     const myMoveUci = String(STATE.uiBoard.blunderMoveUci || '');
     return `
@@ -631,9 +630,7 @@
               <div class="bl-card" style="box-shadow:none;">
                 <div style="font-weight:950; color:#111827;">Puzzle</div>
                 <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(infoLine)}</div>
-                <div class="blunders-muted" style="margin-top:6px;">Opponent just played: <strong>${escapeHtml(oppLine)}</strong></div>
                 ${puzzle.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(puzzle.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(puzzle.gameUrl))}</a></div>` : ''}
-                <div class="blunders-muted" style="margin-top:10px;">Click a piece, then click a target square.</div>
                 ${STATE.mode === 'pending' ? `
                   <div class="bl-btn-row cols-3">
                     <button class="btn btn-secondary" type="button" data-bl-prev ${STATE.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
@@ -645,10 +642,12 @@
                   </div>
                 `}
                 <div class="blunders-muted" id="blBlunderMsg" style="margin-top:10px;"></div>
-                <details style="margin-top:12px;">
-                  <summary class="blunders-muted" style="cursor:pointer;">Show FEN</summary>
-                  <div style="margin-top:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; color:#111827; word-break:break-all;">${escapeHtml(String(puzzle.startFEN || ''))}</div>
-                </details>
+                <button class="btn btn-secondary btn-small" type="button" data-bl-copy-fen="blunder" style="margin-top:12px;">
+                  <span style="display:inline-flex; align-items:center; gap:8px;">
+                    <span aria-hidden="true">📋</span>
+                    <span>Copy FEN</span>
+                  </span>
+                </button>
               </div>
               ${renderInlineResultPanel('blunder')}
             </div>
@@ -866,14 +865,18 @@
                 <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(String(selected.username || ''))}</div>
                 ${puzzle ? `
                   <div class="blunders-muted" style="margin-top:10px;">${escapeHtml(infoLine)}</div>
-                  <div class="blunders-muted" style="margin-top:6px;">Opponent just played: <strong>${escapeHtml(String(puzzle.opponentSan || puzzle.opponentMoveUci || '') || '(game start)')}</strong></div>
                   ${puzzle.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(puzzle.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(puzzle.gameUrl))}</a></div>` : ''}
-                  <div class="blunders-muted" style="margin-top:10px;">Click a piece, then click a target square.</div>
                   <div class="bl-btn-row cols-3">
                     <button class="btn btn-secondary" type="button" data-bl-master-prev ${STATE.master.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
                     <button class="btn btn-secondary" type="button" data-bl-master-next ${STATE.master.currentIndex >= (STATE.master.pending.length - 1) ? 'disabled' : ''}>Next</button>
                   </div>
                   <div class="blunders-muted" id="blMasterMsg" style="margin-top:10px;"></div>
+                  <button class="btn btn-secondary btn-small" type="button" data-bl-copy-fen="master" style="margin-top:12px;">
+                    <span style="display:inline-flex; align-items:center; gap:8px;">
+                      <span aria-hidden="true">📋</span>
+                      <span>Copy FEN</span>
+                    </span>
+                  </button>
                 ` : ``}
               </div>
               ${renderInlineResultPanel('master')}
@@ -1325,6 +1328,32 @@
     if (el) el.textContent = String(txt || '');
   }
 
+  async function copyToClipboard(text) {
+    const t = String(text || '');
+    if (!t) return false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(t);
+        return true;
+      }
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.setAttribute('readonly', 'true');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch {
+      return false;
+    }
+  }
+
   function clearInlineResult(scope) {
     if (scope === 'master') {
       STATE.uiBoard.masterVerdict = '';
@@ -1674,6 +1703,18 @@
 
     root.addEventListener('click', async (ev) => {
       const t = ev.target;
+
+      // Copy FEN
+      const cf = t?.closest?.('[data-bl-copy-fen]');
+      if (cf) {
+        const scope = String(cf.getAttribute('data-bl-copy-fen') || '');
+        const pz = scope === 'master' ? masterCurrentPuzzle() : currentPuzzle();
+        const fen = String(pz?.startFEN || '');
+        const ok = await copyToClipboard(fen);
+        if (scope === 'master') setMasterMessage(ok ? 'Copied.' : 'Copy failed.');
+        else setMessage(ok ? 'Copied.' : 'Copy failed.');
+        return;
+      }
 
       // Teacher sidebar tabs
       const tt = t?.closest?.('[data-bl-teacher-tab]');
