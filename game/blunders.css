@@ -47,6 +47,19 @@
   pointer-events: none;
 }
 
+/* Narrow/zoomed layout: keep the main card close to sidebar (≈0.5cm gap). */
+@media (max-width: 1400px) {
+  .bl-main {
+    padding: 12px 12px 12px 0.5cm;
+  }
+  .bl-container {
+    margin: 0;
+  }
+  .bl-global-status {
+    left: calc(var(--bl-sidebar-w) + 0.5cm);
+  }
+}
+
 @media (max-width: 900px) {
   .bl-global-status {
     left: 12px;
