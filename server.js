@@ -7805,16 +7805,17 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     const userCp = -scoreToCp(after.score);
     const dropCp = bestCp - userCp;
     const dropPoints = dropCp / 100;
+    const isBest = bestMove && parsed.uci === bestMove;
 
     const cfg = await getMasterBlundersConfig(orgId);
     const thresholdPoints = cfg.thresholdPoints;
     const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
-    const verdict = v.verdict; // 'best' | 'good' | 'blunder'
-    const ok = !!v.ok;
+    const verdict = isBest ? 'best' : v.verdict; // 'best' | 'good' | 'blunder'
+    const ok = isBest ? true : !!v.ok;
 
     if (!practice) {
       const attempts = Array.isArray(pr.attempts) ? pr.attempts : [];
-      attempts.push({ at: new Date().toISOString(), moveUci: parsed.uci, san: String(mv.san || ''), bestMove, bestCp, userCp, dropCp });
+      attempts.push({ at: new Date().toISOString(), moveUci: parsed.uci, san: String(mv.san || ''), bestMove, bestCp, userCp: isBest ? bestCp : userCp, dropCp: isBest ? 0 : dropCp });
       pr.attempts = attempts;
       if (ok) {
         pr.status = 'completed';
@@ -7831,7 +7832,7 @@ app.post('/api/public/students/:id/blunders/master/:puzzleId/attempt', async (re
     return res.json({
       ok,
       verdict,
-      dropPoints,
+      dropPoints: isBest ? 0 : dropPoints,
       afterFEN: afterFen,
       playedUci: parsed.uci,
       playedSan: playedSan || undefined,
@@ -7968,8 +7969,10 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     const cfg = await getStudentBlundersConfig(orgId, student.id);
     const thresholdPoints = cfg.thresholdPoints;
     const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
-    const verdict = v.verdict; // 'best' | 'good' | 'blunder'
-    const ok = !!v.ok;
+    // If the player literally played the engine's best move, always treat it as Best,
+    // even if Stockfish score parsing/normalization behaves oddly in mate positions.
+    const verdict = isBest ? 'best' : v.verdict; // 'best' | 'good' | 'blunder'
+    const ok = isBest ? true : !!v.ok;
 
     if (!practice) {
       // Persist attempts + completion
@@ -7980,8 +7983,8 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
         san: String(mv.san || ''),
         bestMove,
         bestCp,
-        userCp,
-        dropCp
+        userCp: isBest ? bestCp : userCp,
+        dropCp: isBest ? 0 : dropCp
       });
       puzzle.attempts = attempts;
 
@@ -7993,8 +7996,8 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
       puzzle.bestMoveUci = bestMove;
       puzzle.bestCp = bestCp;
       puzzle.lastUserMoveUci = parsed.uci;
-      puzzle.lastUserCp = userCp;
-      puzzle.lastDropCp = dropCp;
+      puzzle.lastUserCp = isBest ? bestCp : userCp;
+      puzzle.lastDropCp = isBest ? 0 : dropCp;
 
       puzzles[idx] = puzzle;
       await writeBlundersPuzzles(puzzles);
@@ -8005,7 +8008,7 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
     return res.json({
       ok,
       verdict, // 'best' | 'good' | 'blunder'
-      dropPoints,
+      dropPoints: isBest ? 0 : dropPoints,
       afterFEN: afterFen,
       playedUci: parsed.uci,
       playedSan: playedSan || undefined,
