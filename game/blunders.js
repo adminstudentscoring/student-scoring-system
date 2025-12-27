@@ -54,6 +54,7 @@
       selectedIds: [],
       bulkMaxGames: 10,
       bulkThreshold: 1.0,
+      historyScanN: {},
       // Teacher All blunders UI
       allDuration: 'all', // week | month | halfYear | year | all
       allRating: 'any' // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
@@ -1080,6 +1081,7 @@
                 const rs = String(s.chessComRatingSource || '');
                 const ratingLabel = r ? `${r}${rs ? ` (${rs})` : ''}` : '—';
                 const isChecked = selectedSet.has(sid);
+                const historyVal = Number(STATE.teacher?.historyScanN?.[sid] || 200) || 200;
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
@@ -1105,6 +1107,13 @@
                     <td style="padding:10px 8px; border-radius:0 12px 12px 0; white-space:nowrap;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student="${escapeHtml(sid)}">Sync</button>
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student-force="${escapeHtml(sid)}">Force</button>
+                      <span style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
+                        <select data-bl-teacher-history-n="${escapeHtml(sid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px;">
+                          ${[100,200,300,500].map((n) => `<option value="${n}" ${Number(historyVal) === n ? 'selected' : ''}>${n}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-history-scan="${escapeHtml(sid)}">History</button>
+                        <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-history-scan-force="${escapeHtml(sid)}">History Force</button>
+                      </span>
                     </td>
                   </tr>
                 `;
@@ -1404,6 +1413,19 @@
     await teacherApi('/teachers/blunders/sync-student', {
       method: 'POST',
       body: { studentId: sid, hkDayKey, force: !!force, maxGamesPerDay, thresholdPoints }
+    });
+  }
+
+  async function teacherHistoryScanStudent(studentId, historyGames, force) {
+    const sid = String(studentId || '').trim();
+    if (!sid) return;
+    const n = Math.max(1, Math.min(500, Number(historyGames || 0) || 0));
+    if (!n) return;
+    const edit = STATE.teacher.edits.student?.[sid] || {};
+    const thresholdPoints = edit.thresholdPoints;
+    await teacherApi('/teachers/blunders/sync-student', {
+      method: 'POST',
+      body: { studentId: sid, mode: 'history', historyGames: n, force: !!force, thresholdPoints }
     });
   }
 
@@ -1949,6 +1971,22 @@
         try { await teacherSyncStudent(sid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
         return teacherLoad('students');
       }
+      const hs = t?.closest?.('[data-bl-teacher-history-scan]');
+      if (hs) {
+        const sid = String(hs.getAttribute('data-bl-teacher-history-scan') || '');
+        const sel = root.querySelector(`[data-bl-teacher-history-n="${CSS.escape(sid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanN?.[sid] || 0) || 200;
+        try { await teacherHistoryScanStudent(sid, n, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        return teacherLoad('students');
+      }
+      const hsF = t?.closest?.('[data-bl-teacher-history-scan-force]');
+      if (hsF) {
+        const sid = String(hsF.getAttribute('data-bl-teacher-history-scan-force') || '');
+        const sel = root.querySelector(`[data-bl-teacher-history-n="${CSS.escape(sid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanN?.[sid] || 0) || 200;
+        try { await teacherHistoryScanStudent(sid, n, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        return teacherLoad('students');
+      }
       const syncM = t?.closest?.('[data-bl-teacher-sync-master]');
       if (syncM) {
         const mid = String(syncM.getAttribute('data-bl-teacher-sync-master') || '');
@@ -2302,6 +2340,14 @@
         const v = Number(thrEl.value);
         if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
         STATE.teacher.edits.student[sid].thresholdPoints = Number.isFinite(v) ? v : 1.0;
+        return;
+      }
+      const hn = el?.closest?.('[data-bl-teacher-history-n]');
+      if (hn) {
+        const sid = String(hn.getAttribute('data-bl-teacher-history-n') || '');
+        const v = Math.max(1, Math.min(500, Number(hn.value || 0) || 200));
+        if (!STATE.teacher.historyScanN || typeof STATE.teacher.historyScanN !== 'object') STATE.teacher.historyScanN = {};
+        STATE.teacher.historyScanN[sid] = v;
         return;
       }
       const mn = el?.closest?.('[data-bl-teacher-master-name]');

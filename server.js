@@ -721,6 +721,7 @@ const BLUNDERS_ALLOWED_TIME_CLASSES = new Set(['rapid', 'blitz']);
 const BLUNDERS_MAX_GAMES_PER_DAY = 10;
 const BLUNDERS_DROP_POINTS = 1.0; // > 1.0 is blunder
 const blundersLastStudentSync = new Map(); // studentId -> ms
+const blundersLastStudentHistoryScan = new Map(); // studentId -> ms (teacher-triggered history scan throttle)
 const blundersStudentLocks = new Map(); // studentId -> Promise
 const blundersSyncState = new Map(); // studentId -> { running, startedAt, updatedAt, finishedAt, stage, gamesFetched, gamesProcessed, pliesProcessed, blundersAdded, lastError }
 
@@ -835,6 +836,88 @@ async function chessComGetTodayGames(username, opts = {}) {
   return chessComGetGamesForHkDay(username, { ...opts, hkDayKey: todayHkKey() });
 }
 
+// Fetch most recent N games across Chess.com month archives (rapid+blitz by default).
+// This is used by teacher "History scan" to build a larger puzzle bank.
+async function chessComGetRecentGames(username, opts = {}) {
+  const u = String(username || '').trim();
+  if (!u) return [];
+  const sid = String(opts.studentId || '');
+  const limit = Math.max(1, Math.min(500, Number(opts.limit || 0) || 100));
+  const includeWithoutPgn = !!opts.includeWithoutPgn;
+  const allowed = opts.allowedTimeClasses instanceof Set ? opts.allowedTimeClasses : BLUNDERS_ALLOWED_TIME_CLASSES;
+
+  if (sid) {
+    const st0 = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, { ...st0, stage: 'fetch-archives', updatedAt: new Date().toISOString(), fetch: { label: 'archives', url: null, startedAtMs: Date.now(), timeoutMs: 15000 } });
+  }
+
+  const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/games/archives`;
+  const a = await fetchJsonWithTimeout(archivesUrl, 15000);
+  if (sid) {
+    const st1 = blundersSyncState.get(sid) || {};
+    blundersSyncState.set(sid, { ...st1, fetch: { ...(st1.fetch || {}), url: archivesUrl, ok: !!a.ok, status: a.status, error: a.data?.error || null } });
+  }
+  const archives = Array.isArray(a.data?.archives) ? a.data.archives : [];
+  if (!archives.length) return [];
+
+  const me = u.toLowerCase();
+  const out = [];
+  let monthsFetched = 0;
+  let rawGamesScanned = 0;
+  let collectedWithPgn = 0;
+
+  for (let i = archives.length - 1; i >= 0 && out.length < limit; i--) {
+    const monthUrl = String(archives[i] || '');
+    if (!monthUrl) continue;
+    monthsFetched++;
+
+    if (sid) {
+      const st2 = blundersSyncState.get(sid) || {};
+      blundersSyncState.set(sid, { ...st2, stage: 'fetch-month-archive', updatedAt: new Date().toISOString(), fetch: { label: `month-archive-${monthsFetched}`, url: monthUrl, startedAtMs: Date.now(), timeoutMs: 20000 } });
+    }
+
+    const g = await fetchJsonWithTimeout(monthUrl, 20000);
+    const games = Array.isArray(g.data?.games) ? g.data.games : [];
+    rawGamesScanned += games.length;
+
+    const filtered = games
+      .filter((x) => x && allowed.has(String(x.time_class || '').toLowerCase()))
+      .filter((x) => {
+        const w = String(x?.white?.username || '').toLowerCase();
+        const b = String(x?.black?.username || '').toLowerCase();
+        return w === me || b === me;
+      })
+      .sort((a2, b2) => Number(b2.end_time || 0) - Number(a2.end_time || 0));
+
+    for (const game of filtered) {
+      const pgn = String(game?.pgn || '');
+      if (!includeWithoutPgn && !pgn.trim()) continue;
+      out.push(game);
+      if (pgn.trim()) collectedWithPgn++;
+      if (out.length >= limit) break;
+    }
+
+    if (sid) {
+      const st3 = blundersSyncState.get(sid) || {};
+      blundersSyncState.set(sid, {
+        ...st3,
+        stage: 'filter',
+        updatedAt: new Date().toISOString(),
+        fetchSummary: {
+          archivesCount: archives.length,
+          monthsFetched,
+          rawGamesScanned,
+          collected: out.length,
+          withPgn: collectedWithPgn
+        }
+      });
+    }
+  }
+
+  out.sort((a2, b2) => Number(b2.end_time || 0) - Number(a2.end_time || 0));
+  return out.slice(0, limit);
+}
+
 async function getChessComUsernameForStudent(orgId, studentId) {
   const o = String(orgId || '');
   const sid = String(studentId || '');
@@ -851,16 +934,25 @@ async function syncBlundersForStudent(student, opts = {}) {
   const orgId = String(student.organizationId || '');
   const hkDayKey = normalizeHkDayKey(opts.hkDayKey) || todayHkKey();
   const bypassThrottle = String(opts.force || '') === '1';
+  const mode = String(opts.mode || '').trim().toLowerCase();
+  const historyGames = Math.max(1, Math.min(500, Number(opts.historyGames || 0) || 0));
 
   // Throttle: at most once per hour per student (for GET auto-refresh)
   const now = Date.now();
-  const last = blundersLastStudentSync.get(sid) || 0;
-  if (!bypassThrottle && now - last < 60 * 60 * 1000) return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
+  if (mode === 'history' && historyGames) {
+    // History scan is heavier; throttle it lightly unless forced.
+    const lastH = blundersLastStudentHistoryScan.get(sid) || 0;
+    if (!bypassThrottle && now - lastH < 10 * 60 * 1000) return { ok: true, skipped: true, reason: 'throttled_history', lastRunAtMs: lastH };
+  } else {
+    const last = blundersLastStudentSync.get(sid) || 0;
+    if (!bypassThrottle && now - last < 60 * 60 * 1000) return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
+  }
 
   if (blundersStudentLocks.has(sid)) return blundersStudentLocks.get(sid);
 
   const task = (async () => {
-    blundersLastStudentSync.set(sid, now);
+    if (mode === 'history' && historyGames) blundersLastStudentHistoryScan.set(sid, now);
+    else blundersLastStudentSync.set(sid, now);
     blundersSyncState.set(sid, {
       running: true,
       startedAt: new Date().toISOString(),
@@ -883,7 +975,9 @@ async function syncBlundersForStudent(student, opts = {}) {
     const thresholdPoints = Math.max(0.1, Math.min(10, Number(opts.thresholdPoints ?? cfg.thresholdPoints) || cfg.thresholdPoints));
 
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
-    const games = await chessComGetGamesForHkDay(username, { studentId: sid, hkDayKey, limit: maxGamesPerDay });
+    const games = (mode === 'history' && historyGames)
+      ? await chessComGetRecentGames(username, { studentId: sid, limit: historyGames })
+      : await chessComGetGamesForHkDay(username, { studentId: sid, hkDayKey, limit: maxGamesPerDay });
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
     if (!games.length) return { ok: true, games: 0, added: 0 };
 
@@ -6867,6 +6961,8 @@ app.post('/api/teachers/blunders/sync-student', authenticateUser, authorizeRole(
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const studentId = String(body.studentId || '').trim();
     const hkDayKey = normalizeHkDayKey(body.hkDayKey) || todayHkKey();
+    const mode = String(body.mode || '').trim().toLowerCase(); // '' | 'history'
+    const historyGames = Number(body.historyGames || 0) || 0;
     const force = body.force ? '1' : '0';
     const maxGamesPerDay = body.maxGamesPerDay;
     const thresholdPoints = body.thresholdPoints;
@@ -6874,7 +6970,7 @@ app.post('/api/teachers/blunders/sync-student', authenticateUser, authorizeRole(
     const data = await readData();
     const student = (Array.isArray(data?.students) ? data.students : []).find(s => String(s.id || '') === studentId && String(s.organizationId || '') === orgId);
     if (!student) return res.status(404).json({ error: 'Student not found in your organization' });
-    const result = await syncBlundersForStudent(student, { hkDayKey, force, maxGamesPerDay, thresholdPoints });
+    const result = await syncBlundersForStudent(student, { hkDayKey, force, maxGamesPerDay, thresholdPoints, mode, historyGames });
     return res.json({ ok: true, result });
   } catch (e) {
     console.error('POST /api/teachers/blunders/sync-student error:', e);
