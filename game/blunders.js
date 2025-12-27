@@ -72,7 +72,7 @@
       masterBestMoveSan: '',
       masterBestOrigin: '' // '' | 'attempt' | 'revealed'
     },
-    ui: { modalOpen: false, modalHtml: '' }
+    ui: { modalOpen: false, modalHtml: '', lastInlineBestClickTs: 0 }
   };
 
   function getBlundersRole() {
@@ -234,7 +234,12 @@
       body: JSON.stringify({ moveUci, revealBest: !!revealBest, practice: !!practice })
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    if (!resp.ok) {
+      if (resp.status === 502) {
+        throw new Error('Server temporarily unavailable (HTTP 502). Please try again in a few seconds.');
+      }
+      throw new Error(data?.error || `HTTP ${resp.status}`);
+    }
     return data;
   }
 
@@ -1958,6 +1963,10 @@
         return;
       }
       if (t?.closest?.('[data-bl-back-review]')) {
+        // On some mobile browsers, DOM updates after "Show best move" can cause a ghost click to land here.
+        // Guard against accidental navigation.
+        const ts = Number(STATE.ui?.lastInlineBestClickTs || 0);
+        if (ts && (Date.now() - ts) < 800) return;
         setPage('review');
         return;
       }
@@ -1966,6 +1975,9 @@
 
       const inlineBest = t?.closest?.('[data-bl-inline-best]');
       if (inlineBest) {
+        STATE.ui.lastInlineBestClickTs = Date.now();
+        ev.preventDefault?.();
+        ev.stopPropagation?.();
         const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
         if (scope === 'master') revealMasterBestMove();
         else revealBestMove();
