@@ -275,6 +275,16 @@
     return Number.isFinite(t) ? t : 0;
   }
 
+  function puzzleTimeMs(p) {
+    // Prefer completedAt if present; else use endTime (unix sec) or createdAt.
+    const done = parseIsoMs(p?.completedAt || '');
+    if (done) return done;
+    const end = Number(p?.endTime || 0);
+    const endMs = Number.isFinite(end) && end > 0 ? end * 1000 : 0;
+    const created = parseIsoMs(p?.createdAt || '');
+    return Math.max(endMs, created);
+  }
+
   function reviewDurationStartMs(key) {
     const now = new Date();
     const k = String(key || 'all');
@@ -293,12 +303,15 @@
     return 0; // all
   }
 
-  function getReviewCompletedFiltered() {
-    const all = Array.isArray(STATE.completed) ? STATE.completed : [];
+  function getReviewPuzzlesFiltered() {
+    const all = [
+      ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+      ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+    ];
     const start = reviewDurationStartMs(STATE.reviewDuration);
     if (!start) return all;
     return all.filter((p) => {
-      const ms = parseIsoMs(p?.completedAt || p?.createdAt || '');
+      const ms = puzzleTimeMs(p);
       return ms >= start;
     });
   }
@@ -697,8 +710,11 @@
   }
 
   function renderReviewPage() {
-    const completedAll = Array.isArray(STATE.completed) ? STATE.completed : [];
-    const completed = getReviewCompletedFiltered();
+    const allAll = [
+      ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+      ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+    ];
+    const all = getReviewPuzzlesFiltered();
     const dropOf = (p) => {
       const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
       return Number.isFinite(d) ? d : 0;
@@ -715,13 +731,13 @@
       if (d <= 3.0) return 'd3';
       return 'd4';
     };
-    const sorted = completed.slice().sort((a, b) => {
+    const sorted = all.slice().sort((a, b) => {
       // Keep mate-miss near top by drop, then by time
       const da = dropOf(a);
       const db = dropOf(b);
       if (db !== da) return db - da;
-      const ta = Date.parse(String(a?.completedAt || a?.createdAt || '')) || 0;
-      const tb = Date.parse(String(b?.completedAt || b?.createdAt || '')) || 0;
+      const ta = puzzleTimeMs(a);
+      const tb = puzzleTimeMs(b);
       return tb - ta;
     });
 
@@ -756,13 +772,14 @@
             ${arr.map((p) => {
               const drop = dropOf(p);
               const label = isMissMate(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
+              const status = String(p?.status || 'pending') === 'completed' ? 'Completed' : 'Pending';
               return `
                 <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
                   <div style="display:flex; gap:10px; align-items:center;">
                     ${renderMiniBoardFromFen(String(p.startFEN || ''))}
                     <div style="flex:1 1 auto;">
                       <div style="font-weight:950; color:#111827;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
-                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)}</div>
+                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)} · <strong>${escapeHtml(status)}</strong></div>
                       <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(fmtTs(p.completedAt || p.createdAt))}</div>
                     </div>
                   </div>
@@ -784,12 +801,12 @@
     return `
       <div class="bl-card">
         <div class="bl-title">Review</div>
-        <div class="blunders-muted">Completed puzzles you can revisit.</div>
+        <div class="blunders-muted">All puzzles are shown here (pending + completed).</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-bl-refresh>Refresh</button>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <span class="blunders-muted" style="margin-right:2px;">Practice:</span>
-            <button class="btn btn-primary" type="button" data-bl-review-practice="random" ${completed.length ? '' : 'disabled'}>Random</button>
+            <button class="btn btn-primary" type="button" data-bl-review-practice="random" ${all.length ? '' : 'disabled'}>Random</button>
             <button class="btn btn-secondary" type="button" data-bl-review-practice="d1" ${groups.d1.length ? '' : 'disabled'}>1–1.5</button>
             <button class="btn btn-secondary" type="button" data-bl-review-practice="d2" ${groups.d2.length ? '' : 'disabled'}>1.51–2</button>
             <button class="btn btn-secondary" type="button" data-bl-review-practice="d3" ${groups.d3.length ? '' : 'disabled'}>2.01–3</button>
@@ -804,15 +821,15 @@
               ${escapeHtml(b.label)}
             </button>
           `).join('')}
-          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(completed.length))}</strong> of <strong>${escapeHtml(String(completedAll.length))}</strong></span>
+          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(all.length))}</strong> of <strong>${escapeHtml(String(allAll.length))}</strong></span>
         </div>
-        ${completed.length ? `
+        ${all.length ? `
           ${renderGroup('Miss the mate', groups.missMate, true)}
           ${renderGroup('Drop 1.00–1.50', groups.d1, true)}
           ${renderGroup('Drop 1.51–2.00', groups.d2, false)}
           ${renderGroup('Drop 2.01–3.00', groups.d3, false)}
           ${renderGroup('Drop 3.01+', groups.d4, false)}
-        ` : `<div class="blunders-muted" style="margin-top:12px;">No completed puzzles yet.</div>`}
+        ` : `<div class="blunders-muted" style="margin-top:12px;">No puzzles yet.</div>`}
       </div>
     `;
   }
@@ -2107,13 +2124,17 @@
       if (t?.closest?.('[data-bl-refresh]')) return refreshData();
       if (t?.closest?.('[data-bl-force]')) return refreshData({ force: true });
       if (t?.closest?.('[data-bl-go-blunder]')) { setBlunderModePending(); return setPage('blunder'); }
-      if (t?.closest?.('[data-bl-go-review]')) return setPage('review');
+      if (t?.closest?.('[data-bl-go-review]')) {
+        const ts = Number(STATE.ui?.lastBlunderUiActionTs || 0);
+        if (STATE.page === 'blunder' && ts && (Date.now() - ts) < 900) return;
+        return setPage('review');
+      }
 
       const rp = t?.closest?.('[data-bl-review-practice]');
       if (rp) {
         const key = String(rp.getAttribute('data-bl-review-practice') || '');
-        const completed = getReviewCompletedFiltered();
-        if (!completed.length) return;
+        const all = getReviewPuzzlesFiltered();
+        if (!all.length) return;
 
         const isMissMate = (p) => {
           const bestCp = Number(p?.bestCp ?? 0);
@@ -2135,9 +2156,9 @@
         let pool = [];
         if (key === 'random') {
           // Random = pick from the requested 4 drop buckets (exclude miss-mate, since it's its own category)
-          pool = completed.filter(p => bucketKeyOf(p) !== 'missMate');
+          pool = all.filter(p => bucketKeyOf(p) !== 'missMate');
         } else {
-          pool = completed.filter(p => bucketKeyOf(p) === key);
+          pool = all.filter(p => bucketKeyOf(p) === key);
         }
         if (!pool.length) return;
 
@@ -2172,8 +2193,9 @@
       if (t?.closest?.('[data-bl-back-review]')) {
         // On some mobile browsers, DOM updates after "Show best move" can cause a ghost click to land here.
         // Guard against accidental navigation.
-        const ts = Number(STATE.ui?.lastInlineBestClickTs || 0);
-        if (ts && (Date.now() - ts) < 800) return;
+        const ts1 = Number(STATE.ui?.lastInlineBestClickTs || 0);
+        const ts2 = Number(STATE.ui?.lastBlunderUiActionTs || 0);
+        if ((ts1 && (Date.now() - ts1) < 900) || (ts2 && (Date.now() - ts2) < 900)) return;
         setPage('review');
         return;
       }
@@ -2183,6 +2205,7 @@
       const inlineBest = t?.closest?.('[data-bl-inline-best]');
       if (inlineBest) {
         STATE.ui.lastInlineBestClickTs = Date.now();
+        STATE.ui.lastBlunderUiActionTs = Date.now();
         ev.preventDefault?.();
         ev.stopPropagation?.();
         const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
@@ -2192,6 +2215,7 @@
       }
       const inlineNext = t?.closest?.('[data-bl-inline-next]');
       if (inlineNext) {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
         const scope = String(inlineNext.getAttribute('data-bl-inline-next') || '');
         if (scope === 'master') {
           const mid = String(STATE.master.selectedMasterId || '');
@@ -2223,6 +2247,9 @@
       }
       const inlineRetry = t?.closest?.('[data-bl-inline-retry]');
       if (inlineRetry) {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        ev.preventDefault?.();
+        ev.stopPropagation?.();
         const scope = String(inlineRetry.getAttribute('data-bl-inline-retry') || '');
         if (scope === 'master') {
           const pz = masterCurrentPuzzle();
@@ -2275,6 +2302,7 @@
 
       const sqEl = t?.closest?.('[data-bl-sq]');
       if (sqEl && STATE.page === 'blunder') {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
         const sq = String(sqEl.getAttribute('data-bl-sq') || '');
         handleBoardClick(sq);
         return;
@@ -2288,7 +2316,11 @@
       const open = t?.closest?.('[data-bl-open]');
       if (open) {
         const id = String(open.getAttribute('data-bl-open') || '');
-        const pz = STATE.completed.find(x => String(x?.id || '') === id) || null;
+        const all = [
+          ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+          ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+        ];
+        const pz = all.find(x => String(x?.id || '') === id) || null;
         if (!pz) return;
         openModal('Review', `
           <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(pz.blunderSan || pz.blunderMoveUci || ''))}</div>
@@ -2296,7 +2328,8 @@
             ${renderMiniBoardFromFen(String(pz.startFEN || ''))}
             <div style="min-width:220px;">
               <div class="blunders-muted">Drop: <strong>${escapeHtml(Number(pz.dropPoints ?? (Number(pz.dropCp || 0) / 100)).toFixed(2))}</strong></div>
-              <div class="blunders-muted" style="margin-top:6px;">Completed: <strong>${escapeHtml(fmtTs(pz.completedAt || pz.createdAt))}</strong></div>
+              <div class="blunders-muted" style="margin-top:6px;">Status: <strong>${escapeHtml(String(pz.status || 'pending'))}</strong></div>
+              <div class="blunders-muted" style="margin-top:6px;">Time: <strong>${escapeHtml(fmtTs(pz.completedAt || pz.createdAt))}</strong></div>
               ${pz.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(pz.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(pz.gameUrl))}</a></div>` : ''}
               <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
                 <button class="btn btn-primary" type="button" data-bl-practice="${escapeHtml(String(pz.id || ''))}">Practice</button>

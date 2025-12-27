@@ -719,11 +719,50 @@ function uciToSanAtFen(fen, uci) {
 // ===== Blunders: Chess.com sync (rapid/blitz) =====
 const BLUNDERS_ALLOWED_TIME_CLASSES = new Set(['rapid', 'blitz']);
 const BLUNDERS_MAX_GAMES_PER_DAY = 10;
+const BLUNDERS_MAX_PUZZLES_PER_STUDENT = 20;
 const BLUNDERS_DROP_POINTS = 1.0; // > 1.0 is blunder
 const blundersLastStudentSync = new Map(); // studentId -> ms
 const blundersLastStudentHistoryScan = new Map(); // studentId -> ms (teacher-triggered history scan throttle)
 const blundersStudentLocks = new Map(); // studentId -> Promise
 const blundersSyncState = new Map(); // studentId -> { running, startedAt, updatedAt, finishedAt, stage, gamesFetched, gamesProcessed, pliesProcessed, blundersAdded, lastError }
+
+function puzzleSortKeyMs(p) {
+  const done = Date.parse(String(p?.completedAt || ''));
+  if (Number.isFinite(done) && done > 0) return done;
+  const end = Number(p?.endTime || 0);
+  if (Number.isFinite(end) && end > 0) return end * 1000;
+  const created = Date.parse(String(p?.createdAt || ''));
+  return Number.isFinite(created) ? created : 0;
+}
+
+function pruneStudentBlundersInPlace(puzzles, orgId, studentId, limit = BLUNDERS_MAX_PUZZLES_PER_STUDENT) {
+  const oid = String(orgId || '');
+  const sid = String(studentId || '');
+  const lim = Math.max(1, Math.min(500, Number(limit || 0) || BLUNDERS_MAX_PUZZLES_PER_STUDENT));
+  if (!oid || !sid) return { changed: false, removed: 0 };
+  const list = Array.isArray(puzzles) ? puzzles : [];
+  const mine = list
+    .filter(p => String(p.orgId || '') === oid && String(p.scope || '') !== 'master' && String(p.studentId || '') === sid)
+    .slice()
+    .sort((a, b) => puzzleSortKeyMs(b) - puzzleSortKeyMs(a));
+  if (mine.length <= lim) return { changed: false, removed: 0 };
+  const keepIds = new Set(mine.slice(0, lim).map(p => String(p.id || '')).filter(Boolean));
+  const before = list.length;
+  const kept = [];
+  for (const p of list) {
+    const isMine = String(p.orgId || '') === oid && String(p.scope || '') !== 'master' && String(p.studentId || '') === sid;
+    if (isMine) {
+      const pid = String(p.id || '');
+      if (pid && keepIds.has(pid)) kept.push(p);
+    } else {
+      kept.push(p);
+    }
+  }
+  puzzles.length = 0;
+  puzzles.push(...kept);
+  const after = puzzles.length;
+  return { changed: after !== before, removed: Math.max(0, before - after) };
+}
 
 async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
   const ac = new AbortController();
@@ -1083,7 +1122,9 @@ async function syncBlundersForStudent(student, opts = {}) {
       });
     }
 
-    if (added) await writeBlundersPuzzles(puzzles);
+    // Always keep puzzle bank bounded (latest N per student), regardless of whether we added new ones.
+    const pr = pruneStudentBlundersInPlace(puzzles, orgId, sid, BLUNDERS_MAX_PUZZLES_PER_STUDENT);
+    if (added || pr.changed) await writeBlundersPuzzles(puzzles);
     return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
   })().finally(() => {
     blundersStudentLocks.delete(sid);
@@ -6918,7 +6959,6 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
     const puzzles = await readBlundersPuzzles();
     const mine = puzzles
       .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master')
-      .filter(p => String(p.status || '') === 'completed')
       .filter(p => allowedStudentIds.has(String(p.studentId || '')));
 
     const entries = mine
@@ -6926,8 +6966,8 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
         const sid = String(p.studentId || '');
         const stu = studentMap.get(sid) || { name: 'Student', studentId: '' };
         const rt = ratingMap.get(sid) || { rating: null, source: null, updatedAt: null };
-        const completedAt = String(p.completedAt || p.updatedAt || p.createdAt || '');
-        const completedAtMs = Date.parse(completedAt);
+        const completedAt = String(p.completedAt || '');
+        const sortAtMs = puzzleSortKeyMs(p);
         const dropPoints = (typeof p.dropPoints === 'number')
           ? Number(p.dropPoints)
           : (Number(p.dropCp || 0) / 100);
@@ -6938,14 +6978,14 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
           chessComRating: (rt.rating === null || rt.rating === undefined) ? null : Number(rt.rating),
           chessComRatingSource: rt.source,
           chessComRatingUpdatedAt: rt.updatedAt,
-          completedAt,
-          completedAtMs: Number.isFinite(completedAtMs) ? completedAtMs : 0,
+          completedAt: completedAt || null,
+          sortAtMs: Number.isFinite(sortAtMs) ? sortAtMs : 0,
           dropPoints: Number.isFinite(dropPoints) ? dropPoints : 0
         };
       })
-      .filter(p => !startMs || (p.completedAtMs && p.completedAtMs >= startMs))
+      .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
       .filter(p => inBucket(p.chessComRating))
-      .sort((a, b) => (b.completedAtMs || 0) - (a.completedAtMs || 0));
+      .sort((a, b) => (b.sortAtMs || 0) - (a.sortAtMs || 0));
 
     return res.json({ ok: true, orgId, duration, rating, total: entries.length, entries });
   } catch (e) {
@@ -7773,7 +7813,12 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     } catch {}
     syncBlundersForStudent(student, { force: String(force || '') === '1' ? '1' : '0' }).catch((e) => console.warn('blunders sync failed:', e));
     const puzzles = await readBlundersPuzzles();
-    const mine = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.studentId || '') === String(student.id));
+    // Keep only latest N puzzles per student to prevent unbounded growth.
+    const pr = pruneStudentBlundersInPlace(puzzles, orgId, String(student.id), BLUNDERS_MAX_PUZZLES_PER_STUDENT);
+    if (pr.changed) {
+      try { await writeBlundersPuzzles(puzzles); } catch {}
+    }
+    const mine = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id));
     const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
     const completed = mine.filter(p => String(p.status || '') === 'completed');
 
