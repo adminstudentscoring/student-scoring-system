@@ -4,6 +4,20 @@
   margin: 0;
 }
 
+/* Game window overrides: remove outer paddings so sidebar gap control is exact */
+body.game-is-vcp {
+  padding: 0 !important;
+}
+body.game-is-vcp .game-window-container {
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  min-height: 100vh !important;
+}
+body.game-is-vcp .game-area-content {
+  padding: 0 !important;
+}
+
 :root {
   --vcp-board-light: #f1f5f9;
   --vcp-board-dark: #94a3b8;
@@ -11,6 +25,7 @@
 
 .vcp-app {
   --vcp-sidebar-w: 180px;
+  --vcp-main-gap: 0.5cm; /* target distance between sidebar and main white card */
   min-height: 100vh;
 }
 
@@ -34,8 +49,8 @@
 
 .vcp-app-main {
   margin-left: var(--vcp-sidebar-w);
-  /* Reduce the gutter between sidebar and main content */
-  padding: 12px 12px 12px 8px;
+  /* Keep the gutter between sidebar and main content consistent */
+  padding: 12px 12px 12px var(--vcp-main-gap);
 }
 
 .vcp-side-icon {
@@ -72,8 +87,8 @@
 .vcp-main-inner {
   /* Wider container to fit session UI (board + move list) on iPad */
   max-width: 1100px; /* ~ +3cm vs previous 980px */
-  /* Center the main content container */
-  margin: 0 auto;
+  /* Align the white card to the left edge (fixed gap from sidebar), not centered */
+  margin: 0;
 }
 
 .vcp-me-row {
