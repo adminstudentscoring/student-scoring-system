@@ -569,8 +569,16 @@
     const stats = STATE.data?.stats || {};
     return `
       <div class="bl-card">
-        <div class="bl-title">Home</div>
-        <div class="blunders-muted">Your Blunders progress summary.</div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+          <div>
+            <div class="bl-title">Home</div>
+            <div class="blunders-muted">Your Blunders progress summary.</div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-page-reload title="Reload page">Refresh page</button>
+            <div class="blunders-muted" style="margin-top:6px;">If anything looks wrong, click Refresh page.</div>
+          </div>
+        </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-bl-refresh>Refresh</button>
           <button class="btn btn-secondary" type="button" data-bl-force>Force refresh</button>
@@ -642,8 +650,16 @@
     const myMoveUci = String(STATE.uiBoard.blunderMoveUci || '');
     return `
       <div class="bl-card">
-        <div class="bl-title">Blunder</div>
-        <div class="blunders-muted">Mode: <strong>${escapeHtml(modeLabel)}</strong>${STATE.mode === 'pending' ? ` · Remaining: <strong>${escapeHtml(String(pendingCount))}</strong>` : ''}</div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+          <div>
+            <div class="bl-title">Blunder</div>
+            <div class="blunders-muted">Mode: <strong>${escapeHtml(modeLabel)}</strong>${STATE.mode === 'pending' ? ` · Remaining: <strong>${escapeHtml(String(pendingCount))}</strong>` : ''}</div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-page-reload title="Reload page">Refresh page</button>
+            <div class="blunders-muted" style="margin-top:6px;">If anything looks wrong, click Refresh page.</div>
+          </div>
+        </div>
 
         ${puzzle ? `
           <div class="bl-board-wrap">
@@ -800,8 +816,16 @@
     ];
     return `
       <div class="bl-card">
-        <div class="bl-title">Review</div>
-        <div class="blunders-muted">All puzzles are shown here (pending + completed).</div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+          <div>
+            <div class="bl-title">Review</div>
+            <div class="blunders-muted">All puzzles are shown here (pending + completed).</div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-page-reload title="Reload page">Refresh page</button>
+            <div class="blunders-muted" style="margin-top:6px;">If anything looks wrong, click Refresh page.</div>
+          </div>
+        </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-bl-refresh>Refresh</button>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -2123,6 +2147,10 @@
 
       if (t?.closest?.('[data-bl-refresh]')) return refreshData();
       if (t?.closest?.('[data-bl-force]')) return refreshData({ force: true });
+      if (t?.closest?.('[data-bl-page-reload]')) {
+        try { window.location.reload(); } catch { window.location.href = window.location.href; }
+        return;
+      }
       if (t?.closest?.('[data-bl-go-blunder]')) { setBlunderModePending(); return setPage('blunder'); }
       if (t?.closest?.('[data-bl-go-review]')) {
         const ts = Number(STATE.ui?.lastBlunderUiActionTs || 0);
@@ -2343,7 +2371,11 @@
       const practiceBtn = t?.closest?.('[data-bl-practice]');
       if (practiceBtn) {
         const id = String(practiceBtn.getAttribute('data-bl-practice') || '');
-        const pz = STATE.completed.find(x => String(x?.id || '') === id) || null;
+        const all = [
+          ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+          ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+        ];
+        const pz = all.find(x => String(x?.id || '') === id) || null;
         if (!pz) return;
         closeModal();
         setBlunderModePractice(pz);
@@ -2352,9 +2384,12 @@
       }
 
       if (t?.closest?.('[data-bl-random]')) {
-        const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
-        if (!completed.length) return;
-        const pick = completed[Math.floor(Math.random() * completed.length)];
+        const all = [
+          ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+          ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+        ];
+        if (!all.length) return;
+        const pick = all[Math.floor(Math.random() * all.length)];
         setBlunderModePractice(pick);
         setPage('blunder');
         return;
