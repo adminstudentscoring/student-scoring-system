@@ -6763,6 +6763,103 @@ app.get('/api/teachers/blunders/students-summary', authenticateUser, authorizeRo
   }
 });
 
+app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+
+    const duration = String(req.query.duration || 'all'); // week | month | halfYear | year | all
+    const rating = String(req.query.rating || 'any'); // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
+
+    const users = await readUsers();
+    const teacher = users.find(u => u.id === req.user.id);
+    const assignedIds = (teacher && Array.isArray(teacher.assignedStudents) && teacher.assignedStudents.length) ? new Set(teacher.assignedStudents) : null;
+
+    const data = await readData();
+    const studentsAll = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
+    const students = assignedIds ? studentsAll.filter(s => assignedIds.has(s.id)) : studentsAll;
+    const allowedStudentIds = new Set(students.map(s => String(s.id || '')));
+    const studentMap = new Map(students.map(s => [String(s.id || ''), { name: String(s.name || 'Student'), studentId: String(s.studentId || '') }]));
+
+    // Ratings cache (best-effort)
+    const ratingMap = new Map();
+    try {
+      const { orgs } = await readChessComRatings();
+      const bucket = (orgs && orgs[orgId] && typeof orgs[orgId] === 'object') ? orgs[orgId] : {};
+      for (const sid of allowedStudentIds) {
+        const ent = bucket[sid] && typeof bucket[sid] === 'object' ? bucket[sid] : null;
+        if (ent) {
+          ratingMap.set(String(sid), {
+            rating: (ent.rating === null || ent.rating === undefined) ? null : Number(ent.rating),
+            source: ent.source || null,
+            updatedAt: ent.updatedAt || null
+          });
+        }
+      }
+    } catch {}
+
+    const startMs = (() => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      if (duration === 'week') return now - 7 * day;
+      if (duration === 'month') return now - 30 * day;
+      if (duration === 'halfYear') return now - 182 * day;
+      if (duration === 'year') return now - 365 * day;
+      return 0;
+    })();
+
+    const inBucket = (r) => {
+      const v = (r === null || r === undefined || Number.isNaN(Number(r))) ? null : Number(r);
+      if (rating === 'any') return true;
+      if (v === null) return false;
+      if (rating === '100-400') return v >= 100 && v <= 400;
+      if (rating === '401-700') return v >= 401 && v <= 700;
+      if (rating === '701-1000') return v >= 701 && v <= 1000;
+      if (rating === '1001-1500') return v >= 1001 && v <= 1500;
+      if (rating === '1501-2000') return v >= 1501 && v <= 2000;
+      if (rating === '2000up') return v >= 2000;
+      return true;
+    };
+
+    const puzzles = await readBlundersPuzzles();
+    const mine = puzzles
+      .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master')
+      .filter(p => String(p.status || '') === 'completed')
+      .filter(p => allowedStudentIds.has(String(p.studentId || '')));
+
+    const entries = mine
+      .map(p => {
+        const sid = String(p.studentId || '');
+        const stu = studentMap.get(sid) || { name: 'Student', studentId: '' };
+        const rt = ratingMap.get(sid) || { rating: null, source: null, updatedAt: null };
+        const completedAt = String(p.completedAt || p.updatedAt || p.createdAt || '');
+        const completedAtMs = Date.parse(completedAt);
+        const dropPoints = (typeof p.dropPoints === 'number')
+          ? Number(p.dropPoints)
+          : (Number(p.dropCp || 0) / 100);
+        return {
+          ...p,
+          studentName: stu.name,
+          studentStudentId: stu.studentId,
+          chessComRating: (rt.rating === null || rt.rating === undefined) ? null : Number(rt.rating),
+          chessComRatingSource: rt.source,
+          chessComRatingUpdatedAt: rt.updatedAt,
+          completedAt,
+          completedAtMs: Number.isFinite(completedAtMs) ? completedAtMs : 0,
+          dropPoints: Number.isFinite(dropPoints) ? dropPoints : 0
+        };
+      })
+      .filter(p => !startMs || (p.completedAtMs && p.completedAtMs >= startMs))
+      .filter(p => inBucket(p.chessComRating))
+      .sort((a, b) => (b.completedAtMs || 0) - (a.completedAtMs || 0));
+
+    return res.json({ ok: true, orgId, duration, rating, total: entries.length, entries });
+  } catch (e) {
+    console.error('GET /api/teachers/blunders/all-blunders error:', e);
+    return res.status(500).json({ error: 'Failed to load all blunders' });
+  }
+});
+
 app.post('/api/teachers/blunders/sync-student', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
   try {
     const orgId = String(req.user.organizationId || req.organizationFilter || '');

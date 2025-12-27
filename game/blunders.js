@@ -44,6 +44,7 @@
       error: '',
       students: [],
       masters: [],
+      allBlunders: [],
       masterConfig: { maxGamesPerDay: 10, thresholdPoints: 1.0 },
       edits: { student: {}, masters: null, masterCfg: null },
       lastLoadedAt: '',
@@ -52,7 +53,10 @@
       search: '',
       selectedIds: [],
       bulkMaxGames: 10,
-      bulkThreshold: 1.0
+      bulkThreshold: 1.0,
+      // Teacher All blunders UI
+      allDuration: 'all', // week | month | halfYear | year | all
+      allRating: 'any' // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
     },
     uiBoard: {
       // Student blunders
@@ -944,6 +948,9 @@
           <button class="bl-nav-btn ${tab === 'students' ? 'active' : ''}" type="button" data-bl-teacher-tab="students">
             <span class="bl-nav-left"><span class="bl-nav-icon">👥</span>Students</span>
           </button>
+          <button class="bl-nav-btn ${tab === 'allBlunders' ? 'active' : ''}" type="button" data-bl-teacher-tab="allBlunders">
+            <span class="bl-nav-left"><span class="bl-nav-icon">📚</span>All blunders</span>
+          </button>
           <button class="bl-nav-btn ${tab === 'masterGame' ? 'active' : ''}" type="button" data-bl-teacher-tab="masterGame">
             <span class="bl-nav-left"><span class="bl-nav-icon">♟️</span>Master Game</span>
           </button>
@@ -1109,6 +1116,112 @@
     `;
   }
 
+  function renderTeacherAllBlundersPage() {
+    const loading = !!STATE.teacher.loading;
+    const err = String(STATE.teacher.error || '');
+    const duration = String(STATE.teacher.allDuration || 'all');
+    const rating = String(STATE.teacher.allRating || 'any');
+    const entries = Array.isArray(STATE.teacher.allBlunders) ? STATE.teacher.allBlunders : [];
+
+    const durationBtns = [
+      { k: 'week', label: 'Last week' },
+      { k: 'month', label: 'Last month' },
+      { k: 'halfYear', label: 'Last 6 months' },
+      { k: 'year', label: 'Last year' },
+      { k: 'all', label: 'All time' }
+    ];
+    const ratingOpts = [
+      { k: 'any', label: 'Any rating' },
+      { k: '100-400', label: '100–400' },
+      { k: '401-700', label: '401–700' },
+      { k: '701-1000', label: '701–1000' },
+      { k: '1001-1500', label: '1001–1500' },
+      { k: '1501-2000', label: '1501–2000' },
+      { k: '2000up', label: '2000+' }
+    ];
+
+    const dropOf = (p) => Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0;
+    const isMissMate = (p) => {
+      const bestCp = Number(p?.bestCp ?? 0);
+      return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
+    };
+    const groups = { missMate: [], d1: [], d2: [], d3: [], d4: [] };
+    for (const p of entries) {
+      if (isMissMate(p)) { groups.missMate.push(p); continue; }
+      const d = dropOf(p);
+      if (d >= 1.0 && d <= 1.5) groups.d1.push(p);
+      else if (d > 1.5 && d <= 2.0) groups.d2.push(p);
+      else if (d > 2.0 && d <= 3.0) groups.d3.push(p);
+      else if (d > 3.0) groups.d4.push(p);
+      else groups.d1.push(p);
+    }
+
+    const renderRows = (arr) => {
+      if (!arr.length) return `<div class="blunders-muted" style="margin-top:10px;">No records.</div>`;
+      return `
+        <div class="bl-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+          ${arr.slice(0, 200).map((p) => {
+            const sid = escapeHtml(String(p.studentStudentId || ''));
+            const sname = escapeHtml(String(p.studentName || 'Student'));
+            const r = (p.chessComRating === null || p.chessComRating === undefined) ? '' : `${escapeHtml(String(p.chessComRating))}${p.chessComRatingSource ? ` (${escapeHtml(String(p.chessComRatingSource))})` : ''}`;
+            const when = escapeHtml(String(p.completedAt || ''));
+            const drop = dropOf(p).toFixed(2);
+            const title = `${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))} · Drop ${drop}`;
+            return `
+              <div class="bl-card" style="display:flex; gap:12px; align-items:center;">
+                ${renderMiniBoardFromFen(String(p.startFEN || ''))}
+                <div style="min-width:0;">
+                  <div style="font-weight:950; color:#111827; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sname}${sid ? ` <span style="opacity:.7;">(${sid})</span>` : ''}</div>
+                  <div class="blunders-muted" style="margin-top:4px;">Rating: <strong>${r || '—'}</strong></div>
+                  <div class="blunders-muted" style="margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</div>
+                  ${p.gameUrl ? `<div class="blunders-muted" style="margin-top:4px;">Source: <a href="${escapeHtml(String(p.gameUrl))}" target="_blank" rel="noopener noreferrer">Chess.com</a></div>` : ``}
+                  ${when ? `<div class="blunders-muted" style="margin-top:4px;">${when}</div>` : ``}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${entries.length > 200 ? `<div class="blunders-muted" style="margin-top:10px;">Showing 200 of ${entries.length}.</div>` : ``}
+      `;
+    };
+
+    const renderGroup = (label, arr, open) => `
+      <details ${open ? 'open' : ''} style="margin-top:10px;">
+        <summary class="blunders-muted" style="cursor:pointer;"><strong>${escapeHtml(label)}</strong> (${arr.length})</summary>
+        <div style="margin-top:10px;">${renderRows(arr)}</div>
+      </details>
+    `;
+
+    return `
+      <div class="bl-card">
+        <div class="bl-title">All blunders</div>
+        <div class="blunders-muted">Same as Review, but across all students in your organization.</div>
+
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          ${durationBtns.map(b => `<button class="btn ${duration === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-teacher-all-duration="${escapeHtml(b.k)}">${escapeHtml(b.label)}</button>`).join('')}
+          <div style="flex:1;"></div>
+          <select class="btn btn-secondary btn-small" data-bl-teacher-all-rating style="min-width:180px;">
+            ${ratingOpts.map(o => `<option value="${escapeHtml(o.k)}" ${rating === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
+          <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-refresh-all>Refresh</button>
+        </div>
+
+        ${loading ? `<div class="blunders-muted" style="margin-top:12px;">Loading...</div>` : ``}
+        ${err ? `<div class="blunders-muted" style="margin-top:12px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
+
+        ${!loading ? `
+          <div style="margin-top:12px;">
+            ${renderGroup('Miss the mate', groups.missMate, true)}
+            ${renderGroup('Drop 1.00–1.50', groups.d1, true)}
+            ${renderGroup('Drop 1.51–2.00', groups.d2, false)}
+            ${renderGroup('Drop 2.01–3.00', groups.d3, false)}
+            ${renderGroup('Drop 3.01+', groups.d4, false)}
+          </div>
+        ` : ``}
+      </div>
+    `;
+  }
+
   function renderTeacherMasterGamePage() {
     const loading = !!STATE.teacher.loading;
     const err = String(STATE.teacher.error || '');
@@ -1200,6 +1313,7 @@
 
   function renderTeacherModeMain() {
     const tab = String(STATE.teacherTab || 'students');
+    if (tab === 'allBlunders') return renderTeacherAllBlundersPage();
     if (tab === 'masterGame') return renderTeacherMasterGamePage();
     if (tab === 'settings') return renderSettingsPage();
     return renderTeacherStudentsPage();
@@ -1242,6 +1356,12 @@
         STATE.teacher.masters = Array.isArray(data?.masters) ? data.masters : [];
         STATE.teacher.masterConfig = data?.masterConfig || { maxGamesPerDay: 10, thresholdPoints: 1.0 };
         if (!Array.isArray(STATE.teacher.edits.masters)) STATE.teacher.edits.masters = STATE.teacher.masters.map((m) => ({ ...m }));
+      } else if (tab === 'allBlunders') {
+        const dur = String(STATE.teacher.allDuration || 'all');
+        const rt = String(STATE.teacher.allRating || 'any');
+        const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}`;
+        const data = await teacherApi(`/teachers/blunders/all-blunders${qs}`);
+        STATE.teacher.allBlunders = Array.isArray(data?.entries) ? data.entries : [];
       } else if (tab === 'settings') {
         // Reuse Settings UI (board colors), no server call needed.
       } else {
@@ -1733,6 +1853,13 @@
       // Teacher actions
       if (t?.closest?.('[data-bl-teacher-refresh-students]')) return teacherLoad('students');
       if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
+      if (t?.closest?.('[data-bl-teacher-refresh-all]')) return teacherLoad('allBlunders');
+      const durBtn = t?.closest?.('[data-bl-teacher-all-duration]');
+      if (durBtn) {
+        STATE.teacher.allDuration = String(durBtn.getAttribute('data-bl-teacher-all-duration') || 'all');
+        render();
+        return teacherLoad('allBlunders');
+      }
       if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
       if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
       if (t?.closest?.('[data-bl-teacher-apply-max-selected]')) {
@@ -2142,6 +2269,13 @@
       if (sEl) {
         STATE.teacher.search = String(sEl.value || '');
         render();
+        return;
+      }
+      const ar = el?.closest?.('[data-bl-teacher-all-rating]');
+      if (ar) {
+        STATE.teacher.allRating = String(ar.value || 'any');
+        render();
+        teacherLoad('allBlunders').catch(() => {});
         return;
       }
       const bm = el?.closest?.('[data-bl-teacher-bulk-max]');
