@@ -54,6 +54,7 @@
       selectedIds: [],
       bulkMaxGames: 10,
       bulkThreshold: 1.0,
+      bulkHistoryGames: 200,
       historyScanN: {},
       // Teacher All blunders UI
       allDuration: 'all', // week | month | halfYear | year | all
@@ -994,6 +995,7 @@
     const lastRun = schedule?.lastRunAt ? fmtIsoUtc(schedule.lastRunAt) : '—';
     const nextRun = schedule?.nextRunAt ? fmtIsoUtc(schedule.nextRunAt) : '—';
     const selectedCount = Array.from(selectedSet).filter((id) => allRows.some(r => String(r.id || '') === id)).length;
+    const bulkHistoryGames = Math.max(1, Math.min(500, Number(STATE.teacher.bulkHistoryGames || 200) || 200));
 
     return `
       <div class="bl-card">
@@ -1025,6 +1027,14 @@
           <button class="btn btn-primary" type="button" data-bl-teacher-save-students ${loading ? 'disabled' : ''}>Save settings</button>
           <button class="btn btn-secondary" type="button" data-bl-teacher-sync-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Sync selected (${escapeHtml(String(selectedCount))})</button>
           <button class="btn btn-secondary" type="button" data-bl-teacher-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Force selected</button>
+          <span style="display:inline-flex; gap:6px; align-items:center;">
+            <span class="blunders-muted" style="margin:0;">History N</span>
+            <select data-bl-teacher-bulk-history style="padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;" ${loading ? 'disabled' : ''}>
+              ${[100, 200, 300, 500].map((n) => `<option value="${n}" ${Number(bulkHistoryGames) === n ? 'selected' : ''}>${n}</option>`).join('')}
+            </select>
+            <button class="btn btn-secondary" type="button" data-bl-teacher-history-selected ${(!selectedCount || loading) ? 'disabled' : ''}>History selected</button>
+            <button class="btn btn-secondary" type="button" data-bl-teacher-history-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>History Force selected</button>
+          </span>
         </div>
         ${loading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
         ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
@@ -1465,6 +1475,36 @@
     }
   }
 
+  async function teacherBulkHistoryScanSelected(force) {
+    const selected = Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : [];
+    const ids = selected.filter(Boolean);
+    if (!ids.length) return;
+    const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+    const idSet = new Set(allRows.map(s => String(s.id || '')));
+    const valid = ids.filter(id => idSet.has(id));
+    if (!valid.length) return;
+
+    const n = Math.max(1, Math.min(500, Number(STATE.teacher.bulkHistoryGames || 200) || 200));
+
+    STATE.teacher.loading = true;
+    STATE.teacher.error = '';
+    render();
+    try {
+      for (let i = 0; i < valid.length; i++) {
+        const sid = valid[i];
+        STATE.teacher.error = `History scanning ${i + 1}/${valid.length} (N=${n})...`;
+        render();
+        await teacherHistoryScanStudent(sid, n, !!force);
+      }
+      STATE.teacher.error = '';
+    } catch (e) {
+      STATE.teacher.error = String(e?.message || e);
+    } finally {
+      STATE.teacher.loading = false;
+      await teacherLoad('students').catch(() => {});
+    }
+  }
+
   function setMessage(txt) {
     const el = document.getElementById('blBlunderMsg');
     if (el) el.textContent = String(txt || '');
@@ -1884,6 +1924,8 @@
       }
       if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
       if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
+      if (t?.closest?.('[data-bl-teacher-history-selected]')) return teacherBulkHistoryScanSelected(false);
+      if (t?.closest?.('[data-bl-teacher-history-force-selected]')) return teacherBulkHistoryScanSelected(true);
       if (t?.closest?.('[data-bl-teacher-apply-max-selected]')) {
         const v = Number(STATE.teacher.bulkMaxGames || 10) || 10;
         const selected = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
@@ -2324,6 +2366,11 @@
       const bt = el?.closest?.('[data-bl-teacher-bulk-thr]');
       if (bt) {
         STATE.teacher.bulkThreshold = Number(bt.value);
+        return;
+      }
+      const bh = el?.closest?.('[data-bl-teacher-bulk-history]');
+      if (bh) {
+        STATE.teacher.bulkHistoryGames = Math.max(1, Math.min(500, Number(bh.value || 0) || 200));
         return;
       }
       const maxEl = el?.closest?.('[data-bl-teacher-student-max]');
