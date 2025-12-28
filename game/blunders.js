@@ -20,6 +20,8 @@
     selectedFrom: null,
     promoPending: null, // { baseUci }
     practicePuzzle: null,
+    // Practice context (used for "Next" in practice mode)
+    practiceKey: 'random', // 'random' | 'missMate' | 'd1' | 'd2' | 'd3' | 'd4'
     // Post-attempt flow control
     needsRefreshAfterModal: false,
     needsMasterRefreshAfterModal: false,
@@ -283,6 +285,25 @@
     const endMs = Number.isFinite(end) && end > 0 ? end * 1000 : 0;
     const created = parseIsoMs(p?.createdAt || '');
     return Math.max(endMs, created);
+  }
+
+  function dropOfPuzzle(p) {
+    const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
+    return Number.isFinite(d) ? d : 0;
+  }
+
+  function isMissMatePuzzle(p) {
+    const bestCp = Number(p?.bestCp ?? 0);
+    return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
+  }
+
+  function bucketKeyOfPuzzle(p) {
+    if (isMissMatePuzzle(p)) return 'missMate';
+    const d = dropOfPuzzle(p);
+    if (d <= 1.5) return 'd1';
+    if (d <= 2.0) return 'd2';
+    if (d <= 3.0) return 'd3';
+    return 'd4';
   }
 
   function reviewDurationStartMs(key) {
@@ -731,26 +752,10 @@
       ...(Array.isArray(STATE.completed) ? STATE.completed : [])
     ];
     const all = getReviewPuzzlesFiltered();
-    const dropOf = (p) => {
-      const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
-      return Number.isFinite(d) ? d : 0;
-    };
-    const isMissMate = (p) => {
-      const bestCp = Number(p?.bestCp ?? 0);
-      return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
-    };
-    const bucketKeyOf = (p) => {
-      if (isMissMate(p)) return 'missMate';
-      const d = dropOf(p);
-      if (d <= 1.5) return 'd1';
-      if (d <= 2.0) return 'd2';
-      if (d <= 3.0) return 'd3';
-      return 'd4';
-    };
     const sorted = all.slice().sort((a, b) => {
       // Keep mate-miss near top by drop, then by time
-      const da = dropOf(a);
-      const db = dropOf(b);
+      const da = dropOfPuzzle(a);
+      const db = dropOfPuzzle(b);
       if (db !== da) return db - da;
       const ta = puzzleTimeMs(a);
       const tb = puzzleTimeMs(b);
@@ -765,11 +770,11 @@
       d4: []
     };
     for (const p of sorted) {
-      if (isMissMate(p)) {
+      if (isMissMatePuzzle(p)) {
         groups.missMate.push(p);
         continue;
       }
-      const d = dropOf(p);
+      const d = dropOfPuzzle(p);
       if (d <= 1.5) groups.d1.push(p);
       else if (d <= 2.0) groups.d2.push(p);
       else if (d <= 3.0) groups.d3.push(p);
@@ -786,8 +791,8 @@
           </summary>
           <div class="bl-grid" style="margin-top:10px;">
             ${arr.map((p) => {
-              const drop = dropOf(p);
-              const label = isMissMate(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
+              const drop = dropOfPuzzle(p);
+              const label = isMissMatePuzzle(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
               const status = String(p?.status || 'pending') === 'completed' ? 'Completed' : 'Pending';
               return `
                 <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
@@ -2164,32 +2169,16 @@
         const all = getReviewPuzzlesFiltered();
         if (!all.length) return;
 
-        const isMissMate = (p) => {
-          const bestCp = Number(p?.bestCp ?? 0);
-          return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
-        };
-        const dropOf = (p) => {
-          const d = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
-          return Number.isFinite(d) ? d : 0;
-        };
-        const bucketKeyOf = (p) => {
-          if (isMissMate(p)) return 'missMate';
-          const d = dropOf(p);
-          if (d <= 1.5) return 'd1';
-          if (d <= 2.0) return 'd2';
-          if (d <= 3.0) return 'd3';
-          return 'd4';
-        };
-
         let pool = [];
         if (key === 'random') {
           // Random = pick from the requested 4 drop buckets (exclude miss-mate, since it's its own category)
-          pool = all.filter(p => bucketKeyOf(p) !== 'missMate');
+          pool = all.filter(p => bucketKeyOfPuzzle(p) !== 'missMate');
         } else {
-          pool = all.filter(p => bucketKeyOf(p) === key);
+          pool = all.filter(p => bucketKeyOfPuzzle(p) === key);
         }
         if (!pool.length) return;
 
+        STATE.practiceKey = key || 'random';
         const pick = pool[Math.floor(Math.random() * pool.length)];
         setBlunderModePractice(pick);
         clearInlineResult('blunder');
@@ -2257,14 +2246,26 @@
         clearInlineResult('blunder');
         STATE.selectedFrom = null;
         if (STATE.mode === 'practice') {
-          const completed = Array.isArray(STATE.completed) ? STATE.completed : [];
-          if (completed.length) {
-            const pick = completed[Math.floor(Math.random() * completed.length)];
-            setBlunderModePractice(pick);
-            setPage('blunder');
-            return;
+          const key = String(STATE.practiceKey || 'random');
+          const all = getReviewPuzzlesFiltered();
+          let pool = [];
+          if (key === 'missMate') pool = all.filter(p => bucketKeyOfPuzzle(p) === 'missMate');
+          else if (key === 'random') pool = all.filter(p => bucketKeyOfPuzzle(p) !== 'missMate');
+          else pool = all.filter(p => bucketKeyOfPuzzle(p) === key);
+
+          // Fallbacks
+          if (!pool.length) pool = all.slice();
+          if (!pool.length) { render(); return; }
+
+          const curId = String(STATE.practicePuzzle?.id || '');
+          if (curId && pool.length > 1) {
+            const filtered = pool.filter(p => String(p?.id || '') !== curId);
+            if (filtered.length) pool = filtered;
           }
-          render();
+
+          const pick = pool[Math.floor(Math.random() * pool.length)];
+          setBlunderModePractice(pick);
+          setPage('blunder');
           return;
         }
         // pending: refresh list so solved puzzle disappears, then stay at same index (now points to next)
@@ -2378,6 +2379,7 @@
         const pz = all.find(x => String(x?.id || '') === id) || null;
         if (!pz) return;
         closeModal();
+        STATE.practiceKey = bucketKeyOfPuzzle(pz) || 'random';
         setBlunderModePractice(pz);
         setPage('blunder');
         return;
@@ -2389,6 +2391,7 @@
           ...(Array.isArray(STATE.completed) ? STATE.completed : [])
         ];
         if (!all.length) return;
+        STATE.practiceKey = 'random';
         const pick = all[Math.floor(Math.random() * all.length)];
         setBlunderModePractice(pick);
         setPage('blunder');

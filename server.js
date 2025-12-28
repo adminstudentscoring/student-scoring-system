@@ -719,7 +719,8 @@ function uciToSanAtFen(fen, uci) {
 // ===== Blunders: Chess.com sync (rapid/blitz) =====
 const BLUNDERS_ALLOWED_TIME_CLASSES = new Set(['rapid', 'blitz']);
 const BLUNDERS_MAX_GAMES_PER_DAY = 10;
-const BLUNDERS_MAX_PUZZLES_PER_STUDENT = 20;
+// 0 = unlimited (no pruning). Set to a positive number to keep only the latest N puzzles per student.
+const BLUNDERS_MAX_PUZZLES_PER_STUDENT = 0;
 const BLUNDERS_DROP_POINTS = 1.0; // > 1.0 is blunder
 const blundersLastStudentSync = new Map(); // studentId -> ms
 const blundersLastStudentHistoryScan = new Map(); // studentId -> ms (teacher-triggered history scan throttle)
@@ -738,7 +739,13 @@ function puzzleSortKeyMs(p) {
 function pruneStudentBlundersInPlace(puzzles, orgId, studentId, limit = BLUNDERS_MAX_PUZZLES_PER_STUDENT) {
   const oid = String(orgId || '');
   const sid = String(studentId || '');
-  const lim = Math.max(1, Math.min(500, Number(limit || 0) || BLUNDERS_MAX_PUZZLES_PER_STUDENT));
+  const limIn = Number(limit);
+  const limDefault = Number(BLUNDERS_MAX_PUZZLES_PER_STUDENT);
+  const limRaw = Number.isFinite(limIn) ? limIn : limDefault;
+  // 0 or negative => unlimited (no pruning)
+  if (limRaw <= 0) return { changed: false, removed: 0 };
+  // Hard upper bound to avoid runaway pruning configs
+  const lim = Math.max(1, Math.min(500, limRaw));
   if (!oid || !sid) return { changed: false, removed: 0 };
   const list = Array.isArray(puzzles) ? puzzles : [];
   const mine = list
@@ -1122,7 +1129,7 @@ async function syncBlundersForStudent(student, opts = {}) {
       });
     }
 
-    // Always keep puzzle bank bounded (latest N per student), regardless of whether we added new ones.
+    // Keep puzzle bank bounded (latest N per student) if configured, regardless of whether we added new ones.
     const pr = pruneStudentBlundersInPlace(puzzles, orgId, sid, BLUNDERS_MAX_PUZZLES_PER_STUDENT);
     if (added || pr.changed) await writeBlundersPuzzles(puzzles);
     return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
@@ -7813,7 +7820,7 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     } catch {}
     syncBlundersForStudent(student, { force: String(force || '') === '1' ? '1' : '0' }).catch((e) => console.warn('blunders sync failed:', e));
     const puzzles = await readBlundersPuzzles();
-    // Keep only latest N puzzles per student to prevent unbounded growth.
+    // Keep only latest N puzzles per student if configured to prevent unbounded growth.
     const pr = pruneStudentBlundersInPlace(puzzles, orgId, String(student.id), BLUNDERS_MAX_PUZZLES_PER_STUDENT);
     if (pr.changed) {
       try { await writeBlundersPuzzles(puzzles); } catch {}

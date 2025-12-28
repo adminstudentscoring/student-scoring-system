@@ -1,0 +1,53 @@
+[1mdiff --git a/game/blunders.css b/game/blunders.css[m
+[1mindex 89541bf..afe93df 100644[m
+[1m--- a/game/blunders.css[m
+[1m+++ b/game/blunders.css[m
+[36m@@ -6,6 +6,7 @@[m
+ /* App shell */[m
+ .bl-app {[m
+   --bl-sidebar-w: 180px;[m
+[32m+[m[32m  --bl-main-gap: 0.5cm; /* target gap between sidebar and main content */[m
+   min-height: 100vh;[m
+ }[m
+ [m
+[36m@@ -24,17 +25,17 @@[m
+ [m
+ .bl-main {[m
+   margin-left: var(--bl-sidebar-w);[m
+[31m-  padding: 12px;[m
+[32m+[m[32m  padding: 12px 12px 12px var(--bl-main-gap);[m
+ }[m
+ [m
+ .bl-container {[m
+   max-width: 980px;[m
+[31m-  margin: 0 auto;[m
+[32m+[m[32m  margin: 0;[m
+ }[m
+ [m
+ .bl-global-status {[m
+   position: fixed;[m
+[31m-  left: calc(var(--bl-sidebar-w) + 12px);[m
+[32m+[m[32m  left: calc(var(--bl-sidebar-w) + var(--bl-main-gap));[m
+   bottom: 12px;[m
+   z-index: 50;[m
+   display: none;[m
+[36m@@ -47,19 +48,6 @@[m
+   pointer-events: none;[m
+ }[m
+ [m
+[31m-/* Narrow/zoomed layout: keep the main card close to sidebar (≈0.5cm gap). */[m
+[31m-@media (max-width: 1400px) {[m
+[31m-  .bl-main {[m
+[31m-    padding: 12px 12px 12px 0.5cm;[m
+[31m-  }[m
+[31m-  .bl-container {[m
+[31m-    margin: 0;[m
+[31m-  }[m
+[31m-  .bl-global-status {[m
+[31m-    left: calc(var(--bl-sidebar-w) + 0.5cm);[m
+[31m-  }[m
+[31m-}[m
+[31m-[m
+ @media (max-width: 900px) {[m
+   .bl-global-status {[m
+     left: 12px;[m
