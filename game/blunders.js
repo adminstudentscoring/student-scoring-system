@@ -1208,6 +1208,7 @@
             <button class="btn btn-primary" type="button" data-bl-teacher-save-students ${loading ? 'disabled' : ''}>Save settings</button>
             <button class="btn btn-secondary" type="button" data-bl-teacher-sync-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Sync selected (${escapeHtml(String(selectedCount))})</button>
             <button class="btn btn-secondary" type="button" data-bl-teacher-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Force selected</button>
+            <button class="btn btn-secondary" type="button" data-bl-teacher-complete-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Complete selected</button>
           </div>
           <div class="bl-teacher-actions" style="grid-template-columns: 140px 1fr 1fr;">
             <select class="btn btn-secondary" data-bl-teacher-bulk-history style="min-width:140px;" ${loading ? 'disabled' : ''}>
@@ -1643,6 +1644,31 @@
         render();
         await teacherSyncStudent(sid, hkDayKey, !!force);
       }
+      STATE.teacher.error = '';
+    } catch (e) {
+      STATE.teacher.error = String(e?.message || e);
+    } finally {
+      STATE.teacher.loading = false;
+      await teacherLoad('students').catch(() => {});
+    }
+  }
+
+  async function teacherBulkCompleteSelected() {
+    const selected = Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : [];
+    const ids = selected.filter(Boolean);
+    if (!ids.length) return;
+    const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+    const idSet = new Set(allRows.map(s => String(s.id || '')));
+    const valid = ids.filter(id => idSet.has(id));
+    if (!valid.length) return;
+
+    STATE.teacher.loading = true;
+    STATE.teacher.error = '';
+    render();
+    try {
+      STATE.teacher.error = `Completing pending puzzles for ${valid.length} student(s)...`;
+      render();
+      await teacherApi('/teachers/blunders/complete-pending', { method: 'POST', body: { studentIds: valid } });
       STATE.teacher.error = '';
     } catch (e) {
       STATE.teacher.error = String(e?.message || e);
@@ -2104,6 +2130,7 @@
       }
       if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
       if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
+      if (t?.closest?.('[data-bl-teacher-complete-selected]')) return teacherBulkCompleteSelected();
       if (t?.closest?.('[data-bl-teacher-history-selected]')) return teacherBulkHistoryScanSelected(false);
       if (t?.closest?.('[data-bl-teacher-history-force-selected]')) return teacherBulkHistoryScanSelected(true);
       if (t?.closest?.('[data-bl-teacher-apply-max-selected]')) {

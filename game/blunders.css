@@ -458,7 +458,7 @@ body.game-is-blunders .game-area-content {
 /* Teacher top action buttons equal width */
 .bl-teacher-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
   gap: 8px;
   width: 100%;
 }

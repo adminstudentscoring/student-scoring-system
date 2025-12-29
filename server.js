@@ -7239,6 +7239,49 @@ app.post('/api/teachers/blunders/sync-master', authenticateUser, authorizeRole('
   }
 });
 
+// Teacher: bulk mark all pending puzzles as completed for selected students (org-scoped).
+app.post('/api/teachers/blunders/complete-pending', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const idsIn = Array.isArray(body.studentIds) ? body.studentIds : [];
+    const ids = Array.from(new Set(idsIn.map(x => String(x || '').trim()).filter(Boolean)));
+    if (!ids.length) return res.status(400).json({ error: 'Missing studentIds' });
+
+    // Respect assignedStudents restriction (if present).
+    const users = await readUsers();
+    const teacher = users.find(u => u.id === req.user.id);
+    const assignedIds = (teacher && Array.isArray(teacher.assignedStudents) && teacher.assignedStudents.length) ? new Set(teacher.assignedStudents) : null;
+    const allowedIds = assignedIds ? ids.filter(id => assignedIds.has(id)) : ids;
+    if (!allowedIds.length) return res.status(403).json({ error: 'No allowed students selected' });
+
+    const puzzles = await readBlundersPuzzles();
+    const nowIso = new Date().toISOString();
+    let changed = 0;
+    let considered = 0;
+    for (const p of puzzles) {
+      if (String(p.orgId || '') !== orgId) continue;
+      if (String(p.scope || '') === 'master') continue;
+      const sid = String(p.studentId || '');
+      if (!allowedIds.includes(sid)) continue;
+      considered++;
+      if (String(p.status || 'pending') === 'pending') {
+        p.status = 'completed';
+        if (!p.completedAt) p.completedAt = nowIso;
+        changed++;
+      }
+    }
+    if (changed) await writeBlundersPuzzles(puzzles);
+
+    return res.json({ ok: true, orgId, selected: ids.length, allowed: allowedIds.length, considered, changed });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/complete-pending error:', e);
+    return res.status(500).json({ error: 'Failed to complete pending puzzles' });
+  }
+});
+
 // Teacher selects students for Class View
 app.post('/api/teachers/class-view/students', authenticateUser, authorizeRole('teacher'), async (req, res) => {
   try {
