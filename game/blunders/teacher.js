@@ -345,7 +345,9 @@
     const err = String(STATE.teacher.error || '');
     const duration = String(STATE.teacher.allDuration || 'all');
     const rating = String(STATE.teacher.allRating || 'any');
-    const entries = Array.isArray(STATE.teacher.allBlunders) ? STATE.teacher.allBlunders : [];
+    const ui = (STATE.teacher.allUi && typeof STATE.teacher.allUi === 'object') ? STATE.teacher.allUi : {};
+    const counts = (ui.counts && typeof ui.counts === 'object') ? ui.counts : null;
+    const buckets = (ui.buckets && typeof ui.buckets === 'object') ? ui.buckets : {};
 
     const durationBtns = [
       { k: 'week', label: 'Last week' },
@@ -364,33 +366,17 @@
       { k: '2000up', label: '2000+' }
     ];
 
-    const dropOf = (p) => Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0;
-    const isMissMate = (p) => {
-      const bestCp = Number(p?.bestCp ?? 0);
-      return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
-    };
-    const groups = { missMate: [], d1: [], d2: [], d3: [], d4: [] };
-    for (const p of entries) {
-      if (isMissMate(p)) { groups.missMate.push(p); continue; }
-      const d = dropOf(p);
-      if (d >= 1.0 && d <= 1.5) groups.d1.push(p);
-      else if (d > 1.5 && d <= 2.0) groups.d2.push(p);
-      else if (d > 2.0 && d <= 3.0) groups.d3.push(p);
-      else if (d > 3.0) groups.d4.push(p);
-      else groups.d1.push(p);
-    }
-
     const renderRows = (arr) => {
       if (!arr.length) return `<div class="blunders-muted" style="margin-top:10px;">No records.</div>`;
       const mini = entry().renderMiniBoardFromFen;
       return `
         <div class="bl-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-          ${arr.slice(0, 200).map((p) => {
+          ${arr.map((p) => {
             const sid = escapeHtml(String(p.studentStudentId || ''));
             const sname = escapeHtml(String(p.studentName || 'Student'));
             const r = (p.chessComRating === null || p.chessComRating === undefined) ? '' : `${escapeHtml(String(p.chessComRating))}${p.chessComRatingSource ? ` (${escapeHtml(String(p.chessComRatingSource))})` : ''}`;
             const when = escapeHtml(String(p.completedAt || ''));
-            const drop = dropOf(p).toFixed(2);
+            const drop = (Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0).toFixed(2);
             const title = `${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))} · Drop ${drop}`;
             return `
               <div class="bl-card" style="display:flex; gap:12px; align-items:center;">
@@ -406,16 +392,59 @@
             `;
           }).join('')}
         </div>
-        ${entries.length > 200 ? `<div class="blunders-muted" style="margin-top:10px;">Showing 200 of ${entries.length}.</div>` : ``}
       `;
     };
 
-    const renderGroup = (label, arr, open) => `
-      <details ${open ? 'open' : ''} style="margin-top:10px;">
-        <summary class="blunders-muted" style="cursor:pointer;"><strong>${escapeHtml(label)}</strong> (${arr.length})</summary>
-        <div style="margin-top:10px;">${renderRows(arr)}</div>
-      </details>
-    `;
+    const bucketDefs = [
+      { key: 'missMate', label: 'Miss the mate' },
+      { key: 'd1', label: 'Drop 1.00–1.50' },
+      { key: 'd2', label: 'Drop 1.51–2.00' },
+      { key: 'd3', label: 'Drop 2.01–3.00' },
+      { key: 'd4', label: 'Drop 3.01+' }
+    ];
+
+    const renderBucket = (key, label) => {
+      const b = (buckets && buckets[key] && typeof buckets[key] === 'object') ? buckets[key] : {};
+      const open = !!b.open;
+      const bLoading = !!b.loading;
+      const bErr = String(b.error || '');
+      const bEntries = Array.isArray(b.entries) ? b.entries : [];
+      const total = Number(b.total || 0) || 0;
+      const page = Math.max(1, Number(b.page || 1) || 1);
+      const totalPages = Math.max(1, Number(b.totalPages || 1) || 1);
+      const count = counts ? (Number(counts[key] || 0) || 0) : 0;
+      const canPrev = open && !bLoading && page > 1;
+      const canNext = open && !bLoading && page < totalPages;
+      const jumpVal = String(b.jump || '');
+
+      return `
+        <div class="bl-card" style="margin-top:10px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-toggle="${escapeHtml(key)}">${open ? 'Hide' : 'Show'}</button>
+            <div style="font-weight:900; color:#111827;">${escapeHtml(label)} <span class="blunders-muted">(${escapeHtml(String(count))})</span></div>
+            <div style="flex:1;"></div>
+            ${open ? `
+              <div class="blunders-muted">Page <strong>${escapeHtml(String(page))}</strong> / <strong>${escapeHtml(String(totalPages))}</strong></div>
+              <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-prev="${escapeHtml(key)}" ${canPrev ? '' : 'disabled'}>Prev</button>
+              <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-next="${escapeHtml(key)}" ${canNext ? '' : 'disabled'}>Next</button>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="number" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-teacher-all-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-go="${escapeHtml(key)}" ${bLoading ? 'disabled' : ''}>Go</button>
+              </div>
+            ` : ``}
+          </div>
+
+          ${open ? `
+            ${bLoading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
+            ${bErr ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(bErr)}</div>` : ``}
+            ${!bLoading ? `
+              <div class="blunders-muted" style="margin-top:10px;">Total: <strong>${escapeHtml(String(total))}</strong></div>
+              <div style="margin-top:10px;">${renderRows(bEntries)}</div>
+            ` : ``}
+          ` : ``}
+        </div>
+      `;
+    };
 
     return `
       <div class="bl-card">
@@ -436,11 +465,7 @@
 
         ${!loading ? `
           <div style="margin-top:12px;">
-            ${renderGroup('Miss the mate', groups.missMate, true)}
-            ${renderGroup('Drop 1.00–1.50', groups.d1, true)}
-            ${renderGroup('Drop 1.51–2.00', groups.d2, false)}
-            ${renderGroup('Drop 2.01–3.00', groups.d3, false)}
-            ${renderGroup('Drop 3.01+', groups.d4, false)}
+            ${bucketDefs.map(b => renderBucket(b.key, b.label)).join('')}
           </div>
         ` : ``}
       </div>
@@ -546,7 +571,15 @@
         const rt = String(STATE.teacher.allRating || 'any');
         const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}`;
         const data = await teacherApi(`/teachers/blunders/all-blunders${qs}`);
-        STATE.teacher.allBlunders = Array.isArray(data?.entries) ? data.entries : [];
+        if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = { pageSize: 50, counts: null, buckets: {} };
+        STATE.teacher.allUi.pageSize = 50;
+        STATE.teacher.allUi.counts = (data?.counts && typeof data.counts === 'object') ? data.counts : null;
+        if (!STATE.teacher.allUi.buckets || typeof STATE.teacher.allUi.buckets !== 'object') STATE.teacher.allUi.buckets = {};
+        // Reset buckets (default collapsed)
+        const keys = ['missMate', 'd1', 'd2', 'd3', 'd4'];
+        for (const k of keys) {
+          STATE.teacher.allUi.buckets[k] = { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' };
+        }
       } else if (tab === 'settings') {
         // Reuse Settings UI (board colors), no server call needed.
       } else {
@@ -563,6 +596,104 @@
       STATE.teacher.error = String(e?.message || e);
       entry().render();
     }
+  }
+
+  function ensureAllUi() {
+    if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') {
+      STATE.teacher.allUi = { pageSize: 50, counts: null, buckets: {} };
+    }
+    if (!STATE.teacher.allUi.buckets || typeof STATE.teacher.allUi.buckets !== 'object') {
+      STATE.teacher.allUi.buckets = {};
+    }
+    const keys = ['missMate', 'd1', 'd2', 'd3', 'd4'];
+    for (const k of keys) {
+      if (!STATE.teacher.allUi.buckets[k] || typeof STATE.teacher.allUi.buckets[k] !== 'object') {
+        STATE.teacher.allUi.buckets[k] = { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' };
+      }
+    }
+    return STATE.teacher.allUi;
+  }
+
+  async function teacherLoadAllBlundersBucket(bucketKey, page) {
+    const key = String(bucketKey || '').trim();
+    if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(key)) return;
+    const ui = ensureAllUi();
+    const b = ui.buckets[key];
+    b.loading = true;
+    b.error = '';
+    b.open = true;
+    entry().render();
+    try {
+      const dur = String(STATE.teacher.allDuration || 'all');
+      const rt = String(STATE.teacher.allRating || 'any');
+      const p = Math.max(1, Number(page || 1) || 1);
+      const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}&bucket=${encodeURIComponent(key)}&page=${encodeURIComponent(String(p))}`;
+      const data = await teacherApi(`/teachers/blunders/all-blunders${qs}`);
+      ui.counts = (data?.counts && typeof data.counts === 'object') ? data.counts : ui.counts;
+      b.entries = Array.isArray(data?.entries) ? data.entries : [];
+      b.page = Number(data?.page || p) || p;
+      b.totalPages = Number(data?.totalPages || 1) || 1;
+      b.total = Number(data?.totalBucket || 0) || 0;
+      b.loading = false;
+      b.error = '';
+      // Clear jump input after successful navigation
+      b.jump = '';
+      entry().render();
+    } catch (e) {
+      b.loading = false;
+      b.error = String(e?.message || e);
+      entry().render();
+    }
+  }
+
+  function teacherAllToggleBucket(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureAllUi();
+    if (!ui.buckets[key]) return;
+    ui.buckets[key].open = !ui.buckets[key].open;
+    entry().render();
+    if (ui.buckets[key].open && (!Array.isArray(ui.buckets[key].entries) || ui.buckets[key].entries.length === 0)) {
+      teacherLoadAllBlundersBucket(key, 1).catch(() => {});
+    }
+  }
+
+  function teacherAllSetJump(bucketKey, value) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureAllUi();
+    if (!ui.buckets[key]) return;
+    ui.buckets[key].jump = String(value || '').trim();
+  }
+
+  function teacherAllPrev(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureAllUi();
+    const b = ui.buckets[key];
+    if (!b || b.loading) return;
+    const nextPage = Math.max(1, (Number(b.page || 1) || 1) - 1);
+    teacherLoadAllBlundersBucket(key, nextPage).catch(() => {});
+  }
+
+  function teacherAllNext(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureAllUi();
+    const b = ui.buckets[key];
+    if (!b || b.loading) return;
+    const cur = Math.max(1, Number(b.page || 1) || 1);
+    const max = Math.max(1, Number(b.totalPages || 1) || 1);
+    const nextPage = Math.min(max, cur + 1);
+    teacherLoadAllBlundersBucket(key, nextPage).catch(() => {});
+  }
+
+  function teacherAllGo(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureAllUi();
+    const b = ui.buckets[key];
+    if (!b || b.loading) return;
+    const raw = String(b.jump || '').trim();
+    const n = Math.floor(Number(raw || 0));
+    const max = Math.max(1, Number(b.totalPages || 1) || 1);
+    if (!Number.isFinite(n) || n < 1) return;
+    teacherLoadAllBlundersBucket(key, Math.min(max, n)).catch(() => {});
   }
 
   async function teacherSaveStudentSettings() {
@@ -726,7 +857,13 @@
     teacherJobRefresh,
     teacherJobCancel,
     teacherJobClose,
-    stopTeacherJobPolling
+    stopTeacherJobPolling,
+    // Teacher All blunders (paged buckets)
+    teacherAllToggleBucket,
+    teacherAllPrev,
+    teacherAllNext,
+    teacherAllGo,
+    teacherAllSetJump
   };
 })();
 

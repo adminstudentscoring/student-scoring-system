@@ -833,6 +833,32 @@
         render();
         return teacherLoad('allBlunders');
       }
+
+      // Teacher All blunders (paged buckets)
+      const allToggle = t?.closest?.('[data-bl-teacher-all-toggle]');
+      if (allToggle) {
+        const key = String(allToggle.getAttribute('data-bl-teacher-all-toggle') || '');
+        try { return window.BlundersTeacher?.teacherAllToggleBucket?.(key); } catch {}
+        return;
+      }
+      const allPrev = t?.closest?.('[data-bl-teacher-all-prev]');
+      if (allPrev) {
+        const key = String(allPrev.getAttribute('data-bl-teacher-all-prev') || '');
+        try { return window.BlundersTeacher?.teacherAllPrev?.(key); } catch {}
+        return;
+      }
+      const allNext = t?.closest?.('[data-bl-teacher-all-next]');
+      if (allNext) {
+        const key = String(allNext.getAttribute('data-bl-teacher-all-next') || '');
+        try { return window.BlundersTeacher?.teacherAllNext?.(key); } catch {}
+        return;
+      }
+      const allGo = t?.closest?.('[data-bl-teacher-all-go]');
+      if (allGo) {
+        const key = String(allGo.getAttribute('data-bl-teacher-all-go') || '');
+        try { return window.BlundersTeacher?.teacherAllGo?.(key); } catch {}
+        return;
+      }
       if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
       if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
       if (t?.closest?.('[data-bl-teacher-complete-selected]')) return teacherBulkCompleteSelected();
@@ -1427,6 +1453,12 @@
         STATE.teacher.allRating = String(ar.value || 'any');
         render();
         teacherLoad('allBlunders').catch(() => {});
+        return;
+      }
+      const aj = el?.closest?.('[data-bl-teacher-all-jump]');
+      if (aj) {
+        const key = String(aj.getAttribute('data-bl-teacher-all-jump') || '');
+        try { window.BlundersTeacher?.teacherAllSetJump?.(key, String(aj.value || '')); } catch {}
         return;
       }
       const bm = el?.closest?.('[data-bl-teacher-bulk-max]');

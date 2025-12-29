@@ -7571,6 +7571,10 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
     const duration = String(req.query.duration || 'all'); // week | month | halfYear | year | all
     const rating = String(req.query.rating || 'any'); // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
+    const bucketKey = String(req.query.bucket || '').trim(); // '' | missMate | d1 | d2 | d3 | d4
+    const pageSize = 50; // Fixed (UI requirement)
+    const pageIn = Number(req.query.page || 1);
+    const page = Number.isFinite(pageIn) ? Math.max(1, Math.floor(pageIn)) : 1;
 
     const users = await readUsers();
     const teacher = users.find(u => u.id === req.user.id);
@@ -7653,7 +7657,53 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       .filter(p => inBucket(p.chessComRating))
       .sort((a, b) => (b.sortAtMs || 0) - (a.sortAtMs || 0));
 
-    return res.json({ ok: true, orgId, duration, rating, total: entries.length, entries });
+    const isMissMate = (p) => {
+      const bestCp = Number(p?.bestCp ?? 0);
+      return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
+    };
+    const bucketOf = (p) => {
+      if (isMissMate(p)) return 'missMate';
+      const d = Number(p?.dropPoints ?? 0) || 0;
+      if (d >= 1.0 && d <= 1.5) return 'd1';
+      if (d > 1.5 && d <= 2.0) return 'd2';
+      if (d > 2.0 && d <= 3.0) return 'd3';
+      if (d > 3.0) return 'd4';
+      return 'd1';
+    };
+
+    const counts = { missMate: 0, d1: 0, d2: 0, d3: 0, d4: 0, total: entries.length };
+    for (const p of entries) {
+      const bk = bucketOf(p);
+      if (bk && Object.prototype.hasOwnProperty.call(counts, bk)) counts[bk]++;
+    }
+
+    // Summary-only (default): return counts without entries to keep payload small.
+    if (!bucketKey) {
+      return res.json({ ok: true, orgId, duration, rating, pageSize, counts });
+    }
+    if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(bucketKey)) {
+      return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
+    }
+    const bucketEntries = entries.filter((p) => bucketOf(p) === bucketKey);
+    const totalBucket = bucketEntries.length;
+    const totalPages = Math.max(1, Math.ceil(totalBucket / pageSize));
+    const safePage = Math.max(1, Math.min(totalPages, page));
+    const start = (safePage - 1) * pageSize;
+    const pageEntries = bucketEntries.slice(start, start + pageSize);
+
+    return res.json({
+      ok: true,
+      orgId,
+      duration,
+      rating,
+      pageSize,
+      bucket: bucketKey,
+      page: safePage,
+      totalPages,
+      totalBucket,
+      counts,
+      entries: pageEntries
+    });
   } catch (e) {
     console.error('GET /api/teachers/blunders/all-blunders error:', e);
     return res.status(500).json({ error: 'Failed to load all blunders' });

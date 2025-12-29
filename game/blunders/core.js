@@ -46,6 +46,8 @@
       error: '',
       students: [],
       masters: [],
+      // Deprecated (pre-pagination): teacher all-blunders returned full entries list.
+      // Kept for backward compatibility, but new UI uses allUi below.
       allBlunders: [],
       masterConfig: { maxGamesPerDay: 10, thresholdPoints: 1.0 },
       edits: { student: {}, masters: null, masterCfg: null },
@@ -63,7 +65,18 @@
       dateByMaster: {}, // masterId -> YYYY-MM-DD
       // Teacher All blunders UI
       allDuration: 'all', // week | month | halfYear | year | all
-      allRating: 'any' // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
+      allRating: 'any', // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
+      allUi: {
+        pageSize: 50,
+        counts: null, // { missMate, d1, d2, d3, d4, total }
+        buckets: {
+          missMate: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d1: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d2: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d3: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d4: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' }
+        }
+      }
     },
     uiBoard: {
       // Student blunders
