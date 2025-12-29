@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="/game/royal-exchange.css">
     <link rel="stylesheet" href="/game/no-blunder.css">
     <link rel="stylesheet" href="/game/hope-mate.css">
-    <link rel="stylesheet" href="/game/blunders.css">
+    <link rel="stylesheet" href="/game/blunders/blunders.css">
     <link rel="stylesheet" href="/game/vchess-platform/vchess-platform.css">
     <link rel="stylesheet" href="/game/vchess-platform/normal-chess.css">
     <style>
@@ -203,7 +203,8 @@
                     } catch (error) {
                         console.warn('Unable to restore blunders players from storage:', error);
                     }
-                    await loadScript('/game/blunders.js');
+                    await loadScript('/game/blunders/core.js');
+                    await loadScript('/game/blunders/blunders.js');
                     if (window.initBlunders) {
                         window.initBlunders();
                     } else {

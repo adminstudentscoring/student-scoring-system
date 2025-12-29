@@ -1690,7 +1690,7 @@ async function startBlunders() {
             const link = document.createElement('link');
             link.id = 'blundersCss';
             link.rel = 'stylesheet';
-            link.href = '/game/blunders.css';
+            link.href = '/game/blunders/blunders.css';
             document.head.appendChild(link);
         }
 
@@ -1703,17 +1703,23 @@ async function startBlunders() {
         };
 
         if (!window.blundersLoaded) {
-            const script = document.createElement('script');
-            script.src = '/game/blunders.js';
-            script.onload = () => {
-                window.blundersLoaded = true;
-                ensureScriptLoaded();
-            };
-            script.onerror = (error) => {
-                console.error('Error loading blunders.js:', error);
-                showNotification('Failed to load Blunders scripts', 'error');
-            };
-            document.body.appendChild(script);
+            const loadJs = (src) => new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = () => resolve();
+                s.onerror = (e) => reject(e);
+                document.body.appendChild(s);
+            });
+            loadJs('/game/blunders/core.js')
+                .then(() => loadJs('/game/blunders/blunders.js'))
+                .then(() => {
+                    window.blundersLoaded = true;
+                    ensureScriptLoaded();
+                })
+                .catch((error) => {
+                    console.error('Error loading blunders scripts:', error);
+                    showNotification('Failed to load Blunders scripts', 'error');
+                });
         } else {
             ensureScriptLoaded();
         }
