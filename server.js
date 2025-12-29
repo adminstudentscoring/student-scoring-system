@@ -33,6 +33,7 @@ const BLUNDERS_SETTINGS_FILE = path.join(__dirname, process.env.BLUNDERS_SETTING
 const BLUNDERS_MASTER_PROGRESS_FILE = path.join(__dirname, process.env.BLUNDERS_MASTER_PROGRESS_FILE || path.join(DATA_DIR, 'blunders-master-progress.json'));
 const BLUNDERS_CHALLENGE_SESSIONS_FILE = path.join(__dirname, process.env.BLUNDERS_CHALLENGE_SESSIONS_FILE || path.join(DATA_DIR, 'blunders-challenge-sessions.json'));
 const BLUNDERS_CHALLENGE_LEADERBOARD_FILE = path.join(__dirname, process.env.BLUNDERS_CHALLENGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'blunders-challenge-leaderboard.json'));
+const BLUNDERS_TEACHER_JOBS_FILE = path.join(__dirname, process.env.BLUNDERS_TEACHER_JOBS_FILE || path.join(DATA_DIR, 'blunders-teacher-jobs.json'));
 const CHESSCOM_RATINGS_FILE = path.join(__dirname, process.env.CHESSCOM_RATINGS_FILE || path.join(DATA_DIR, 'chesscom-ratings.json'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
@@ -215,6 +216,13 @@ async function ensureDataDir() {
     await fs.access(BLUNDERS_CHALLENGE_LEADERBOARD_FILE);
   } catch {
     await fs.writeFile(BLUNDERS_CHALLENGE_LEADERBOARD_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+  }
+
+  // Ensure Blunders Teacher jobs file exists (async history scan, etc.)
+  try {
+    await fs.access(BLUNDERS_TEACHER_JOBS_FILE);
+  } catch {
+    await fs.writeFile(BLUNDERS_TEACHER_JOBS_FILE, JSON.stringify({ jobs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
   }
 
   // Ensure Chess.com ratings cache exists (daily refresh)
@@ -585,6 +593,126 @@ async function writeBlundersChallengeLeaderboard(orgs) {
   } catch (error) {
     console.error('Error writing blunders challenge leaderboard:', error);
     return false;
+  }
+}
+
+// ===== Blunders Teacher Jobs (async background processing) =====
+async function readBlundersTeacherJobs() {
+  try {
+    const content = await fs.readFile(BLUNDERS_TEACHER_JOBS_FILE, 'utf8');
+    const data = JSON.parse(content);
+    const jobs = data && typeof data === 'object' ? (data.jobs || {}) : {};
+    return (jobs && typeof jobs === 'object') ? jobs : {};
+  } catch (error) {
+    console.error('Error reading blunders teacher jobs:', error);
+    return {};
+  }
+}
+
+async function writeBlundersTeacherJobs(jobs) {
+  try {
+    const clean = jobs && typeof jobs === 'object' ? jobs : {};
+    await fs.writeFile(BLUNDERS_TEACHER_JOBS_FILE, JSON.stringify({ jobs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing blunders teacher jobs:', error);
+    return false;
+  }
+}
+
+const blundersTeacherJobQueue = [];
+let blundersTeacherJobRunnerRunning = false;
+const blundersTeacherJobCancel = new Set(); // jobId
+
+function nowIso() { return new Date().toISOString(); }
+
+async function blundersTeacherRunNextJob() {
+  if (blundersTeacherJobRunnerRunning) return;
+  blundersTeacherJobRunnerRunning = true;
+  try {
+    while (blundersTeacherJobQueue.length) {
+      const jobId = String(blundersTeacherJobQueue.shift() || '');
+      if (!jobId) continue;
+      if (blundersTeacherJobCancel.has(jobId)) continue;
+
+      const jobs = await readBlundersTeacherJobs();
+      const job = jobs[jobId] || null;
+      if (!job || job.status === 'done' || job.status === 'error' || job.status === 'cancelled') continue;
+
+      job.status = 'running';
+      job.startedAt = nowIso();
+      job.updatedAt = nowIso();
+      jobs[jobId] = job;
+      await writeBlundersTeacherJobs(jobs);
+
+      try {
+        if (job.type === 'blunders_history_scan') {
+          const orgId = String(job.orgId || '');
+          const studentIds = Array.isArray(job.params?.studentIds) ? job.params.studentIds.map(String) : [];
+          const historyGames = Math.max(1, Math.min(500, Number(job.params?.historyGames || 0) || 200));
+          const force = job.params?.force ? '1' : '0';
+          const thresholdPoints = job.params?.thresholdPoints;
+
+          const data = await readData();
+          const studentsAll = Array.isArray(data?.students) ? data.students : [];
+          const targets = studentsAll.filter(s => String(s.organizationId || '') === orgId && studentIds.includes(String(s.id || '')));
+
+          job.progress = { total: targets.length, done: 0, message: `History scan queued (${targets.length})`, currentStudentId: null, currentStudentName: null };
+          job.updatedAt = nowIso();
+          jobs[jobId] = job;
+          await writeBlundersTeacherJobs(jobs);
+
+          for (let i = 0; i < targets.length; i++) {
+            if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
+            const s = targets[i];
+            job.progress = {
+              total: targets.length,
+              done: i,
+              message: `History scanning ${i + 1}/${targets.length} (N=${historyGames})...`,
+              currentStudentId: String(s.id || ''),
+              currentStudentName: String(s.name || 'Student')
+            };
+            job.updatedAt = nowIso();
+            jobs[jobId] = job;
+            await writeBlundersTeacherJobs(jobs);
+
+            // Heavy work
+            await syncBlundersForStudent(s, { mode: 'history', historyGames, force, thresholdPoints });
+
+            job.progress = { ...(job.progress || {}), done: i + 1 };
+            job.updatedAt = nowIso();
+            jobs[jobId] = job;
+            await writeBlundersTeacherJobs(jobs);
+          }
+
+          job.status = 'done';
+          job.finishedAt = nowIso();
+          job.updatedAt = nowIso();
+          job.progress = { ...(job.progress || {}), message: 'Done.' };
+          jobs[jobId] = job;
+          await writeBlundersTeacherJobs(jobs);
+        } else {
+          throw new Error(`Unknown job type: ${String(job.type || '')}`);
+        }
+      } catch (e) {
+        if (String(e?.message || e) === '__CANCELLED__') {
+          job.status = 'cancelled';
+          job.finishedAt = nowIso();
+          job.updatedAt = nowIso();
+          job.progress = { ...(job.progress || {}), message: 'Cancelled.' };
+        } else {
+          job.status = 'error';
+          job.finishedAt = nowIso();
+          job.updatedAt = nowIso();
+          job.error = String(e?.message || e);
+          job.progress = { ...(job.progress || {}), message: `Error: ${job.error}` };
+        }
+        jobs[jobId] = job;
+        await writeBlundersTeacherJobs(jobs);
+      }
+    }
+  } finally {
+    blundersTeacherJobRunnerRunning = false;
   }
 }
 
@@ -7323,11 +7451,132 @@ app.post('/api/teachers/blunders/sync-student', authenticateUser, authorizeRole(
     const data = await readData();
     const student = (Array.isArray(data?.students) ? data.students : []).find(s => String(s.id || '') === studentId && String(s.organizationId || '') === orgId);
     if (!student) return res.status(404).json({ error: 'Student not found in your organization' });
+    // For history mode, enqueue a background job (avoid long HTTP requests / timeouts).
+    if (mode === 'history' && historyGames) {
+      const jobId = `blj_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const jobs = await readBlundersTeacherJobs();
+      jobs[jobId] = {
+        id: jobId,
+        type: 'blunders_history_scan',
+        orgId,
+        teacherId: String(req.user.id || ''),
+        status: 'queued', // queued | running | done | error | cancelled
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+        params: {
+          studentIds: [studentId],
+          historyGames: Math.max(1, Math.min(500, Number(historyGames || 0) || 200)),
+          force: force === '1',
+          thresholdPoints
+        },
+        progress: { total: 1, done: 0, message: 'Queued.', currentStudentId: studentId, currentStudentName: String(student.name || 'Student') }
+      };
+      await writeBlundersTeacherJobs(jobs);
+      blundersTeacherJobQueue.push(jobId);
+      blundersTeacherRunNextJob().catch(() => {});
+      return res.json({ ok: true, queued: true, jobId });
+    }
+
     const result = await syncBlundersForStudent(student, { hkDayKey, force, maxGamesPerDay, thresholdPoints, mode, historyGames });
     return res.json({ ok: true, result });
   } catch (e) {
     console.error('POST /api/teachers/blunders/sync-student error:', e);
     return res.status(500).json({ error: 'Failed to sync student' });
+  }
+});
+
+// Teacher Jobs: create history scan job for multiple students
+app.post('/api/teachers/blunders/jobs/history-scan', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const idsIn = Array.isArray(body.studentIds) ? body.studentIds : [];
+    const ids = Array.from(new Set(idsIn.map(x => String(x || '').trim()).filter(Boolean)));
+    const historyGames = Math.max(1, Math.min(500, Number(body.historyGames || 0) || 200));
+    const force = !!body.force;
+
+    if (!ids.length) return res.status(400).json({ error: 'Missing studentIds' });
+
+    // Respect assignedStudents restriction (if present).
+    const users = await readUsers();
+    const teacher = users.find(u => u.id === req.user.id);
+    const assignedIds = (teacher && Array.isArray(teacher.assignedStudents) && teacher.assignedStudents.length) ? new Set(teacher.assignedStudents) : null;
+    const allowedIds = assignedIds ? ids.filter(id => assignedIds.has(id)) : ids;
+    if (!allowedIds.length) return res.status(403).json({ error: 'No allowed students selected' });
+
+    const jobId = `blj_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const jobs = await readBlundersTeacherJobs();
+    jobs[jobId] = {
+      id: jobId,
+      type: 'blunders_history_scan',
+      orgId,
+      teacherId: String(req.user.id || ''),
+      status: 'queued',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      startedAt: null,
+      finishedAt: null,
+      error: null,
+      params: { studentIds: allowedIds, historyGames, force },
+      progress: { total: allowedIds.length, done: 0, message: 'Queued.', currentStudentId: null, currentStudentName: null }
+    };
+    await writeBlundersTeacherJobs(jobs);
+    blundersTeacherJobQueue.push(jobId);
+    blundersTeacherRunNextJob().catch(() => {});
+    return res.json({ ok: true, jobId, total: allowedIds.length });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/jobs/history-scan error:', e);
+    return res.status(500).json({ error: 'Failed to create job' });
+  }
+});
+
+app.get('/api/teachers/blunders/jobs/:jobId', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const jobId = String(req.params.jobId || '').trim();
+    if (!jobId) return res.status(400).json({ error: 'Missing jobId' });
+    const jobs = await readBlundersTeacherJobs();
+    const job = jobs[jobId] || null;
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (String(job.orgId || '') !== orgId) return res.status(403).json({ error: 'Access denied' });
+    // Only allow owner teacher to read (tighten)
+    if (String(job.teacherId || '') !== String(req.user.id || '')) return res.status(403).json({ error: 'Access denied' });
+    return res.json({ ok: true, job });
+  } catch (e) {
+    console.error('GET /api/teachers/blunders/jobs/:jobId error:', e);
+    return res.status(500).json({ error: 'Failed to load job' });
+  }
+});
+
+app.post('/api/teachers/blunders/jobs/:jobId/cancel', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const jobId = String(req.params.jobId || '').trim();
+    if (!jobId) return res.status(400).json({ error: 'Missing jobId' });
+    const jobs = await readBlundersTeacherJobs();
+    const job = jobs[jobId] || null;
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (String(job.orgId || '') !== orgId) return res.status(403).json({ error: 'Access denied' });
+    if (String(job.teacherId || '') !== String(req.user.id || '')) return res.status(403).json({ error: 'Access denied' });
+    blundersTeacherJobCancel.add(jobId);
+    if (job.status === 'queued') {
+      job.status = 'cancelled';
+      job.finishedAt = nowIso();
+      job.updatedAt = nowIso();
+      job.progress = { ...(job.progress || {}), message: 'Cancelled.' };
+      jobs[jobId] = job;
+      await writeBlundersTeacherJobs(jobs);
+    }
+    return res.json({ ok: true, cancelled: true });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/jobs/:jobId/cancel error:', e);
+    return res.status(500).json({ error: 'Failed to cancel job' });
   }
 });
 
