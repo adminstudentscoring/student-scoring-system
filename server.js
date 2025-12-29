@@ -1432,13 +1432,6 @@ async function syncBlundersForStudent(student, opts = {}) {
     const maxGamesPerDay = Math.max(1, Math.min(50, Number(opts.maxGamesPerDay ?? cfg.maxGamesPerDay) || cfg.maxGamesPerDay));
     const thresholdPoints = Math.max(0.1, Math.min(10, Number(opts.thresholdPoints ?? cfg.thresholdPoints) || cfg.thresholdPoints));
 
-    blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
-    const games = (mode === 'history' && historyGames)
-      ? await chessComGetRecentGames(username, { studentId: sid, limit: historyGames })
-      : await chessComGetGamesForHkDay(username, { studentId: sid, hkDayKey, limit: maxGamesPerDay });
-    blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
-    if (!games.length) return { ok: true, games: 0, added: 0 };
-
     // Record analyzed games meta (cumulative) so we can compute rolling stats later.
     // We update once per sync to avoid frequent file writes.
     let statsOrgs = null;
@@ -1455,22 +1448,67 @@ async function syncBlundersForStudent(student, opts = {}) {
       statsOrgs = null; statsOrg = null; stStats = null;
     }
 
-    // Skip games already analyzed (avoid re-running Stockfish on the same games for daily refresh & history scan).
+    // NOTE: For history scan, we "postpone" by fetching more games until we have enough NEW (unanalyzed) games.
     const analyzedMap = (stStats && stStats.analyzed && typeof stStats.analyzed === 'object') ? stStats.analyzed : {};
     const analyzedKeys = new Set(Object.keys(analyzedMap || {}));
-    const gamesAll = Array.isArray(games) ? games : [];
-    const gamesNew = gamesAll.filter((g) => {
+
+    blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
+    let gamesAll = [];
+    let historyTargetNew = 0;
+    let historyFetchLimit = 0;
+    if (mode === 'history' && historyGames) {
+      historyTargetNew = Math.max(1, Math.min(500, Number(historyGames || 0) || 0));
+      // Cap to avoid runaway fetch loops while still allowing "find enough new games".
+      const maxFetch = Math.max(historyTargetNew, Math.min(5000, historyTargetNew * 20));
+      let limit = Math.min(maxFetch, historyTargetNew);
+      for (let iter = 0; iter < 10; iter++) {
+        gamesAll = await chessComGetRecentGames(username, { studentId: sid, limit });
+        historyFetchLimit = limit;
+        const newCount = Array.isArray(gamesAll)
+          ? gamesAll.filter((g) => {
+            const k = String(g?.url || g?.uuid || '').trim();
+            if (!k) return true;
+            return !analyzedKeys.has(k);
+          }).length
+          : 0;
+        // Got enough new games to analyze
+        if (newCount >= historyTargetNew) break;
+        // If API returned fewer than requested, likely no more games beyond this.
+        if (!Array.isArray(gamesAll) || gamesAll.length < limit) break;
+        if (limit >= maxFetch) break;
+        const nextLimit = Math.min(maxFetch, Math.max(limit + historyTargetNew, Math.floor(limit * 1.5)));
+        if (nextLimit <= limit) break;
+        limit = nextLimit;
+      }
+    } else {
+      gamesAll = await chessComGetGamesForHkDay(username, { studentId: sid, hkDayKey, limit: maxGamesPerDay });
+    }
+
+    gamesAll = Array.isArray(gamesAll) ? gamesAll : [];
+    blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: gamesAll.length, stage: 'analyze', updatedAt: new Date().toISOString() });
+    if (!gamesAll.length) return { ok: true, games: 0, added: 0 };
+
+    // Skip games already analyzed (avoid re-running Stockfish on the same games).
+    let gamesNew = gamesAll.filter((g) => {
       const k = String(g?.url || g?.uuid || '').trim();
       if (!k) return true;
       return !analyzedKeys.has(k);
     });
-    if (gamesNew.length !== gamesAll.length) {
+    // For history, only analyze the first N "new" games (most recent-first).
+    if (mode === 'history' && historyTargetNew) {
+      gamesNew = gamesNew.slice(0, historyTargetNew);
+    }
+    if (gamesNew.length !== gamesAll.length || (mode === 'history' && historyTargetNew)) {
       blundersSyncState.set(sid, {
         ...(blundersSyncState.get(sid) || {}),
         stage: 'analyze',
         gamesFetched: gamesAll.length,
         updatedAt: new Date().toISOString(),
-        fetchSummary: { skippedAlreadyAnalyzed: gamesAll.length - gamesNew.length, toAnalyze: gamesNew.length }
+        fetchSummary: {
+          skippedAlreadyAnalyzed: Math.max(0, gamesAll.length - gamesNew.length),
+          toAnalyze: gamesNew.length,
+          ...(mode === 'history' ? { targetNew: historyTargetNew, fetchLimit: historyFetchLimit } : {})
+        }
       });
     }
     if (!gamesNew.length) {
@@ -1684,7 +1722,7 @@ async function syncBlundersForStudent(student, opts = {}) {
         await appendBlundersPuzzlesPreserveProgress(batch, orgId, sid);
       } catch {}
     }
-    return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
+    return { ok: true, games: gamesAll.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
   })().finally(() => {
     blundersStudentLocks.delete(sid);
     const st = blundersSyncState.get(sid) || {};
