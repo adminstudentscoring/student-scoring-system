@@ -1266,9 +1266,10 @@
           return;
         }
         const pz = currentPuzzle();
-        // If the last attempt solved a pending puzzle (good/best), retry should be practice (non-destructive).
+        // Keep the current mode on Retry (Pending stays Pending; Practice stays Practice).
+        // Previously we auto-switched Pending -> Practice after a successful solve, which was confusing.
         if (STATE.lastAttemptWasPendingSolve && STATE.mode !== 'practice') {
-          if (pz) setBlunderModePractice(pz);
+          console.debug?.('[Blunders] Retry after pending solve: staying in Pending mode.');
         }
         if (pz) {
           STATE.uiBoard.blunderFen = String(pz.startFEN || '');
