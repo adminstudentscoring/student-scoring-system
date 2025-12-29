@@ -478,12 +478,17 @@
     if (!sid) return;
     const n = Math.max(1, Math.min(500, Number(historyGames || 0) || 0));
     if (!n) return;
-    const edit = STATE.teacher.edits.student?.[sid] || {};
-    const thresholdPoints = edit.thresholdPoints;
-    await teacherApi('/teachers/blunders/sync-student', {
+    // Use background job API to avoid long-running requests/timeouts.
+    const out = await teacherApi('/teachers/blunders/jobs/history-scan', {
       method: 'POST',
-      body: { studentId: sid, mode: 'history', historyGames: n, force: !!force, thresholdPoints }
+      body: { studentIds: [sid], historyGames: n, force: !!force }
     });
+    const jobId = out?.jobId ? String(out.jobId) : '';
+    if (jobId) {
+      STATE.teacher.error = `History queued (job: ${jobId}). Refresh later to see updated counts.`;
+      entry().render();
+    }
+    return out;
   }
 
   async function teacherSyncMaster(masterId, hkDayKey, force) {
@@ -561,18 +566,19 @@
     STATE.teacher.error = '';
     entry().render();
     try {
-      for (let i = 0; i < valid.length; i++) {
-        const sid = valid[i];
-        STATE.teacher.error = `History scanning ${i + 1}/${valid.length} (N=${n})...`;
-        entry().render();
-        await teacherHistoryScanStudent(sid, n, !!force);
-      }
-      STATE.teacher.error = '';
+      const out = await teacherApi('/teachers/blunders/jobs/history-scan', {
+        method: 'POST',
+        body: { studentIds: valid, historyGames: n, force: !!force }
+      });
+      const jobId = out?.jobId ? String(out.jobId) : '';
+      STATE.teacher.error = jobId
+        ? `History queued for ${valid.length} student(s) (job: ${jobId}). Refresh later to see updates.`
+        : `History queued for ${valid.length} student(s). Refresh later to see updates.`;
     } catch (e) {
       STATE.teacher.error = String(e?.message || e);
     } finally {
       STATE.teacher.loading = false;
-      await teacherLoad('students').catch(() => {});
+      entry().render();
     }
   }
 

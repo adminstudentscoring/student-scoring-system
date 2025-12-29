@@ -3,8 +3,8 @@
   const C = window.BlundersCore;
   if (!C) {
     console.error('BlundersCore missing. Ensure /game/blunders/core.js is loaded before /game/blunders/blunders.js');
-    return;
-  }
+        return;
+      }
   const {
     escapeHtml,
     STATE,
@@ -897,45 +897,90 @@
       if (syncStu) {
         const sid = String(syncStu.getAttribute('data-bl-teacher-sync-student') || '');
         const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
-        try { await teacherSyncStudent(sid, hkDayKey, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        try {
+          await teacherSyncStudent(sid, hkDayKey, false);
         return teacherLoad('students');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher sync failed:', e);
+          render();
+          return;
+        }
       }
       const syncStuF = t?.closest?.('[data-bl-teacher-sync-student-force]');
       if (syncStuF) {
         const sid = String(syncStuF.getAttribute('data-bl-teacher-sync-student-force') || '');
         const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
-        try { await teacherSyncStudent(sid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        try {
+          await teacherSyncStudent(sid, hkDayKey, true);
         return teacherLoad('students');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher force sync failed:', e);
+          render();
+          return;
+        }
       }
       const hs = t?.closest?.('[data-bl-teacher-history-scan]');
       if (hs) {
         const sid = String(hs.getAttribute('data-bl-teacher-history-scan') || '');
         const sel = root.querySelector(`[data-bl-teacher-history-n="${CSS.escape(sid)}"]`);
         const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanN?.[sid] || 0) || 200;
-        try { await teacherHistoryScanStudent(sid, n, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
-        return teacherLoad('students');
+        try {
+          await teacherHistoryScanStudent(sid, n, false);
+          // History is async job now; keep message and do NOT immediately reload counts.
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher history scan failed:', e);
+          render();
+          return;
+        }
       }
       const hsF = t?.closest?.('[data-bl-teacher-history-scan-force]');
       if (hsF) {
         const sid = String(hsF.getAttribute('data-bl-teacher-history-scan-force') || '');
         const sel = root.querySelector(`[data-bl-teacher-history-n="${CSS.escape(sid)}"]`);
         const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanN?.[sid] || 0) || 200;
-        try { await teacherHistoryScanStudent(sid, n, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
-        return teacherLoad('students');
+        try {
+          await teacherHistoryScanStudent(sid, n, true);
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher history force scan failed:', e);
+          render();
+          return;
+        }
       }
       const syncM = t?.closest?.('[data-bl-teacher-sync-master]');
       if (syncM) {
         const mid = String(syncM.getAttribute('data-bl-teacher-sync-master') || '');
         const hkDayKey = String(STATE.teacher?.dateByMaster?.[mid] || '') || todayYmdLocal();
-        try { await teacherSyncMaster(mid, hkDayKey, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        try {
+          await teacherSyncMaster(mid, hkDayKey, false);
         return teacherLoad('masterGame');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master sync failed:', e);
+          render();
+          return;
+        }
       }
       const syncMF = t?.closest?.('[data-bl-teacher-sync-master-force]');
       if (syncMF) {
         const mid = String(syncMF.getAttribute('data-bl-teacher-sync-master-force') || '');
         const hkDayKey = String(STATE.teacher?.dateByMaster?.[mid] || '') || todayYmdLocal();
-        try { await teacherSyncMaster(mid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
+        try {
+          await teacherSyncMaster(mid, hkDayKey, true);
         return teacherLoad('masterGame');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master force sync failed:', e);
+          render();
+          return;
+        }
       }
 
       const nav = t?.closest?.('[data-bl-nav]');
