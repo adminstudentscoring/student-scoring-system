@@ -1153,6 +1153,36 @@ function pruneStudentBlundersInPlace(puzzles, orgId, studentId, limit = BLUNDERS
   return { changed: after !== before, removed: Math.max(0, before - after) };
 }
 
+// Merge-only helper: append new puzzles (by stable `key`) to the latest on-disk puzzle bank.
+// This prevents "lost updates" where a long-running sync overwrites recent status changes
+// (e.g., completed -> pending) written by student attempts.
+async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentId) {
+  const oid = String(orgId || '');
+  const sid = String(studentId || '');
+  const incoming = Array.isArray(newPuzzles) ? newPuzzles : [];
+  if (!incoming.length) return { ok: true, changed: false, added: 0, total: 0 };
+
+  const puzzlesLatest = await readBlundersPuzzles();
+  const list = Array.isArray(puzzlesLatest) ? puzzlesLatest : [];
+  const keys = new Set(list.map((p) => String(p?.key || '')).filter(Boolean));
+
+  let added = 0;
+  for (const p of incoming) {
+    const k = String(p?.key || '').trim();
+    if (!k) continue;
+    if (keys.has(k)) continue; // never overwrite existing puzzle (preserve status/attempts)
+    list.push(p);
+    keys.add(k);
+    added++;
+  }
+
+  // Keep bounded if configured (0 => unlimited).
+  const pr = pruneStudentBlundersInPlace(list, oid, sid, BLUNDERS_MAX_PUZZLES_PER_STUDENT);
+  const changed = added > 0 || !!pr.changed;
+  if (changed) await writeBlundersPuzzles(list);
+  return { ok: true, changed, added, removed: pr.removed, total: list.length };
+}
+
 async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
@@ -1448,8 +1478,11 @@ async function syncBlundersForStudent(student, opts = {}) {
       return { ok: true, skipped: true, reason: 'already_analyzed', games: gamesAll.length, added: 0, gamesProcessed: 0, pliesProcessed: 0, hkDayKey, maxGamesPerDay, thresholdPoints };
     }
 
-    const puzzles = await readBlundersPuzzles();
-    const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
+    // IMPORTANT: Do NOT keep and later overwrite the full puzzles array during a long-running sync.
+    // We'll collect only "new puzzles" and append them to the latest on-disk bank to preserve progress.
+    const puzzlesAtStart = await readBlundersPuzzles();
+    const existingKeys = new Set(puzzlesAtStart.map((p) => String(p.key || '')).filter(Boolean));
+    const newPuzzles = [];
     let added = 0;
     let gamesProcessed = 0;
     let pliesProcessed = 0;
@@ -1539,7 +1572,7 @@ async function syncBlundersForStudent(student, opts = {}) {
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
 
-        puzzles.push({
+        const puzzleObj = {
           id: `bl_${Date.now()}_${Math.random().toString(16).slice(2)}`,
           key,
           orgId,
@@ -1562,7 +1595,8 @@ async function syncBlundersForStudent(student, opts = {}) {
           status: 'pending',
           createdAt: new Date().toISOString(),
           attempts: []
-        });
+        };
+        newPuzzles.push(puzzleObj);
         added++;
       }
 
@@ -1616,7 +1650,8 @@ async function syncBlundersForStudent(student, opts = {}) {
       const now = Date.now();
       if (added > flushedAdded && (now - lastFlushAtMs) > 1500) {
         try {
-          await writeBlundersPuzzles(puzzles);
+          const batch = newPuzzles.slice(flushedAdded);
+          await appendBlundersPuzzlesPreserveProgress(batch, orgId, sid);
           flushedAdded = added;
           lastFlushAtMs = now;
         } catch (err) {
@@ -1642,9 +1677,13 @@ async function syncBlundersForStudent(student, opts = {}) {
       }
     } catch {}
 
-    // Keep puzzle bank bounded (latest N per student) if configured, regardless of whether we added new ones.
-    const pr = pruneStudentBlundersInPlace(puzzles, orgId, sid, BLUNDERS_MAX_PUZZLES_PER_STUDENT);
-    if (added || pr.changed) await writeBlundersPuzzles(puzzles);
+    // Final flush: append any remaining new puzzles without overwriting existing progress.
+    if (added > flushedAdded) {
+      try {
+        const batch = newPuzzles.slice(flushedAdded);
+        await appendBlundersPuzzlesPreserveProgress(batch, orgId, sid);
+      } catch {}
+    }
     return { ok: true, games: games.length, added, gamesProcessed, pliesProcessed, hkDayKey, maxGamesPerDay, thresholdPoints };
   })().finally(() => {
     blundersStudentLocks.delete(sid);
