@@ -20,6 +20,126 @@
     return e;
   }
 
+  let jobPollTimer = null;
+  function stopTeacherJobPolling() {
+    if (jobPollTimer) {
+      try { clearInterval(jobPollTimer); } catch {}
+      jobPollTimer = null;
+    }
+    if (STATE.teacher && STATE.teacher.jobUi) {
+      STATE.teacher.jobUi.polling = false;
+    }
+  }
+
+  async function teacherGetJob(jobId) {
+    const id = String(jobId || '').trim();
+    if (!id) throw new Error('Missing jobId');
+    return await teacherApi(`/teachers/blunders/jobs/${encodeURIComponent(id)}`);
+  }
+
+  async function teacherCancelJob(jobId) {
+    const id = String(jobId || '').trim();
+    if (!id) throw new Error('Missing jobId');
+    return await teacherApi(`/teachers/blunders/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+  }
+
+  function renderTeacherJobModal() {
+    const ui = STATE.teacher.jobUi || {};
+    const job = ui.job || null;
+    const err = String(ui.error || '');
+    const jobId = String(ui.jobId || '');
+    const status = String(job?.status || '—');
+    const p = job?.progress || {};
+    const total = Number(p.total || 0) || 0;
+    const done = Number(p.done || 0) || 0;
+    const msg = String(p.message || '');
+    const cur = p.currentStudentName ? `${p.currentStudentName}${p.currentStudentId ? ` (${p.currentStudentId})` : ''}` : (p.currentStudentId ? String(p.currentStudentId) : '');
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const canCancel = jobId && (status === 'queued' || status === 'running');
+    const finished = status === 'done' || status === 'error' || status === 'cancelled';
+
+    return `
+      <div class="bl-card" style="box-shadow:none;">
+        <div class="blunders-muted">Job: <strong>${escapeHtml(jobId || '—')}</strong></div>
+        <div class="blunders-muted" style="margin-top:6px;">Status: <strong>${escapeHtml(status)}</strong>${finished ? '' : ' · polling...'}</div>
+        ${total ? `<div class="blunders-muted" style="margin-top:6px;">Progress: <strong>${escapeHtml(String(done))}</strong> / <strong>${escapeHtml(String(total))}</strong> (${escapeHtml(String(pct))}%)</div>` : ''}
+        ${cur ? `<div class="blunders-muted" style="margin-top:6px;">Current: <strong>${escapeHtml(cur)}</strong></div>` : ''}
+        ${msg ? `<div class="blunders-muted" style="margin-top:10px;">${escapeHtml(msg)}</div>` : ''}
+        ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ''}
+        ${job?.error ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(String(job.error))}</div>` : ''}
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <button class="btn btn-secondary" type="button" data-bl-teacher-job-refresh ${!jobId ? 'disabled' : ''}>Refresh</button>
+          <button class="btn btn-secondary" type="button" data-bl-teacher-job-cancel ${!canCancel ? 'disabled' : ''}>Cancel</button>
+          <button class="btn btn-primary" type="button" data-bl-teacher-job-close>Close</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function openTeacherJobModal(jobId) {
+    const id = String(jobId || '').trim();
+    if (!id) return;
+    if (!STATE.teacher.jobUi || typeof STATE.teacher.jobUi !== 'object') STATE.teacher.jobUi = {};
+    STATE.teacher.jobUi.jobId = id;
+    STATE.teacher.jobUi.error = '';
+    STATE.teacher.jobUi.job = null;
+    STATE.teacher.jobUi.polling = true;
+
+    // Open immediately
+    entry().openModal('History progress', renderTeacherJobModal());
+
+    // First fetch immediately, then poll
+    const tick = async () => {
+      if (!STATE.teacher?.jobUi?.jobId) return;
+      try {
+        const out = await teacherGetJob(STATE.teacher.jobUi.jobId);
+        STATE.teacher.jobUi.job = out?.job || null;
+        STATE.teacher.jobUi.error = '';
+        entry().openModal('History progress', renderTeacherJobModal());
+        const st = String(out?.job?.status || '');
+        if (st === 'done' || st === 'error' || st === 'cancelled') {
+          stopTeacherJobPolling();
+        }
+      } catch (e) {
+        STATE.teacher.jobUi.error = String(e?.message || e);
+        entry().openModal('History progress', renderTeacherJobModal());
+      }
+    };
+
+    stopTeacherJobPolling();
+    await tick();
+    jobPollTimer = setInterval(() => { tick().catch(() => {}); }, 1000);
+  }
+
+  async function teacherJobRefresh() {
+    const id = String(STATE.teacher?.jobUi?.jobId || '');
+    if (!id) return;
+    return await openTeacherJobModal(id);
+  }
+
+  async function teacherJobCancel() {
+    const id = String(STATE.teacher?.jobUi?.jobId || '');
+    if (!id) return;
+    try {
+      await teacherCancelJob(id);
+      await teacherJobRefresh();
+    } catch (e) {
+      if (!STATE.teacher.jobUi) STATE.teacher.jobUi = {};
+      STATE.teacher.jobUi.error = String(e?.message || e);
+      entry().openModal('History progress', renderTeacherJobModal());
+    }
+  }
+
+  function teacherJobClose() {
+    stopTeacherJobPolling();
+    if (STATE.teacher?.jobUi) {
+      STATE.teacher.jobUi.jobId = '';
+      STATE.teacher.jobUi.job = null;
+    }
+    entry().closeModal();
+  }
+
   function renderTeacherSidebar() {
     const tab = String(STATE.teacherTab || 'students');
     return `
@@ -487,6 +607,7 @@
     if (jobId) {
       STATE.teacher.error = `History queued (job: ${jobId}). Refresh later to see updated counts.`;
       entry().render();
+      openTeacherJobModal(jobId).catch(() => {});
     }
     return out;
   }
@@ -574,6 +695,8 @@
       STATE.teacher.error = jobId
         ? `History queued for ${valid.length} student(s) (job: ${jobId}). Refresh later to see updates.`
         : `History queued for ${valid.length} student(s). Refresh later to see updates.`;
+      entry().render();
+      if (jobId) openTeacherJobModal(jobId).catch(() => {});
     } catch (e) {
       STATE.teacher.error = String(e?.message || e);
     } finally {
@@ -597,6 +720,13 @@
     teacherBulkSyncSelected,
     teacherBulkCompleteSelected,
     teacherBulkHistoryScanSelected
+    ,
+    // Job progress modal
+    openTeacherJobModal,
+    teacherJobRefresh,
+    teacherJobCancel,
+    teacherJobClose,
+    stopTeacherJobPolling
   };
 })();
 

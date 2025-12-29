@@ -74,6 +74,8 @@
   }
 
   function closeModal() {
+    // Stop teacher job polling if a job modal is open.
+    try { window.BlundersTeacher?.stopTeacherJobPolling?.(); } catch {}
     STATE.ui.modalOpen = false;
     STATE.ui.modalHtml = '';
     const shouldRefresh = !!STATE.needsRefreshAfterModal;
@@ -795,6 +797,20 @@
         const ok = await copyToClipboard(fen);
         if (scope === 'master') setMasterMessage(ok ? 'Copied.' : 'Copy failed.');
         else setMessage(ok ? 'Copied.' : 'Copy failed.');
+        return;
+      }
+
+      // Teacher job modal actions
+      if (t?.closest?.('[data-bl-teacher-job-close]')) {
+        try { window.BlundersTeacher?.teacherJobClose?.(); } catch { closeModal(); }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-job-refresh]')) {
+        try { await window.BlundersTeacher?.teacherJobRefresh?.(); } catch (e) { console.error('Job refresh failed:', e); }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-job-cancel]')) {
+        try { await window.BlundersTeacher?.teacherJobCancel?.(); } catch (e) { console.error('Job cancel failed:', e); }
         return;
       }
 
