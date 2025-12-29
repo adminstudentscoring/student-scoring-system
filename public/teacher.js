@@ -1702,7 +1702,11 @@ async function startBlunders() {
             }
         };
 
-        if (!window.blundersLoaded) {
+        const hasBlundersModules = () => !!(window.BlundersCore && window.BlundersTeacher && window.BlundersChallenge && window.BlundersStudent && window.initBlunders);
+        if (!window.blundersLoaded || !hasBlundersModules()) {
+            if (window.blundersLoaded && !hasBlundersModules()) {
+                console.warn('Blunders modules missing (possibly due to cached blundersLoaded). Reloading scripts...');
+            }
             const loadJs = (src) => new Promise((resolve, reject) => {
                 const s = document.createElement('script');
                 s.src = src;

@@ -295,16 +295,26 @@
   }
 
   // Teacher actions moved to game/blunders/teacher.js
-  async function teacherLoad(tab) { return window.BlundersTeacher?.teacherLoad?.(tab); }
-  async function teacherSaveStudentSettings() { return window.BlundersTeacher?.teacherSaveStudentSettings?.(); }
-  async function teacherSaveMasters() { return window.BlundersTeacher?.teacherSaveMasters?.(); }
-  async function teacherSaveMasterConfig() { return window.BlundersTeacher?.teacherSaveMasterConfig?.(); }
-  async function teacherSyncStudent(studentId, hkDayKey, force) { return window.BlundersTeacher?.teacherSyncStudent?.(studentId, hkDayKey, force); }
-  async function teacherHistoryScanStudent(studentId, historyGames, force) { return window.BlundersTeacher?.teacherHistoryScanStudent?.(studentId, historyGames, force); }
-  async function teacherSyncMaster(masterId, hkDayKey, force) { return window.BlundersTeacher?.teacherSyncMaster?.(masterId, hkDayKey, force); }
-  async function teacherBulkSyncSelected(force) { return window.BlundersTeacher?.teacherBulkSyncSelected?.(force); }
-  async function teacherBulkCompleteSelected() { return window.BlundersTeacher?.teacherBulkCompleteSelected?.(); }
-  async function teacherBulkHistoryScanSelected(force) { return window.BlundersTeacher?.teacherBulkHistoryScanSelected?.(force); }
+  function requireTeacherModule() {
+    const mod = window.BlundersTeacher;
+    if (mod) return mod;
+    try {
+      STATE.teacher.error = 'Teacher module not loaded. Please hard refresh (Ctrl+F5) and check that /game/blunders/teacher.js returns 200 in the Network tab.';
+      render();
+    } catch {}
+    console.error('BlundersTeacher missing: teacher actions are disabled. Check /game/blunders/teacher.js load.');
+    return null;
+  }
+  async function teacherLoad(tab) { const m = requireTeacherModule(); return m ? m.teacherLoad?.(tab) : undefined; }
+  async function teacherSaveStudentSettings() { const m = requireTeacherModule(); return m ? m.teacherSaveStudentSettings?.() : undefined; }
+  async function teacherSaveMasters() { const m = requireTeacherModule(); return m ? m.teacherSaveMasters?.() : undefined; }
+  async function teacherSaveMasterConfig() { const m = requireTeacherModule(); return m ? m.teacherSaveMasterConfig?.() : undefined; }
+  async function teacherSyncStudent(studentId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncStudent?.(studentId, hkDayKey, force) : undefined; }
+  async function teacherHistoryScanStudent(studentId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanStudent?.(studentId, historyGames, force) : undefined; }
+  async function teacherSyncMaster(masterId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncMaster?.(masterId, hkDayKey, force) : undefined; }
+  async function teacherBulkSyncSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkSyncSelected?.(force) : undefined; }
+  async function teacherBulkCompleteSelected() { const m = requireTeacherModule(); return m ? m.teacherBulkCompleteSelected?.() : undefined; }
+  async function teacherBulkHistoryScanSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkHistoryScanSelected?.(force) : undefined; }
 
   function setMessage(txt) {
     const el = document.getElementById('blBlunderMsg');
@@ -755,6 +765,12 @@
     if (role === 'teacher') {
       STATE.me = { id: 'teacher', name: 'Teacher', studentId: '' };
       render();
+      if (!window.BlundersTeacher) {
+        STATE.teacher.error = 'Teacher module not loaded. Please hard refresh (Ctrl+F5) and ensure /game/blunders/teacher.js loads successfully.';
+        render();
+        console.error('BlundersTeacher missing during initBlunders (teacher mode).');
+        return;
+      }
       teacherLoad(STATE.teacherTab || 'students').catch(() => {});
     } else {
       const players = getPlayers();
