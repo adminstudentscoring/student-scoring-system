@@ -1453,10 +1453,14 @@ async function syncBlundersForStudent(student, opts = {}) {
     let added = 0;
     let gamesProcessed = 0;
     let pliesProcessed = 0;
+    let errors = 0;
+    let lastFlushAtMs = 0;
+    let flushedAdded = 0;
 
     for (const game of gamesNew) {
       const pgn = String(game.pgn || '');
       if (!pgn) continue;
+
       const me = username.toLowerCase();
       const whiteU = String(game?.white?.username || '').toLowerCase();
       const blackU = String(game?.black?.username || '').toLowerCase();
@@ -1473,37 +1477,39 @@ async function syncBlundersForStudent(student, opts = {}) {
       }
       if (!full) continue;
       const moves = full.history({ verbose: true }) || [];
-    // Per-game meta (best-effort): opponent rating + ply count
-    // Only record for games we actually analyze in this run (avoids marking "analyzed" for skipped games).
-    try {
-      if (stStats) {
-        const keyGame = String(game.url || game.uuid || '').trim();
-        if (keyGame) {
-          const oppRatingRaw =
-            studentColor === 'w' ? Number(game?.black?.rating) :
-            studentColor === 'b' ? Number(game?.white?.rating) : NaN;
-          const oppRating = Number.isFinite(oppRatingRaw) && oppRatingRaw > 0 ? oppRatingRaw : null;
-          stStats.analyzed[keyGame] = {
-            ...(stStats.analyzed[keyGame] || {}),
-            url: String(game?.url || ''),
-            uuid: String(game?.uuid || ''),
-            endTime: Number(game?.end_time || 0),
-            timeClass: String(game?.time_class || ''),
-            plyCount: Array.isArray(moves) ? moves.length : 0,
-            opponentRating: oppRating
-          };
-        }
-      }
-    } catch {}
+
       const replay = new Chess();
+      let gameFailed = false;
+      let gameFailReason = '';
+
       for (let ply = 0; ply < moves.length; ply++) {
         const beforeFen = replay.fen();
         const turn = replay.turn();
         const mv = moves[ply];
         const prev = ply > 0 ? moves[ply - 1] : null;
-        // Apply the move as recorded
-        const applied = replay.move(mv);
-        if (!applied) break;
+
+        // Apply the move as recorded.
+        // IMPORTANT: chess.js move() is strict about input shape; we only pass {from,to,promotion}.
+        let applied = null;
+        try {
+          applied = replay.move({
+            from: String(mv?.from || '').toLowerCase(),
+            to: String(mv?.to || '').toLowerCase(),
+            promotion: mv?.promotion ? String(mv.promotion).toLowerCase() : undefined
+          });
+        } catch (err) {
+          gameFailed = true;
+          gameFailReason = `Invalid move (exception) at ply ${ply}: ${String(err?.message || err || 'unknown')}`;
+          // Best-effort: include SAN + from/to in debug to help diagnosis without huge payloads.
+          console.warn('Blunders: invalid move exception; skipping game', { studentId: sid, gameUrl: String(game?.url || ''), ply, san: String(mv?.san || ''), from: String(mv?.from || ''), to: String(mv?.to || '') });
+          break;
+        }
+        if (!applied) {
+          gameFailed = true;
+          gameFailReason = `Invalid move (null) at ply ${ply}: san=${String(mv?.san || '')} from=${String(mv?.from || '')} to=${String(mv?.to || '')}`;
+          console.warn('Blunders: invalid move returned null; skipping game', { studentId: sid, gameUrl: String(game?.url || ''), ply, san: String(mv?.san || ''), from: String(mv?.from || ''), to: String(mv?.to || '') });
+          break;
+        }
 
         if (turn !== studentColor) continue; // only student's moves
         pliesProcessed++;
@@ -1559,14 +1565,70 @@ async function syncBlundersForStudent(student, opts = {}) {
         });
         added++;
       }
+
+      if (gameFailed) {
+        errors++;
+        blundersSyncState.set(sid, {
+          ...(blundersSyncState.get(sid) || {}),
+          lastError: gameFailReason,
+          errors,
+          updatedAt: new Date().toISOString()
+        });
+        // Skip this game (do NOT mark as analyzed; allow retry in future).
+        continue;
+      }
+
+      // Per-game meta (best-effort): opponent rating + ply count.
+      // Only record after a successful replay (prevents skipping forever due to one bad PGN move).
+      try {
+        if (stStats) {
+          const keyGame = String(game.url || game.uuid || '').trim();
+          if (keyGame) {
+            const oppRatingRaw =
+              studentColor === 'w' ? Number(game?.black?.rating) :
+              studentColor === 'b' ? Number(game?.white?.rating) : NaN;
+            const oppRating = Number.isFinite(oppRatingRaw) && oppRatingRaw > 0 ? oppRatingRaw : null;
+            stStats.analyzed[keyGame] = {
+              ...(stStats.analyzed[keyGame] || {}),
+              url: String(game?.url || ''),
+              uuid: String(game?.uuid || ''),
+              endTime: Number(game?.end_time || 0),
+              timeClass: String(game?.time_class || ''),
+              plyCount: Array.isArray(moves) ? moves.length : 0,
+              opponentRating: oppRating
+            };
+          }
+        }
+      } catch {}
+
       gamesProcessed++;
       blundersSyncState.set(sid, {
         ...(blundersSyncState.get(sid) || {}),
         gamesProcessed,
         pliesProcessed,
         blundersAdded: added,
+        errors,
         updatedAt: new Date().toISOString()
       });
+
+      // Improvement #1: Flush puzzles incrementally so users can see new puzzles sooner.
+      // Rate-limit file writes to avoid excessive IO.
+      const now = Date.now();
+      if (added > flushedAdded && (now - lastFlushAtMs) > 1500) {
+        try {
+          await writeBlundersPuzzles(puzzles);
+          flushedAdded = added;
+          lastFlushAtMs = now;
+        } catch (err) {
+          errors++;
+          blundersSyncState.set(sid, {
+            ...(blundersSyncState.get(sid) || {}),
+            lastError: `writeBlundersPuzzles failed: ${String(err?.message || err || 'unknown')}`,
+            errors,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
     }
 
     // Persist analyzed games meta (best-effort)
@@ -1664,6 +1726,9 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
     let added = 0;
     let gamesProcessed = 0;
     let pliesProcessed = 0;
+    let errors = 0;
+    let lastFlushAtMs = 0;
+    let flushedAdded = 0;
 
     for (const game of games) {
       const pgn = String(game.pgn || '');
@@ -1684,13 +1749,32 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
       if (!full) continue;
       const moves = full.history({ verbose: true }) || [];
       const replay = new Chess();
+      let gameFailed = false;
+      let gameFailReason = '';
       for (let ply = 0; ply < moves.length; ply++) {
         const beforeFen = replay.fen();
         const turn = replay.turn();
         const mv = moves[ply];
         const prev = ply > 0 ? moves[ply - 1] : null;
-        const applied = replay.move(mv);
-        if (!applied) break;
+        let applied = null;
+        try {
+          applied = replay.move({
+            from: String(mv?.from || '').toLowerCase(),
+            to: String(mv?.to || '').toLowerCase(),
+            promotion: mv?.promotion ? String(mv.promotion).toLowerCase() : undefined
+          });
+        } catch (err) {
+          gameFailed = true;
+          gameFailReason = `Invalid move (exception) at ply ${ply}: ${String(err?.message || err || 'unknown')}`;
+          console.warn('Blunders(master): invalid move exception; skipping game', { masterId: mid, gameUrl: String(game?.url || ''), ply, san: String(mv?.san || ''), from: String(mv?.from || ''), to: String(mv?.to || '') });
+          break;
+        }
+        if (!applied) {
+          gameFailed = true;
+          gameFailReason = `Invalid move (null) at ply ${ply}: san=${String(mv?.san || '')} from=${String(mv?.from || '')} to=${String(mv?.to || '')}`;
+          console.warn('Blunders(master): invalid move returned null; skipping game', { masterId: mid, gameUrl: String(game?.url || ''), ply, san: String(mv?.san || ''), from: String(mv?.from || ''), to: String(mv?.to || '') });
+          break;
+        }
 
         if (turn !== masterColor) continue; // only master's moves
         pliesProcessed++;
@@ -1744,14 +1828,45 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
         });
         added++;
       }
+
+      if (gameFailed) {
+        errors++;
+        blundersSyncState.set(stKey, {
+          ...(blundersSyncState.get(stKey) || {}),
+          lastError: gameFailReason,
+          errors,
+          updatedAt: new Date().toISOString()
+        });
+        continue;
+      }
+
       gamesProcessed++;
       blundersSyncState.set(stKey, {
         ...(blundersSyncState.get(stKey) || {}),
         gamesProcessed,
         pliesProcessed,
         blundersAdded: added,
+        errors,
         updatedAt: new Date().toISOString()
       });
+
+      // Incremental flush to make puzzles visible sooner; rate-limited.
+      const now = Date.now();
+      if (added > flushedAdded && (now - lastFlushAtMs) > 1500) {
+        try {
+          await writeBlundersPuzzles(puzzles);
+          flushedAdded = added;
+          lastFlushAtMs = now;
+        } catch (err) {
+          errors++;
+          blundersSyncState.set(stKey, {
+            ...(blundersSyncState.get(stKey) || {}),
+            lastError: `writeBlundersPuzzles failed: ${String(err?.message || err || 'unknown')}`,
+            errors,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
     }
 
     if (added) await writeBlundersPuzzles(puzzles);
