@@ -360,8 +360,12 @@ async function writeChessComSettings(orgs) {
 }
 
 // ===== Blunders: Puzzle storage (JSON file) =====
+let blundersPuzzlesWriteLock = Promise.resolve();
+
 async function readBlundersPuzzles() {
   try {
+    // Avoid reading while a write is in-progress (prevents transient empty/partial reads).
+    await blundersPuzzlesWriteLock.catch(() => {});
     const content = await fs.readFile(BLUNDERS_PUZZLES_FILE, 'utf8');
     const data = JSON.parse(content);
     const puzzles = data && typeof data === 'object' ? (data.puzzles || []) : [];
@@ -373,14 +377,19 @@ async function readBlundersPuzzles() {
 }
 
 async function writeBlundersPuzzles(puzzles) {
-  try {
-    const arr = Array.isArray(puzzles) ? puzzles : [];
-    await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders puzzles:', error);
-    return false;
-  }
+  const arr = Array.isArray(puzzles) ? puzzles : [];
+  // Serialize writes to prevent concurrent truncation/read issues.
+  const run = async () => {
+    try {
+      await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+      return true;
+    } catch (error) {
+      console.error('Error writing blunders puzzles:', error);
+      return false;
+    }
+  };
+  blundersPuzzlesWriteLock = blundersPuzzlesWriteLock.then(run, run);
+  return await blundersPuzzlesWriteLock;
 }
 
 // ===== Blunders: Stats (cumulative analyzed games) =====
