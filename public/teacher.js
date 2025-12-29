@@ -1711,6 +1711,8 @@ async function startBlunders() {
                 document.body.appendChild(s);
             });
             loadJs('/game/blunders/core.js')
+                .then(() => loadJs('/game/blunders/teacher.js'))
+                .then(() => loadJs('/game/blunders/challenge.js'))
                 .then(() => loadJs('/game/blunders/blunders.js'))
                 .then(() => {
                     window.blundersLoaded = true;

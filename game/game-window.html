@@ -204,6 +204,8 @@
                         console.warn('Unable to restore blunders players from storage:', error);
                     }
                     await loadScript('/game/blunders/core.js');
+                    await loadScript('/game/blunders/teacher.js');
+                    await loadScript('/game/blunders/challenge.js');
                     await loadScript('/game/blunders/blunders.js');
                     if (window.initBlunders) {
                         window.initBlunders();
