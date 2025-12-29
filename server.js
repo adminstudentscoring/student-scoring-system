@@ -654,6 +654,57 @@ async function maybeRunChessComRatingsRefreshAllOrgs() {
   return { ok: true, ran: true };
 }
 
+// ===== Blunders: daily auto sync (all students) =====
+const BLUNDERS_DAILY_SYNC_HK_HOUR = Number(process.env.BLUNDERS_DAILY_SYNC_HK_HOUR || 4); // default 04:00 HK
+const BLUNDERS_DAILY_SYNC_HK_MIN = Number(process.env.BLUNDERS_DAILY_SYNC_HK_MIN || 0);
+const blundersDailySyncMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
+
+function computeNextBlundersDailyRunIso() {
+  const now = hkNow();
+  let y = now.y, m = now.m, d = now.d;
+  const afterToday =
+    (now.hh > BLUNDERS_DAILY_SYNC_HK_HOUR) ||
+    (now.hh === BLUNDERS_DAILY_SYNC_HK_HOUR && now.mm >= BLUNDERS_DAILY_SYNC_HK_MIN);
+  if (afterToday) {
+    const t = new Date(Date.UTC(y, m - 1, d) + 24 * 3600 * 1000);
+    y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
+  }
+  const runUtcMs = Date.UTC(y, m - 1, d, BLUNDERS_DAILY_SYNC_HK_HOUR, BLUNDERS_DAILY_SYNC_HK_MIN) - HK_OFFSET_SEC * 1000;
+  return new Date(runUtcMs).toISOString();
+}
+
+async function maybeRunBlundersDailySyncAllStudents() {
+  const hk = hkNow();
+  const hkDay = todayHkKey();
+  const alreadyRanToday = String(blundersDailySyncMeta.lastRunHkDay || '') === hkDay;
+  const isAfterTarget =
+    (hk.hh > BLUNDERS_DAILY_SYNC_HK_HOUR) ||
+    (hk.hh === BLUNDERS_DAILY_SYNC_HK_HOUR && hk.mm >= BLUNDERS_DAILY_SYNC_HK_MIN);
+  if (alreadyRanToday || !isAfterTarget) return { ok: true, skipped: true };
+
+  let okCount = 0;
+  let errCount = 0;
+  try {
+    const data = await readData();
+    const students = Array.isArray(data?.students) ? data.students : [];
+    for (const s of students) {
+      try {
+        // Non-forced daily run: respects per-student throttle and avoids excessive load.
+        await syncBlundersForStudent(s, { hkDayKey: hkDay, force: '0' });
+        okCount++;
+      } catch {
+        errCount++;
+      }
+    }
+  } finally {
+    blundersDailySyncMeta.lastRunAt = new Date().toISOString();
+    blundersDailySyncMeta.lastRunHkDay = hkDay;
+    blundersDailySyncMeta.lastRunOk = okCount;
+    blundersDailySyncMeta.lastRunErr = errCount;
+  }
+  return { ok: true, ran: true, okCount, errCount };
+}
+
 function parseUciMove(uci) {
   const s = String(uci || '').trim().toLowerCase();
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(s)) return null;
@@ -734,6 +785,66 @@ function puzzleSortKeyMs(p) {
   if (Number.isFinite(end) && end > 0) return end * 1000;
   const created = Date.parse(String(p?.createdAt || ''));
   return Number.isFinite(created) ? created : 0;
+}
+
+function threeMonthsAgoMs() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 3);
+  return d.getTime();
+}
+
+function puzzleDropPoints(p) {
+  const dp = (typeof p?.dropPoints === 'number') ? p.dropPoints : (Number(p?.dropCp || 0) / 100);
+  return Number.isFinite(dp) ? dp : 0;
+}
+
+function isMissMatePuzzle(p) {
+  const bestCp = Number(p?.bestCp ?? 0);
+  return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
+}
+
+function computeRolling3mStats({ analyzedMap, puzzles }) {
+  const cutoffMs = threeMonthsAgoMs();
+  const analyzed = (analyzedMap && typeof analyzedMap === 'object') ? analyzedMap : {};
+  const list = Array.isArray(puzzles) ? puzzles : [];
+
+  let totalPlies = 0;
+  let oppSum = 0;
+  let oppN = 0;
+  let gamesN = 0;
+  for (const v of Object.values(analyzed)) {
+    const endSec = Number(v?.endTime || 0);
+    if (!(Number.isFinite(endSec) && endSec > 0)) continue;
+    const endMs = endSec * 1000;
+    if (endMs < cutoffMs) continue;
+    gamesN++;
+    const pc = Number(v?.plyCount || 0);
+    if (Number.isFinite(pc) && pc > 0) totalPlies += pc;
+    const r = Number(v?.opponentRating ?? NaN);
+    if (Number.isFinite(r) && r > 0) { oppSum += r; oppN++; }
+  }
+
+  let cGt1 = 0, cGt2 = 0, cGt3 = 0, cMiss = 0;
+  for (const p of list) {
+    const t = puzzleSortKeyMs(p);
+    if (!(Number.isFinite(t) && t > 0) || t < cutoffMs) continue;
+    if (isMissMatePuzzle(p)) cMiss++;
+    const dp = puzzleDropPoints(p);
+    if (dp > 1.0) cGt1++;
+    if (dp > 2.0) cGt2++;
+    if (dp > 3.0) cGt3++;
+  }
+
+  const movesPer = (count) => (count > 0 && totalPlies > 0) ? (totalPlies / count) : null;
+  const avgOpp = (oppN > 0) ? (oppSum / oppN) : null;
+  return {
+    cutoffIso: new Date(cutoffMs).toISOString(),
+    analyzedGames: gamesN,
+    totalPlies,
+    avgOpponentRating: avgOpp,
+    counts: { gt1: cGt1, gt2: cGt2, gt3: cGt3, missMate: cMiss },
+    movesPer: { gt1: movesPer(cGt1), gt2: movesPer(cGt2), gt3: movesPer(cGt3), missMate: movesPer(cMiss) }
+  };
 }
 
 function pruneStudentBlundersInPlace(puzzles, orgId, studentId, limit = BLUNDERS_MAX_PUZZLES_PER_STUDENT) {
@@ -1027,8 +1138,21 @@ async function syncBlundersForStudent(student, opts = {}) {
     blundersSyncState.set(sid, { ...(blundersSyncState.get(sid) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
     if (!games.length) return { ok: true, games: 0, added: 0 };
 
-    // Record analyzed games (cumulative) even if no blunders are found later.
-    try { await blundersMarkGamesAnalyzed(orgId, sid, games); } catch {}
+    // Record analyzed games meta (cumulative) so we can compute rolling stats later.
+    // We update once per sync to avoid frequent file writes.
+    let statsOrgs = null;
+    let statsOrg = null;
+    let stStats = null;
+    try {
+      statsOrgs = await readBlundersStats();
+      if (!statsOrgs[orgId] || typeof statsOrgs[orgId] !== 'object') statsOrgs[orgId] = {};
+      statsOrg = statsOrgs[orgId];
+      if (!statsOrg[sid] || typeof statsOrg[sid] !== 'object') statsOrg[sid] = { analyzed: {}, analyzedCount: 0, lastSyncAt: null };
+      stStats = statsOrg[sid];
+      if (!stStats.analyzed || typeof stStats.analyzed !== 'object') stStats.analyzed = {};
+    } catch {
+      statsOrgs = null; statsOrg = null; stStats = null;
+    }
 
     const puzzles = await readBlundersPuzzles();
     const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
@@ -1055,6 +1179,27 @@ async function syncBlundersForStudent(student, opts = {}) {
       }
       if (!full) continue;
       const moves = full.history({ verbose: true }) || [];
+      // Per-game meta (best-effort): opponent rating + ply count
+      try {
+        if (stStats) {
+          const keyGame = String(game.url || game.uuid || '').trim();
+          if (keyGame) {
+            const oppRatingRaw =
+              studentColor === 'w' ? Number(game?.black?.rating) :
+              studentColor === 'b' ? Number(game?.white?.rating) : NaN;
+            const oppRating = Number.isFinite(oppRatingRaw) && oppRatingRaw > 0 ? oppRatingRaw : null;
+            stStats.analyzed[keyGame] = {
+              ...(stStats.analyzed[keyGame] || {}),
+              url: String(game?.url || ''),
+              uuid: String(game?.uuid || ''),
+              endTime: Number(game?.end_time || 0),
+              timeClass: String(game?.time_class || ''),
+              plyCount: Array.isArray(moves) ? moves.length : 0,
+              opponentRating: oppRating
+            };
+          }
+        }
+      } catch {}
       const replay = new Chess();
       for (let ply = 0; ply < moves.length; ply++) {
         const beforeFen = replay.fen();
@@ -1128,6 +1273,17 @@ async function syncBlundersForStudent(student, opts = {}) {
         updatedAt: new Date().toISOString()
       });
     }
+
+    // Persist analyzed games meta (best-effort)
+    try {
+      if (statsOrgs && statsOrg && stStats) {
+        stStats.analyzedCount = Object.keys(stStats.analyzed || {}).length;
+        stStats.lastSyncAt = new Date().toISOString();
+        statsOrg[sid] = stStats;
+        statsOrgs[orgId] = statsOrg;
+        await writeBlundersStats(statsOrgs);
+      }
+    } catch {}
 
     // Keep puzzle bank bounded (latest N per student) if configured, regardless of whether we added new ones.
     const pr = pruneStudentBlundersInPlace(puzzles, orgId, sid, BLUNDERS_MAX_PUZZLES_PER_STUDENT);
@@ -6894,10 +7050,26 @@ app.get('/api/teachers/blunders/students-summary', authenticateUser, authorizeRo
         lastRunHkDay: meta?.lastRunHkDay || null,
         nextRunAt: computeNextRatingsRunIso()
       };
-      return res.json({ ok: true, orgId, students: out, ratingsSchedule: schedule });
+      const blSchedule = {
+        time: formatHkTime(BLUNDERS_DAILY_SYNC_HK_HOUR, BLUNDERS_DAILY_SYNC_HK_MIN),
+        lastRunAt: blundersDailySyncMeta.lastRunAt,
+        lastRunHkDay: blundersDailySyncMeta.lastRunHkDay,
+        nextRunAt: computeNextBlundersDailyRunIso(),
+        lastRunOk: blundersDailySyncMeta.lastRunOk,
+        lastRunErr: blundersDailySyncMeta.lastRunErr
+      };
+      return res.json({ ok: true, orgId, students: out, ratingsSchedule: schedule, blundersSchedule: blSchedule });
     } catch {
       const schedule = { time: formatHkTime(CHESSCOM_RATINGS_REFRESH_HK_HOUR, CHESSCOM_RATINGS_REFRESH_HK_MIN), lastRunAt: null, lastRunHkDay: null, nextRunAt: computeNextRatingsRunIso() };
-      return res.json({ ok: true, orgId, students: out, ratingsSchedule: schedule });
+      const blSchedule = {
+        time: formatHkTime(BLUNDERS_DAILY_SYNC_HK_HOUR, BLUNDERS_DAILY_SYNC_HK_MIN),
+        lastRunAt: blundersDailySyncMeta.lastRunAt,
+        lastRunHkDay: blundersDailySyncMeta.lastRunHkDay,
+        nextRunAt: computeNextBlundersDailyRunIso(),
+        lastRunOk: blundersDailySyncMeta.lastRunOk,
+        lastRunErr: blundersDailySyncMeta.lastRunErr
+      };
+      return res.json({ ok: true, orgId, students: out, ratingsSchedule: schedule, blundersSchedule: blSchedule });
     }
   } catch (e) {
     console.error('GET /api/teachers/blunders/students-summary error:', e);
@@ -7829,12 +8001,14 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
     const completed = mine.filter(p => String(p.status || '') === 'completed');
 
-    // Cumulative analyzed games count
+    // Cumulative analyzed games count (+ rolling 3-month stats)
     let analyzedGamesTotal = 0;
+    let rolling3m = null;
     try {
       const orgs = await readBlundersStats();
       const st = orgs?.[orgId]?.[String(student.id)] || null;
       analyzedGamesTotal = Number(st?.analyzedCount || 0) || 0;
+      rolling3m = computeRolling3mStats({ analyzedMap: st?.analyzed || {}, puzzles: mine });
     } catch {}
 
     return res.json({
@@ -7859,7 +8033,7 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
           return st;
         })()
       },
-      stats: { analyzedGamesTotal },
+      stats: { analyzedGamesTotal, rolling3m: rolling3m || undefined },
       pending,
       completed,
       counts: { pending: pending.length, completed: completed.length, total: mine.length }
@@ -14375,6 +14549,7 @@ async function startServer() {
   try {
     setInterval(() => {
       maybeRunChessComRatingsRefreshAllOrgs().catch(() => {});
+      maybeRunBlundersDailySyncAllStudents().catch(() => {});
     }, 5 * 60 * 1000);
   } catch {}
 

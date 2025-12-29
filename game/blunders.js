@@ -51,6 +51,7 @@
       edits: { student: {}, masters: null, masterCfg: null },
       lastLoadedAt: '',
       ratingsSchedule: null,
+      blundersSchedule: null,
       // Teacher Students UI
       search: '',
       selectedIds: [],
@@ -58,6 +59,8 @@
       bulkThreshold: 1.0,
       bulkHistoryGames: 200,
       historyScanN: {},
+      dateByStudent: {}, // studentId -> YYYY-MM-DD
+      dateByMaster: {}, // masterId -> YYYY-MM-DD
       // Teacher All blunders UI
       allDuration: 'all', // week | month | halfYear | year | all
       allRating: 'any' // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
@@ -80,8 +83,62 @@
       masterBestMoveSan: '',
       masterBestOrigin: '' // '' | 'attempt' | 'revealed'
     },
-    ui: { modalOpen: false, modalHtml: '', lastInlineBestClickTs: 0 }
+    ui: { modalOpen: false, modalHtml: '', lastInlineBestClickTs: 0, homePracticeDuration: 'all', focus: null }
   };
+
+  function todayYmdLocal() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  }
+
+  function captureFocusInfo(root) {
+    try {
+      const ae = document.activeElement;
+      if (!ae || !root.contains(ae)) { STATE.ui.focus = null; return; }
+      const isInput = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+      const selStart = isInput && typeof ae.selectionStart === 'number' ? ae.selectionStart : null;
+      const selEnd = isInput && typeof ae.selectionEnd === 'number' ? ae.selectionEnd : null;
+
+      if (ae.closest?.('[data-bl-teacher-search]')) {
+        STATE.ui.focus = { kind: 'teacherSearch', selStart, selEnd };
+        return;
+      }
+      const sd = ae.closest?.('[data-bl-teacher-student-date]');
+      if (sd) {
+        const sid = String(sd.getAttribute('data-bl-teacher-student-date') || '');
+        STATE.ui.focus = { kind: 'studentDate', sid, selStart, selEnd };
+        return;
+      }
+      const md = ae.closest?.('[data-bl-teacher-master-date]');
+      if (md) {
+        const mid = String(md.getAttribute('data-bl-teacher-master-date') || '');
+        STATE.ui.focus = { kind: 'masterDate', mid, selStart, selEnd };
+        return;
+      }
+      STATE.ui.focus = null;
+    } catch {
+      STATE.ui.focus = null;
+    }
+  }
+
+  function restoreFocusInfo(root) {
+    try {
+      const f = STATE.ui.focus;
+      if (!f) return;
+      let el = null;
+      if (f.kind === 'teacherSearch') el = root.querySelector('[data-bl-teacher-search]');
+      if (f.kind === 'studentDate' && f.sid) el = root.querySelector(`[data-bl-teacher-student-date="${CSS.escape(String(f.sid))}"]`);
+      if (f.kind === 'masterDate' && f.mid) el = root.querySelector(`[data-bl-teacher-master-date="${CSS.escape(String(f.mid))}"]`);
+      if (!el) return;
+      el.focus?.();
+      if (typeof f.selStart === 'number' && typeof f.selEnd === 'number') {
+        try { el.setSelectionRange?.(f.selStart, f.selEnd); } catch {}
+      }
+    } catch {}
+  }
 
   function getBlundersRole() {
     try {
@@ -569,25 +626,87 @@
     const sync = dbg?.sync || null;
     const stats = STATE.data?.stats || {};
     return `
-      <div style="border:1px dashed #e5e7eb; border-radius:12px; padding:10px; margin-top:12px;">
-        <div style="font-weight:900; color:#111827; margin-bottom:6px;">Debug</div>
-        <div class="blunders-muted">HK day: <strong>${escapeHtml(String(dbg.hkDay || ''))}</strong></div>
-        <div class="blunders-muted">Chess.com username (server): <strong>${escapeHtml(String(dbg.chessComUsername || ''))}</strong></div>
-        <div class="blunders-muted">Today rapid+blitz games found: <strong>${escapeHtml(String(dbg.gamesTodayRapidBlitz ?? ''))}</strong></div>
-        <div class="blunders-muted">Analyzed games (total): <strong>${escapeHtml(String(stats.analyzedGamesTotal ?? '0'))}</strong></div>
+      <div class="bl-debug-mini">
+        <div class="bl-debug-title">Debug</div>
+        <div class="bl-debug-line">HK day: <strong>${escapeHtml(String(dbg.hkDay || ''))}</strong></div>
+        <div class="bl-debug-line">Chess.com: <strong>${escapeHtml(String(dbg.chessComUsername || ''))}</strong></div>
+        <div class="bl-debug-line">Games today: <strong>${escapeHtml(String(dbg.gamesTodayRapidBlitz ?? ''))}</strong></div>
+        <div class="bl-debug-line">Analyzed games: <strong>${escapeHtml(String(stats.analyzedGamesTotal ?? '0'))}</strong></div>
         ${sync ? `
-          <div class="blunders-muted" style="margin-top:8px;">Analysis: <strong>${escapeHtml(sync.running ? 'running' : 'idle')}</strong> · stage: <strong>${escapeHtml(String(sync.stage || ''))}</strong></div>
-          <div class="blunders-muted">games fetched/processed: <strong>${escapeHtml(String(sync.gamesFetched ?? ''))}</strong> / <strong>${escapeHtml(String(sync.gamesProcessed ?? ''))}</strong></div>
-          <div class="blunders-muted">student plies processed: <strong>${escapeHtml(String(sync.pliesProcessed ?? ''))}</strong> · blunders added: <strong>${escapeHtml(String(sync.blundersAdded ?? ''))}</strong></div>
-          ${sync.lastError ? `<div class="blunders-muted" style="color:#b91c1c;">Error: ${escapeHtml(String(sync.lastError))}</div>` : ``}
+          <div class="bl-debug-line" style="margin-top:6px;">Analysis: <strong>${escapeHtml(sync.running ? 'running' : 'idle')}</strong> · stage: <strong>${escapeHtml(String(sync.stage || ''))}</strong></div>
+          <div class="bl-debug-line">fetched/processed: <strong>${escapeHtml(String(sync.gamesFetched ?? ''))}</strong> / <strong>${escapeHtml(String(sync.gamesProcessed ?? ''))}</strong></div>
+          <div class="bl-debug-line">plies: <strong>${escapeHtml(String(sync.pliesProcessed ?? ''))}</strong> · added: <strong>${escapeHtml(String(sync.blundersAdded ?? ''))}</strong></div>
+          ${sync.lastError ? `<div class="bl-debug-line" style="color:#b91c1c;">Error: ${escapeHtml(String(sync.lastError))}</div>` : ``}
         ` : ``}
       </div>
     `;
   }
 
+  function openHomePracticeModal() {
+    const dur = String(STATE.ui.homePracticeDuration || 'all');
+    const durBtns = [
+      { k: 'week', label: 'Last 7 days' },
+      { k: 'month', label: 'Last 30 days' },
+      { k: 'halfYear', label: 'Last 6 months' },
+      { k: 'year', label: 'Last 12 months' },
+      { k: 'all', label: 'All time' }
+    ];
+    openModal('Practice', `
+      <div class="blunders-muted" style="margin-bottom:10px;">Choose filters, then start a practice puzzle.</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span class="blunders-muted" style="margin-right:2px;">Practice:</span>
+        <button class="btn btn-primary" type="button" data-bl-home-practice-start="random">Random</button>
+        <button class="btn btn-secondary" type="button" data-bl-home-practice-start="d1">1–1.5</button>
+        <button class="btn btn-secondary" type="button" data-bl-home-practice-start="d2">1.51–2</button>
+        <button class="btn btn-secondary" type="button" data-bl-home-practice-start="d3">2.01–3</button>
+        <button class="btn btn-secondary" type="button" data-bl-home-practice-start="d4">3.01+</button>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px;">
+        <span class="blunders-muted" style="margin-right:2px;">Duration:</span>
+        ${durBtns.map(b => `
+          <button class="btn ${dur === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-home-practice-duration="${escapeHtml(b.k)}">
+            ${escapeHtml(b.label)}
+          </button>
+        `).join('')}
+      </div>
+      <div class="blunders-muted" style="margin-top:12px;">Tip: Practice uses <strong>pending + completed</strong> puzzles.</div>
+    `);
+  }
+
+  function startPracticeFromHome(key) {
+    const k = String(key || 'random');
+    const dur = String(STATE.ui.homePracticeDuration || 'all');
+    STATE.reviewDuration = dur;
+    const all = getReviewPuzzlesFiltered();
+    if (!all.length) {
+      closeModal();
+      return;
+    }
+    let pool = [];
+    if (k === 'random') pool = all.filter(p => bucketKeyOfPuzzle(p) !== 'missMate');
+    else pool = all.filter(p => bucketKeyOfPuzzle(p) === k);
+    if (!pool.length) pool = all.slice();
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    STATE.practiceKey = k || 'random';
+    closeModal();
+    setBlunderModePractice(pick);
+    setPage('blunder');
+  }
+
   function renderHomePage() {
     const counts = STATE.data?.counts || {};
     const stats = STATE.data?.stats || {};
+    const r3 = stats?.rolling3m || {};
+    const fmtMovesPer = (v) => {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n <= 0) return '—';
+      if (n >= 100) return `${Math.round(n)}`;
+      return `${n.toFixed(1)}`;
+    };
+    const avgOpp = (() => {
+      const n = Number(r3?.avgOpponentRating ?? NaN);
+      return Number.isFinite(n) && n > 0 ? String(Math.round(n)) : '—';
+    })();
     return `
       <div class="bl-card">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
@@ -602,21 +721,34 @@
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-bl-refresh>Refresh</button>
-          <button class="btn btn-secondary" type="button" data-bl-force>Force refresh</button>
-          <button class="btn btn-primary" type="button" data-bl-go-blunder>Go to Blunder</button>
+          <button class="btn btn-primary" type="button" data-bl-go-blunder>New Blunders</button>
+          <button class="btn btn-secondary" type="button" data-bl-home-practice-open>Practice</button>
         </div>
         <div class="bl-stats">
           <div class="bl-stat">
-            <div class="bl-stat-label">Pending blunders</div>
+            <div class="bl-stat-label">Pending Blunders</div>
             <div class="bl-stat-value">${escapeHtml(String(counts.pending ?? 0))}</div>
           </div>
           <div class="bl-stat">
-            <div class="bl-stat-label">Solved blunders</div>
+            <div class="bl-stat-label">Solved Blunders</div>
             <div class="bl-stat-value">${escapeHtml(String(counts.completed ?? 0))}</div>
           </div>
           <div class="bl-stat">
-            <div class="bl-stat-label">Analyzed games (total)</div>
+            <div class="bl-stat-label">Analyzed games</div>
             <div class="bl-stat-value">${escapeHtml(String(stats.analyzedGamesTotal ?? 0))}</div>
+          </div>
+          <div class="bl-stat">
+            <div class="bl-stat-label">Blunders rate (last 3 months)</div>
+            <div class="blunders-muted" style="margin-top:6px; line-height:1.25;">
+              <div>&gt; 1.0: <strong>1 / ${escapeHtml(fmtMovesPer(r3?.movesPer?.gt1))}</strong> moves</div>
+              <div>&gt; 2.0: <strong>1 / ${escapeHtml(fmtMovesPer(r3?.movesPer?.gt2))}</strong> moves</div>
+              <div>&gt; 3.0: <strong>1 / ${escapeHtml(fmtMovesPer(r3?.movesPer?.gt3))}</strong> moves</div>
+              <div>Miss mate: <strong>1 / ${escapeHtml(fmtMovesPer(r3?.movesPer?.missMate))}</strong> moves</div>
+            </div>
+          </div>
+          <div class="bl-stat">
+            <div class="bl-stat-label">Average Opponents rating (last 3 months)</div>
+            <div class="bl-stat-value">${escapeHtml(avgOpp)}</div>
           </div>
         </div>
         ${renderDebugBlock()}
@@ -1014,13 +1146,7 @@
     const loading = !!STATE.teacher.loading;
     const err = String(STATE.teacher.error || '');
     const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
-    const today = (() => {
-      const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const da = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${da}`;
-    })();
+    const today = todayYmdLocal();
     const q = String(STATE.teacher.search || '').trim().toLowerCase();
     const rows = !q ? allRows : allRows.filter((s) => {
       const name = String(s?.name || '').toLowerCase();
@@ -1035,11 +1161,17 @@
     const totalPending = allRows.reduce((a, s) => a + Number(s?.counts?.pending || 0), 0);
     const totalCompleted = allRows.reduce((a, s) => a + Number(s?.counts?.completed || 0), 0);
     const schedule = STATE.teacher.ratingsSchedule;
+    const bls = STATE.teacher.blundersSchedule;
     const scheduleLine = schedule
       ? `Automatic Chess.com rating refresh: <strong>daily at ${escapeHtml(String(schedule.time || ''))}</strong>.`
       : `Automatic Chess.com rating refresh: <strong>daily</strong>.`;
     const lastRun = schedule?.lastRunAt ? fmtIsoUtc(schedule.lastRunAt) : '—';
     const nextRun = schedule?.nextRunAt ? fmtIsoUtc(schedule.nextRunAt) : '—';
+    const blLine = bls
+      ? `Automatic Blunders sync: <strong>daily at ${escapeHtml(String(bls.time || ''))}</strong>.`
+      : `Automatic Blunders sync: <strong>daily</strong>.`;
+    const blLast = bls?.lastRunAt ? fmtIsoUtc(bls.lastRunAt) : '—';
+    const blNext = bls?.nextRunAt ? fmtIsoUtc(bls.nextRunAt) : '—';
     const selectedCount = Array.from(selectedSet).filter((id) => allRows.some(r => String(r.id || '') === id)).length;
     const bulkHistoryGames = Math.max(1, Math.min(500, Number(STATE.teacher.bulkHistoryGames || 200) || 200));
 
@@ -1051,6 +1183,8 @@
         <div class="bl-card" style="box-shadow:none; margin-top:10px;">
           <div class="blunders-muted">${scheduleLine}</div>
           <div class="blunders-muted" style="margin-top:6px;">Last run: <strong>${escapeHtml(lastRun)}</strong> · Next run: <strong>${escapeHtml(nextRun)}</strong></div>
+          <div class="blunders-muted" style="margin-top:10px;">${blLine}</div>
+          <div class="blunders-muted" style="margin-top:6px;">Last run: <strong>${escapeHtml(blLast)}</strong> · Next run: <strong>${escapeHtml(blNext)}</strong></div>
         </div>
 
         <div class="bl-stats" style="margin-top:12px;">
@@ -1068,19 +1202,20 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:center;">
-          <button class="btn btn-secondary" type="button" data-bl-teacher-refresh-students ${loading ? 'disabled' : ''}>Refresh</button>
-          <button class="btn btn-primary" type="button" data-bl-teacher-save-students ${loading ? 'disabled' : ''}>Save settings</button>
-          <button class="btn btn-secondary" type="button" data-bl-teacher-sync-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Sync selected (${escapeHtml(String(selectedCount))})</button>
-          <button class="btn btn-secondary" type="button" data-bl-teacher-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Force selected</button>
-          <span style="display:inline-flex; gap:6px; align-items:center;">
-            <span class="blunders-muted" style="margin:0;">History N</span>
-            <select data-bl-teacher-bulk-history style="padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;" ${loading ? 'disabled' : ''}>
-              ${[100, 200, 300, 500].map((n) => `<option value="${n}" ${Number(bulkHistoryGames) === n ? 'selected' : ''}>${n}</option>`).join('')}
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <div class="bl-teacher-actions">
+            <button class="btn btn-secondary" type="button" data-bl-teacher-refresh-students ${loading ? 'disabled' : ''}>Refresh</button>
+            <button class="btn btn-primary" type="button" data-bl-teacher-save-students ${loading ? 'disabled' : ''}>Save settings</button>
+            <button class="btn btn-secondary" type="button" data-bl-teacher-sync-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Sync selected (${escapeHtml(String(selectedCount))})</button>
+            <button class="btn btn-secondary" type="button" data-bl-teacher-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Force selected</button>
+          </div>
+          <div class="bl-teacher-actions" style="grid-template-columns: 140px 1fr 1fr;">
+            <select class="btn btn-secondary" data-bl-teacher-bulk-history style="min-width:140px;" ${loading ? 'disabled' : ''}>
+              ${[100, 200, 300, 500].map((n) => `<option value="${n}" ${Number(bulkHistoryGames) === n ? 'selected' : ''}>History N: ${n}</option>`).join('')}
             </select>
             <button class="btn btn-secondary" type="button" data-bl-teacher-history-selected ${(!selectedCount || loading) ? 'disabled' : ''}>History selected</button>
             <button class="btn btn-secondary" type="button" data-bl-teacher-history-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>History Force selected</button>
-          </span>
+          </div>
         </div>
         ${loading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
         ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
@@ -1138,6 +1273,7 @@
                 const ratingLabel = r ? `${r}${rs ? ` (${rs})` : ''}` : '—';
                 const isChecked = selectedSet.has(sid);
                 const historyVal = Number(STATE.teacher?.historyScanN?.[sid] || 200) || 200;
+                const dateVal = String(STATE.teacher?.dateByStudent?.[sid] || '') || today;
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
@@ -1158,7 +1294,7 @@
                       <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-student-thr="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px;">
-                      <input type="text" value="${escapeHtml(today)}" inputmode="numeric" placeholder="YYYY-MM-DD" data-bl-teacher-student-date="${escapeHtml(sid)}" style="width:110px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="text" value="${escapeHtml(dateVal)}" inputmode="numeric" placeholder="YYYY-MM-DD" data-bl-teacher-student-date="${escapeHtml(sid)}" style="width:110px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px; border-radius:0 12px 12px 0; white-space:nowrap;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student="${escapeHtml(sid)}">Sync</button>
@@ -1294,13 +1430,7 @@
     const cfg = STATE.teacher.masterConfig || { maxGamesPerDay: 10, thresholdPoints: 1.0 };
     const maxGames = Number((STATE.teacher.edits.masterCfg?.maxGamesPerDay) ?? cfg.maxGamesPerDay ?? 10) || 10;
     const thr = Number((STATE.teacher.edits.masterCfg?.thresholdPoints) ?? cfg.thresholdPoints ?? 1.0) || 1.0;
-    const today = (() => {
-      const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const da = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${da}`;
-    })();
+    const today = todayYmdLocal();
     const editMasters = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : null;
     const rows = editMasters || masters;
 
@@ -1348,6 +1478,7 @@
                 const name = String(m.name || '');
                 const user = String(m.username || '');
                 const total = Number(m?.counts?.total || 0);
+                const dateVal = String(STATE.teacher?.dateByMaster?.[mid] || '') || today;
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
@@ -1359,7 +1490,7 @@
                     </td>
                     <td style="padding:10px 8px;">${escapeHtml(String(total))}</td>
                     <td style="padding:10px 8px;">
-                      <input type="date" value="${escapeHtml(today)}" data-bl-teacher-master-date="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="date" value="${escapeHtml(dateVal)}" data-bl-teacher-master-date="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px; border-radius:0 12px 12px 0;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master="${escapeHtml(mid)}">Sync</button>
@@ -1433,6 +1564,7 @@
         const data = await teacherApi('/teachers/blunders/students-summary');
         STATE.teacher.students = Array.isArray(data?.students) ? data.students : [];
         STATE.teacher.ratingsSchedule = data?.ratingsSchedule || null;
+        STATE.teacher.blundersSchedule = data?.blundersSchedule || null;
       }
       STATE.teacher.loading = false;
       STATE.teacher.lastLoadedAt = new Date().toISOString();
@@ -1506,8 +1638,7 @@
     try {
       for (let i = 0; i < valid.length; i++) {
         const sid = valid[i];
-        const dateEl = document.querySelector(`[data-bl-teacher-student-date="${CSS.escape(sid)}"]`);
-        const hkDayKey = String(dateEl?.value || '').trim();
+        const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
         STATE.teacher.error = `Syncing ${i + 1}/${valid.length}...`;
         render();
         await teacherSyncStudent(sid, hkDayKey, !!force);
@@ -1875,6 +2006,7 @@
   function render() {
     const root = document.getElementById('blundersRoot');
     if (!root) return;
+    captureFocusInfo(root);
     const role = getBlundersRole();
     if (role === 'teacher') {
       root.innerHTML = `
@@ -1889,6 +2021,7 @@
           ${STATE.ui.modalOpen ? STATE.ui.modalHtml : ''}
         </div>
       `;
+      restoreFocusInfo(root);
       return;
     }
     const content =
@@ -1910,6 +2043,7 @@
         ${STATE.ui.modalOpen ? STATE.ui.modalHtml : ''}
       </div>
     `;
+    restoreFocusInfo(root);
   }
 
   function initBlunders() {
@@ -2046,16 +2180,14 @@
       const syncStu = t?.closest?.('[data-bl-teacher-sync-student]');
       if (syncStu) {
         const sid = String(syncStu.getAttribute('data-bl-teacher-sync-student') || '');
-        const dateEl = root.querySelector(`[data-bl-teacher-student-date="${CSS.escape(sid)}"]`);
-        const hkDayKey = String(dateEl?.value || '');
+        const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
         try { await teacherSyncStudent(sid, hkDayKey, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
         return teacherLoad('students');
       }
       const syncStuF = t?.closest?.('[data-bl-teacher-sync-student-force]');
       if (syncStuF) {
         const sid = String(syncStuF.getAttribute('data-bl-teacher-sync-student-force') || '');
-        const dateEl = root.querySelector(`[data-bl-teacher-student-date="${CSS.escape(sid)}"]`);
-        const hkDayKey = String(dateEl?.value || '');
+        const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
         try { await teacherSyncStudent(sid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
         return teacherLoad('students');
       }
@@ -2078,16 +2210,14 @@
       const syncM = t?.closest?.('[data-bl-teacher-sync-master]');
       if (syncM) {
         const mid = String(syncM.getAttribute('data-bl-teacher-sync-master') || '');
-        const dateEl = root.querySelector(`[data-bl-teacher-master-date="${CSS.escape(mid)}"]`);
-        const hkDayKey = String(dateEl?.value || '');
+        const hkDayKey = String(STATE.teacher?.dateByMaster?.[mid] || '') || todayYmdLocal();
         try { await teacherSyncMaster(mid, hkDayKey, false); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
         return teacherLoad('masterGame');
       }
       const syncMF = t?.closest?.('[data-bl-teacher-sync-master-force]');
       if (syncMF) {
         const mid = String(syncMF.getAttribute('data-bl-teacher-sync-master-force') || '');
-        const dateEl = root.querySelector(`[data-bl-teacher-master-date="${CSS.escape(mid)}"]`);
-        const hkDayKey = String(dateEl?.value || '');
+        const hkDayKey = String(STATE.teacher?.dateByMaster?.[mid] || '') || todayYmdLocal();
         try { await teacherSyncMaster(mid, hkDayKey, true); } catch (e) { STATE.teacher.error = String(e?.message || e); render(); }
         return teacherLoad('masterGame');
       }
@@ -2161,6 +2291,22 @@
         const ts = Number(STATE.ui?.lastBlunderUiActionTs || 0);
         if (STATE.page === 'blunder' && ts && (Date.now() - ts) < 900) return;
         return setPage('review');
+      }
+      if (t?.closest?.('[data-bl-home-practice-open]')) {
+        openHomePracticeModal();
+        return;
+      }
+      const hpd = t?.closest?.('[data-bl-home-practice-duration]');
+      if (hpd) {
+        STATE.ui.homePracticeDuration = String(hpd.getAttribute('data-bl-home-practice-duration') || 'all');
+        openHomePracticeModal();
+        return;
+      }
+      const hps = t?.closest?.('[data-bl-home-practice-start]');
+      if (hps) {
+        const key = String(hps.getAttribute('data-bl-home-practice-start') || 'random');
+        startPracticeFromHome(key);
+        return;
       }
 
       const rp = t?.closest?.('[data-bl-review-practice]');
@@ -2420,6 +2566,26 @@
       if (sEl) {
         STATE.teacher.search = String(sEl.value || '');
         render();
+        return;
+      }
+      const sd = el?.closest?.('[data-bl-teacher-student-date]');
+      if (sd) {
+        const sid = String(sd.getAttribute('data-bl-teacher-student-date') || '');
+        const v = String(sd.value || '').trim();
+        if (sid) {
+          if (!STATE.teacher.dateByStudent || typeof STATE.teacher.dateByStudent !== 'object') STATE.teacher.dateByStudent = {};
+          STATE.teacher.dateByStudent[sid] = v;
+        }
+        return;
+      }
+      const md = el?.closest?.('[data-bl-teacher-master-date]');
+      if (md) {
+        const mid = String(md.getAttribute('data-bl-teacher-master-date') || '');
+        const v = String(md.value || '').trim();
+        if (mid) {
+          if (!STATE.teacher.dateByMaster || typeof STATE.teacher.dateByMaster !== 'object') STATE.teacher.dateByMaster = {};
+          STATE.teacher.dateByMaster[mid] = v;
+        }
         return;
       }
       const ar = el?.closest?.('[data-bl-teacher-all-rating]');

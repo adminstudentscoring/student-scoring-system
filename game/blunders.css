@@ -430,6 +430,41 @@ body.game-is-blunders .game-area-content {
 .bl-sq.dark .bl-coord { color: rgba(255, 255, 255, 0.75); }
 
 /* Review cards */
+/* Compact debug mini box (Home page) */
+.bl-debug-mini {
+  display: inline-block;
+  max-width: 320px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 12px;
+  background: #fff;
+}
+.bl-debug-title {
+  font-weight: 950;
+  color: #111827;
+  margin-bottom: 6px;
+}
+.bl-debug-line {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+.bl-debug-line strong {
+  color: #111827;
+}
+
+/* Teacher top action buttons equal width */
+.bl-teacher-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+.bl-teacher-actions .btn {
+  width: 100%;
+}
 .bl-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
