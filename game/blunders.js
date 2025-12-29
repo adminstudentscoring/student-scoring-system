@@ -10,7 +10,7 @@
   }
 
   const STATE = {
-    page: 'home', // 'home' | 'blunder' | 'review' | 'masterGame' | 'settings'
+    page: 'home', // 'home' | 'blunder' | 'review' | 'masterGame' | 'challenge' | 'leaderboard' | 'settings'
     mode: 'pending', // 'pending' | 'practice'
     me: null,
     data: null,
@@ -74,6 +74,14 @@
       blunderBestMoveUci: '',
       blunderBestMoveSan: '',
       blunderBestOrigin: '', // '' | 'attempt' | 'revealed'
+      // Challenge
+      challengeFen: '',
+      challengeMoveUci: '',
+      challengeMoveSan: '',
+      challengeVerdict: '',
+      challengeBestMoveUci: '',
+      challengeBestMoveSan: '',
+      challengeBestOrigin: '', // '' | 'attempt' | 'revealed'
       // Master game
       masterFen: '',
       masterMoveUci: '',
@@ -83,6 +91,22 @@
       masterBestMoveSan: '',
       masterBestOrigin: '' // '' | 'attempt' | 'revealed'
     },
+    challenge: {
+      loading: false,
+      error: '',
+      sessionId: '',
+      difficulty: 'easy', // easy | medium | hard
+      pointsAward: 1,
+      ratingBucket: '',
+      correct: 0,
+      target: 10,
+      idx: 0,
+      puzzle: null,
+      nextPuzzle: null,
+      done: false,
+      totalPoints: null
+    },
+    leaderboard: { loading: false, error: '', entries: [], myTotal: 0, loadedAt: '' },
     ui: { modalOpen: false, modalHtml: '', lastInlineBestClickTs: 0, homePracticeDuration: 'all', focus: null }
   };
 
@@ -305,6 +329,38 @@
       }
       throw new Error(data?.error || `HTTP ${resp.status}`);
     }
+    return data;
+  }
+
+  async function challengeStart(studentId, difficulty) {
+    const qs = getStudentPasswordQuery();
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/challenge/start${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ difficulty: String(difficulty || 'easy') })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function challengeAttempt(studentId, sessionId, moveUci, revealBest) {
+    const qs = getStudentPasswordQuery();
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/challenge/attempt${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, moveUci, revealBest: !!revealBest })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function fetchChallengeLeaderboard(studentId) {
+    const qs = getStudentPasswordQuery();
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/challenge/leaderboard${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
     return data;
   }
 
@@ -613,6 +669,12 @@
             <span class="bl-nav-left"><span class="bl-nav-icon">♟️</span>Master Game</span>
             ${masterTotalPending ? `<span class="bl-badge">${escapeHtml(masterTotalPending)}</span>` : ``}
           </button>
+          <button class="bl-nav-btn ${STATE.page === 'challenge' ? 'active' : ''}" type="button" data-bl-nav="challenge">
+            <span class="bl-nav-left"><span class="bl-nav-icon">🏁</span>Challenge</span>
+          </button>
+          <button class="bl-nav-btn ${STATE.page === 'leaderboard' ? 'active' : ''}" type="button" data-bl-nav="leaderboard">
+            <span class="bl-nav-left"><span class="bl-nav-icon">🏆</span>Leaderboard</span>
+          </button>
           <button class="bl-nav-btn ${STATE.page === 'settings' ? 'active' : ''}" type="button" data-bl-nav="settings">
             <span class="bl-nav-left"><span class="bl-nav-icon">⚙️</span>Settings</span>
           </button>
@@ -854,6 +916,134 @@
           </div>
           ${renderDebugBlock()}
         `}
+      </div>
+    `;
+  }
+
+  function challengeCurrentPuzzle() {
+    return STATE.challenge && STATE.challenge.puzzle ? STATE.challenge.puzzle : null;
+  }
+
+  function clearChallengeUi() {
+    STATE.uiBoard.challengeVerdict = '';
+    STATE.uiBoard.challengeMoveUci = '';
+    STATE.uiBoard.challengeMoveSan = '';
+    STATE.uiBoard.challengeBestMoveUci = '';
+    STATE.uiBoard.challengeBestMoveSan = '';
+    STATE.uiBoard.challengeBestOrigin = '';
+    STATE.uiBoard.challengeFen = '';
+    STATE.selectedFrom = null;
+  }
+
+  function renderChallengePage() {
+    const ch = STATE.challenge || {};
+    const pz = challengeCurrentPuzzle();
+    const diff = String(ch.difficulty || 'easy');
+    const diffBtns = [
+      { k: 'easy', label: 'Easy (3.0+)', points: 1 },
+      { k: 'medium', label: 'Medium (2.0–2.9)', points: 2 },
+      { k: 'hard', label: 'Hard (1.0–1.9)', points: 3 }
+    ];
+    const flip = pz ? String(pz.studentColor || '') === 'b' : false;
+    const fenOverride = String(STATE.uiBoard.challengeFen || pz?.startFEN || '');
+    const myMoveUci = String(STATE.uiBoard.challengeMoveUci || '');
+    const statusLine = ch.done
+      ? `Completed! You earned <strong>${escapeHtml(String(ch.pointsAward || 0))}</strong> point(s). Total: <strong>${escapeHtml(String(ch.totalPoints ?? '—'))}</strong>`
+      : `Progress: <strong>${escapeHtml(String(ch.correct || 0))}</strong> / <strong>${escapeHtml(String(ch.target || 10))}</strong>`;
+
+    return `
+      <div class="bl-card">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+          <div>
+            <div class="bl-title">Challenge</div>
+            <div class="blunders-muted">${ch.ratingBucket ? `Rating group: <strong>${escapeHtml(String(ch.ratingBucket))}</strong>` : 'Solve 10 puzzles to earn points.'}</div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-challenge-refresh>Refresh</button>
+          </div>
+        </div>
+
+        <div class="bl-card" style="box-shadow:none; margin-top:10px;">
+          <div class="blunders-muted">${statusLine}</div>
+          ${ch.error ? `<div class="blunders-muted" style="margin-top:8px; color:#b91c1c;">${escapeHtml(String(ch.error))}</div>` : ``}
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          ${diffBtns.map(b => `
+            <button class="btn ${diff === b.k ? 'btn-info' : 'btn-secondary'}" type="button" data-bl-challenge-diff="${escapeHtml(b.k)}" ${ch.loading ? 'disabled' : ''}>
+              ${escapeHtml(b.label)} · +${escapeHtml(String(b.points))}
+            </button>
+          `).join('')}
+          <button class="btn btn-primary" type="button" data-bl-challenge-start ${ch.loading ? 'disabled' : ''}>Start (10)</button>
+        </div>
+
+        ${pz ? `
+          <div class="bl-board-wrap" style="margin-top:12px;">
+            <div>
+              ${renderBoardForPuzzle(pz, flip, STATE.selectedFrom, { fenOverride, myMoveUci })}
+            </div>
+            <div>
+              <div class="bl-card" style="box-shadow:none;">
+                <div style="font-weight:950; color:#111827;">Puzzle</div>
+                <div class="blunders-muted" style="margin-top:6px;">Drop ${escapeHtml(Number(pz.dropPoints || 0).toFixed(2))}</div>
+                ${pz.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(pz.gameUrl))}" target="_blank" rel="noopener noreferrer">Chess.com</a></div>` : ''}
+                <div class="blunders-muted" id="blChallengeMsg" style="margin-top:10px;"></div>
+              </div>
+              ${renderInlineResultPanel('challenge')}
+            </div>
+          </div>
+        ` : `
+          <div class="blunders-muted" style="margin-top:12px;">No active challenge. Choose a difficulty and click Start.</div>
+        `}
+      </div>
+    `;
+  }
+
+  function renderLeaderboardPage() {
+    const lb = STATE.leaderboard || {};
+    const entries = Array.isArray(lb.entries) ? lb.entries : [];
+    return `
+      <div class="bl-card">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+          <div>
+            <div class="bl-title">Leaderboard</div>
+            <div class="blunders-muted">Challenge mode total points.</div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-lb-refresh ${lb.loading ? 'disabled' : ''}>Refresh</button>
+          </div>
+        </div>
+
+        <div class="bl-card" style="box-shadow:none; margin-top:10px;">
+          <div class="blunders-muted">Your total: <strong>${escapeHtml(String(lb.myTotal ?? 0))}</strong></div>
+          ${lb.error ? `<div class="blunders-muted" style="margin-top:8px; color:#b91c1c;">${escapeHtml(String(lb.error))}</div>` : ``}
+        </div>
+
+        ${entries.length ? `
+          <div style="margin-top:12px; overflow:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+              <thead>
+                <tr class="blunders-muted" style="text-align:left;">
+                  <th style="padding:8px;">#</th>
+                  <th style="padding:8px;">Student</th>
+                  <th style="padding:8px;">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${entries.slice(0, 200).map((e, i) => `
+                  <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">${escapeHtml(String(i + 1))}</td>
+                    <td style="padding:8px;">
+                      <div style="font-weight:900; color:#111827;">${escapeHtml(String(e.name || 'Student'))}</div>
+                      <div class="blunders-muted">${escapeHtml(String(e.studentId || ''))}</div>
+                    </td>
+                    <td style="padding:8px; font-weight:950; color:#111827;">${escapeHtml(String(e.totalPoints || 0))}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `<div class="blunders-muted" style="margin-top:12px;">No scores yet.</div>`}
       </div>
     `;
   }
@@ -1753,6 +1943,14 @@
       STATE.uiBoard.masterBestMoveSan = '';
       STATE.uiBoard.masterBestOrigin = '';
       STATE.uiBoard.masterFen = '';
+    } else if (scope === 'challenge') {
+      STATE.uiBoard.challengeVerdict = '';
+      STATE.uiBoard.challengeMoveUci = '';
+      STATE.uiBoard.challengeMoveSan = '';
+      STATE.uiBoard.challengeBestMoveUci = '';
+      STATE.uiBoard.challengeBestMoveSan = '';
+      STATE.uiBoard.challengeBestOrigin = '';
+      STATE.uiBoard.challengeFen = '';
     } else {
       STATE.uiBoard.blunderVerdict = '';
       STATE.uiBoard.blunderMoveUci = '';
@@ -1766,12 +1964,13 @@
 
   function renderInlineResultPanel(scope) {
     const isMaster = scope === 'master';
-    const verdict = String(isMaster ? STATE.uiBoard.masterVerdict : STATE.uiBoard.blunderVerdict);
-    const moveUci = String(isMaster ? STATE.uiBoard.masterMoveUci : STATE.uiBoard.blunderMoveUci);
-    const moveSan = String(isMaster ? STATE.uiBoard.masterMoveSan : STATE.uiBoard.blunderMoveSan);
-    const bestUci = String(isMaster ? STATE.uiBoard.masterBestMoveUci : STATE.uiBoard.blunderBestMoveUci);
-    const bestSan = String(isMaster ? STATE.uiBoard.masterBestMoveSan : STATE.uiBoard.blunderBestMoveSan);
-    const origin = String(isMaster ? STATE.uiBoard.masterBestOrigin : STATE.uiBoard.blunderBestOrigin);
+    const isChallenge = scope === 'challenge';
+    const verdict = String(isMaster ? STATE.uiBoard.masterVerdict : (isChallenge ? STATE.uiBoard.challengeVerdict : STATE.uiBoard.blunderVerdict));
+    const moveUci = String(isMaster ? STATE.uiBoard.masterMoveUci : (isChallenge ? STATE.uiBoard.challengeMoveUci : STATE.uiBoard.blunderMoveUci));
+    const moveSan = String(isMaster ? STATE.uiBoard.masterMoveSan : (isChallenge ? STATE.uiBoard.challengeMoveSan : STATE.uiBoard.blunderMoveSan));
+    const bestUci = String(isMaster ? STATE.uiBoard.masterBestMoveUci : (isChallenge ? STATE.uiBoard.challengeBestMoveUci : STATE.uiBoard.blunderBestMoveUci));
+    const bestSan = String(isMaster ? STATE.uiBoard.masterBestMoveSan : (isChallenge ? STATE.uiBoard.challengeBestMoveSan : STATE.uiBoard.blunderBestMoveSan));
+    const origin = String(isMaster ? STATE.uiBoard.masterBestOrigin : (isChallenge ? STATE.uiBoard.challengeBestOrigin : STATE.uiBoard.blunderBestOrigin));
 
     const title =
       verdict === 'best' ? 'Best Move' :
@@ -1794,11 +1993,17 @@
     const bmLine = (bestSan || bestUci) ? `Best: ${bestSan || bestUci}` : '';
 
     const canShowBest = verdict === 'good' || verdict === 'blunder' || !verdict;
-    const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
+    const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder')}">Show best move</button>` : '';
     const retryBtn = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${isMaster ? 'master' : 'blunder'}">Retry</button>`;
-    // Next is only shown when the player FOUND the best move (not when best move was revealed).
-    const nextBtn = (verdict === 'best' && origin === 'attempt')
-      ? `<button class="btn btn-secondary" type="button" data-bl-inline-next="${isMaster ? 'master' : 'blunder'}">${isMaster ? 'Next' : (STATE.mode === 'practice' ? 'Next (Random)' : 'Next')}</button>`
+    const retryScope = isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder');
+    const retryBtn2 = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${retryScope}">Retry</button>`;
+    // Next rules:
+    // - Master: when best by attempt (same as before)
+    // - Blunder: when best by attempt (same as before)
+    // - Challenge: when correct (best/good) by attempt (server decides advance), show Next
+    const canNext = (origin === 'attempt') && (isChallenge ? (verdict === 'best' || verdict === 'good') : (verdict === 'best'));
+    const nextBtn = canNext
+      ? `<button class="btn btn-secondary" type="button" data-bl-inline-next="${isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder')}">${isMaster ? 'Next' : (isChallenge ? 'Next' : (STATE.mode === 'practice' ? 'Next (Random)' : 'Next'))}</button>`
       : '';
 
     return `
@@ -1817,7 +2022,7 @@
         </div>
         <div class="bl-inline-actions">
           ${showBestBtn || nextBtn}
-          ${retryBtn}
+          ${retryBtn2}
         </div>
       </div>
     `;
@@ -1950,6 +2155,47 @@
     submitMasterMoveUci(baseUci);
   }
 
+  function handleChallengeBoardClick(sq) {
+    // After answering, board is frozen until Retry/Next (same UX)
+    if (STATE.uiBoard.challengeVerdict) return;
+    const puzzle = challengeCurrentPuzzle();
+    if (!puzzle) return;
+    const parsed = parseFenBoard(String(puzzle.startFEN || ''));
+    if (!parsed) return;
+    const turn = String(parsed.turn || 'w');
+    const rc = squareToRC(sq);
+    if (!rc) return;
+    const piece = parsed.board[rc.r][rc.c];
+
+    if (!STATE.selectedFrom) {
+      if (!piece) return;
+      const isWhite = piece === piece.toUpperCase();
+      if ((turn === 'w' && !isWhite) || (turn === 'b' && isWhite)) return;
+      STATE.selectedFrom = sq;
+      render();
+      return;
+    }
+
+    const from = STATE.selectedFrom;
+    if (from === sq) {
+      STATE.selectedFrom = null;
+      render();
+      return;
+    }
+
+    const fromRc = squareToRC(from);
+    const movingPiece = fromRc ? parsed.board[fromRc.r][fromRc.c] : '';
+    const movingPawn = movingPiece && movingPiece.toLowerCase() === 'p';
+    const toRank = Number(String(sq[1]));
+    const promoRank = (turn === 'w') ? 8 : 1;
+    const baseUci = `${from}${sq}`.toLowerCase();
+    if (movingPawn && toRank === promoRank) {
+      submitChallengeMoveUci(`${baseUci}q`, false);
+      return;
+    }
+    submitChallengeMoveUci(baseUci, false);
+  }
+
   async function revealBestMove() {
     const puzzle = currentPuzzle();
     if (!puzzle || !STATE.me?.id) return;
@@ -2029,6 +2275,87 @@
     }
   }
 
+  async function challengeLoadLeaderboard() {
+    if (!STATE.me?.id) return;
+    STATE.leaderboard.loading = true;
+    STATE.leaderboard.error = '';
+    render();
+    try {
+      const data = await fetchChallengeLeaderboard(STATE.me.id);
+      STATE.leaderboard.entries = Array.isArray(data?.entries) ? data.entries : [];
+      STATE.leaderboard.myTotal = Number(data?.myTotal || 0) || 0;
+      STATE.leaderboard.loadedAt = new Date().toISOString();
+      STATE.leaderboard.loading = false;
+      render();
+    } catch (e) {
+      STATE.leaderboard.loading = false;
+      STATE.leaderboard.error = String(e?.message || e);
+      render();
+    }
+  }
+
+  async function challengeStartOrRestart() {
+    if (!STATE.me?.id) return;
+    STATE.challenge.loading = true;
+    STATE.challenge.error = '';
+    STATE.challenge.done = false;
+    STATE.challenge.nextPuzzle = null;
+    render();
+    try {
+      const out = await challengeStart(STATE.me.id, String(STATE.challenge.difficulty || 'easy'));
+      STATE.challenge.sessionId = String(out?.sessionId || '');
+      STATE.challenge.pointsAward = Number(out?.pointsAward || 0) || 0;
+      STATE.challenge.ratingBucket = String(out?.ratingBucket || '');
+      STATE.challenge.correct = Number(out?.correct || 0) || 0;
+      STATE.challenge.target = Number(out?.target || 10) || 10;
+      STATE.challenge.idx = Number(out?.idx || 0) || 0;
+      STATE.challenge.puzzle = out?.puzzle || null;
+      STATE.challenge.done = false;
+      STATE.challenge.totalPoints = out?.totalPoints ?? null;
+      clearInlineResult('challenge');
+      if (STATE.challenge.puzzle?.startFEN) STATE.uiBoard.challengeFen = String(STATE.challenge.puzzle.startFEN || '');
+      STATE.challenge.loading = false;
+      render();
+    } catch (e) {
+      STATE.challenge.loading = false;
+      STATE.challenge.error = String(e?.message || e);
+      render();
+    }
+  }
+
+  async function submitChallengeMoveUci(uci, revealBest) {
+    const puzzle = challengeCurrentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    try {
+      const out = await challengeAttempt(STATE.me.id, String(STATE.challenge.sessionId || ''), String(uci || ''), !!revealBest);
+      // Update inline result panel state
+      STATE.uiBoard.challengeVerdict = String(out?.verdict || (out?.ok ? 'good' : 'blunder'));
+      STATE.uiBoard.challengeMoveUci = String(out?.playedUci || uci || '');
+      STATE.uiBoard.challengeMoveSan = String(out?.playedSan || '');
+      STATE.uiBoard.challengeFen = String(out?.afterFEN || '') || String(puzzle.startFEN || '');
+      STATE.uiBoard.challengeBestOrigin = String(out?.origin || 'attempt');
+      STATE.uiBoard.challengeBestMoveUci = out?.bestMove ? String(out.bestMove) : '';
+      STATE.uiBoard.challengeBestMoveSan = out?.bestSan ? String(out.bestSan) : '';
+
+      // Progress / next puzzle
+      STATE.challenge.correct = Number(out?.correct || STATE.challenge.correct) || 0;
+      STATE.challenge.target = Number(out?.target || STATE.challenge.target) || 10;
+      STATE.challenge.idx = Number(out?.idx || STATE.challenge.idx) || 0;
+      STATE.challenge.nextPuzzle = out?.nextPuzzle || null;
+      STATE.challenge.done = !!out?.done;
+      if (out?.totalPoints !== undefined) STATE.challenge.totalPoints = out.totalPoints;
+      if (out?.pointsGained) {
+        // On completion, refresh leaderboard total lazily when user visits leaderboard.
+      }
+    } catch (e) {
+      STATE.challenge.error = String(e?.message || e);
+    } finally {
+      STATE.selectedFrom = null;
+      STATE.promoPending = null;
+      render();
+    }
+  }
+
   function render() {
     const root = document.getElementById('blundersRoot');
     if (!root) return;
@@ -2055,6 +2382,8 @@
       STATE.page === 'blunder' ? renderBlunderPage() :
       STATE.page === 'masterGame' ? renderStudentMasterGamePage() :
       STATE.page === 'review' ? renderReviewPage() :
+      STATE.page === 'challenge' ? renderChallengePage() :
+      STATE.page === 'leaderboard' ? renderLeaderboardPage() :
       renderSettingsPage();
 
     root.innerHTML = `
@@ -2257,6 +2586,9 @@
           if (key === 'masterGame') {
             ensureMasterGameLoaded().catch(() => {});
           }
+          if (key === 'leaderboard') {
+            challengeLoadLeaderboard().catch(() => {});
+          }
         }
         return;
       }
@@ -2336,6 +2668,26 @@
         return;
       }
 
+      const cd = t?.closest?.('[data-bl-challenge-diff]');
+      if (cd) {
+        STATE.challenge.difficulty = String(cd.getAttribute('data-bl-challenge-diff') || 'easy');
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-challenge-start]')) {
+        clearChallengeUi();
+        challengeStartOrRestart().catch(() => {});
+        return;
+      }
+      if (t?.closest?.('[data-bl-challenge-refresh]')) {
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-lb-refresh]')) {
+        challengeLoadLeaderboard().catch(() => {});
+        return;
+      }
+
       const rp = t?.closest?.('[data-bl-review-practice]');
       if (rp) {
         const key = String(rp.getAttribute('data-bl-review-practice') || '');
@@ -2400,6 +2752,7 @@
         ev.stopPropagation?.();
         const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
         if (scope === 'master') revealMasterBestMove();
+        else if (scope === 'challenge') submitChallengeMoveUci('', true);
         else revealBestMove();
         return;
       }
@@ -2413,6 +2766,22 @@
           clearInlineResult('master');
           STATE.selectedFrom = null;
           await ensureMasterPuzzlesLoaded(mid);
+          return;
+        }
+        if (scope === 'challenge') {
+          // Advance to next puzzle prepared by server after a correct answer.
+          const np = STATE.challenge?.nextPuzzle || null;
+          clearInlineResult('challenge');
+          STATE.selectedFrom = null;
+          STATE.challenge.nextPuzzle = null;
+          if (np && !STATE.challenge?.done) {
+            STATE.challenge.puzzle = np;
+            STATE.uiBoard.challengeFen = String(np.startFEN || '');
+            render();
+            return;
+          }
+          // If done (or no next), just re-render.
+          render();
           return;
         }
         // blunder
@@ -2465,6 +2834,16 @@
           render();
           return;
         }
+        if (scope === 'challenge') {
+          const pz = challengeCurrentPuzzle();
+          if (pz) STATE.uiBoard.challengeFen = String(pz.startFEN || '');
+          STATE.uiBoard.challengeMoveUci = '';
+          STATE.uiBoard.challengeVerdict = '';
+          STATE.uiBoard.challengeBestMoveUci = '';
+          STATE.selectedFrom = null;
+          render();
+          return;
+        }
         const pz = currentPuzzle();
         // If the last attempt solved a pending puzzle (good/best), retry should be practice (non-destructive).
         if (STATE.lastAttemptWasPendingSolve && STATE.mode !== 'practice') {
@@ -2507,6 +2886,12 @@
         STATE.ui.lastBlunderUiActionTs = Date.now();
         const sq = String(sqEl.getAttribute('data-bl-sq') || '');
         handleBoardClick(sq);
+        return;
+      }
+      if (sqEl && STATE.page === 'challenge') {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        const sq = String(sqEl.getAttribute('data-bl-sq') || '');
+        handleChallengeBoardClick(sq);
         return;
       }
       if (sqEl && STATE.page === 'masterGame') {
