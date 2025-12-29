@@ -1425,13 +1425,36 @@ async function syncBlundersForStudent(student, opts = {}) {
       statsOrgs = null; statsOrg = null; stStats = null;
     }
 
+    // Skip games already analyzed (avoid re-running Stockfish on the same games for daily refresh & history scan).
+    const analyzedMap = (stStats && stStats.analyzed && typeof stStats.analyzed === 'object') ? stStats.analyzed : {};
+    const analyzedKeys = new Set(Object.keys(analyzedMap || {}));
+    const gamesAll = Array.isArray(games) ? games : [];
+    const gamesNew = gamesAll.filter((g) => {
+      const k = String(g?.url || g?.uuid || '').trim();
+      if (!k) return true;
+      return !analyzedKeys.has(k);
+    });
+    if (gamesNew.length !== gamesAll.length) {
+      blundersSyncState.set(sid, {
+        ...(blundersSyncState.get(sid) || {}),
+        stage: 'analyze',
+        gamesFetched: gamesAll.length,
+        updatedAt: new Date().toISOString(),
+        fetchSummary: { skippedAlreadyAnalyzed: gamesAll.length - gamesNew.length, toAnalyze: gamesNew.length }
+      });
+    }
+    if (!gamesNew.length) {
+      // All fetched games were already analyzed; nothing to do.
+      return { ok: true, skipped: true, reason: 'already_analyzed', games: gamesAll.length, added: 0, gamesProcessed: 0, pliesProcessed: 0, hkDayKey, maxGamesPerDay, thresholdPoints };
+    }
+
     const puzzles = await readBlundersPuzzles();
     const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
     let added = 0;
     let gamesProcessed = 0;
     let pliesProcessed = 0;
 
-    for (const game of games) {
+    for (const game of gamesNew) {
       const pgn = String(game.pgn || '');
       if (!pgn) continue;
       const me = username.toLowerCase();
@@ -1450,27 +1473,28 @@ async function syncBlundersForStudent(student, opts = {}) {
       }
       if (!full) continue;
       const moves = full.history({ verbose: true }) || [];
-      // Per-game meta (best-effort): opponent rating + ply count
-      try {
-        if (stStats) {
-          const keyGame = String(game.url || game.uuid || '').trim();
-          if (keyGame) {
-            const oppRatingRaw =
-              studentColor === 'w' ? Number(game?.black?.rating) :
-              studentColor === 'b' ? Number(game?.white?.rating) : NaN;
-            const oppRating = Number.isFinite(oppRatingRaw) && oppRatingRaw > 0 ? oppRatingRaw : null;
-            stStats.analyzed[keyGame] = {
-              ...(stStats.analyzed[keyGame] || {}),
-              url: String(game?.url || ''),
-              uuid: String(game?.uuid || ''),
-              endTime: Number(game?.end_time || 0),
-              timeClass: String(game?.time_class || ''),
-              plyCount: Array.isArray(moves) ? moves.length : 0,
-              opponentRating: oppRating
-            };
-          }
+    // Per-game meta (best-effort): opponent rating + ply count
+    // Only record for games we actually analyze in this run (avoids marking "analyzed" for skipped games).
+    try {
+      if (stStats) {
+        const keyGame = String(game.url || game.uuid || '').trim();
+        if (keyGame) {
+          const oppRatingRaw =
+            studentColor === 'w' ? Number(game?.black?.rating) :
+            studentColor === 'b' ? Number(game?.white?.rating) : NaN;
+          const oppRating = Number.isFinite(oppRatingRaw) && oppRatingRaw > 0 ? oppRatingRaw : null;
+          stStats.analyzed[keyGame] = {
+            ...(stStats.analyzed[keyGame] || {}),
+            url: String(game?.url || ''),
+            uuid: String(game?.uuid || ''),
+            endTime: Number(game?.end_time || 0),
+            timeClass: String(game?.time_class || ''),
+            plyCount: Array.isArray(moves) ? moves.length : 0,
+            opponentRating: oppRating
+          };
         }
-      } catch {}
+      }
+    } catch {}
       const replay = new Chess();
       for (let ply = 0; ply < moves.length; ply++) {
         const beforeFen = replay.fen();
