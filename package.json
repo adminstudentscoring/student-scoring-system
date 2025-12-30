@@ -13,6 +13,8 @@
     "migrate-students": "node scripts/migrate-students.js",
     "db:migrate": "node scripts/db-migrate.js",
     "db:ping": "node -e \"require('dotenv').config(); require('./db/postgres').dbPing().then(()=>console.log('OK')).catch((e)=>{console.error(e); process.exit(1);});\""
+    ,
+    "blunders:import-db": "node scripts/blunders-import-to-db.js"
   },
   "keywords": [
     "student",

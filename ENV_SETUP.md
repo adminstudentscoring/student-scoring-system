@@ -64,6 +64,24 @@ npm run db:migrate
 
 > 注意：`DB_AUTO_MIGRATE=1` 會在伺服器啟動時自動跑 migrations。未準備好前建議保持 `0`，用 `npm run db:migrate` 手動跑。
 
+#### Blunders（Postgres 進階）
+本專案提供 **Blunders（不含 master）** 的 Postgres 表結構與匯入腳本（先做資料入庫，之後再逐步把 API 切去 DB）。
+
+1) 套用最新 migrations（會建立 blunders tables）：
+```bash
+npm run db:migrate
+```
+
+2) 匯入現有 JSON 題庫/進度到 Postgres：
+```bash
+npm run blunders:import-db
+```
+
+3) （可選）Teacher All blunders 改用 Postgres 查詢（預設關閉）：
+```text
+BLUNDERS_USE_DB=1
+```
+
 ### 4. 運行服務器
 
 ```bash

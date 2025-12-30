@@ -7630,6 +7630,200 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       return true;
     };
 
+    // Feature flag: use Postgres-backed queries (requires importing data to DB first).
+    if (String(process.env.BLUNDERS_USE_DB || '') === '1') {
+      const pool = appDb.getPool();
+      if (!pool) return res.status(500).json({ error: 'Postgres not configured for BLUNDERS_USE_DB' });
+
+      const allowedIdsArr = Array.from(allowedStudentIds);
+      const filteredIds = (rating === 'any')
+        ? allowedIdsArr
+        : allowedIdsArr.filter((sid) => inBucket(ratingMap.get(String(sid))?.rating));
+      if (!filteredIds.length) {
+        const emptyCounts = { missMate: 0, d1: 0, d2: 0, d3: 0, d4: 0, total: 0 };
+        return res.json({ ok: true, orgId, duration, rating, pageSize, counts: emptyCounts });
+      }
+
+      const startMs = (() => {
+        const now = Date.now();
+        const day = 24 * 60 * 60 * 1000;
+        if (duration === 'week') return now - 7 * day;
+        if (duration === 'month') return now - 30 * day;
+        if (duration === 'halfYear') return now - 182 * day;
+        if (duration === 'year') return now - 365 * day;
+        return 0;
+      })();
+      const cutoffTs = startMs ? new Date(startMs).toISOString() : null;
+
+      const client = await pool.connect();
+      try {
+        const baseCte = `
+          WITH base AS (
+            SELECT
+              p.key,
+              p.org_id,
+              p.student_id,
+              p.chesscom_username,
+              p.game_url,
+              p.time_class,
+              p.end_time_sec,
+              p.student_color,
+              p.start_fen,
+              p.opponent_move_uci,
+              p.opponent_san,
+              p.blunder_move_uci,
+              p.blunder_san,
+              p.best_move_uci,
+              p.best_cp,
+              p.after_cp,
+              p.drop_cp,
+              p.drop_points,
+              p.created_at,
+              pr.status,
+              pr.completed_at,
+              COALESCE(pr.completed_at, to_timestamp(p.end_time_sec), p.created_at, to_timestamp(p.sort_at_ms/1000.0)) AS sort_ts,
+              CASE
+                WHEN (p.best_cp IS NOT NULL AND ABS(p.best_cp) >= 99999) THEN 'missMate'
+                WHEN (p.drop_points IS NULL) THEN 'd1'
+                WHEN (p.drop_points >= 1.0 AND p.drop_points <= 1.5) THEN 'd1'
+                WHEN (p.drop_points > 1.5 AND p.drop_points <= 2.0) THEN 'd2'
+                WHEN (p.drop_points > 2.0 AND p.drop_points <= 3.0) THEN 'd3'
+                WHEN (p.drop_points > 3.0) THEN 'd4'
+                ELSE 'd1'
+              END AS bucket
+            FROM blunders_puzzles p
+            LEFT JOIN blunders_progress pr
+              ON pr.org_id = p.org_id AND pr.student_id = p.student_id AND pr.puzzle_key = p.key
+            WHERE p.org_id = $1
+              AND p.student_id = ANY($2)
+              AND ($3::timestamptz IS NULL OR COALESCE(pr.completed_at, to_timestamp(p.end_time_sec), p.created_at, to_timestamp(p.sort_at_ms/1000.0)) >= $3::timestamptz)
+          )
+        `;
+
+        const countsRes = await client.query(
+          `${baseCte}
+           SELECT
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE bucket='missMate')::int AS "missMate",
+             COUNT(*) FILTER (WHERE bucket='d1')::int AS "d1",
+             COUNT(*) FILTER (WHERE bucket='d2')::int AS "d2",
+             COUNT(*) FILTER (WHERE bucket='d3')::int AS "d3",
+             COUNT(*) FILTER (WHERE bucket='d4')::int AS "d4"
+           FROM base
+          `,
+          [orgId, filteredIds, cutoffTs]
+        );
+        const c0 = countsRes.rows[0] || {};
+        const counts = {
+          missMate: Number(c0.missMate || 0) || 0,
+          d1: Number(c0.d1 || 0) || 0,
+          d2: Number(c0.d2 || 0) || 0,
+          d3: Number(c0.d3 || 0) || 0,
+          d4: Number(c0.d4 || 0) || 0,
+          total: Number(c0.total || 0) || 0
+        };
+
+        if (!bucketKey) {
+          return res.json({ ok: true, orgId, duration, rating, pageSize, counts });
+        }
+        if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(bucketKey)) {
+          return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
+        }
+
+        const totalBucket = Number(counts[bucketKey] || 0) || 0;
+        const totalPages = Math.max(1, Math.ceil(totalBucket / pageSize));
+        const safePage = Math.max(1, Math.min(totalPages, page));
+        const offset = (safePage - 1) * pageSize;
+
+        const pageRes = await client.query(
+          `${baseCte}
+           SELECT
+             key,
+             student_id,
+             chesscom_username,
+             game_url,
+             time_class,
+             end_time_sec,
+             student_color,
+             start_fen,
+             opponent_move_uci,
+             opponent_san,
+             blunder_move_uci,
+             blunder_san,
+             best_move_uci,
+             best_cp,
+             after_cp,
+             drop_cp,
+             drop_points,
+             created_at,
+             status,
+             completed_at,
+             EXTRACT(EPOCH FROM sort_ts) * 1000 AS "sortAtMs"
+           FROM base
+           WHERE bucket = $4
+           ORDER BY sort_ts DESC
+           LIMIT $5 OFFSET $6
+          `,
+          [orgId, filteredIds, cutoffTs, bucketKey, pageSize, offset]
+        );
+
+        const entries = (pageRes.rows || []).map((r) => {
+          const sid = String(r.student_id || '');
+          const stu = studentMap.get(sid) || { name: 'Student', studentId: '' };
+          const rt = ratingMap.get(sid) || { rating: null, source: null, updatedAt: null };
+          const completedAt = r.completed_at ? new Date(r.completed_at).toISOString() : null;
+          const endTime = Number(r.end_time_sec || 0) || 0;
+          const dropPoints = Number(r.drop_points ?? 0) || 0;
+          return {
+            // Keep client-compatible shape (subset used by UI)
+            key: String(r.key || ''),
+            orgId,
+            studentId: sid,
+            chessComUsername: r.chesscom_username ? String(r.chesscom_username) : null,
+            gameUrl: r.game_url ? String(r.game_url) : '',
+            timeClass: r.time_class ? String(r.time_class) : '',
+            endTime,
+            studentColor: r.student_color ? String(r.student_color) : '',
+            startFEN: r.start_fen ? String(r.start_fen) : '',
+            opponentMoveUci: r.opponent_move_uci ? String(r.opponent_move_uci) : '',
+            opponentSan: r.opponent_san ? String(r.opponent_san) : '',
+            blunderMoveUci: r.blunder_move_uci ? String(r.blunder_move_uci) : '',
+            blunderSan: r.blunder_san ? String(r.blunder_san) : '',
+            bestMoveUci: r.best_move_uci ? String(r.best_move_uci) : '',
+            bestCp: (r.best_cp === null || r.best_cp === undefined) ? null : Number(r.best_cp),
+            afterCp: (r.after_cp === null || r.after_cp === undefined) ? null : Number(r.after_cp),
+            dropCp: (r.drop_cp === null || r.drop_cp === undefined) ? null : Number(r.drop_cp),
+            dropPoints,
+            status: r.status ? String(r.status) : '',
+            completedAt: completedAt || null,
+            sortAtMs: Number(r.sortAtMs || 0) || 0,
+            // Teacher UI extras
+            studentName: stu.name,
+            studentStudentId: stu.studentId,
+            chessComRating: (rt.rating === null || rt.rating === undefined) ? null : Number(rt.rating),
+            chessComRatingSource: rt.source,
+            chessComRatingUpdatedAt: rt.updatedAt
+          };
+        });
+
+        return res.json({
+          ok: true,
+          orgId,
+          duration,
+          rating,
+          pageSize,
+          bucket: bucketKey,
+          page: safePage,
+          totalPages,
+          totalBucket,
+          counts,
+          entries
+        });
+      } finally {
+        try { client.release(); } catch {}
+      }
+    }
+
     const puzzles = await readBlundersPuzzles();
     const mine = puzzles
       .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master')
@@ -9449,6 +9643,39 @@ app.post('/api/public/students/:id/blunders/:puzzleId/attempt', async (req, res)
 
       puzzles[idx] = puzzle;
       await writeBlundersPuzzles(puzzles);
+
+      // Optional dual-write: keep Postgres progress in sync (so BLUNDERS_USE_DB remains accurate).
+      // This is best-effort and never blocks the student flow.
+      try {
+        if (appDb.getPool()) {
+          const key = String(puzzle.key || '').trim();
+          if (key) {
+            const pool = appDb.getPool();
+            const status = String(puzzle.status || 'pending') === 'completed' ? 'completed' : 'pending';
+            const completedAt = status === 'completed' ? String(puzzle.completedAt || '') : '';
+            const attempts = Array.isArray(puzzle.attempts) ? puzzle.attempts : [];
+            await pool.query(
+              `
+              INSERT INTO blunders_progress(org_id, student_id, puzzle_key, status, completed_at, attempts, updated_at)
+              VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, NOW())
+              ON CONFLICT (org_id, student_id, puzzle_key) DO UPDATE SET
+                status=EXCLUDED.status,
+                completed_at=EXCLUDED.completed_at,
+                attempts=EXCLUDED.attempts,
+                updated_at=NOW()
+            `,
+              [
+                String(orgId),
+                String(student.id),
+                key,
+                status,
+                completedAt ? new Date(completedAt).toISOString() : null,
+                JSON.stringify(attempts)
+              ]
+            );
+          }
+        }
+      } catch {}
     }
 
     const exposeBest = !!revealBest || (bestMove && parsed.uci === bestMove);
