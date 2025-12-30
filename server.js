@@ -13,6 +13,37 @@ const { Chess } = require('chess.js');
 
 const app = express();
 
+// ============================
+// Process-level crash diagnostics (Railway)
+// ============================
+function logProcessContext(tag, extra) {
+  try {
+    const mem = process.memoryUsage ? process.memoryUsage() : null;
+    console.error(`[${new Date().toISOString()}] ${tag}`, {
+      pid: process.pid,
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      uptimeSec: Math.round(process.uptime ? process.uptime() : 0),
+      rssMB: mem ? Math.round((mem.rss || 0) / 1024 / 1024) : null,
+      heapUsedMB: mem ? Math.round((mem.heapUsed || 0) / 1024 / 1024) : null,
+      ...((extra && typeof extra === 'object') ? extra : {})
+    });
+  } catch {}
+}
+
+process.on('unhandledRejection', (reason) => {
+  logProcessContext('unhandledRejection', { reason: String(reason?.stack || reason?.message || reason) });
+});
+
+process.on('uncaughtException', (err) => {
+  logProcessContext('uncaughtException', { error: String(err?.stack || err?.message || err) });
+  // In production, exit so Railway can restart a clean process.
+  if ((process.env.NODE_ENV || 'development') === 'production') {
+    try { setTimeout(() => process.exit(1), 500).unref?.(); } catch {}
+  }
+});
+
 // Environment variables with defaults
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -14359,6 +14390,15 @@ async function startServer() {
   
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server });
+
+  // Graceful shutdown (Railway sends SIGTERM during deploy/restart)
+  const shutdown = (signal) => {
+    logProcessContext('shutdown', { signal });
+    try { server.close(() => process.exit(0)); } catch { try { process.exit(0); } catch {} }
+    try { setTimeout(() => process.exit(0), 5000).unref?.(); } catch {}
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   // ============================
   // V.Chess Platform (WebSocket realtime)
