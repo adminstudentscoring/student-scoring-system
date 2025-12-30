@@ -121,7 +121,26 @@
       totalPoints: null
     },
     leaderboard: { loading: false, error: '', entries: [], myTotal: 0, loadedAt: '' },
-    ui: { modalOpen: false, modalHtml: '', lastInlineBestClickTs: 0, homePracticeDuration: 'all', focus: null }
+    ui: {
+      modalOpen: false,
+      modalHtml: '',
+      lastInlineBestClickTs: 0,
+      homePracticeDuration: 'all',
+      focus: null,
+      // Student Review UI (bucketed + paged; avoids rendering all puzzles at once)
+      reviewUi: {
+        pageSize: 50,
+        cacheKey: '',
+        cache: null, // { totalAll, totalFiltered, counts, buckets: {key: puzzles[]} }
+        buckets: {
+          missMate: { open: false, page: 1, totalPages: 1, jump: '' },
+          d1: { open: false, page: 1, totalPages: 1, jump: '' },
+          d2: { open: false, page: 1, totalPages: 1, jump: '' },
+          d3: { open: false, page: 1, totalPages: 1, jump: '' },
+          d4: { open: false, page: 1, totalPages: 1, jump: '' }
+        }
+      }
+    }
   };
 
   function todayYmdLocal() {

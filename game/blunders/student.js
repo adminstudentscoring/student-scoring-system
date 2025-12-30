@@ -39,6 +39,149 @@
     return list[idx] || null;
   }
 
+  function ensureReviewUi() {
+    if (!STATE.ui || typeof STATE.ui !== 'object') STATE.ui = {};
+    if (!STATE.ui.reviewUi || typeof STATE.ui.reviewUi !== 'object') {
+      STATE.ui.reviewUi = {
+        pageSize: 50,
+        cacheKey: '',
+        cache: null,
+        buckets: {
+          missMate: { open: false, page: 1, totalPages: 1, jump: '' },
+          d1: { open: false, page: 1, totalPages: 1, jump: '' },
+          d2: { open: false, page: 1, totalPages: 1, jump: '' },
+          d3: { open: false, page: 1, totalPages: 1, jump: '' },
+          d4: { open: false, page: 1, totalPages: 1, jump: '' }
+        }
+      };
+    }
+    if (!STATE.ui.reviewUi.buckets || typeof STATE.ui.reviewUi.buckets !== 'object') {
+      STATE.ui.reviewUi.buckets = {};
+    }
+    const keys = ['missMate', 'd1', 'd2', 'd3', 'd4'];
+    for (const k of keys) {
+      if (!STATE.ui.reviewUi.buckets[k] || typeof STATE.ui.reviewUi.buckets[k] !== 'object') {
+        STATE.ui.reviewUi.buckets[k] = { open: false, page: 1, totalPages: 1, jump: '' };
+      }
+    }
+    return STATE.ui.reviewUi;
+  }
+
+  function resetReviewUi() {
+    const ui = ensureReviewUi();
+    ui.cacheKey = '';
+    ui.cache = null;
+    for (const b of Object.values(ui.buckets)) {
+      if (!b || typeof b !== 'object') continue;
+      b.open = false;
+      b.page = 1;
+      b.totalPages = 1;
+      b.jump = '';
+    }
+  }
+
+  function buildReviewCacheIfNeeded() {
+    const ui = ensureReviewUi();
+    const dur = String(STATE.reviewDuration || 'all');
+    const cacheKey = `dur:${dur}`;
+    if (ui.cache && ui.cacheKey === cacheKey) return ui.cache;
+
+    const allAll = [
+      ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+      ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+    ];
+    const all = getReviewPuzzlesFiltered(); // includes pending + completed, filtered by duration
+
+    const sorted = all.slice().sort((a, b) => {
+      // Keep mate-miss near top by drop, then by time
+      const da = dropOfPuzzle(a);
+      const db = dropOfPuzzle(b);
+      if (db !== da) return db - da;
+      const ta = puzzleTimeMs(a);
+      const tb = puzzleTimeMs(b);
+      return tb - ta;
+    });
+
+    const buckets = { missMate: [], d1: [], d2: [], d3: [], d4: [] };
+    for (const p of sorted) {
+      const bk = bucketKeyOfPuzzle(p);
+      if (bk === 'missMate') buckets.missMate.push(p);
+      else if (bk === 'd1') buckets.d1.push(p);
+      else if (bk === 'd2') buckets.d2.push(p);
+      else if (bk === 'd3') buckets.d3.push(p);
+      else buckets.d4.push(p);
+    }
+
+    const counts = {
+      missMate: buckets.missMate.length,
+      d1: buckets.d1.length,
+      d2: buckets.d2.length,
+      d3: buckets.d3.length,
+      d4: buckets.d4.length
+    };
+
+    ui.cache = { totalAll: allAll.length, totalFiltered: all.length, counts, buckets };
+    ui.cacheKey = cacheKey;
+
+    // Update totalPages based on counts
+    const pageSize = Math.max(1, Number(ui.pageSize || 50) || 50);
+    for (const [k, b] of Object.entries(ui.buckets)) {
+      const n = Number(counts[k] || 0) || 0;
+      b.totalPages = Math.max(1, Math.ceil(n / pageSize));
+      // Clamp current page
+      b.page = Math.max(1, Math.min(b.totalPages, Number(b.page || 1) || 1));
+    }
+    return ui.cache;
+  }
+
+  function reviewToggleBucket(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureReviewUi();
+    const b = ui.buckets[key];
+    if (!b) return;
+    b.open = !b.open;
+    entry().render();
+  }
+
+  function reviewPrev(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureReviewUi();
+    const b = ui.buckets[key];
+    if (!b) return;
+    b.page = Math.max(1, (Number(b.page || 1) || 1) - 1);
+    entry().render();
+  }
+
+  function reviewNext(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureReviewUi();
+    const b = ui.buckets[key];
+    if (!b) return;
+    b.page = Math.min(Math.max(1, Number(b.totalPages || 1) || 1), (Number(b.page || 1) || 1) + 1);
+    entry().render();
+  }
+
+  function reviewSetJump(bucketKey, value) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureReviewUi();
+    const b = ui.buckets[key];
+    if (!b) return;
+    b.jump = String(value || '').trim();
+  }
+
+  function reviewGo(bucketKey) {
+    const key = String(bucketKey || '').trim();
+    const ui = ensureReviewUi();
+    const b = ui.buckets[key];
+    if (!b) return;
+    const raw = String(b.jump || '').trim();
+    const n = Math.floor(Number(raw || 0));
+    if (!Number.isFinite(n) || n < 1) return;
+    b.page = Math.max(1, Math.min(Math.max(1, Number(b.totalPages || 1) || 1), n));
+    b.jump = '';
+    entry().render();
+  }
+
   function renderSidebar() {
     const pendingCount = Array.isArray(STATE.pending) ? STATE.pending.length : 0;
     const completedCount = Array.isArray(STATE.completed) ? STATE.completed.length : 0;
@@ -284,59 +427,67 @@
   }
 
   function renderReviewPage() {
-    const allAll = [
-      ...(Array.isArray(STATE.pending) ? STATE.pending : []),
-      ...(Array.isArray(STATE.completed) ? STATE.completed : [])
-    ];
-    const all = getReviewPuzzlesFiltered();
-    const sorted = all.slice().sort((a, b) => {
-      // Keep mate-miss near top by drop, then by time
-      const da = dropOfPuzzle(a);
-      const db = dropOfPuzzle(b);
-      if (db !== da) return db - da;
-      const ta = puzzleTimeMs(a);
-      const tb = puzzleTimeMs(b);
-      return tb - ta;
-    });
+    const ui = ensureReviewUi();
+    const cache = buildReviewCacheIfNeeded();
+    const pageSize = Math.max(1, Number(ui.pageSize || 50) || 50);
 
-    const groups = { missMate: [], d1: [], d2: [], d3: [], d4: [] };
-    for (const p of sorted) {
-      if (isMissMatePuzzle(p)) { groups.missMate.push(p); continue; }
-      const d = dropOfPuzzle(p);
-      if (d <= 1.5) groups.d1.push(p);
-      else if (d <= 2.0) groups.d2.push(p);
-      else if (d <= 3.0) groups.d3.push(p);
-      else groups.d4.push(p);
-    }
-
-    const renderGroup = (title, items, openByDefault) => {
-      const arr = Array.isArray(items) ? items : [];
-      if (!arr.length) return '';
+    const renderRows = (arr, bucketKey) => {
+      const list = Array.isArray(arr) ? arr : [];
+      const b = ui.buckets[bucketKey] || { page: 1, totalPages: 1 };
+      const page = Math.max(1, Number(b.page || 1) || 1);
+      const start = (page - 1) * pageSize;
+      const pageItems = list.slice(start, start + pageSize);
+      if (!pageItems.length) return `<div class="blunders-muted" style="margin-top:10px;">No records.</div>`;
       return `
-        <details ${openByDefault ? 'open' : ''} style="margin-top:12px;">
-          <summary class="blunders-muted" style="cursor:pointer; font-weight:950; color:#111827;">
-            ${escapeHtml(title)} <span class="bl-badge" style="margin-left:8px;">${escapeHtml(String(arr.length))}</span>
-          </summary>
-          <div class="bl-grid" style="margin-top:10px;">
-            ${arr.map((p) => {
-              const drop = dropOfPuzzle(p);
-              const label = isMissMatePuzzle(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
-              const status = String(p?.status || 'pending') === 'completed' ? 'Completed' : 'Pending';
-              return `
-                <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
-                  <div style="display:flex; gap:10px; align-items:center;">
-                    ${entry().renderMiniBoardFromFen(String(p.startFEN || ''))}
-                    <div style="flex:1 1 auto;">
-                      <div style="font-weight:950; color:#111827;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
-                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)} · <strong>${escapeHtml(status)}</strong></div>
-                      <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(fmtTs(p.completedAt || p.createdAt))}</div>
-                    </div>
+        <div class="bl-grid" style="margin-top:10px;">
+          ${pageItems.map((p) => {
+            const drop = dropOfPuzzle(p);
+            const label = isMissMatePuzzle(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
+            const status = String(p?.status || 'pending') === 'completed' ? 'Completed' : 'Pending';
+            return `
+              <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                  ${entry().renderMiniBoardFromFen(String(p.startFEN || ''))}
+                  <div style="flex:1 1 auto; min-width:0;">
+                    <div style="font-weight:950; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
+                    <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)} · <strong>${escapeHtml(status)}</strong></div>
+                    <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(fmtTs(p.completedAt || p.createdAt))}</div>
                   </div>
-                </button>
-              `;
-            }).join('')}
+                </div>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+    };
+
+    const renderBucket = (key, label) => {
+      const b = ui.buckets[key] || { open: false, page: 1, totalPages: 1, jump: '' };
+      const open = !!b.open;
+      const count = Number(cache?.counts?.[key] || 0) || 0;
+      const totalPages = Math.max(1, Number(b.totalPages || 1) || 1);
+      const page = Math.max(1, Number(b.page || 1) || 1);
+      const canPrev = open && page > 1;
+      const canNext = open && page < totalPages;
+      const jumpVal = String(b.jump || '');
+      return `
+        <div class="bl-card" style="margin-top:12px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-review-toggle="${escapeHtml(key)}">${open ? 'Hide' : 'Show'}</button>
+            <div style="font-weight:950; color:#111827;">${escapeHtml(label)} <span class="bl-badge" style="margin-left:8px;">${escapeHtml(String(count))}</span></div>
+            <div style="flex:1;"></div>
+            ${open ? `
+              <div class="blunders-muted">Page <strong>${escapeHtml(String(page))}</strong> / <strong>${escapeHtml(String(totalPages))}</strong></div>
+              <button class="btn btn-secondary btn-small" type="button" data-bl-review-prev="${escapeHtml(key)}" ${canPrev ? '' : 'disabled'}>Prev</button>
+              <button class="btn btn-secondary btn-small" type="button" data-bl-review-next="${escapeHtml(key)}" ${canNext ? '' : 'disabled'}>Next</button>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="number" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-review-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                <button class="btn btn-secondary btn-small" type="button" data-bl-review-go="${escapeHtml(key)}">Go</button>
+              </div>
+            ` : ``}
           </div>
-        </details>
+          ${open ? renderRows(cache?.buckets?.[key] || [], key) : ``}
+        </div>
       `;
     };
 
@@ -365,11 +516,11 @@
           <button class="btn btn-secondary" type="button" data-bl-refresh>Refresh</button>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <span class="blunders-muted" style="margin-right:2px;">Practice:</span>
-            <button class="btn btn-primary" type="button" data-bl-review-practice="random" ${all.length ? '' : 'disabled'}>Random</button>
-            <button class="btn btn-secondary" type="button" data-bl-review-practice="d1" ${groups.d1.length ? '' : 'disabled'}>1–1.5</button>
-            <button class="btn btn-secondary" type="button" data-bl-review-practice="d2" ${groups.d2.length ? '' : 'disabled'}>1.51–2</button>
-            <button class="btn btn-secondary" type="button" data-bl-review-practice="d3" ${groups.d3.length ? '' : 'disabled'}>2.01–3</button>
-            <button class="btn btn-secondary" type="button" data-bl-review-practice="d4" ${groups.d4.length ? '' : 'disabled'}>3.01+</button>
+            <button class="btn btn-primary" type="button" data-bl-review-practice="random" ${cache.totalFiltered ? '' : 'disabled'}>Random</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d1" ${cache.counts?.d1 ? '' : 'disabled'}>1–1.5</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d2" ${cache.counts?.d2 ? '' : 'disabled'}>1.51–2</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d3" ${cache.counts?.d3 ? '' : 'disabled'}>2.01–3</button>
+            <button class="btn btn-secondary" type="button" data-bl-review-practice="d4" ${cache.counts?.d4 ? '' : 'disabled'}>3.01+</button>
           </div>
         </div>
 
@@ -380,14 +531,14 @@
               ${escapeHtml(b.label)}
             </button>
           `).join('')}
-          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(all.length))}</strong> of <strong>${escapeHtml(String(allAll.length))}</strong></span>
+          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(cache.totalFiltered))}</strong> of <strong>${escapeHtml(String(cache.totalAll))}</strong></span>
         </div>
-        ${all.length ? `
-          ${renderGroup('Miss the mate', groups.missMate, true)}
-          ${renderGroup('Drop 1.00–1.50', groups.d1, true)}
-          ${renderGroup('Drop 1.51–2.00', groups.d2, false)}
-          ${renderGroup('Drop 2.01–3.00', groups.d3, false)}
-          ${renderGroup('Drop 3.01+', groups.d4, false)}
+        ${cache.totalFiltered ? `
+          ${renderBucket('missMate', 'Miss the mate')}
+          ${renderBucket('d1', 'Drop 1.00–1.50')}
+          ${renderBucket('d2', 'Drop 1.51–2.00')}
+          ${renderBucket('d3', 'Drop 2.01–3.00')}
+          ${renderBucket('d4', 'Drop 3.01+')}
         ` : `<div class="blunders-muted" style="margin-top:12px;">No puzzles yet.</div>`}
       </div>
     `;
@@ -523,6 +674,13 @@
     renderHomePage,
     renderBlunderPage,
     renderReviewPage,
+    // Review (bucketed paging)
+    reviewToggleBucket,
+    reviewPrev,
+    reviewNext,
+    reviewGo,
+    reviewSetJump,
+    resetReviewUi,
     renderStudentMasterGamePage,
     renderSettingsPage
   };

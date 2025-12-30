@@ -1166,7 +1166,34 @@
       const rd = t?.closest?.('[data-bl-review-duration]');
       if (rd) {
         STATE.reviewDuration = String(rd.getAttribute('data-bl-review-duration') || 'all');
+        try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
         render();
+        return;
+      }
+
+      // Review (bucketed paging)
+      const rvT = t?.closest?.('[data-bl-review-toggle]');
+      if (rvT) {
+        const key = String(rvT.getAttribute('data-bl-review-toggle') || '');
+        try { return window.BlundersStudent?.reviewToggleBucket?.(key); } catch {}
+        return;
+      }
+      const rvP = t?.closest?.('[data-bl-review-prev]');
+      if (rvP) {
+        const key = String(rvP.getAttribute('data-bl-review-prev') || '');
+        try { return window.BlundersStudent?.reviewPrev?.(key); } catch {}
+        return;
+      }
+      const rvN = t?.closest?.('[data-bl-review-next]');
+      if (rvN) {
+        const key = String(rvN.getAttribute('data-bl-review-next') || '');
+        try { return window.BlundersStudent?.reviewNext?.(key); } catch {}
+        return;
+      }
+      const rvG = t?.closest?.('[data-bl-review-go]');
+      if (rvG) {
+        const key = String(rvG.getAttribute('data-bl-review-go') || '');
+        try { return window.BlundersStudent?.reviewGo?.(key); } catch {}
         return;
       }
 
@@ -1457,6 +1484,12 @@
         STATE.teacher.allRating = String(ar.value || 'any');
         render();
         teacherLoad('allBlunders').catch(() => {});
+        return;
+      }
+      const rj = el?.closest?.('[data-bl-review-jump]');
+      if (rj) {
+        const key = String(rj.getAttribute('data-bl-review-jump') || '');
+        try { window.BlundersStudent?.reviewSetJump?.(key, String(rj.value || '')); } catch {}
         return;
       }
       const aj = el?.closest?.('[data-bl-teacher-all-jump]');
