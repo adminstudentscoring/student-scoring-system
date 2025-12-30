@@ -364,7 +364,11 @@
       { k: '701-1000', label: '701–1000' },
       { k: '1001-1500', label: '1001–1500' },
       { k: '1501-2000', label: '1501–2000' },
-      { k: '2000up', label: '2000+' }
+      { k: '2001-2300', label: '2001–2300' },
+      { k: '2201-2500', label: '2201–2500' },
+      { k: '2501-2800', label: '2501–2800' },
+      { k: '2801-3000', label: '2801–3000' },
+      { k: '3001up', label: '3001+' }
     ];
 
     const renderRows = (arr) => {
@@ -450,7 +454,7 @@
     return `
       <div class="bl-card">
         <div class="bl-title">All blunders</div>
-        <div class="blunders-muted">Same as Review, but across all students in your organization.</div>
+        <div class="blunders-muted">Same as Review, but across all students (and masters) in your organization.</div>
 
         <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           ${durationBtns.map(b => `<button class="btn ${duration === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-teacher-all-duration="${escapeHtml(b.k)}">${escapeHtml(b.label)}</button>`).join('')}
@@ -539,6 +543,7 @@
                 const user = String(m.username || '');
                 const total = Number(m?.counts?.total || 0);
                 const dateVal = String(STATE.teacher?.dateByMaster?.[mid] || '') || today;
+                const historyVal = Number(STATE.teacher?.historyScanNMaster?.[mid] || 200) || 200;
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
@@ -555,6 +560,13 @@
                     <td style="padding:10px 8px; border-radius:0 12px 12px 0;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master="${escapeHtml(mid)}">Sync</button>
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master-force="${escapeHtml(mid)}">Force</button>
+                      <span style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
+                        <select data-bl-teacher-master-history-n="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px;">
+                          ${[100,200,300,500].map((n) => `<option value="${n}" ${Number(historyVal) === n ? 'selected' : ''}>${n}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-history-scan-master="${escapeHtml(mid)}">History</button>
+                        <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-history-scan-master-force="${escapeHtml(mid)}">History Force</button>
+                      </span>
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-master-del="${escapeHtml(String(i))}">Remove</button>
                     </td>
                   </tr>
@@ -775,6 +787,25 @@
     await teacherApi('/teachers/blunders/sync-master', { method: 'POST', body: { masterId: mid, hkDayKey, force: !!force } });
   }
 
+  async function teacherHistoryScanMaster(masterId, historyGames, force) {
+    const mid = String(masterId || '').trim();
+    if (!mid) return;
+    const n = Math.max(1, Math.min(500, Number(historyGames || 0) || 0));
+    if (!n) return;
+    // Use background job API to avoid long-running requests/timeouts.
+    const out = await teacherApi('/teachers/blunders/jobs/master-history-scan', {
+      method: 'POST',
+      body: { masterIds: [mid], historyGames: n, force: !!force }
+    });
+    const jobId = out?.jobId ? String(out.jobId) : '';
+    if (jobId) {
+      STATE.teacher.error = `Master history queued (job: ${jobId}). Refresh later to see updated counts.`;
+      entry().render();
+      openTeacherJobModal(jobId).catch(() => {});
+    }
+    return out;
+  }
+
   async function teacherBulkSyncSelected(force) {
     const selected = Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : [];
     const ids = selected.filter(Boolean);
@@ -874,6 +905,7 @@
     teacherSyncStudent,
     teacherHistoryScanStudent,
     teacherSyncMaster,
+    teacherHistoryScanMaster,
     teacherBulkSyncSelected,
     teacherBulkCompleteSelected,
     teacherBulkHistoryScanSelected

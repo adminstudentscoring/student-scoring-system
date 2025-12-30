@@ -314,6 +314,7 @@
   async function teacherSyncStudent(studentId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncStudent?.(studentId, hkDayKey, force) : undefined; }
   async function teacherHistoryScanStudent(studentId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanStudent?.(studentId, historyGames, force) : undefined; }
   async function teacherSyncMaster(masterId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncMaster?.(masterId, hkDayKey, force) : undefined; }
+  async function teacherHistoryScanMaster(masterId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanMaster?.(masterId, historyGames, force) : undefined; }
   async function teacherBulkSyncSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkSyncSelected?.(force) : undefined; }
   async function teacherBulkCompleteSelected() { const m = requireTeacherModule(); return m ? m.teacherBulkCompleteSelected?.() : undefined; }
   async function teacherBulkHistoryScanSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkHistoryScanSelected?.(force) : undefined; }
@@ -1030,6 +1031,39 @@
         }
       }
 
+      const mhs = t?.closest?.('[data-bl-teacher-history-scan-master]');
+      if (mhs) {
+        const mid = String(mhs.getAttribute('data-bl-teacher-history-scan-master') || '');
+        const sel = root.querySelector(`[data-bl-teacher-master-history-n="${CSS.escape(mid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanNMaster?.[mid] || 0) || 200;
+        try {
+          await teacherHistoryScanMaster(mid, n, false);
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master history scan failed:', e);
+          render();
+          return;
+        }
+      }
+      const mhsF = t?.closest?.('[data-bl-teacher-history-scan-master-force]');
+      if (mhsF) {
+        const mid = String(mhsF.getAttribute('data-bl-teacher-history-scan-master-force') || '');
+        const sel = root.querySelector(`[data-bl-teacher-master-history-n="${CSS.escape(mid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanNMaster?.[mid] || 0) || 200;
+        try {
+          await teacherHistoryScanMaster(mid, n, true);
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master history force scan failed:', e);
+          render();
+          return;
+        }
+      }
+
       const nav = t?.closest?.('[data-bl-nav]');
       if (nav) {
         const key = String(nav.getAttribute('data-bl-nav') || '');
@@ -1476,6 +1510,16 @@
         if (mid) {
           if (!STATE.teacher.dateByMaster || typeof STATE.teacher.dateByMaster !== 'object') STATE.teacher.dateByMaster = {};
           STATE.teacher.dateByMaster[mid] = v;
+        }
+        return;
+      }
+      const mhn = el?.closest?.('[data-bl-teacher-master-history-n]');
+      if (mhn) {
+        const mid = String(mhn.getAttribute('data-bl-teacher-master-history-n') || '');
+        const v = Math.max(1, Math.min(500, Number(mhn.value || 0) || 200));
+        if (mid) {
+          if (!STATE.teacher.historyScanNMaster || typeof STATE.teacher.historyScanNMaster !== 'object') STATE.teacher.historyScanNMaster = {};
+          STATE.teacher.historyScanNMaster[mid] = v;
         }
         return;
       }

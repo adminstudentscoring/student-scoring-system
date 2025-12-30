@@ -412,16 +412,16 @@ async function readBlundersPuzzles() {
 }
 
 async function writeBlundersPuzzles(puzzles) {
-  const arr = Array.isArray(puzzles) ? puzzles : [];
+    const arr = Array.isArray(puzzles) ? puzzles : [];
   // Serialize writes to prevent concurrent truncation/read issues.
   const run = async () => {
     try {
-      await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-      return true;
-    } catch (error) {
-      console.error('Error writing blunders puzzles:', error);
-      return false;
-    }
+    await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error writing blunders puzzles:', error);
+    return false;
+  }
   };
   blundersPuzzlesWriteLock = blundersPuzzlesWriteLock.then(run, run);
   return await blundersPuzzlesWriteLock;
@@ -722,6 +722,51 @@ async function blundersTeacherRunNextJob() {
 
             // Heavy work
             await syncBlundersForStudent(s, { mode: 'history', historyGames, force, thresholdPoints });
+
+            job.progress = { ...(job.progress || {}), done: i + 1 };
+            job.updatedAt = nowIso();
+            jobs[jobId] = job;
+            await writeBlundersTeacherJobs(jobs);
+          }
+
+          job.status = 'done';
+          job.finishedAt = nowIso();
+          job.updatedAt = nowIso();
+          job.progress = { ...(job.progress || {}), message: 'Done.' };
+          jobs[jobId] = job;
+          await writeBlundersTeacherJobs(jobs);
+        } else if (job.type === 'blunders_master_history_scan') {
+          const orgId = String(job.orgId || '');
+          const masterIds = Array.isArray(job.params?.masterIds) ? job.params.masterIds.map(String) : [];
+          const historyGames = Math.max(1, Math.min(500, Number(job.params?.historyGames || 0) || 200));
+          const force = job.params?.force ? '1' : '0';
+          const thresholdPoints = job.params?.thresholdPoints;
+
+          const org = await getOrgBlundersSettings(orgId);
+          const mastersAll = Array.isArray(org?.masters) ? org.masters : [];
+          const targets = mastersAll.filter(m => masterIds.includes(String(m.id || '')));
+
+          job.progress = { total: targets.length, done: 0, message: `Master history scan queued (${targets.length})`, currentMasterId: null, currentMasterName: null };
+          job.updatedAt = nowIso();
+          jobs[jobId] = job;
+          await writeBlundersTeacherJobs(jobs);
+
+          for (let i = 0; i < targets.length; i++) {
+            if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
+            const m = targets[i];
+            job.progress = {
+              total: targets.length,
+              done: i,
+              message: `Master history scanning ${i + 1}/${targets.length} (N=${historyGames})...`,
+              currentMasterId: String(m.id || ''),
+              currentMasterName: String(m.name || m.username || 'Master')
+            };
+            job.updatedAt = nowIso();
+            jobs[jobId] = job;
+            await writeBlundersTeacherJobs(jobs);
+
+            // Heavy work
+            await syncBlundersForMaster(orgId, m, { mode: 'history', historyGames, force, thresholdPoints });
 
             job.progress = { ...(job.progress || {}), done: i + 1 };
             job.updatedAt = nowIso();
@@ -1866,8 +1911,8 @@ async function syncBlundersForStudent(student, opts = {}) {
             ...(blundersSyncState.get(sid) || {}),
             lastError: `writeBlundersPuzzles failed: ${String(err?.message || err || 'unknown')}`,
             errors,
-            updatedAt: new Date().toISOString()
-          });
+        updatedAt: new Date().toISOString()
+      });
         }
       }
     }
@@ -1922,6 +1967,7 @@ async function syncBlundersForStudent(student, opts = {}) {
 // ===== Blunders: Master sync (org-scoped) =====
 const blundersMasterLocks = new Map(); // key -> Promise
 const blundersLastMasterSync = new Map(); // key -> ms
+const blundersLastMasterHistoryScan = new Map(); // key -> ms
 
 async function syncBlundersForMaster(orgId, master, opts = {}) {
   const oid = String(orgId || '');
@@ -1929,20 +1975,30 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
   const username = String(master?.username || '').trim();
   if (!oid || !mid || !username) return { ok: false, reason: 'missing org/master/username' };
 
-  const hkDayKey = normalizeHkDayKey(opts.hkDayKey) || todayHkKey();
   const bypassThrottle = String(opts.force || '') === '1';
-  const lockKey = `master:${oid}:${mid}:${hkDayKey}`;
+  const mode = String(opts.mode || '').trim().toLowerCase();
+  const historyGames = Math.max(1, Math.min(500, Number(opts.historyGames || 0) || 0));
+  const hkDayKey = (mode === 'history' && historyGames) ? '' : (normalizeHkDayKey(opts.hkDayKey) || todayHkKey());
+  const lockKey = (mode === 'history' && historyGames) ? `master:${oid}:${mid}:history` : `master:${oid}:${mid}:${hkDayKey}`;
 
   const now = Date.now();
-  const last = blundersLastMasterSync.get(lockKey) || 0;
-  if (!bypassThrottle && now - last < 30 * 60 * 1000) {
-    return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
+  if (mode === 'history' && historyGames) {
+    const lastH = blundersLastMasterHistoryScan.get(lockKey) || 0;
+    if (!bypassThrottle && now - lastH < 10 * 60 * 1000) {
+      return { ok: true, skipped: true, reason: 'throttled_history', lastRunAtMs: lastH };
+    }
+  } else {
+    const last = blundersLastMasterSync.get(lockKey) || 0;
+    if (!bypassThrottle && now - last < 30 * 60 * 1000) {
+      return { ok: true, skipped: true, reason: 'throttled', lastRunAtMs: last };
+    }
   }
 
   if (blundersMasterLocks.has(lockKey)) return blundersMasterLocks.get(lockKey);
 
   const task = (async () => {
-    blundersLastMasterSync.set(lockKey, now);
+    if (mode === 'history' && historyGames) blundersLastMasterHistoryScan.set(lockKey, now);
+    else blundersLastMasterSync.set(lockKey, now);
     const stKey = `master:${mid}`;
     blundersSyncState.set(stKey, {
       running: true,
@@ -1962,12 +2018,62 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
     const thresholdPoints = Math.max(0.1, Math.min(10, Number(opts.thresholdPoints ?? cfg.thresholdPoints) || cfg.thresholdPoints));
 
     blundersSyncState.set(stKey, { ...(blundersSyncState.get(stKey) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
-    const games = await chessComGetGamesForHkDay(username, { hkDayKey, limit: maxGamesPerDay });
-    blundersSyncState.set(stKey, { ...(blundersSyncState.get(stKey) || {}), gamesFetched: games.length, stage: 'analyze', updatedAt: new Date().toISOString() });
-    if (!games.length) return { ok: true, games: 0, added: 0 };
+    let gamesAll = [];
+    let historyTargetNew = 0;
+    let historyFetchLimit = 0;
 
     const puzzles = await readBlundersPuzzles();
     const existingKeys = new Set(puzzles.map((p) => String(p.key || '')).filter(Boolean));
+    // Skip already analyzed master games by game URL/UUID (best-effort).
+    const analyzedGameIds = new Set(
+      puzzles
+        .filter(p => String(p?.orgId || '') === oid && String(p?.scope || '') === 'master' && String(p?.masterId || '') === mid)
+        .map(p => String(p?.gameUrl || p?.gameUUID || p?.gameUuid || p?.gameId || '').trim())
+        .filter(Boolean)
+    );
+
+    if (mode === 'history' && historyGames) {
+      historyTargetNew = Math.max(1, Math.min(500, Number(historyGames || 0) || 0));
+      const maxFetch = Math.max(historyTargetNew, Math.min(5000, historyTargetNew * 20));
+      let limit = Math.min(maxFetch, historyTargetNew);
+      for (let iter = 0; iter < 10; iter++) {
+        gamesAll = await chessComGetRecentGames(username, { limit });
+        historyFetchLimit = limit;
+        const newCount = Array.isArray(gamesAll)
+          ? gamesAll.filter((g) => {
+            const k = String(g?.url || g?.uuid || '').trim();
+            if (!k) return true;
+            return !analyzedGameIds.has(k);
+          }).length
+          : 0;
+        if (newCount >= historyTargetNew) break;
+        if (!Array.isArray(gamesAll) || gamesAll.length < limit) break;
+        if (limit >= maxFetch) break;
+        const nextLimit = Math.min(maxFetch, Math.max(limit + historyTargetNew, Math.floor(limit * 1.5)));
+        if (nextLimit <= limit) break;
+        limit = nextLimit;
+      }
+    } else {
+      gamesAll = await chessComGetGamesForHkDay(username, { hkDayKey, limit: maxGamesPerDay });
+    }
+
+    gamesAll = Array.isArray(gamesAll) ? gamesAll : [];
+    blundersSyncState.set(stKey, {
+      ...(blundersSyncState.get(stKey) || {}),
+      gamesFetched: gamesAll.length,
+      stage: 'analyze',
+      updatedAt: new Date().toISOString(),
+      history: (mode === 'history' && historyGames) ? { targetNew: historyTargetNew, fetchLimit: historyFetchLimit } : null
+    });
+    if (!gamesAll.length) return { ok: true, games: 0, added: 0 };
+
+    // Skip games already analyzed (avoid re-running Stockfish on the same games).
+    let games = gamesAll.filter((g) => {
+      const k = String(g?.url || g?.uuid || '').trim();
+      if (!k) return true;
+      return !analyzedGameIds.has(k);
+    });
+    if (mode === 'history' && historyGames) games = games.slice(0, historyTargetNew || historyGames);
     let added = 0;
     let gamesProcessed = 0;
     let pliesProcessed = 0;
@@ -1978,6 +2084,9 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
     for (const game of games) {
       const pgn = String(game.pgn || '');
       if (!pgn) continue;
+      // Defensive: if a duplicate slipped through, skip it.
+      const gameIdentifier = String(game?.url || game?.uuid || '').trim();
+      if (gameIdentifier && analyzedGameIds.has(gameIdentifier)) { gamesProcessed++; continue; }
       const me = username.toLowerCase();
       const whiteU = String(game?.white?.username || '').toLowerCase();
       const blackU = String(game?.black?.username || '').toLowerCase();
@@ -2108,8 +2217,8 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
             ...(blundersSyncState.get(stKey) || {}),
             lastError: `writeBlundersPuzzles failed: ${String(err?.message || err || 'unknown')}`,
             errors,
-            updatedAt: new Date().toISOString()
-          });
+        updatedAt: new Date().toISOString()
+      });
         }
       }
     }
@@ -7738,7 +7847,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
     if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
 
     const duration = String(req.query.duration || 'all'); // week | month | halfYear | year | all
-    const rating = String(req.query.rating || 'any'); // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
+    const rating = String(req.query.rating || 'any'); // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2001-2300 | 2201-2500 | 2501-2800 | 2801-3000 | 3001up
     const bucketKey = String(req.query.bucket || '').trim(); // '' | missMate | d1 | d2 | d3 | d4
     const pageSize = 50; // Fixed (UI requirement)
     const pageIn = Number(req.query.page || 1);
@@ -7790,7 +7899,11 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       if (rating === '701-1000') return v >= 701 && v <= 1000;
       if (rating === '1001-1500') return v >= 1001 && v <= 1500;
       if (rating === '1501-2000') return v >= 1501 && v <= 2000;
-      if (rating === '2000up') return v >= 2000;
+      if (rating === '2001-2300') return v >= 2001 && v <= 2300;
+      if (rating === '2201-2500') return v >= 2201 && v <= 2500;
+      if (rating === '2501-2800') return v >= 2501 && v <= 2800;
+      if (rating === '2801-3000') return v >= 2801 && v <= 3000;
+      if (rating === '3001up') return v >= 3001;
       return true;
     };
 
@@ -7989,11 +8102,15 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
     }
 
     const puzzles = await readBlundersPuzzles();
-    const mine = puzzles
+
+    const mineStudents = puzzles
       .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master')
       .filter(p => allowedStudentIds.has(String(p.studentId || '')));
 
-    const entries = mine
+    const mineMasters = puzzles
+      .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') === 'master');
+
+    const entriesStudents = mineStudents
       .map(p => {
         const sid = String(p.studentId || '');
         const stu = studentMap.get(sid) || { name: 'Student', studentId: '' };
@@ -8016,7 +8133,35 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
         };
       })
       .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
-      .filter(p => inBucket(p.chessComRating))
+      .filter(p => inBucket(p.chessComRating));
+
+    // Master puzzles: shown only under "Any rating" (since they don't have a student rating).
+    const entriesMasters = (rating === 'any')
+      ? mineMasters
+        .map(p => {
+          const label = String(p?.masterName || p?.masterId || 'Master');
+          const completedAt = String(p.completedAt || '');
+          const sortAtMs = puzzleSortKeyMs(p);
+          const dropPoints = (typeof p.dropPoints === 'number')
+            ? Number(p.dropPoints)
+            : (Number(p.dropCp || 0) / 100);
+          return {
+            ...p,
+            studentName: `Master: ${label}`,
+            studentStudentId: '',
+            chessComRating: null,
+            chessComRatingSource: null,
+            chessComRatingUpdatedAt: null,
+            completedAt: completedAt || null,
+            sortAtMs: Number.isFinite(sortAtMs) ? sortAtMs : 0,
+            dropPoints: Number.isFinite(dropPoints) ? dropPoints : 0
+          };
+        })
+        .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
+      : [];
+
+    const entries = entriesStudents
+      .concat(entriesMasters)
       .sort((a, b) => (b.sortAtMs || 0) - (a.sortAtMs || 0));
 
     const isMissMate = (p) => {
@@ -8250,6 +8395,50 @@ app.post('/api/teachers/blunders/jobs/history-scan', authenticateUser, authorize
   } catch (e) {
     console.error('POST /api/teachers/blunders/jobs/history-scan error:', e);
     return res.status(500).json({ error: 'Failed to create job' });
+  }
+});
+
+// Teacher: enqueue Master History scan as a background job (avoid long-running request timeouts).
+app.post('/api/teachers/blunders/jobs/master-history-scan', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const idsIn = Array.isArray(body.masterIds) ? body.masterIds : [];
+    const ids = Array.from(new Set(idsIn.map(x => String(x || '').trim()).filter(Boolean)));
+    const historyGames = Math.max(1, Math.min(500, Number(body.historyGames || 0) || 200));
+    const force = body.force ? '1' : '0';
+    if (!ids.length) return res.status(400).json({ error: 'Missing masterIds' });
+
+    const org = await getOrgBlundersSettings(orgId);
+    const mastersAll = Array.isArray(org?.masters) ? org.masters : [];
+    const masterSet = new Set(mastersAll.map(m => String(m?.id || '')).filter(Boolean));
+    const allowed = ids.filter(id => masterSet.has(id));
+    if (!allowed.length) return res.status(404).json({ error: 'No valid masters selected' });
+
+    const jobs = await readBlundersTeacherJobs();
+    const jobId = `blj_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    jobs[jobId] = {
+      id: jobId,
+      orgId,
+      teacherId: String(req.user.id || ''),
+      type: 'blunders_master_history_scan',
+      status: 'queued',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      startedAt: null,
+      finishedAt: null,
+      error: null,
+      params: { masterIds: allowed, historyGames, force },
+      progress: { total: allowed.length, done: 0, message: `Queued (${allowed.length})`, currentMasterId: null, currentMasterName: null }
+    };
+    await writeBlundersTeacherJobs(jobs);
+    blundersTeacherJobQueue.push(jobId);
+    blundersTeacherRunNextJob().catch(() => {});
+    return res.json({ ok: true, orgId, jobId, queued: allowed.length });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/jobs/master-history-scan error:', e);
+    return res.status(500).json({ error: 'Failed to enqueue master history scan' });
   }
 });
 

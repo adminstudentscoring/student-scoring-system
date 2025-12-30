@@ -61,11 +61,12 @@
       bulkThreshold: 1.0,
       bulkHistoryGames: 200,
       historyScanN: {},
+      historyScanNMaster: {},
       dateByStudent: {}, // studentId -> YYYY-MM-DD
       dateByMaster: {}, // masterId -> YYYY-MM-DD
       // Teacher All blunders UI
       allDuration: 'all', // week | month | halfYear | year | all
-      allRating: 'any', // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2000up
+      allRating: 'any', // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2001-2300 | 2201-2500 | 2501-2800 | 2801-3000 | 3001up
       allUi: {
         pageSize: 50,
         counts: null, // { missMate, d1, d2, d3, d4, total }
