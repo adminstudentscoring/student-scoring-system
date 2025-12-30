@@ -1171,6 +1171,7 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
   const keys = new Set(list.map((p) => String(p?.key || '')).filter(Boolean));
 
   let added = 0;
+  const newlyAdded = [];
   for (const p of incoming) {
     const k = String(p?.key || '').trim();
     if (!k) continue;
@@ -1178,12 +1179,144 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
     list.push(p);
     keys.add(k);
     added++;
+    newlyAdded.push(p);
   }
 
   // Keep bounded if configured (0 => unlimited).
   const pr = pruneStudentBlundersInPlace(list, oid, sid, BLUNDERS_MAX_PUZZLES_PER_STUDENT);
   const changed = added > 0 || !!pr.changed;
   if (changed) await writeBlundersPuzzles(list);
+
+  // Optional DB write: keep Postgres in sync with new puzzles so BLUNDERS_USE_DB stays fresh.
+  // Best-effort and never blocks JSON persistence.
+  try {
+    const pool = appDb.getPool();
+    if (pool && newlyAdded.length) {
+      const cols = [
+        'key',
+        'org_id',
+        'student_id',
+        'chesscom_username',
+        'game_url',
+        'time_class',
+        'end_time_sec',
+        'sort_at_ms',
+        'student_color',
+        'start_fen',
+        'opponent_move_uci',
+        'opponent_san',
+        'blunder_move_uci',
+        'blunder_san',
+        'best_move_uci',
+        'best_cp',
+        'after_cp',
+        'drop_cp',
+        'drop_points',
+        'created_at',
+        'raw'
+      ];
+
+      const values = [];
+      const placeholders = [];
+      let pi = 1;
+      for (const pz of newlyAdded) {
+        const key = String(pz?.key || '').trim();
+        if (!key) continue;
+        const dp = (typeof pz?.dropPoints === 'number') ? Number(pz.dropPoints) : (Number(pz?.dropCp || 0) / 100);
+        const createdAt = (() => {
+          const t = Date.parse(String(pz?.createdAt || ''));
+          return Number.isFinite(t) ? new Date(t).toISOString() : null;
+        })();
+        const row = [
+          key,
+          oid,
+          sid,
+          pz?.chessComUsername ? String(pz.chessComUsername) : null,
+          pz?.gameUrl ? String(pz.gameUrl) : null,
+          pz?.timeClass ? String(pz.timeClass) : null,
+          Number(pz?.endTime || 0) || null,
+          puzzleSortKeyMs(pz),
+          pz?.studentColor ? String(pz.studentColor) : null,
+          pz?.startFEN ? String(pz.startFEN) : null,
+          pz?.opponentMoveUci ? String(pz.opponentMoveUci) : null,
+          pz?.opponentSan ? String(pz.opponentSan) : null,
+          pz?.blunderMoveUci ? String(pz.blunderMoveUci) : null,
+          pz?.blunderSan ? String(pz.blunderSan) : null,
+          pz?.bestMoveUci ? String(pz.bestMoveUci) : null,
+          (pz?.bestCp === null || pz?.bestCp === undefined) ? null : Number(pz.bestCp),
+          (pz?.afterCp === null || pz?.afterCp === undefined) ? null : Number(pz.afterCp),
+          (pz?.dropCp === null || pz?.dropCp === undefined) ? null : Number(pz.dropCp),
+          Number.isFinite(dp) ? dp : 0,
+          createdAt,
+          JSON.stringify(pz || {})
+        ];
+        values.push(...row);
+        placeholders.push(`(${row.map(() => `$${pi++}`).join(',')})`);
+      }
+
+      if (placeholders.length) {
+        await pool.query(
+          `
+          INSERT INTO blunders_puzzles (${cols.join(',')})
+          VALUES ${placeholders.join(',')}
+          ON CONFLICT (key) DO UPDATE SET
+            org_id=EXCLUDED.org_id,
+            student_id=EXCLUDED.student_id,
+            chesscom_username=EXCLUDED.chesscom_username,
+            game_url=EXCLUDED.game_url,
+            time_class=EXCLUDED.time_class,
+            end_time_sec=EXCLUDED.end_time_sec,
+            sort_at_ms=EXCLUDED.sort_at_ms,
+            student_color=EXCLUDED.student_color,
+            start_fen=EXCLUDED.start_fen,
+            opponent_move_uci=EXCLUDED.opponent_move_uci,
+            opponent_san=EXCLUDED.opponent_san,
+            blunder_move_uci=EXCLUDED.blunder_move_uci,
+            blunder_san=EXCLUDED.blunder_san,
+            best_move_uci=EXCLUDED.best_move_uci,
+            best_cp=EXCLUDED.best_cp,
+            after_cp=EXCLUDED.after_cp,
+            drop_cp=EXCLUDED.drop_cp,
+            drop_points=EXCLUDED.drop_points,
+            created_at=COALESCE(EXCLUDED.created_at, blunders_puzzles.created_at),
+            raw=EXCLUDED.raw
+        `,
+          values
+        );
+      }
+
+      // Ensure progress rows exist (pending by default)
+      try {
+        const pCols = ['org_id', 'student_id', 'puzzle_key', 'status', 'completed_at', 'attempts', 'updated_at'];
+        const pVals = [];
+        const pPh = [];
+        let pj = 1;
+        for (const pz of newlyAdded) {
+          const key = String(pz?.key || '').trim();
+          if (!key) continue;
+          const status = String(pz?.status || 'pending') === 'completed' ? 'completed' : 'pending';
+          const completedAt = status === 'completed' ? (() => {
+            const t = Date.parse(String(pz?.completedAt || ''));
+            return Number.isFinite(t) ? new Date(t).toISOString() : null;
+          })() : null;
+          const attempts = Array.isArray(pz?.attempts) ? pz.attempts : [];
+          const row = [oid, sid, key, status, completedAt, JSON.stringify(attempts), new Date().toISOString()];
+          pVals.push(...row);
+          pPh.push(`(${row.map(() => `$${pj++}`).join(',')})`);
+        }
+        if (pPh.length) {
+          await pool.query(
+            `
+            INSERT INTO blunders_progress (${pCols.join(',')})
+            VALUES ${pPh.join(',')}
+            ON CONFLICT (org_id, student_id, puzzle_key) DO NOTHING
+          `,
+            pVals
+          );
+        }
+      } catch {}
+    }
+  } catch {}
   return { ok: true, changed, added, removed: pr.removed, total: list.length };
 }
 
