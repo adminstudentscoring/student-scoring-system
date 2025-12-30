@@ -40,9 +40,9 @@
     const pz = challengeCurrentPuzzle();
     const diff = String(ch.difficulty || 'easy');
     const diffBtns = [
-      { k: 'easy', label: 'Easy (3.0+)', points: 1 },
+      { k: 'easy', label: 'Easy (1.0–1.9)', points: 1 },
       { k: 'medium', label: 'Medium (2.0–2.9)', points: 2 },
-      { k: 'hard', label: 'Hard (1.0–1.9)', points: 3 }
+      { k: 'hard', label: 'Hard (3.0+)', points: 3 }
     ];
     const flip = pz ? String(pz.studentColor || '') === 'b' : false;
     const fenOverride = String(STATE.uiBoard.challengeFen || pz?.startFEN || '');
@@ -50,6 +50,9 @@
     const statusLine = ch.done
       ? `Completed! You earned <strong>${escapeHtml(String(ch.pointsAward || 0))}</strong> point(s). Total: <strong>${escapeHtml(String(ch.totalPoints ?? '—'))}</strong>`
       : `Progress: <strong>${escapeHtml(String(ch.correct || 0))}</strong> / <strong>${escapeHtml(String(ch.target || 10))}</strong>`;
+    const pct = (!ch.done && (Number(ch.target || 10) > 0))
+      ? Math.max(0, Math.min(100, Math.round((Number(ch.correct || 0) / Number(ch.target || 10)) * 100)))
+      : (ch.done ? 100 : 0);
 
     return `
       <div class="bl-card">
@@ -65,6 +68,9 @@
 
         <div class="bl-card" style="box-shadow:none; margin-top:10px;">
           <div class="blunders-muted">${statusLine}</div>
+          <div style="margin-top:10px; height:10px; background:#e5e7eb; border-radius:999px; overflow:hidden;">
+            <div style="width:${escapeHtml(String(pct))}%; height:100%; background:#2563eb;"></div>
+          </div>
           ${ch.error ? `<div class="blunders-muted" style="margin-top:8px; color:#b91c1c;">${escapeHtml(String(ch.error))}</div>` : ``}
         </div>
 
@@ -200,15 +206,18 @@
     const puzzle = challengeCurrentPuzzle();
     if (!puzzle || !STATE.me?.id) return;
     try {
-      const out = await challengeAttempt(STATE.me.id, String(STATE.challenge.sessionId || ''), String(uci || ''), !!revealBest);
+      // Challenge mode: best-move reveal is disabled; always submit as attempt.
+      const out = await challengeAttempt(STATE.me.id, String(STATE.challenge.sessionId || ''), String(uci || ''), false);
       // Update inline result panel state
       STATE.uiBoard.challengeVerdict = String(out?.verdict || (out?.ok ? 'good' : 'blunder'));
       STATE.uiBoard.challengeMoveUci = String(out?.playedUci || uci || '');
       STATE.uiBoard.challengeMoveSan = String(out?.playedSan || '');
-      STATE.uiBoard.challengeFen = String(out?.afterFEN || '') || String(puzzle.startFEN || '');
+      // For retry-until-correct UX: keep board at start position unless correct.
+      STATE.uiBoard.challengeFen = out?.ok ? (String(out?.afterFEN || '') || String(puzzle.startFEN || '')) : String(puzzle.startFEN || '');
       STATE.uiBoard.challengeBestOrigin = String(out?.origin || 'attempt');
-      STATE.uiBoard.challengeBestMoveUci = out?.bestMove ? String(out.bestMove) : '';
-      STATE.uiBoard.challengeBestMoveSan = out?.bestSan ? String(out.bestSan) : '';
+      // Challenge mode: never show best move.
+      STATE.uiBoard.challengeBestMoveUci = '';
+      STATE.uiBoard.challengeBestMoveSan = '';
 
       // Progress / next puzzle
       STATE.challenge.correct = Number(out?.correct || STATE.challenge.correct) || 0;

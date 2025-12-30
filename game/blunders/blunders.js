@@ -412,8 +412,9 @@
     const mvLine = (moveSan || moveUci) ? `Move: ${moveSan || moveUci}` : '';
     const bmLine = (bestSan || bestUci) ? `Best: ${bestSan || bestUci}` : '';
 
-    const canShowBest = verdict === 'good' || verdict === 'blunder' || !verdict;
-    const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder')}">Show best move</button>` : '';
+    // Challenge mode requirement: remove "Show best move".
+    const canShowBest = (!isChallenge) && (verdict === 'good' || verdict === 'blunder' || !verdict);
+    const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
     const retryBtn = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${isMaster ? 'master' : 'blunder'}">Retry</button>`;
     const retryScope = isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder');
     const retryBtn2 = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${retryScope}">Retry</button>`;
@@ -1203,7 +1204,6 @@
         ev.stopPropagation?.();
         const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
         if (scope === 'master') revealMasterBestMove();
-        else if (scope === 'challenge') submitChallengeMoveUci('', true);
         else revealBestMove();
         return;
       }

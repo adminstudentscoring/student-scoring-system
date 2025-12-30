@@ -763,12 +763,12 @@ async function blundersTeacherRunNextJob() {
 function blundersChallengeDifficultyConfig(difficulty) {
   const d = String(difficulty || '').toLowerCase();
   // Per requirement:
-  // - Easy: 3.0+ (exclude miss-mate)
+  // - Easy: 1.0–1.9 (exclude miss-mate)
   // - Medium: 2.0–2.9
-  // - Hard: 1.0–1.9
-  if (d === 'easy') return { key: 'easy', min: 3.0, max: Infinity, points: 1 };
+  // - Hard: 3.0+ (exclude miss-mate)
+  if (d === 'easy') return { key: 'easy', min: 1.0, max: 2.0, points: 1 };
   if (d === 'medium') return { key: 'medium', min: 2.0, max: 3.0, points: 2 };
-  if (d === 'hard') return { key: 'hard', min: 1.0, max: 2.0, points: 3 };
+  if (d === 'hard') return { key: 'hard', min: 3.0, max: Infinity, points: 3 };
   return null;
 }
 
@@ -9286,45 +9286,9 @@ async function evalChallengeAttemptAtPuzzle(orgId, studentId, puzzleSnap, moveUc
   if (!oid || !sid) return { ok: false, error: 'Missing org/student' };
   if (!startFen) return { ok: false, error: 'Puzzle missing startFEN' };
 
-  // Use student's current threshold settings (same as normal blunders).
-  const cfg = await getStudentBlundersConfig(oid, sid);
-  const thresholdPoints = Number(cfg.thresholdPoints || 1.0) || 1.0;
-
-  // Reveal-only
-  if (revealBest && !moveUci) {
-    try {
-      const best = await sfEvalFen(startFen, 16);
-      let bestMove = String(best.bestMove || '').trim().split(/\s+/)[0] || '';
-      if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) bestMove = '';
-      let afterFEN = '';
-      let bestSan = '';
-      if (bestMove) {
-        const b = parseUciMove(bestMove);
-        if (b) {
-          let ch = null;
-          try { ch = new Chess(startFen); } catch { ch = null; }
-          if (ch) {
-            const mv = ch.move({ from: b.from, to: b.to, promotion: b.promotion });
-            if (mv) {
-              afterFEN = ch.fen();
-              bestSan = String(mv.san || '');
-            }
-          }
-        }
-      }
-      return {
-        ok: true,
-        verdict: bestMove ? 'best' : '',
-        afterFEN: afterFEN || undefined,
-        playedUci: bestMove || undefined,
-        playedSan: bestSan || undefined,
-        bestMove: bestMove || undefined,
-        bestSan: bestSan || undefined,
-        origin: 'revealed'
-      };
-    } catch (e) {
-      return { ok: true, bestMove: undefined, afterFEN: undefined, playedUci: undefined, engineError: String(e?.message || e) };
-    }
+  // Challenge mode: reveal best move is disabled (per requirement).
+  if (revealBest && !String(moveUci || '').trim()) {
+    return { ok: false, error: 'Show best move is disabled in Challenge mode' };
   }
 
   const parsed = parseUciMove(moveUci);
@@ -9339,28 +9303,22 @@ async function evalChallengeAttemptAtPuzzle(orgId, studentId, puzzleSnap, moveUc
 
   const afterFen = chess.fen();
   const playedSan = String(mv.san || '');
-  const best = await sfEvalFen(startFen, 16);
-  const bestMove = String(best.bestMove || '').trim().split(/\s+/)[0] || '';
-  const bestCp = scoreToCp(best.score);
-  const after = await sfEvalFen(afterFen, 16);
-  const afterCpOppPov = scoreToCp(after.score);
-  const userCp = -afterCpOppPov;
 
-  const isBest = bestMove && parsed.uci === bestMove;
-  const v = blundersVerdictFromScores(bestCp, userCp, thresholdPoints);
-  const verdict = isBest ? 'best' : v.verdict;
-  const ok = isBest ? true : !!v.ok;
-  const exposeBest = !!revealBest || isBest;
-  const bestSan = exposeBest ? uciToSanAtFen(startFen, bestMove) : '';
+  // Speed optimization: use precomputed bestMoveUci captured in the session snapshot.
+  // This makes feedback near-instant (no Stockfish calls during attempts).
+  let bestMove = String(puzzleSnap?.bestMoveUci || '').trim().split(/\s+/)[0] || '';
+  if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) bestMove = '';
+  if (!bestMove) {
+    return { ok: false, error: 'Puzzle missing best move (re-start the challenge)' };
+  }
+  const isBest = parsed.uci === bestMove;
 
   return {
-    ok,
-    verdict,
+    ok: !!isBest,
+    verdict: isBest ? 'best' : 'blunder',
     afterFEN: afterFen,
     playedUci: parsed.uci,
     playedSan: playedSan || undefined,
-    bestMove: exposeBest ? bestMove : undefined,
-    bestSan: (exposeBest && bestSan) ? bestSan : undefined,
     origin: 'attempt'
   };
 }
@@ -9395,8 +9353,8 @@ app.post('/api/public/students/:id/blunders/challenge/attempt', async (req, res)
     const out = await evalChallengeAttemptAtPuzzle(orgId, String(student.id), puzzle, String(moveUci || ''), !!revealBest);
     if (out && out.error) return res.status(400).json({ error: out.error });
 
-    // If it's a reveal-only request, don't advance.
-    const isRevealOnly = !!revealBest && !String(moveUci || '').trim();
+    // Reveal best is disabled for challenge mode; keep logic but always false for now.
+    const isRevealOnly = false;
 
     let advanced = false;
     let nextPuzzle = null;
@@ -9448,14 +9406,13 @@ app.post('/api/public/students/:id/blunders/challenge/attempt', async (req, res)
     } catch { myTotal = null; }
 
     return res.json({
-      ok: true,
+      // ok here means "correct move" (like normal blunders attempt endpoints)
+      ok: !!out?.ok && !isRevealOnly,
       verdict: out?.verdict,
       correctMove: !!out?.ok && !isRevealOnly,
       afterFEN: out?.afterFEN,
       playedUci: out?.playedUci,
       playedSan: out?.playedSan,
-      bestMove: out?.bestMove,
-      bestSan: out?.bestSan,
       origin: out?.origin,
       advanced,
       correct: Number(sess.correct || 0) || 0,
