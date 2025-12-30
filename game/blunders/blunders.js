@@ -827,6 +827,10 @@
       if (t?.closest?.('[data-bl-teacher-refresh-students]')) return teacherLoad('students');
       if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
       if (t?.closest?.('[data-bl-teacher-refresh-all]')) return teacherLoad('allBlunders');
+      if (t?.closest?.('[data-bl-teacher-all-stats]')) {
+        try { return window.BlundersTeacher?.teacherLoadAllBlundersStorageStats?.(); } catch {}
+        return;
+      }
       const durBtn = t?.closest?.('[data-bl-teacher-all-duration]');
       if (durBtn) {
         STATE.teacher.allDuration = String(durBtn.getAttribute('data-bl-teacher-all-duration') || 'all');

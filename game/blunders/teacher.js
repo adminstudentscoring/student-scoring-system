@@ -348,6 +348,7 @@
     const ui = (STATE.teacher.allUi && typeof STATE.teacher.allUi === 'object') ? STATE.teacher.allUi : {};
     const counts = (ui.counts && typeof ui.counts === 'object') ? ui.counts : null;
     const buckets = (ui.buckets && typeof ui.buckets === 'object') ? ui.buckets : {};
+    const stats = (ui.storageStats && typeof ui.storageStats === 'object') ? ui.storageStats : null;
 
     const durationBtns = [
       { k: 'week', label: 'Last week' },
@@ -458,10 +459,20 @@
             ${ratingOpts.map(o => `<option value="${escapeHtml(o.k)}" ${rating === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
           <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-refresh-all>Refresh</button>
+          <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-stats>Storage stats</button>
         </div>
 
         ${loading ? `<div class="blunders-muted" style="margin-top:12px;">Loading...</div>` : ``}
         ${err ? `<div class="blunders-muted" style="margin-top:12px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
+        ${stats ? `
+          <div class="blunders-muted" style="margin-top:12px;">
+            <div style="font-weight:900; color:#111827;">Storage stats</div>
+            <div style="margin-top:6px;">Puzzles file: <strong>${escapeHtml(String(stats?.files?.puzzles?.sizeBytes || 0))}</strong> bytes</div>
+            <div style="margin-top:6px;">Org puzzles: <strong>${escapeHtml(String(stats?.counts?.total || 0))}</strong> · MissMate: <strong>${escapeHtml(String(stats?.counts?.missMate || 0))}</strong> · d1: <strong>${escapeHtml(String(stats?.counts?.d1 || 0))}</strong> · d2: <strong>${escapeHtml(String(stats?.counts?.d2 || 0))}</strong> · d3: <strong>${escapeHtml(String(stats?.counts?.d3 || 0))}</strong> · d4: <strong>${escapeHtml(String(stats?.counts?.d4 || 0))}</strong></div>
+            <div style="margin-top:6px;">Analyzed game keys (org): <strong>${escapeHtml(String(stats?.analyzedKeys || 0))}</strong></div>
+            <div style="margin-top:6px;">Updated: ${escapeHtml(String(stats?.now || ''))}</div>
+          </div>
+        ` : ``}
 
         ${!loading ? `
           <div style="margin-top:12px;">
@@ -642,6 +653,21 @@
     } catch (e) {
       b.loading = false;
       b.error = String(e?.message || e);
+      entry().render();
+    }
+  }
+
+  async function teacherLoadAllBlundersStorageStats() {
+    const ui = ensureAllUi();
+    ui.storageStats = null;
+    entry().render();
+    try {
+      const data = await teacherApi('/teachers/blunders/storage-stats');
+      ui.storageStats = (data && typeof data === 'object') ? data : null;
+      entry().render();
+    } catch (e) {
+      // Keep errors on the main teacher error line
+      STATE.teacher.error = String(e?.message || e);
       entry().render();
     }
   }
@@ -864,6 +890,8 @@
     teacherAllNext,
     teacherAllGo,
     teacherAllSetJump
+    ,
+    teacherLoadAllBlundersStorageStats
   };
 })();
 

@@ -69,6 +69,7 @@
       allUi: {
         pageSize: 50,
         counts: null, // { missMate, d1, d2, d3, d4, total }
+        storageStats: null,
         buckets: {
           missMate: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
           d1: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
