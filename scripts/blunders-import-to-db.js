@@ -267,7 +267,10 @@ async function main() {
     });
 
     const status = String(pz?.status || 'pending') === 'completed' ? 'completed' : 'pending';
-    const attempts = Array.isArray(pz?.attempts) ? pz.attempts : [];
+    // IMPORTANT: node-postgres treats JS arrays as SQL array literals.
+    // Our column type is JSONB, so we must pass a JSON string (or object) explicitly.
+    const attemptsArr = Array.isArray(pz?.attempts) ? pz.attempts : [];
+    const attempts = JSON.stringify(attemptsArr);
     progressRows.push({
       org_id: orgId,
       student_id: studentId,
