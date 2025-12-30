@@ -531,6 +531,7 @@
               <tr class="blunders-muted" style="text-align:left;">
                 <th style="padding:6px 8px;">Name</th>
                 <th style="padding:6px 8px;">Chess.com username</th>
+                <th style="padding:6px 8px;">Chess.com rating</th>
                 <th style="padding:6px 8px;">Total puzzles</th>
                 <th style="padding:6px 8px;">Sync date</th>
                 <th style="padding:6px 8px;">Actions</th>
@@ -542,6 +543,9 @@
                 const name = String(m.name || '');
                 const user = String(m.username || '');
                 const total = Number(m?.counts?.total || 0);
+                const mr = (m?.rating === null || m?.rating === undefined) ? null : Number(m.rating);
+                const ms = m?.ratingSource ? String(m.ratingSource) : '';
+                const ratingLabel = (Number.isFinite(mr) && mr > 0) ? `${mr}${ms ? ` (${ms})` : ''}` : '—';
                 const dateVal = String(STATE.teacher?.dateByMaster?.[mid] || '') || today;
                 const historyVal = Number(STATE.teacher?.historyScanNMaster?.[mid] || 200) || 200;
                 return `
@@ -553,6 +557,7 @@
                     <td style="padding:10px 8px;">
                       <input type="text" value="${escapeHtml(user)}" data-bl-teacher-master-user="${escapeHtml(String(i))}" style="width:220px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
+                    <td style="padding:10px 8px;">${escapeHtml(ratingLabel)}</td>
                     <td style="padding:10px 8px;">${escapeHtml(String(total))}</td>
                     <td style="padding:10px 8px;">
                       <input type="date" value="${escapeHtml(dateVal)}" data-bl-teacher-master-date="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">

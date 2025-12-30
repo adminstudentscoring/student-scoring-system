@@ -2017,6 +2017,21 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
     const maxGamesPerDay = Math.max(1, Math.min(50, Number(opts.maxGamesPerDay ?? cfg.maxGamesPerDay) || cfg.maxGamesPerDay));
     const thresholdPoints = Math.max(0.1, Math.min(10, Number(opts.thresholdPoints ?? cfg.thresholdPoints) || cfg.thresholdPoints));
 
+    // Best-effort: fetch master's current Chess.com rating once per run for auto classification.
+    // (We store it on each generated puzzle so Teacher All blunders can bucket/filter it later.)
+    let masterRating = null;
+    let masterRatingSource = null;
+    let masterRatingUpdatedAt = null;
+    try {
+      const resp = await fetchChessComStats(username);
+      if (resp?.ok) {
+        const picked = pickChessComRating(resp.data);
+        masterRating = (picked && Number.isFinite(Number(picked.rating)) && Number(picked.rating) > 0) ? Number(picked.rating) : null;
+        masterRatingSource = picked?.source || null;
+        masterRatingUpdatedAt = new Date().toISOString();
+      }
+    } catch {}
+
     blundersSyncState.set(stKey, { ...(blundersSyncState.get(stKey) || {}), stage: 'fetch-games', updatedAt: new Date().toISOString() });
     let gamesAll = [];
     let historyTargetNew = 0;
@@ -2164,6 +2179,9 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
           masterId: mid,
           masterName: String(master?.name || ''),
           chessComUsername: username,
+          masterChessComRating: masterRating,
+          masterChessComRatingSource: masterRatingSource,
+          masterChessComRatingUpdatedAt: masterRatingUpdatedAt,
           gameUrl: String(game.url || ''),
           timeClass: String(game.time_class || ''),
           endTime: Number(game.end_time || 0),
@@ -8135,30 +8153,32 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
       .filter(p => inBucket(p.chessComRating));
 
-    // Master puzzles: shown only under "Any rating" (since they don't have a student rating).
-    const entriesMasters = (rating === 'any')
-      ? mineMasters
-        .map(p => {
-          const label = String(p?.masterName || p?.masterId || 'Master');
-          const completedAt = String(p.completedAt || '');
-          const sortAtMs = puzzleSortKeyMs(p);
-          const dropPoints = (typeof p.dropPoints === 'number')
-            ? Number(p.dropPoints)
-            : (Number(p.dropCp || 0) / 100);
-          return {
-            ...p,
-            studentName: `Master: ${label}`,
-            studentStudentId: '',
-            chessComRating: null,
-            chessComRatingSource: null,
-            chessComRatingUpdatedAt: null,
-            completedAt: completedAt || null,
-            sortAtMs: Number.isFinite(sortAtMs) ? sortAtMs : 0,
-            dropPoints: Number.isFinite(dropPoints) ? dropPoints : 0
-          };
-        })
-        .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
-      : [];
+    // Master puzzles: use stored master rating (if available) so they can be bucketed/filtered.
+    const entriesMasters = mineMasters
+      .map(p => {
+        const label = String(p?.masterName || p?.masterId || 'Master');
+        const completedAt = String(p.completedAt || '');
+        const sortAtMs = puzzleSortKeyMs(p);
+        const dropPoints = (typeof p.dropPoints === 'number')
+          ? Number(p.dropPoints)
+          : (Number(p.dropCp || 0) / 100);
+        const mr = (p?.masterChessComRating === null || p?.masterChessComRating === undefined) ? null : Number(p.masterChessComRating);
+        const ms = p?.masterChessComRatingSource ? String(p.masterChessComRatingSource) : null;
+        const mu = p?.masterChessComRatingUpdatedAt ? String(p.masterChessComRatingUpdatedAt) : null;
+        return {
+          ...p,
+          studentName: `Master: ${label}`,
+          studentStudentId: '',
+          chessComRating: Number.isFinite(mr) ? mr : null,
+          chessComRatingSource: ms,
+          chessComRatingUpdatedAt: mu,
+          completedAt: completedAt || null,
+          sortAtMs: Number.isFinite(sortAtMs) ? sortAtMs : 0,
+          dropPoints: Number.isFinite(dropPoints) ? dropPoints : 0
+        };
+      })
+      .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
+      .filter(p => inBucket(p.chessComRating));
 
     const entries = entriesStudents
       .concat(entriesMasters)
@@ -8498,9 +8518,16 @@ app.get('/api/teachers/blunders/masters-summary', authenticateUser, authorizeRol
     const masters = (Array.isArray(org.masters) ? org.masters : []).map((m) => {
       const mid = String(m.id || '');
       const mine = masterPuzzles.filter(p => String(p.masterId || '') === mid);
+      // Best-effort: show last known master rating based on most recent master puzzle.
+      const last = mine.slice().sort((a, b) => (puzzleSortKeyMs(b) - puzzleSortKeyMs(a)))[0] || null;
+      const mr = last && last.masterChessComRating !== null && last.masterChessComRating !== undefined ? Number(last.masterChessComRating) : null;
+      const ms = last && last.masterChessComRatingSource ? String(last.masterChessComRatingSource) : null;
       return {
         ...m,
-        counts: { total: mine.length }
+        counts: { total: mine.length },
+        rating: Number.isFinite(mr) ? mr : null,
+        ratingSource: ms,
+        ratingUpdatedAt: last?.masterChessComRatingUpdatedAt || null
       };
     });
     return res.json({ ok: true, orgId, masters, masterConfig: await getMasterBlundersConfig(orgId) });
