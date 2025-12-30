@@ -763,12 +763,12 @@ async function blundersTeacherRunNextJob() {
 function blundersChallengeDifficultyConfig(difficulty) {
   const d = String(difficulty || '').toLowerCase();
   // Per requirement:
-  // - Easy: 1.0–1.9 (exclude miss-mate)
+  // - Easy: 3.0+ (exclude miss-mate)
   // - Medium: 2.0–2.9
-  // - Hard: 3.0+ (exclude miss-mate)
-  if (d === 'easy') return { key: 'easy', min: 1.0, max: 2.0, points: 1 };
+  // - Hard: 1.0–1.9
+  if (d === 'easy') return { key: 'easy', min: 3.0, max: Infinity, points: 1 };
   if (d === 'medium') return { key: 'medium', min: 2.0, max: 3.0, points: 2 };
-  if (d === 'hard') return { key: 'hard', min: 3.0, max: Infinity, points: 3 };
+  if (d === 'hard') return { key: 'hard', min: 1.0, max: 2.0, points: 3 };
   return null;
 }
 

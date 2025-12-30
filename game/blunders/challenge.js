@@ -40,9 +40,9 @@
     const pz = challengeCurrentPuzzle();
     const diff = String(ch.difficulty || 'easy');
     const diffBtns = [
-      { k: 'easy', label: 'Easy (1.0–1.9)', points: 1 },
+      { k: 'easy', label: 'Easy (3.0+)', points: 1 },
       { k: 'medium', label: 'Medium (2.0–2.9)', points: 2 },
-      { k: 'hard', label: 'Hard (3.0+)', points: 3 }
+      { k: 'hard', label: 'Hard (1.0–1.9)', points: 3 }
     ];
     const flip = pz ? String(pz.studentColor || '') === 'b' : false;
     const fenOverride = String(STATE.uiBoard.challengeFen || pz?.startFEN || '');
