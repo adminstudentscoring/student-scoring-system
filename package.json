@@ -10,7 +10,9 @@
     "electron-dev": "electron . --dev",
     "app": "electron .",
     "init-admin": "node scripts/init-admin.js",
-    "migrate-students": "node scripts/migrate-students.js"
+    "migrate-students": "node scripts/migrate-students.js",
+    "db:migrate": "node scripts/db-migrate.js",
+    "db:ping": "node -e \"require('dotenv').config(); require('./db/postgres').dbPing().then(()=>console.log('OK')).catch((e)=>{console.error(e); process.exit(1);});\""
   },
   "keywords": [
     "student",

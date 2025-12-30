@@ -41,6 +41,29 @@ cp env.example .env
 #### CORS 配置
 - `CORS_ORIGIN=*` - 允許的來源（`*` 表示所有，生產環境建議設置具體域名）
 
+#### Postgres（Railway）
+本專案已內建 `pg`，可直接連 Railway Postgres。
+
+- **Railway 部署（同一個 Project 內）**：使用 `DATABASE_URL`（通常是 internal，例如包含 `railway.internal`）
+- **本機開發連 Railway**：使用 `DATABASE_PUBLIC_URL`（通常需要 SSL）
+
+可用的環境變數：
+- `DATABASE_URL`（推薦，Railway runtime）
+- `DATABASE_PUBLIC_URL`（本機開發用）
+- 或使用 `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE`（可選）
+
+驗證連線（本機）：
+```bash
+npm run db:ping
+```
+
+跑 migration（本機或 Railway）：
+```bash
+npm run db:migrate
+```
+
+> 注意：`DB_AUTO_MIGRATE=1` 會在伺服器啟動時自動跑 migrations。未準備好前建議保持 `0`，用 `npm run db:migrate` 手動跑。
+
 ### 4. 運行服務器
 
 ```bash

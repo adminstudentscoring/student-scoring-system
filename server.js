@@ -60,6 +60,10 @@ const billingDb = require('./billing/db');
 const paypal = require('./billing/paypal');
 const billingAccess = require('./billing/access');
 
+// App Postgres (optional, for future migrations/features)
+const appDb = require('./db/postgres');
+const appDbMigrate = require('./db/migrate');
+
 // Note: requireOrganizationAccess will be created after readUsers function is defined
 
 // Middleware
@@ -13890,6 +13894,26 @@ async function startServer() {
   await initializeDataFile();
   await loadVcpChessGameHistoryIndex();
   await billingDb.ensureBillingSchema();
+  // Optional: run app migrations (disabled by default; enable explicitly when ready).
+  try {
+    if (String(process.env.DB_AUTO_MIGRATE || '') === '1') {
+      const r = await appDbMigrate.migrate();
+      console.log(`Postgres migrations applied: ${Number(r?.applied || 0)} / ${Number(r?.total || 0)}`);
+    }
+  } catch (e) {
+    console.error('DB_AUTO_MIGRATE failed:', e);
+  }
+  // Best-effort: expose DB connectivity in logs (does not crash server if DB missing).
+  try {
+    if (appDb.getPool()) {
+      await appDb.dbPing();
+      console.log('Postgres: connected.');
+    } else {
+      console.log('Postgres: not configured (skipping).');
+    }
+  } catch (e) {
+    console.warn('Postgres: ping failed:', String(e?.message || e));
+  }
   
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server });
