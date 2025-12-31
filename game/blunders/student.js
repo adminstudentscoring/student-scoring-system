@@ -444,6 +444,10 @@
             const drop = dropOfPuzzle(p);
             const label = isMissMatePuzzle(p) ? 'Miss the mate' : `Drop ${drop.toFixed(2)}`;
             const status = String(p?.status || 'pending') === 'completed' ? 'Completed' : 'Pending';
+            const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+            const tagLine = tags.length
+              ? `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">${tags.slice(0, 8).map(t => `<span class="bl-badge" style="background:#f3f4f6; color:#111827;">${escapeHtml(t)}</span>`).join('')}</div>`
+              : ``;
             return `
               <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
                 <div style="display:flex; gap:10px; align-items:center;">
@@ -452,6 +456,7 @@
                     <div style="font-weight:950; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
                     <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)} · <strong>${escapeHtml(status)}</strong></div>
                     <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(fmtTs(p.completedAt || p.createdAt))}</div>
+                    ${tagLine}
                   </div>
                 </div>
               </button>

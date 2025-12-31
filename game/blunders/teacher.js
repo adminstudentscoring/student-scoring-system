@@ -266,7 +266,7 @@
           <div class="blunders-muted" style="margin-top:8px;">${tagStats ? tagNote : 'No tag stats loaded yet. Click “Refresh stats”.'}</div>
           ${tagStats ? `
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              ${topOverall.slice(0, 5).map(x => `<span class="bl-badge" style="background:#eef2ff; color:#3730a3;">${escapeHtml(String(x.tag || ''))}: <strong>${escapeHtml(String(x.count || 0))}</strong></span>`).join('') || `<div class="blunders-muted">No tags found yet (run “Tag puzzles”).</div>`}
+              ${topOverall.slice(0, 20).map(x => `<span class="bl-badge" style="background:#eef2ff; color:#3730a3;">${escapeHtml(String(x.tag || ''))}: <strong>${escapeHtml(String(x.count || 0))}</strong></span>`).join('') || `<div class="blunders-muted">No tags found yet (run “Tag puzzles”).</div>`}
             </div>
           ` : ``}
         </div>
@@ -414,6 +414,10 @@
             const when = escapeHtml(String(p.completedAt || ''));
             const drop = (Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0).toFixed(2);
             const title = `${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))} · Drop ${drop}`;
+            const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+            const tagLine = tags.length
+              ? `<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">${tags.slice(0, 8).map(t => `<span class="bl-badge" style="background:#f3f4f6; color:#111827;">${escapeHtml(t)}</span>`).join('')}</div>`
+              : ``;
             return `
               <div class="bl-card" style="display:flex; gap:12px; align-items:center;">
                 ${mini(String(p.startFEN || ''))}
@@ -423,6 +427,7 @@
                   <div class="blunders-muted" style="margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</div>
                   ${p.gameUrl ? `<div class="blunders-muted" style="margin-top:4px;">Source: <a href="${escapeHtml(String(p.gameUrl))}" target="_blank" rel="noopener noreferrer">Chess.com</a></div>` : ``}
                   ${when ? `<div class="blunders-muted" style="margin-top:4px;">${when}</div>` : ``}
+                  ${tagLine}
                 </div>
               </div>
             `;
