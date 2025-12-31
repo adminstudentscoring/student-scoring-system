@@ -444,6 +444,8 @@
   async function teacherHistoryScanStudent(studentId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanStudent?.(studentId, historyGames, force) : undefined; }
   async function teacherSyncMaster(masterId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncMaster?.(masterId, hkDayKey, force) : undefined; }
   async function teacherHistoryScanMaster(masterId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanMaster?.(masterId, historyGames, force) : undefined; }
+  async function teacherTagPuzzles(scope, recompute) { const m = requireTeacherModule(); return m ? m.teacherTagPuzzles?.(scope, recompute) : undefined; }
+  async function teacherLoadTagStats() { const m = requireTeacherModule(); return m ? m.teacherLoadTagStats?.() : undefined; }
   async function teacherBulkSyncSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkSyncSelected?.(force) : undefined; }
   async function teacherBulkCompleteSelected() { const m = requireTeacherModule(); return m ? m.teacherBulkCompleteSelected?.() : undefined; }
   async function teacherBulkHistoryScanSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkHistoryScanSelected?.(force) : undefined; }
@@ -974,6 +976,26 @@
 
       // Teacher actions
       if (t?.closest?.('[data-bl-teacher-refresh-students]')) return teacherLoad('students');
+      if (t?.closest?.('[data-bl-teacher-tag-stats-refresh]')) {
+        try {
+          await teacherLoadTagStats();
+          render();
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-tag-puzzles]')) {
+        try {
+          await teacherTagPuzzles('student', false);
+          render();
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          render();
+        }
+        return;
+      }
       if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
       if (t?.closest?.('[data-bl-teacher-refresh-all]')) return teacherLoad('allBlunders');
       if (t?.closest?.('[data-bl-teacher-all-stats]')) {
@@ -1718,6 +1740,12 @@
         STATE.teacher.allRating = String(ar.value || 'any');
         render();
         teacherLoad('allBlunders').catch(() => {});
+        return;
+      }
+      const td = el?.closest?.('[data-bl-teacher-tag-duration]');
+      if (td) {
+        STATE.teacher.tagDuration = String(td.value || 'month');
+        render();
         return;
       }
       const rj = el?.closest?.('[data-bl-review-jump]');

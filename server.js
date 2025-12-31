@@ -780,6 +780,85 @@ async function blundersTeacherRunNextJob() {
           job.progress = { ...(job.progress || {}), message: 'Done.' };
           jobs[jobId] = job;
           await writeBlundersTeacherJobs(jobs);
+        } else if (job.type === 'blunders_tag_puzzles') {
+          const orgId = String(job.orgId || '');
+          const scope = String(job.params?.scope || 'student'); // student | master | all
+          const recompute = !!job.params?.recompute;
+
+          const puzzles = await readBlundersPuzzles();
+          const targets = puzzles.filter((p) => {
+            if (String(p?.orgId || '') !== orgId) return false;
+            const sc = String(p?.scope || '').trim();
+            if (scope === 'student') return sc !== 'master';
+            if (scope === 'master') return sc === 'master';
+            return true;
+          });
+
+          job.progress = { total: targets.length, done: 0, tagged: 0, skipped: 0, message: `Tagging queued (${targets.length})`, scope };
+          job.updatedAt = nowIso();
+          jobs[jobId] = job;
+          await writeBlundersTeacherJobs(jobs);
+
+          const nowTaggedAt = nowIso();
+          let done = 0;
+          let tagged = 0;
+          let skipped = 0;
+          let lastFlushAtMs = 0;
+          let flushedTagged = 0;
+
+          for (let i = 0; i < puzzles.length; i++) {
+            if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
+            const p = puzzles[i];
+            if (String(p?.orgId || '') !== orgId) continue;
+            const sc = String(p?.scope || '').trim();
+            const eligible =
+              (scope === 'student' && sc !== 'master') ||
+              (scope === 'master' && sc === 'master') ||
+              (scope === 'all');
+            if (!eligible) continue;
+
+            const curVer = String(p?.taggerVersion || '');
+            const hasTags = Array.isArray(p?.tags) && p.tags.length > 0;
+            const needs = recompute || !hasTags || curVer !== BLUNDERS_TAGGER_VERSION;
+            if (!needs) { skipped++; done++; continue; }
+
+            try {
+              const tags = tagBlunderPuzzle(p);
+              p.tags = Array.isArray(tags) ? tags : [];
+              p.taggerVersion = BLUNDERS_TAGGER_VERSION;
+              p.taggedAt = nowTaggedAt;
+              tagged++;
+            } catch {
+              // Don't fail the whole job on a single puzzle.
+              skipped++;
+            }
+            done++;
+
+            if (done % 200 === 0) {
+              job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, message: `Tagging... ${done}/${targets.length}` };
+              job.updatedAt = nowIso();
+              jobs[jobId] = job;
+              await writeBlundersTeacherJobs(jobs);
+            }
+
+            // Incremental flush to avoid large lost work; rate-limited.
+            const now = Date.now();
+            if (tagged > flushedTagged && (now - lastFlushAtMs) > 2000) {
+              await writeBlundersPuzzles(puzzles);
+              flushedTagged = tagged;
+              lastFlushAtMs = now;
+            }
+          }
+
+          // Final flush
+          await writeBlundersPuzzles(puzzles);
+
+          job.status = 'done';
+          job.finishedAt = nowIso();
+          job.updatedAt = nowIso();
+          job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, message: 'Done.' };
+          jobs[jobId] = job;
+          await writeBlundersTeacherJobs(jobs);
         } else {
           throw new Error(`Unknown job type: ${String(job.type || '')}`);
         }
@@ -1162,6 +1241,288 @@ function blundersBucketKeyOfPuzzle(p) {
   if (d > 2.0 && d <= 3.0) return 'd3';
   if (d > 3.0) return 'd4';
   return 'd1';
+}
+
+// ===== Blunders: tagging (A) =====
+const BLUNDERS_TAGGER_VERSION = 'v1';
+const BLUNDERS_TAGS = {
+  MISSED_MATE: 'missed_mate',
+  MISSED_WIN: 'missed_win',
+  HANGING_PIECE: 'hanging_piece',
+  FORK: 'fork',
+  PIN: 'pin',
+  SKEWER: 'skewer',
+  PHASE_OPENING: 'phase_opening',
+  PHASE_MIDDLEGAME: 'phase_middlegame',
+  PHASE_ENDGAME: 'phase_endgame'
+};
+
+const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+function pieceValue(piece) {
+  if (!piece) return 0;
+  return PIECE_VALUE[String(piece.type || '').toLowerCase()] || 0;
+}
+
+function parseFenFullmove(fen) {
+  try {
+    const parts = String(fen || '').trim().split(/\s+/);
+    const n = Number(parts?.[5] || 0);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function countPieces(chess) {
+  let total = 0;
+  let queens = 0;
+  const b = chess?.board?.();
+  if (!Array.isArray(b)) return { total: 0, queens: 0 };
+  for (const row of b) {
+    for (const cell of row || []) {
+      if (!cell) continue;
+      total++;
+      if (String(cell.type) === 'q') queens++;
+    }
+  }
+  return { total, queens };
+}
+
+function phaseTagsForFen(startFen) {
+  let chess = null;
+  try { chess = new Chess(String(startFen || '')); } catch { chess = null; }
+  if (!chess) return [];
+  const fm = parseFenFullmove(startFen);
+  const { total, queens } = countPieces(chess);
+  // Simple heuristics, deterministic:
+  if (fm && fm <= 10) return [BLUNDERS_TAGS.PHASE_OPENING];
+  if (total <= 12 || (queens === 0 && total <= 16)) return [BLUNDERS_TAGS.PHASE_ENDGAME];
+  return [BLUNDERS_TAGS.PHASE_MIDDLEGAME];
+}
+
+function isSquare(s) { return /^[a-h][1-8]$/.test(String(s || '')); }
+function squareToFileRank(sq) {
+  const s = String(sq || '');
+  if (!isSquare(s)) return null;
+  const file = s.charCodeAt(0) - 97;
+  const rank = Number(s[1]) - 1;
+  return { file, rank };
+}
+function fileRankToSquare(file, rank) {
+  if (file < 0 || file > 7 || rank < 0 || rank > 7) return '';
+  return `${String.fromCharCode(97 + file)}${String(rank + 1)}`;
+}
+
+function attacksFrom(chess, fromSq, piece) {
+  const out = [];
+  if (!piece || !isSquare(fromSq)) return out;
+  const c = String(piece.color || '').toLowerCase();
+  const t = String(piece.type || '').toLowerCase();
+  const fr = squareToFileRank(fromSq);
+  if (!fr) return out;
+
+  const push = (f, r) => {
+    const sq = fileRankToSquare(f, r);
+    if (sq) out.push(sq);
+  };
+
+  if (t === 'p') {
+    const dir = c === 'w' ? 1 : -1;
+    push(fr.file - 1, fr.rank + dir);
+    push(fr.file + 1, fr.rank + dir);
+    return out;
+  }
+
+  if (t === 'n') {
+    const ds = [
+      [1, 2], [2, 1], [2, -1], [1, -2],
+      [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+    ];
+    for (const [df, dr] of ds) push(fr.file + df, fr.rank + dr);
+    return out;
+  }
+
+  if (t === 'k') {
+    for (let df = -1; df <= 1; df++) {
+      for (let dr = -1; dr <= 1; dr++) {
+        if (!df && !dr) continue;
+        push(fr.file + df, fr.rank + dr);
+      }
+    }
+    return out;
+  }
+
+  const dirs = [];
+  if (t === 'b' || t === 'q') dirs.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+  if (t === 'r' || t === 'q') dirs.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+  for (const [df, dr] of dirs) {
+    let f = fr.file + df;
+    let r = fr.rank + dr;
+    while (true) {
+      const sq = fileRankToSquare(f, r);
+      if (!sq) break;
+      out.push(sq);
+      const at = chess.get(sq);
+      if (at) break; // blocked
+      f += df;
+      r += dr;
+    }
+  }
+  return out;
+}
+
+function hasRecapture(chessAfterCapture, targetSquare, colorToMove) {
+  try {
+    const moves = chessAfterCapture.moves({ verbose: true }) || [];
+    for (const m of moves) {
+      if (String(m?.to || '') !== String(targetSquare || '')) continue;
+      const flags = String(m?.flags || '');
+      if (flags.includes('c') || flags.includes('e')) return true;
+    }
+  } catch {}
+  return false;
+}
+
+function tagBlunderPuzzle(p) {
+  const tags = new Set();
+  const startFen = String(p?.startFEN || p?.startFen || '').trim();
+  const mvUci = String(p?.blunderMoveUci || '').trim().toLowerCase();
+  if (!startFen || !mvUci) return [];
+
+  // Phase tags are cheap and always available.
+  for (const t of phaseTagsForFen(startFen)) tags.add(t);
+
+  // Missed mate / win: leverage engine bestCp signals already stored.
+  if (isMissMatePuzzle(p)) tags.add(BLUNDERS_TAGS.MISSED_MATE);
+  else {
+    const bestCp = Number(p?.bestCp ?? 0);
+    const dp = puzzleDropPoints(p);
+    if (Number.isFinite(bestCp) && Math.abs(bestCp) >= 300 && dp >= 1.0) tags.add(BLUNDERS_TAGS.MISSED_WIN);
+  }
+
+  // Tactical tags: analyze the position AFTER the blunder move.
+  const parsed = parseUciMove(mvUci);
+  if (!parsed) return Array.from(tags);
+
+  let chess = null;
+  try { chess = new Chess(startFen); } catch { chess = null; }
+  if (!chess) return Array.from(tags);
+
+  const moverColor = chess.turn(); // color who blundered
+  const applied = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
+  if (!applied) return Array.from(tags);
+
+  const opponentColor = chess.turn();
+  const victimColor = moverColor;
+
+  let foundHang = false;
+  let foundFork = false;
+  let foundPin = false;
+  let foundSkewer = false;
+
+  const oppMoves = chess.moves({ verbose: true }) || [];
+  for (const m of oppMoves) {
+    if (foundHang && foundFork && foundPin && foundSkewer) break;
+
+    const isCapture = String(m?.flags || '').includes('c') || String(m?.flags || '').includes('e');
+    const capturedType = m?.captured ? String(m.captured).toLowerCase() : '';
+
+    // Hanging piece: opponent can capture a valuable piece and it cannot be recaptured.
+    if (!foundHang && isCapture) {
+      const capVal = pieceValue({ type: capturedType });
+      if (capVal >= 3) {
+        let ch2 = null;
+        try { ch2 = new Chess(chess.fen()); } catch { ch2 = null; }
+        if (ch2) {
+          const cap = ch2.move({ from: String(m.from).toLowerCase(), to: String(m.to).toLowerCase(), promotion: m.promotion ? String(m.promotion).toLowerCase() : undefined });
+          if (cap) {
+            const canRecap = hasRecapture(ch2, String(m.to || ''), victimColor);
+            if (!canRecap) {
+              tags.add(BLUNDERS_TAGS.HANGING_PIECE);
+              foundHang = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Fork / pin / skewer patterns: look at the moved piece after playing m.
+    if ((!foundFork || !foundPin || !foundSkewer)) {
+      let ch3 = null;
+      try { ch3 = new Chess(chess.fen()); } catch { ch3 = null; }
+      if (!ch3) continue;
+      const played = ch3.move({ from: String(m.from).toLowerCase(), to: String(m.to).toLowerCase(), promotion: m.promotion ? String(m.promotion).toLowerCase() : undefined });
+      if (!played) continue;
+      const movedSq = String(m.to || '').toLowerCase();
+      const movedPiece = ch3.get(movedSq);
+      if (!movedPiece || String(movedPiece.color) !== opponentColor) continue;
+
+      // Fork: moved piece attacks >=2 valuable victim pieces.
+      if (!foundFork) {
+        const atk = attacksFrom(ch3, movedSq, movedPiece);
+        let targets = 0;
+        for (const sq of atk) {
+          const pc = ch3.get(sq);
+          if (!pc || String(pc.color) !== victimColor) continue;
+          const v = pieceValue(pc);
+          if (v >= 3 && String(pc.type) !== 'k') targets++;
+        }
+        if (targets >= 2) {
+          tags.add(BLUNDERS_TAGS.FORK);
+          foundFork = true;
+        }
+      }
+
+      // Pin / skewer: only meaningful for sliders.
+      const t = String(movedPiece.type || '');
+      if ((t === 'b' || t === 'r' || t === 'q') && (!foundPin || !foundSkewer)) {
+        const dirs = [];
+        if (t === 'b' || t === 'q') dirs.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+        if (t === 'r' || t === 'q') dirs.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+        const fr = squareToFileRank(movedSq);
+        if (fr) {
+          for (const [df, dr] of dirs) {
+            let f = fr.file + df;
+            let r = fr.rank + dr;
+            let first = null;
+            let second = null;
+            while (true) {
+              const sq = fileRankToSquare(f, r);
+              if (!sq) break;
+              const pc = ch3.get(sq);
+              if (pc) {
+                if (!first) first = { sq, pc };
+                else { second = { sq, pc }; break; }
+              }
+              f += df; r += dr;
+            }
+            if (!first || !second) continue;
+            if (String(first.pc.color) !== victimColor) continue;
+            if (String(second.pc.color) !== victimColor) continue;
+            const firstType = String(first.pc.type || '');
+            const secondType = String(second.pc.type || '');
+
+            if (!foundPin) {
+              // Pin: victim piece in front, behind it victim king or queen.
+              if (firstType !== 'k' && (secondType === 'k' || secondType === 'q')) {
+                tags.add(BLUNDERS_TAGS.PIN);
+                foundPin = true;
+              }
+            }
+            if (!foundSkewer) {
+              // Skewer: king/queen in front, valuable piece behind.
+              if ((firstType === 'k' || firstType === 'q') && pieceValue(second.pc) >= 3) {
+                tags.add(BLUNDERS_TAGS.SKEWER);
+                foundSkewer = true;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(tags);
 }
 
 function computeRolling3mStats({ analyzedMap, puzzles }) {
@@ -8472,6 +8833,42 @@ app.post('/api/teachers/blunders/jobs/master-history-scan', authenticateUser, au
   }
 });
 
+// Teacher: enqueue Blunders tagging as a background job (A: tactical themes).
+app.post('/api/teachers/blunders/jobs/tag-puzzles', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const scope = String(body.scope || 'student'); // student | master | all
+    const recompute = !!body.recompute;
+    if (!['student', 'master', 'all'].includes(scope)) return res.status(400).json({ error: 'Invalid scope (use: student, master, all)' });
+
+    const jobs = await readBlundersTeacherJobs();
+    const jobId = `blj_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    jobs[jobId] = {
+      id: jobId,
+      orgId,
+      teacherId: String(req.user.id || ''),
+      type: 'blunders_tag_puzzles',
+      status: 'queued',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      startedAt: null,
+      finishedAt: null,
+      error: null,
+      params: { scope, recompute },
+      progress: { total: 0, done: 0, tagged: 0, skipped: 0, scope, message: 'Queued' }
+    };
+    await writeBlundersTeacherJobs(jobs);
+    blundersTeacherJobQueue.push(jobId);
+    blundersTeacherRunNextJob().catch(() => {});
+    return res.json({ ok: true, orgId, jobId, scope, recompute });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/jobs/tag-puzzles error:', e);
+    return res.status(500).json({ error: 'Failed to enqueue tag job' });
+  }
+});
+
 app.get('/api/teachers/blunders/jobs/:jobId', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
   try {
     const orgId = String(req.user.organizationId || req.organizationFilter || '');
@@ -8607,6 +9004,84 @@ app.post('/api/teachers/blunders/complete-pending', authenticateUser, authorizeR
   } catch (e) {
     console.error('POST /api/teachers/blunders/complete-pending error:', e);
     return res.status(500).json({ error: 'Failed to complete pending puzzles' });
+  }
+});
+
+// Teacher: tag stats (A: tactical themes) for students in org.
+app.get('/api/teachers/blunders/tag-stats', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+
+    const duration = String(req.query.duration || 'month'); // week | month | halfYear | year | all
+    const startMs = (() => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      if (duration === 'week') return now - 7 * day;
+      if (duration === 'month') return now - 30 * day;
+      if (duration === 'halfYear') return now - 182 * day;
+      if (duration === 'year') return now - 365 * day;
+      return 0;
+    })();
+
+    const users = await readUsers();
+    const teacher = users.find(u => u.id === req.user.id);
+    const assignedIds = (teacher && Array.isArray(teacher.assignedStudents) && teacher.assignedStudents.length) ? new Set(teacher.assignedStudents) : null;
+
+    const data = await readData();
+    const studentsAll = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
+    const students = assignedIds ? studentsAll.filter(s => assignedIds.has(s.id)) : studentsAll;
+    const allowedStudentIds = new Set(students.map(s => String(s.id || '')));
+    const studentMap = new Map(students.map(s => [String(s.id || ''), { name: String(s.name || 'Student'), studentId: String(s.studentId || '') }]));    
+
+    const puzzles = await readBlundersPuzzles();
+    const mine = puzzles
+      .filter(p => String(p?.orgId || '') === orgId)
+      .filter(p => String(p?.scope || '') !== 'master')
+      .filter(p => allowedStudentIds.has(String(p?.studentId || '')))
+      .filter(p => !startMs || (puzzleSortKeyMs(p) >= startMs));
+
+    const overall = new Map(); // tag -> count
+    const perStudent = new Map(); // sid -> Map(tag,count)
+
+    for (const p of mine) {
+      const sid = String(p?.studentId || '');
+      const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+      if (!tags.length) continue;
+      if (!perStudent.has(sid)) perStudent.set(sid, new Map());
+      const m = perStudent.get(sid);
+      for (const t of tags) {
+        m.set(t, (m.get(t) || 0) + 1);
+        overall.set(t, (overall.get(t) || 0) + 1);
+      }
+    }
+
+    const topOverall = Array.from(overall.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => (b.count - a.count) || String(a.tag).localeCompare(String(b.tag)))
+      .slice(0, 20);
+
+    const studentsOut = Array.from(perStudent.entries()).map(([sid, map]) => {
+      const info = studentMap.get(String(sid)) || { name: 'Student', studentId: '' };
+      const top = Array.from(map.entries())
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => (b.count - a.count) || String(a.tag).localeCompare(String(a.tag)))
+        .slice(0, 10);
+      return { id: String(sid), name: info.name, studentId: info.studentId, top };
+    }).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+    return res.json({
+      ok: true,
+      orgId,
+      duration,
+      taggerVersion: BLUNDERS_TAGGER_VERSION,
+      puzzlesConsidered: mine.length,
+      topOverall,
+      students: studentsOut
+    });
+  } catch (e) {
+    console.error('GET /api/teachers/blunders/tag-stats error:', e);
+    return res.status(500).json({ error: 'Failed to load tag stats' });
   }
 });
 

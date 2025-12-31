@@ -196,6 +196,18 @@
     const blNext = bls?.nextRunAt ? fmtIsoUtc(bls.nextRunAt) : '—';
     const selectedCount = Array.from(selectedSet).filter((id) => allRows.some(r => String(r.id || '') === id)).length;
     const bulkHistoryGames = Math.max(1, Math.min(500, Number(STATE.teacher.bulkHistoryGames || 200) || 200));
+    const tagDuration = String(STATE.teacher.tagDuration || 'month');
+    const tagStats = (STATE.teacher.tagStats && typeof STATE.teacher.tagStats === 'object') ? STATE.teacher.tagStats : null;
+    const topOverall = Array.isArray(tagStats?.topOverall) ? tagStats.topOverall : [];
+    const taggerVersion = String(tagStats?.taggerVersion || '');
+    const tagNote = tagStats ? `Tagger: <strong>${escapeHtml(taggerVersion || '—')}</strong> · Puzzles: <strong>${escapeHtml(String(tagStats?.puzzlesConsidered || 0))}</strong>` : '';
+    const durationOpts = [
+      { k: 'week', label: 'Last week' },
+      { k: 'month', label: 'Last month' },
+      { k: 'halfYear', label: 'Last 6 months' },
+      { k: 'year', label: 'Last year' },
+      { k: 'all', label: 'All time' }
+    ];
 
     return `
       <div class="bl-card">
@@ -240,6 +252,25 @@
             <button class="btn btn-secondary" type="button" data-bl-teacher-history-force-selected ${(!selectedCount || loading) ? 'disabled' : ''}>History Force selected</button>
           </div>
         </div>
+
+        <div class="bl-card" style="box-shadow:none; margin-top:12px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="font-weight:900; color:#111827;">Blunder themes (A)</div>
+            <div style="flex:1;"></div>
+            <select class="btn btn-secondary btn-small" data-bl-teacher-tag-duration style="min-width:160px;" ${loading ? 'disabled' : ''}>
+              ${durationOpts.map(o => `<option value="${escapeHtml(o.k)}" ${tagDuration === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+            </select>
+            <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-tag-stats-refresh ${loading ? 'disabled' : ''}>Refresh stats</button>
+            <button class="btn btn-primary btn-small" type="button" data-bl-teacher-tag-puzzles ${loading ? 'disabled' : ''}>Tag puzzles</button>
+          </div>
+          <div class="blunders-muted" style="margin-top:8px;">${tagStats ? tagNote : 'No tag stats loaded yet. Click “Refresh stats”.'}</div>
+          ${tagStats ? `
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+              ${topOverall.slice(0, 5).map(x => `<span class="bl-badge" style="background:#eef2ff; color:#3730a3;">${escapeHtml(String(x.tag || ''))}: <strong>${escapeHtml(String(x.count || 0))}</strong></span>`).join('') || `<div class="blunders-muted">No tags found yet (run “Tag puzzles”).</div>`}
+            </div>
+          ` : ``}
+        </div>
+
         ${loading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
         ${err ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(err)}</div>` : ``}
 
@@ -615,6 +646,8 @@
         STATE.teacher.students = Array.isArray(data?.students) ? data.students : [];
         STATE.teacher.ratingsSchedule = data?.ratingsSchedule || null;
         STATE.teacher.blundersSchedule = data?.blundersSchedule || null;
+        // Best-effort: refresh tag stats in background (won't fail students load).
+        try { await teacherLoadTagStats(); } catch {}
       }
       STATE.teacher.loading = false;
       STATE.teacher.lastLoadedAt = new Date().toISOString();
@@ -811,6 +844,30 @@
     return out;
   }
 
+  async function teacherTagPuzzles(scope, recompute) {
+    const sc = String(scope || 'student');
+    const out = await teacherApi('/teachers/blunders/jobs/tag-puzzles', {
+      method: 'POST',
+      body: { scope: sc, recompute: !!recompute }
+    });
+    const jobId = out?.jobId ? String(out.jobId) : '';
+    if (jobId) {
+      STATE.teacher.error = `Tagging queued (job: ${jobId}).`;
+      entry().render();
+      openTeacherJobModal(jobId).catch(() => {});
+    }
+    return out;
+  }
+
+  async function teacherLoadTagStats() {
+    const dur = String(STATE.teacher.tagDuration || 'month');
+    const qs = `?duration=${encodeURIComponent(dur)}`;
+    const data = await teacherApi(`/teachers/blunders/tag-stats${qs}`);
+    STATE.teacher.tagStats = (data && typeof data === 'object') ? data : null;
+    entry().render();
+    return data;
+  }
+
   async function teacherBulkSyncSelected(force) {
     const selected = Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : [];
     const ids = selected.filter(Boolean);
@@ -911,6 +968,8 @@
     teacherHistoryScanStudent,
     teacherSyncMaster,
     teacherHistoryScanMaster,
+    teacherTagPuzzles,
+    teacherLoadTagStats,
     teacherBulkSyncSelected,
     teacherBulkCompleteSelected,
     teacherBulkHistoryScanSelected

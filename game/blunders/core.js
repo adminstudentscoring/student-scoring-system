@@ -69,6 +69,9 @@
       lastLoadedAt: '',
       ratingsSchedule: null,
       blundersSchedule: null,
+      // Blunder tag stats (A: tactical themes)
+      tagDuration: 'month', // week | month | halfYear | year | all
+      tagStats: null,
       // Teacher Students UI
       search: '',
       selectedIds: [],
