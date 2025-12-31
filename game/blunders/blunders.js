@@ -1606,6 +1606,40 @@
         return;
       }
 
+      const openAll = t?.closest?.('[data-bl-teacher-all-open]');
+      if (openAll) {
+        const pid = String(openAll.getAttribute('data-bl-teacher-all-open') || '').trim();
+        if (!pid) return;
+        const ui = (STATE.teacher?.allUi && typeof STATE.teacher.allUi === 'object') ? STATE.teacher.allUi : null;
+        const buckets = ui?.buckets && typeof ui.buckets === 'object' ? ui.buckets : null;
+        let found = null;
+        if (buckets) {
+          for (const b of Object.values(buckets)) {
+            const arr = Array.isArray(b?.entries) ? b.entries : [];
+            const hit = arr.find(x => String(x?.id || x?.key || '') === pid) || null;
+            if (hit) { found = hit; break; }
+          }
+        }
+        if (!found) return;
+        const drop = (Number(found?.dropPoints ?? (Number(found?.dropCp || 0) / 100)) || 0).toFixed(2);
+        const tags = Array.isArray(found?.tags) ? found.tags.map(String).filter(Boolean) : [];
+        openModal('Puzzle', `
+          <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(found.studentName || ''))}</div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+            ${renderMiniBoardFromFen(String(found.startFEN || ''))}
+            <div style="min-width:240px; max-width:520px;">
+              <div class="blunders-muted">Move: <strong>${escapeHtml(String(found.blunderSan || found.blunderMoveUci || ''))}</strong></div>
+              <div class="blunders-muted" style="margin-top:6px;">Drop: <strong>${escapeHtml(drop)}</strong></div>
+              ${found.bestMoveUci ? `<div class="blunders-muted" style="margin-top:6px;">Best move: <strong>${escapeHtml(String(found.bestMoveUci))}</strong></div>` : ``}
+              ${tags.length ? `<div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">${tags.map(t => `<span class="bl-badge" style="background:#eef2ff; color:#3730a3;">${escapeHtml(t)}</span>`).join('')}</div>` : ``}
+              ${found.gameUrl ? `<div class="blunders-muted" style="margin-top:10px;">Source: <a href="${escapeHtml(String(found.gameUrl))}" target="_blank" rel="noopener noreferrer">Chess.com</a></div>` : ``}
+              <div class="blunders-muted" style="margin-top:10px;">FEN: <span style="word-break:break-word;">${escapeHtml(String(found.startFEN || ''))}</span></div>
+            </div>
+          </div>
+        `);
+        return;
+      }
+
       const sqEl = t?.closest?.('[data-bl-sq]');
       if (sqEl && STATE.page === 'blunder') {
         STATE.ui.lastBlunderUiActionTs = Date.now();
@@ -1738,6 +1772,13 @@
       const ar = el?.closest?.('[data-bl-teacher-all-rating]');
       if (ar) {
         STATE.teacher.allRating = String(ar.value || 'any');
+        render();
+        teacherLoad('allBlunders').catch(() => {});
+        return;
+      }
+      const at = el?.closest?.('[data-bl-teacher-all-tag]');
+      if (at) {
+        STATE.teacher.allTag = String(at.value || 'any');
         render();
         teacherLoad('allBlunders').catch(() => {});
         return;

@@ -8237,6 +8237,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
     const duration = String(req.query.duration || 'all'); // week | month | halfYear | year | all
     const rating = String(req.query.rating || 'any'); // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2001-2300 | 2201-2500 | 2501-2800 | 2801-3000 | 3001up
+    const tag = String(req.query.tag || 'any').trim(); // any | <tag>
     const bucketKey = String(req.query.bucket || '').trim(); // '' | missMate | d1 | d2 | d3 | d4
     const pageSize = 50; // Fixed (UI requirement)
     const pageIn = Number(req.query.page || 1);
@@ -8298,6 +8299,9 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
     // Feature flag: use Postgres-backed queries (requires importing data to DB first).
     if (String(process.env.BLUNDERS_USE_DB || '') === '1') {
+      if (tag && tag !== 'any') {
+        return res.status(400).json({ error: 'Tag filter is not supported when BLUNDERS_USE_DB=1 (tags are stored in JSON only)' });
+      }
       const pool = appDb.getPool();
       if (!pool) return res.status(500).json({ error: 'Postgres not configured for BLUNDERS_USE_DB' });
 
@@ -8307,7 +8311,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
         : allowedIdsArr.filter((sid) => inBucket(ratingMap.get(String(sid))?.rating));
       if (!filteredIds.length) {
         const emptyCounts = { missMate: 0, d1: 0, d2: 0, d3: 0, d4: 0, total: 0 };
-        return res.json({ ok: true, orgId, duration, rating, pageSize, counts: emptyCounts });
+        return res.json({ ok: true, orgId, duration, rating, tag, pageSize, counts: emptyCounts, tagCounts: {} });
       }
 
       const startMs = (() => {
@@ -8390,7 +8394,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
         };
 
         if (!bucketKey) {
-          return res.json({ ok: true, orgId, duration, rating, pageSize, counts });
+        return res.json({ ok: true, orgId, duration, rating, tag, pageSize, counts, tagCounts: {} });
         }
         if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(bucketKey)) {
           return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
@@ -8477,13 +8481,15 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
           orgId,
           duration,
           rating,
+          tag,
           pageSize,
           bucket: bucketKey,
           page: safePage,
           totalPages,
           totalBucket,
           counts,
-          entries
+          entries,
+          tagCounts: {}
         });
       } finally {
         try { client.release(); } catch {}
@@ -8551,9 +8557,21 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       .filter(p => !startMs || (p.sortAtMs && p.sortAtMs >= startMs))
       .filter(p => inBucket(p.chessComRating));
 
-    const entries = entriesStudents
+    const entriesAll = entriesStudents
       .concat(entriesMasters)
       .sort((a, b) => (b.sortAtMs || 0) - (a.sortAtMs || 0));
+
+    // Tag counts for filter UI (computed before tag filter)
+    const tagCounts = {};
+    for (const p of entriesAll) {
+      const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+      for (const t of tags) tagCounts[t] = (tagCounts[t] || 0) + 1;
+    }
+
+    // Apply tag filter (server-side, correct counts/pagination)
+    const entries = (tag && tag !== 'any')
+      ? entriesAll.filter((p) => (Array.isArray(p?.tags) ? p.tags.map(String) : []).includes(tag))
+      : entriesAll;
 
     const isMissMate = (p) => {
       const bestCp = Number(p?.bestCp ?? 0);
@@ -8577,7 +8595,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
     // Summary-only (default): return counts without entries to keep payload small.
     if (!bucketKey) {
-      return res.json({ ok: true, orgId, duration, rating, pageSize, counts });
+      return res.json({ ok: true, orgId, duration, rating, tag, pageSize, counts, tagCounts });
     }
     if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(bucketKey)) {
       return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
@@ -8594,13 +8612,15 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       orgId,
       duration,
       rating,
+      tag,
       pageSize,
       bucket: bucketKey,
       page: safePage,
       totalPages,
       totalBucket,
       counts,
-      entries: pageEntries
+      entries: pageEntries,
+      tagCounts
     });
   } catch (e) {
     console.error('GET /api/teachers/blunders/all-blunders error:', e);

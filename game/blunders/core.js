@@ -85,10 +85,12 @@
       // Teacher All blunders UI
       allDuration: 'all', // week | month | halfYear | year | all
       allRating: 'any', // any | 100-400 | 401-700 | 701-1000 | 1001-1500 | 1501-2000 | 2001-2300 | 2201-2500 | 2501-2800 | 2801-3000 | 3001up
+      allTag: 'any', // any | <tag>
       allUi: {
         pageSize: 50,
         counts: null, // { missMate, d1, d2, d3, d4, total }
         storageStats: null,
+        tagCounts: null, // { tag: count, ... } (top tags for current filters)
         buckets: {
           missMate: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
           d1: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },

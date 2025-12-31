@@ -380,6 +380,19 @@
     const counts = (ui.counts && typeof ui.counts === 'object') ? ui.counts : null;
     const buckets = (ui.buckets && typeof ui.buckets === 'object') ? ui.buckets : {};
     const stats = (ui.storageStats && typeof ui.storageStats === 'object') ? ui.storageStats : null;
+    const tagCounts = (ui.tagCounts && typeof ui.tagCounts === 'object') ? ui.tagCounts : null;
+    const selectedTag = String(STATE.teacher.allTag || 'any');
+    const tagOpts = (() => {
+      const base = [{ k: 'any', label: 'Any theme' }];
+      if (!tagCounts) return base;
+      const entries = Object.entries(tagCounts)
+        .map(([k, v]) => ({ k: String(k), n: Number(v || 0) || 0 }))
+        .filter(x => x.k && x.k !== 'any')
+        .sort((a, b) => (b.n - a.n) || a.k.localeCompare(b.k))
+        .slice(0, 50);
+      for (const x of entries) base.push({ k: x.k, label: `${x.k} (${x.n})` });
+      return base;
+    })();
 
     const durationBtns = [
       { k: 'week', label: 'Last week' },
@@ -418,9 +431,12 @@
             const tagLine = tags.length
               ? `<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">${tags.slice(0, 8).map(t => `<span class="bl-badge" style="background:#f3f4f6; color:#111827;">${escapeHtml(t)}</span>`).join('')}</div>`
               : ``;
+            const pid = escapeHtml(String(p.id || p.key || ''));
             return `
               <div class="bl-card" style="display:flex; gap:12px; align-items:center;">
-                ${mini(String(p.startFEN || ''))}
+                <button type="button" data-bl-teacher-all-open="${pid}" style="all:unset; cursor:pointer; display:inline-flex; align-items:center;">
+                  ${mini(String(p.startFEN || ''))}
+                </button>
                 <div style="min-width:0;">
                   <div style="font-weight:950; color:#111827; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sname}${sid ? ` <span style="opacity:.7;">(${sid})</span>` : ''}</div>
                   <div class="blunders-muted" style="margin-top:4px;">Rating: <strong>${r || '—'}</strong></div>
@@ -495,6 +511,9 @@
         <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           ${durationBtns.map(b => `<button class="btn ${duration === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-teacher-all-duration="${escapeHtml(b.k)}">${escapeHtml(b.label)}</button>`).join('')}
           <div style="flex:1;"></div>
+          <select class="btn btn-secondary btn-small" data-bl-teacher-all-tag style="min-width:200px;">
+            ${tagOpts.map(o => `<option value="${escapeHtml(o.k)}" ${selectedTag === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
           <select class="btn btn-secondary btn-small" data-bl-teacher-all-rating style="min-width:180px;">
             ${ratingOpts.map(o => `<option value="${escapeHtml(o.k)}" ${rating === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
@@ -633,11 +652,13 @@
       } else if (tab === 'allBlunders') {
         const dur = String(STATE.teacher.allDuration || 'all');
         const rt = String(STATE.teacher.allRating || 'any');
-        const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}`;
+        const tg = String(STATE.teacher.allTag || 'any');
+        const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}&tag=${encodeURIComponent(tg)}`;
         const data = await teacherApi(`/teachers/blunders/all-blunders${qs}`);
         if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = { pageSize: 50, counts: null, buckets: {} };
         STATE.teacher.allUi.pageSize = 50;
         STATE.teacher.allUi.counts = (data?.counts && typeof data.counts === 'object') ? data.counts : null;
+        STATE.teacher.allUi.tagCounts = (data?.tagCounts && typeof data.tagCounts === 'object') ? data.tagCounts : null;
         if (!STATE.teacher.allUi.buckets || typeof STATE.teacher.allUi.buckets !== 'object') STATE.teacher.allUi.buckets = {};
         // Reset buckets (default collapsed)
         const keys = ['missMate', 'd1', 'd2', 'd3', 'd4'];
@@ -692,10 +713,12 @@
     try {
       const dur = String(STATE.teacher.allDuration || 'all');
       const rt = String(STATE.teacher.allRating || 'any');
+      const tg = String(STATE.teacher.allTag || 'any');
       const p = Math.max(1, Number(page || 1) || 1);
-      const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}&bucket=${encodeURIComponent(key)}&page=${encodeURIComponent(String(p))}`;
+      const qs = `?duration=${encodeURIComponent(dur)}&rating=${encodeURIComponent(rt)}&tag=${encodeURIComponent(tg)}&bucket=${encodeURIComponent(key)}&page=${encodeURIComponent(String(p))}`;
       const data = await teacherApi(`/teachers/blunders/all-blunders${qs}`);
       ui.counts = (data?.counts && typeof data.counts === 'object') ? data.counts : ui.counts;
+      ui.tagCounts = (data?.tagCounts && typeof data.tagCounts === 'object') ? data.tagCounts : ui.tagCounts;
       b.entries = Array.isArray(data?.entries) ? data.entries : [];
       b.page = Number(data?.page || p) || p;
       b.totalPages = Number(data?.totalPages || 1) || 1;
