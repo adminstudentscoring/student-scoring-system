@@ -786,6 +786,7 @@ async function blundersTeacherRunNextJob() {
           const recompute = !!job.params?.recompute;
 
           const puzzles = await readBlundersPuzzles();
+          const pool = appDb.getPool();
           const targets = puzzles.filter((p) => {
             if (String(p?.orgId || '') !== orgId) return false;
             const sc = String(p?.scope || '').trim();
@@ -805,6 +806,7 @@ async function blundersTeacherRunNextJob() {
           let skipped = 0;
           let lastFlushAtMs = 0;
           let flushedTagged = 0;
+          let dbBatch = [];
 
           for (let i = 0; i < puzzles.length; i++) {
             if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
@@ -828,6 +830,15 @@ async function blundersTeacherRunNextJob() {
               p.taggerVersion = BLUNDERS_TAGGER_VERSION;
               p.taggedAt = nowTaggedAt;
               tagged++;
+              // DB sync (student puzzles only)
+              if (pool && sc !== 'master') {
+                const key = String(p?.key || '').trim();
+                if (key) dbBatch.push({ key, tags: p.tags, taggerVersion: BLUNDERS_TAGGER_VERSION, taggedAt: nowTaggedAt });
+                if (dbBatch.length >= 200) {
+                  await dbUpsertPuzzleTags(pool, dbBatch);
+                  dbBatch = [];
+                }
+              }
             } catch {
               // Don't fail the whole job on a single puzzle.
               skipped++;
@@ -852,6 +863,9 @@ async function blundersTeacherRunNextJob() {
 
           // Final flush
           await writeBlundersPuzzles(puzzles);
+          try {
+            if (pool && dbBatch.length) await dbUpsertPuzzleTags(pool, dbBatch);
+          } catch {}
 
           job.status = 'done';
           job.finishedAt = nowIso();
@@ -1525,6 +1539,34 @@ function tagBlunderPuzzle(p) {
   return Array.from(tags);
 }
 
+async function dbUpsertPuzzleTags(pool, rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!pool || !list.length) return { ok: true, updated: 0 };
+  const payload = list.map((x) => ({
+    key: String(x?.key || ''),
+    tags: Array.isArray(x?.tags) ? x.tags : [],
+    tagger_version: String(x?.taggerVersion || BLUNDERS_TAGGER_VERSION),
+    tagged_at: x?.taggedAt || nowIso()
+  })).filter((x) => x.key);
+  if (!payload.length) return { ok: true, updated: 0 };
+  const sql = `
+    WITH data AS (
+      SELECT *
+      FROM jsonb_to_recordset($1::jsonb)
+      AS t(key text, tags jsonb, tagger_version text, tagged_at timestamptz)
+    )
+    UPDATE blunders_puzzles p
+    SET
+      tags = COALESCE(data.tags, '[]'::jsonb),
+      tagger_version = data.tagger_version,
+      tagged_at = data.tagged_at
+    FROM data
+    WHERE p.key = data.key
+  `;
+  await pool.query(sql, [JSON.stringify(payload)]);
+  return { ok: true, updated: payload.length };
+}
+
 function computeRolling3mStats({ analyzedMap, puzzles }) {
   const cutoffMs = threeMonthsAgoMs();
   const analyzed = (analyzedMap && typeof analyzedMap === 'object') ? analyzedMap : {};
@@ -1659,6 +1701,9 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
         'after_cp',
         'drop_cp',
         'drop_points',
+        'tags',
+        'tagger_version',
+        'tagged_at',
         'created_at',
         'raw'
       ];
@@ -1672,6 +1717,12 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
         const dp = (typeof pz?.dropPoints === 'number') ? Number(pz.dropPoints) : (Number(pz?.dropCp || 0) / 100);
         const createdAt = (() => {
           const t = Date.parse(String(pz?.createdAt || ''));
+          return Number.isFinite(t) ? new Date(t).toISOString() : null;
+        })();
+        const tags = Array.isArray(pz?.tags) ? pz.tags.map(String).filter(Boolean) : [];
+        const taggerVersion = pz?.taggerVersion ? String(pz.taggerVersion) : (pz?.tagger_version ? String(pz.tagger_version) : null);
+        const taggedAt = (() => {
+          const t = Date.parse(String(pz?.taggedAt || ''));
           return Number.isFinite(t) ? new Date(t).toISOString() : null;
         })();
         const row = [
@@ -1694,6 +1745,9 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
           (pz?.afterCp === null || pz?.afterCp === undefined) ? null : Number(pz.afterCp),
           (pz?.dropCp === null || pz?.dropCp === undefined) ? null : Number(pz.dropCp),
           Number.isFinite(dp) ? dp : 0,
+          JSON.stringify(tags),
+          taggerVersion,
+          taggedAt,
           createdAt,
           JSON.stringify(pz || {})
         ];
@@ -1725,6 +1779,9 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
             after_cp=EXCLUDED.after_cp,
             drop_cp=EXCLUDED.drop_cp,
             drop_points=EXCLUDED.drop_points,
+            tags=COALESCE(EXCLUDED.tags, blunders_puzzles.tags),
+            tagger_version=COALESCE(EXCLUDED.tagger_version, blunders_puzzles.tagger_version),
+            tagged_at=COALESCE(EXCLUDED.tagged_at, blunders_puzzles.tagged_at),
             created_at=COALESCE(EXCLUDED.created_at, blunders_puzzles.created_at),
             raw=EXCLUDED.raw
         `,
@@ -8299,9 +8356,6 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
     // Feature flag: use Postgres-backed queries (requires importing data to DB first).
     if (String(process.env.BLUNDERS_USE_DB || '') === '1') {
-      if (tag && tag !== 'any') {
-        return res.status(400).json({ error: 'Tag filter is not supported when BLUNDERS_USE_DB=1 (tags are stored in JSON only)' });
-      }
       const pool = appDb.getPool();
       if (!pool) return res.status(500).json({ error: 'Postgres not configured for BLUNDERS_USE_DB' });
 
@@ -8328,7 +8382,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
       const client = await pool.connect();
       try {
         const baseCte = `
-          WITH base AS (
+          WITH base0 AS (
             SELECT
               p.key,
               p.org_id,
@@ -8348,6 +8402,9 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
               p.after_cp,
               p.drop_cp,
               p.drop_points,
+              p.tags,
+              p.tagger_version,
+              p.tagged_at,
               p.created_at,
               pr.status,
               pr.completed_at,
@@ -8368,7 +8425,31 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
               AND p.student_id = ANY($2)
               AND ($3::timestamptz IS NULL OR COALESCE(pr.completed_at, to_timestamp(p.end_time_sec), p.created_at, to_timestamp(p.sort_at_ms/1000.0)) >= $3::timestamptz)
           )
+          , base AS (
+            SELECT * FROM base0
+            WHERE ($4::text = 'any' OR (COALESCE(tags, '[]'::jsonb) ? $4::text))
+          )
         `;
+
+        const tagCountsRes = await client.query(
+          `${baseCte}
+           SELECT
+             t.tag AS tag,
+             COUNT(*)::int AS count
+           FROM base0
+           CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(base0.tags, '[]'::jsonb)) AS t(tag)
+           GROUP BY t.tag
+           ORDER BY count DESC, tag ASC
+           LIMIT 50
+          `,
+          [orgId, filteredIds, cutoffTs, 'any']
+        );
+        const tagCounts = {};
+        for (const r of (tagCountsRes.rows || [])) {
+          const k = String(r.tag || '').trim();
+          if (!k) continue;
+          tagCounts[k] = Number(r.count || 0) || 0;
+        }
 
         const countsRes = await client.query(
           `${baseCte}
@@ -8381,7 +8462,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
              COUNT(*) FILTER (WHERE bucket='d4')::int AS "d4"
            FROM base
           `,
-          [orgId, filteredIds, cutoffTs]
+          [orgId, filteredIds, cutoffTs, tag]
         );
         const c0 = countsRes.rows[0] || {};
         const counts = {
@@ -8394,7 +8475,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
         };
 
         if (!bucketKey) {
-        return res.json({ ok: true, orgId, duration, rating, tag, pageSize, counts, tagCounts: {} });
+        return res.json({ ok: true, orgId, duration, rating, tag, pageSize, counts, tagCounts });
         }
         if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(bucketKey)) {
           return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
@@ -8425,16 +8506,19 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
              after_cp,
              drop_cp,
              drop_points,
+             tags,
+             tagger_version,
+             tagged_at,
              created_at,
              status,
              completed_at,
              EXTRACT(EPOCH FROM sort_ts) * 1000 AS "sortAtMs"
            FROM base
-           WHERE bucket = $4
+           WHERE bucket = $5
            ORDER BY sort_ts DESC
-           LIMIT $5 OFFSET $6
+           LIMIT $6 OFFSET $7
           `,
-          [orgId, filteredIds, cutoffTs, bucketKey, pageSize, offset]
+          [orgId, filteredIds, cutoffTs, tag, bucketKey, pageSize, offset]
         );
 
         const entries = (pageRes.rows || []).map((r) => {
@@ -8444,6 +8528,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
           const completedAt = r.completed_at ? new Date(r.completed_at).toISOString() : null;
           const endTime = Number(r.end_time_sec || 0) || 0;
           const dropPoints = Number(r.drop_points ?? 0) || 0;
+          const tags = Array.isArray(r.tags) ? r.tags.map(String).filter(Boolean) : [];
           return {
             // Keep client-compatible shape (subset used by UI)
             key: String(r.key || ''),
@@ -8464,6 +8549,9 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
             afterCp: (r.after_cp === null || r.after_cp === undefined) ? null : Number(r.after_cp),
             dropCp: (r.drop_cp === null || r.drop_cp === undefined) ? null : Number(r.drop_cp),
             dropPoints,
+            tags,
+            taggerVersion: r.tagger_version ? String(r.tagger_version) : null,
+            taggedAt: r.tagged_at ? new Date(r.tagged_at).toISOString() : null,
             status: r.status ? String(r.status) : '',
             completedAt: completedAt || null,
             sortAtMs: Number(r.sortAtMs || 0) || 0,
@@ -8489,7 +8577,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
           totalBucket,
           counts,
           entries,
-          tagCounts: {}
+          tagCounts
         });
       } finally {
         try { client.release(); } catch {}

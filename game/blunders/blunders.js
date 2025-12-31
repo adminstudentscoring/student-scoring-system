@@ -939,6 +939,19 @@
     root.addEventListener('click', async (ev) => {
       const t = ev.target;
 
+      // Modal close (event delegation; modal DOM is injected dynamically)
+      if (STATE.ui?.modalOpen) {
+        if (t?.closest?.('#blModalClose') || t?.closest?.('.bl-modal-close')) {
+          closeModal();
+          return;
+        }
+        // Only close on backdrop direct clicks (not clicks inside the modal content)
+        if (t && String(t.id || '') === 'blModalBackdrop') {
+          closeModal();
+          return;
+        }
+      }
+
       // Copy FEN
       const cf = t?.closest?.('[data-bl-copy-fen]');
       if (cf) {

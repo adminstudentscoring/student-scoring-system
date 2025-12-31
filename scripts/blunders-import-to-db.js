@@ -96,6 +96,9 @@ async function upsertPuzzles(client, rows) {
     'after_cp',
     'drop_cp',
     'drop_points',
+    'tags',
+    'tagger_version',
+    'tagged_at',
     'created_at',
     'raw'
   ];
@@ -131,6 +134,9 @@ async function upsertPuzzles(client, rows) {
       after_cp=EXCLUDED.after_cp,
       drop_cp=EXCLUDED.drop_cp,
       drop_points=EXCLUDED.drop_points,
+      tags=COALESCE(EXCLUDED.tags, blunders_puzzles.tags),
+      tagger_version=COALESCE(EXCLUDED.tagger_version, blunders_puzzles.tagger_version),
+      tagged_at=COALESCE(EXCLUDED.tagged_at, blunders_puzzles.tagged_at),
       created_at=COALESCE(EXCLUDED.created_at, blunders_puzzles.created_at),
       raw=EXCLUDED.raw
   `;
@@ -242,6 +248,8 @@ async function main() {
     if (!orgId || !studentId || !key) continue;
 
     const createdAt = parseIsoToPgTs(pz?.createdAt || '');
+    const tagsArr = Array.isArray(pz?.tags) ? pz.tags.map(String).filter(Boolean) : [];
+    const taggedAt = parseIsoToPgTs(pz?.taggedAt || '');
     puzzleRows.push({
       key,
       org_id: orgId,
@@ -262,6 +270,9 @@ async function main() {
       after_cp: Number.isFinite(Number(pz?.afterCp)) ? Number(pz.afterCp) : null,
       drop_cp: Number.isFinite(Number(pz?.dropCp)) ? Number(pz.dropCp) : null,
       drop_points: Number.isFinite(Number(pz?.dropPoints)) ? Number(pz.dropPoints) : (Number(pz?.dropCp || 0) / 100) || 0,
+      tags: JSON.stringify(tagsArr),
+      tagger_version: pz?.taggerVersion ? String(pz.taggerVersion) : null,
+      tagged_at: taggedAt,
       created_at: createdAt,
       raw: pz
     });
