@@ -1154,6 +1154,16 @@ function isMissMatePuzzle(p) {
   return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
 }
 
+function blundersBucketKeyOfPuzzle(p) {
+  if (isMissMatePuzzle(p)) return 'missMate';
+  const d = puzzleDropPoints(p);
+  if (d >= 1.0 && d <= 1.5) return 'd1';
+  if (d > 1.5 && d <= 2.0) return 'd2';
+  if (d > 2.0 && d <= 3.0) return 'd3';
+  if (d > 3.0) return 'd4';
+  return 'd1';
+}
+
 function computeRolling3mStats({ analyzedMap, puzzles }) {
   const cutoffMs = threeMonthsAgoMs();
   const analyzed = (analyzedMap && typeof analyzedMap === 'object') ? analyzedMap : {};
@@ -9765,7 +9775,7 @@ app.get('/api/public/students/:id/blunders/master', async (req, res) => {
       const entriesAll = selected.map(normalizeEntry);
       const counts = { missMate: 0, d1: 0, d2: 0, d3: 0, d4: 0, total: entriesAll.length };
       for (const p of entriesAll) {
-        const bk = bucketKeyOfPuzzle(p);
+        const bk = blundersBucketKeyOfPuzzle(p);
         if (bk && Object.prototype.hasOwnProperty.call(counts, bk)) counts[bk]++;
       }
 
@@ -9776,7 +9786,7 @@ app.get('/api/public/students/:id/blunders/master', async (req, res) => {
         return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
       }
 
-      const bucketEntries = entriesAll.filter((p) => bucketKeyOfPuzzle(p) === bucketKey);
+      const bucketEntries = entriesAll.filter((p) => blundersBucketKeyOfPuzzle(p) === bucketKey);
       const totalBucket = bucketEntries.length;
       const totalPages = Math.max(1, Math.ceil(totalBucket / pageSize));
       const safePage = Math.max(1, Math.min(totalPages, page));
