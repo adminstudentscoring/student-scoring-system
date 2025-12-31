@@ -8381,6 +8381,27 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
       const client = await pool.connect();
       try {
+        // Backward-compatible: tags columns may not exist yet if migrations haven't run.
+        // In that case, fall back to reading tags from raw JSON (if present).
+        let hasTagsCols = false;
+        try {
+          const chk = await client.query(
+            `SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema='public'
+               AND table_name='blunders_puzzles'
+               AND column_name='tags'
+             LIMIT 1`,
+            []
+          );
+          hasTagsCols = !!chk?.rows?.length;
+        } catch { hasTagsCols = false; }
+
+        const tagsSrcExpr = hasTagsCols ? 'p.tags' : `COALESCE(p.raw->'tags', '[]'::jsonb)`;
+        const tagsArrExpr = `CASE WHEN jsonb_typeof(${tagsSrcExpr})='array' THEN ${tagsSrcExpr} ELSE '[]'::jsonb END`;
+        const taggerVersionExpr = hasTagsCols ? 'p.tagger_version' : `NULLIF(p.raw->>'taggerVersion','')`;
+        const taggedAtExpr = hasTagsCols ? 'p.tagged_at' : `NULLIF(p.raw->>'taggedAt','')::timestamptz`;
+
         const baseCte = `
           WITH base0 AS (
             SELECT
@@ -8402,9 +8423,9 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
               p.after_cp,
               p.drop_cp,
               p.drop_points,
-              p.tags,
-              p.tagger_version,
-              p.tagged_at,
+              ${tagsArrExpr} AS tags,
+              ${taggerVersionExpr} AS tagger_version,
+              ${taggedAtExpr} AS tagged_at,
               p.created_at,
               pr.status,
               pr.completed_at,
