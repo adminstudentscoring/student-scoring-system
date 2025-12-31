@@ -427,7 +427,16 @@
             const when = escapeHtml(String(p.completedAt || ''));
             const drop = (Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0).toFixed(2);
             const title = `${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))} · Drop ${drop}`;
-            const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+            const tags = (() => {
+              if (Array.isArray(p?.tags)) return p.tags.map(String).filter(Boolean);
+              if (typeof p?.tags === 'string') {
+                try {
+                  const parsed = JSON.parse(p.tags);
+                  return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+                } catch { return []; }
+              }
+              return [];
+            })();
             const tagLine = tags.length
               ? `<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">${tags.slice(0, 8).map(t => `<span class="bl-badge" style="background:#f3f4f6; color:#111827;">${escapeHtml(t)}</span>`).join('')}</div>`
               : ``;
@@ -876,7 +885,7 @@
     const sc = String(scope || 'student');
     const out = await teacherApi('/teachers/blunders/jobs/tag-puzzles', {
       method: 'POST',
-      body: { scope: sc, recompute: !!recompute }
+      body: { scope: sc, recompute: !!recompute, syncDb: true }
     });
     const jobId = out?.jobId ? String(out.jobId) : '';
     if (jobId) {

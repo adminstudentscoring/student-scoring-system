@@ -311,6 +311,23 @@
       const n = Number(r3?.avgOpponentRating ?? NaN);
       return Number.isFinite(n) && n > 0 ? String(Math.round(n)) : '—';
     })();
+
+    const rg = (STATE.homeRecent && typeof STATE.homeRecent === 'object') ? STATE.homeRecent : { loading: false, error: '', games: [], selectedGameIdx: 0, plyIdx: 0 };
+    const games = Array.isArray(rg.games) ? rg.games : [];
+    const gIdx = Math.max(0, Math.min(games.length - 1, Number(rg.selectedGameIdx || 0) || 0));
+    const game = games[gIdx] || null;
+    const plyMax = game && Array.isArray(game.fens) ? Math.max(0, game.fens.length - 1) : 0;
+    const ply = Math.max(0, Math.min(plyMax, Number(rg.plyIdx || 0) || 0));
+    const fen = (game && Array.isArray(game.fens) && game.fens[ply]) ? String(game.fens[ply]) : '';
+    const moveLabel = (() => {
+      if (!game || !Array.isArray(game.movesSan)) return '';
+      if (ply <= 0) return 'Start position';
+      const san = String(game.movesSan[ply - 1] || '');
+      return san ? `Move: ${san}` : '';
+    })();
+    const canPrev = ply > 0;
+    const canNext = ply < plyMax;
+    const bls = game && Array.isArray(game.blunders) ? game.blunders : [];
     return `
       <div class="bl-card">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
@@ -354,6 +371,60 @@
             <div class="bl-stat-label">Average Opponents rating (last 3 months)</div>
             <div class="bl-stat-value">${escapeHtml(avgOpp)}</div>
           </div>
+        </div>
+
+        <div class="bl-card" style="box-shadow:none; margin-top:12px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="font-weight:950; color:#111827;">Recent games (last 5)</div>
+            <div style="flex:1;"></div>
+            <button class="btn btn-secondary btn-small" type="button" data-bl-home-recent-refresh ${rg.loading ? 'disabled' : ''}>Refresh</button>
+          </div>
+          ${rg.error ? `<div class="blunders-muted" style="margin-top:8px; color:#b91c1c;">${escapeHtml(String(rg.error))}</div>` : ``}
+          ${rg.loading ? `<div class="blunders-muted" style="margin-top:8px;">Loading games...</div>` : ``}
+          ${!rg.loading ? `
+            ${games.length ? `
+              <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                ${games.map((g, i) => {
+                  const active = i === gIdx;
+                  const label = g?.endTime ? fmtTs(Number(g.endTime || 0) * 1000) : `Game ${i + 1}`;
+                  const tc = g?.timeClass ? ` · ${String(g.timeClass)}` : '';
+                  return `<button class="btn ${active ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-home-game="${escapeHtml(String(i))}">${escapeHtml(label)}${escapeHtml(tc)}</button>`;
+                }).join('')}
+              </div>
+              <div class="bl-board-wrap" style="margin-top:12px;">
+                <div>
+                  ${fen ? entry().renderMiniBoardFromFen(fen) : `<div class="bl-card" style="box-shadow:none;"><div class="blunders-muted">PGN not available.</div></div>`}
+                  <div class="blunders-muted" style="margin-top:8px;">${escapeHtml(moveLabel)}</div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                    <button class="btn btn-secondary btn-small" type="button" data-bl-home-pgn-prev ${canPrev ? '' : 'disabled'}>◀</button>
+                    <div class="blunders-muted" style="align-self:center;">${escapeHtml(String(ply))} / ${escapeHtml(String(plyMax))}</div>
+                    <button class="btn btn-secondary btn-small" type="button" data-bl-home-pgn-next ${canNext ? '' : 'disabled'}>▶</button>
+                    ${game?.url ? `<a class="btn btn-secondary btn-small" href="${escapeHtml(String(game.url))}" target="_blank" rel="noopener noreferrer">Chess.com</a>` : ``}
+                  </div>
+                </div>
+                <div>
+                  <div class="bl-card" style="box-shadow:none;">
+                    <div style="font-weight:950; color:#111827;">Blunders in this game</div>
+                    ${bls.length ? `
+                      <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+                        ${bls.slice(0, 20).map((p) => {
+                          const drop = (Number(p?.dropPoints ?? 0) || 0).toFixed(2);
+                          const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+                          return `
+                            <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left;">
+                              <div style="font-weight:950; color:#111827;">${escapeHtml(String(p.blunderSan || ''))}</div>
+                              <div class="blunders-muted" style="margin-top:6px;">Drop <strong>${escapeHtml(drop)}</strong></div>
+                              ${tags.length ? `<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">${tags.slice(0, 6).map(t => `<span class="bl-badge" style="background:#f3f4f6; color:#111827;">${escapeHtml(t)}</span>`).join('')}</div>` : ``}
+                            </button>
+                          `;
+                        }).join('')}
+                      </div>
+                    ` : `<div class="blunders-muted" style="margin-top:10px;">No blunders recorded for this game (or not analyzed yet).</div>`}
+                  </div>
+                </div>
+              </div>
+            ` : `<div class="blunders-muted" style="margin-top:10px;">No recent games found.</div>`}
+          ` : ``}
         </div>
         ${renderDebugBlock()}
       </div>

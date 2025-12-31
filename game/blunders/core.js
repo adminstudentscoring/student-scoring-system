@@ -126,6 +126,13 @@
       masterBestMoveSan: '',
       masterBestOrigin: '' // '' | 'attempt' | 'revealed'
     },
+    homeRecent: {
+      loading: false,
+      error: '',
+      games: [], // [{ url, endTime, timeClass, pgn, fens, movesSan, blunders }]
+      selectedGameIdx: 0,
+      plyIdx: 0
+    },
     challenge: {
       loading: false,
       error: '',
@@ -350,6 +357,14 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ moveUci, revealBest: !!revealBest, practice: !!practice })
     });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function fetchRecentGamesWithBlunders(studentId, limit) {
+    const qs = getStudentPasswordQueryWith({ limit: Number(limit || 5) || 5 });
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/recent-games${qs}`);
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
     return data;
@@ -617,6 +632,8 @@
     challengeStart,
     challengeAttempt,
     fetchChallengeLeaderboard,
+    // Student home: recent games (PGN viewer)
+    fetchRecentGamesWithBlunders,
     fmtTs,
     fmtIsoUtc,
     parseIsoMs,

@@ -784,6 +784,7 @@ async function blundersTeacherRunNextJob() {
           const orgId = String(job.orgId || '');
           const scope = String(job.params?.scope || 'student'); // student | master | all
           const recompute = !!job.params?.recompute;
+          const syncDb = job.params?.syncDb !== undefined ? !!job.params?.syncDb : true;
 
           const puzzles = await readBlundersPuzzles();
           const pool = appDb.getPool();
@@ -807,6 +808,7 @@ async function blundersTeacherRunNextJob() {
           let lastFlushAtMs = 0;
           let flushedTagged = 0;
           let dbBatch = [];
+          let dbSynced = 0;
 
           for (let i = 0; i < puzzles.length; i++) {
             if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
@@ -822,7 +824,21 @@ async function blundersTeacherRunNextJob() {
             const curVer = String(p?.taggerVersion || '');
             const hasTags = Array.isArray(p?.tags) && p.tags.length > 0;
             const needs = recompute || !hasTags || curVer !== BLUNDERS_TAGGER_VERSION;
-            if (!needs) { skipped++; done++; continue; }
+            if (!needs) {
+              // If tags already exist, we may still want to backfill Postgres.
+              if (syncDb && pool && sc !== 'master' && hasTags && curVer === BLUNDERS_TAGGER_VERSION) {
+                const key = String(p?.key || '').trim();
+                if (key) {
+                  dbBatch.push({ key, tags: p.tags, taggerVersion: curVer, taggedAt: p?.taggedAt || nowTaggedAt });
+                  dbSynced++;
+                  if (dbBatch.length >= 200) {
+                    await dbUpsertPuzzleTags(pool, dbBatch);
+                    dbBatch = [];
+                  }
+                }
+              }
+              skipped++; done++; continue;
+            }
 
             try {
               const tags = tagBlunderPuzzle(p);
@@ -831,7 +847,7 @@ async function blundersTeacherRunNextJob() {
               p.taggedAt = nowTaggedAt;
               tagged++;
               // DB sync (student puzzles only)
-              if (pool && sc !== 'master') {
+              if (syncDb && pool && sc !== 'master') {
                 const key = String(p?.key || '').trim();
                 if (key) dbBatch.push({ key, tags: p.tags, taggerVersion: BLUNDERS_TAGGER_VERSION, taggedAt: nowTaggedAt });
                 if (dbBatch.length >= 200) {
@@ -846,7 +862,7 @@ async function blundersTeacherRunNextJob() {
             done++;
 
             if (done % 200 === 0) {
-              job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, message: `Tagging... ${done}/${targets.length}` };
+              job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, dbSynced, message: `Tagging... ${done}/${targets.length}` };
               job.updatedAt = nowIso();
               jobs[jobId] = job;
               await writeBlundersTeacherJobs(jobs);
@@ -870,7 +886,7 @@ async function blundersTeacherRunNextJob() {
           job.status = 'done';
           job.finishedAt = nowIso();
           job.updatedAt = nowIso();
-          job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, message: 'Done.' };
+          job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, dbSynced, message: 'Done.' };
           jobs[jobId] = job;
           await writeBlundersTeacherJobs(jobs);
         } else {
@@ -8970,6 +8986,7 @@ app.post('/api/teachers/blunders/jobs/tag-puzzles', authenticateUser, authorizeR
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const scope = String(body.scope || 'student'); // student | master | all
     const recompute = !!body.recompute;
+    const syncDb = body.syncDb !== undefined ? !!body.syncDb : true;
     if (!['student', 'master', 'all'].includes(scope)) return res.status(400).json({ error: 'Invalid scope (use: student, master, all)' });
 
     const jobs = await readBlundersTeacherJobs();
@@ -8985,13 +9002,13 @@ app.post('/api/teachers/blunders/jobs/tag-puzzles', authenticateUser, authorizeR
       startedAt: null,
       finishedAt: null,
       error: null,
-      params: { scope, recompute },
+      params: { scope, recompute, syncDb },
       progress: { total: 0, done: 0, tagged: 0, skipped: 0, scope, message: 'Queued' }
     };
     await writeBlundersTeacherJobs(jobs);
     blundersTeacherJobQueue.push(jobId);
     blundersTeacherRunNextJob().catch(() => {});
-    return res.json({ ok: true, orgId, jobId, scope, recompute });
+    return res.json({ ok: true, orgId, jobId, scope, recompute, syncDb });
   } catch (e) {
     console.error('POST /api/teachers/blunders/jobs/tag-puzzles error:', e);
     return res.status(500).json({ error: 'Failed to enqueue tag job' });
@@ -10016,6 +10033,110 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
   } catch (e) {
     console.error('GET /api/public/students/:id/blunders error:', e);
     return res.status(500).json({ error: 'Failed to load blunders puzzles' });
+  }
+});
+
+// Public Student Access: Recent games (with PGN + simple move list) + blunders per game.
+// Note: We do NOT persist PGNs; we fetch the most recent games on demand (cached briefly in-memory).
+const blundersRecentGamesCache = new Map(); // key: orgId|studentId -> { atMs, data }
+app.get('/api/public/students/:id/blunders/recent-games', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.query;
+    const limitIn = Number(req.query.limit || 5);
+    const limit = Number.isFinite(limitIn) ? Math.max(1, Math.min(10, Math.floor(limitIn))) : 5;
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) return res.status(401).json({ error: 'Invalid password' });
+    }
+    const orgId = String(student.organizationId || '');
+    if (!orgId) return res.status(400).json({ error: 'Student missing organization' });
+
+    const cacheKey = `${orgId}|${String(student.id || '')}`;
+    const cached = blundersRecentGamesCache.get(cacheKey) || null;
+    const now = Date.now();
+    if (cached && (now - Number(cached.atMs || 0)) < 3 * 60 * 1000 && cached.data) {
+      return res.json({ ok: true, cached: true, ...cached.data });
+    }
+
+    const chessComUsername = await getChessComUsernameForStudent(orgId, student.id);
+    if (!chessComUsername) return res.json({ ok: true, games: [] });
+
+    const games = await chessComGetRecentGames(chessComUsername, { limit });
+    const puzzlesAll = await readBlundersPuzzles();
+    const mine = puzzlesAll.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id));
+
+    const outGames = [];
+    for (const g of (Array.isArray(games) ? games : []).slice(0, limit)) {
+      const url = String(g?.url || '').trim();
+      const pgn = String(g?.pgn || '').trim();
+      let fens = [];
+      let movesSan = [];
+      if (pgn) {
+        try {
+          const ch = new Chess();
+          ch.loadPgn(pgn, { sloppy: true });
+          const hist = ch.history({ verbose: true }) || [];
+          const replay = new Chess();
+          fens = [replay.fen()];
+          movesSan = [];
+          for (const mv of hist) {
+            const applied = replay.move({
+              from: String(mv?.from || '').toLowerCase(),
+              to: String(mv?.to || '').toLowerCase(),
+              promotion: mv?.promotion ? String(mv.promotion).toLowerCase() : undefined
+            });
+            if (!applied) break;
+            movesSan.push(String(applied.san || ''));
+            fens.push(replay.fen());
+          }
+        } catch {
+          fens = [];
+          movesSan = [];
+        }
+      }
+
+      const gameKey = url || String(g?.uuid || '').trim();
+      const blunders = mine
+        .filter(p => {
+          const pu = String(p?.gameUrl || '').trim();
+          const pk = String(p?.gameUUID || p?.gameUuid || '').trim();
+          return (gameKey && (pu === gameKey || pk === gameKey));
+        })
+        .sort((a, b) => (puzzleSortKeyMs(b) - puzzleSortKeyMs(a)))
+        .map((p) => ({
+          id: String(p?.id || ''),
+          key: String(p?.key || ''),
+          startFEN: String(p?.startFEN || ''),
+          blunderSan: String(p?.blunderSan || p?.blunderMoveUci || ''),
+          dropPoints: Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0,
+          tags: Array.isArray(p?.tags) ? p.tags : [],
+          createdAt: p?.createdAt || null
+        }));
+
+      outGames.push({
+        url,
+        uuid: g?.uuid ? String(g.uuid) : null,
+        endTime: Number(g?.end_time || 0) || 0,
+        timeClass: g?.time_class ? String(g.time_class) : '',
+        white: g?.white?.username ? String(g.white.username) : '',
+        black: g?.black?.username ? String(g.black.username) : '',
+        pgn,
+        fens,
+        movesSan,
+        blunders
+      });
+    }
+
+    const payload = { games: outGames };
+    blundersRecentGamesCache.set(cacheKey, { atMs: now, data: payload });
+    return res.json({ ok: true, cached: false, ...payload });
+  } catch (e) {
+    console.error('GET /api/public/students/:id/blunders/recent-games error:', e);
+    return res.status(500).json({ error: 'Failed to load recent games' });
   }
 });
 

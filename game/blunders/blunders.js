@@ -419,9 +419,33 @@
       STATE.completed = Array.isArray(data?.completed) ? data.completed : [];
       if (STATE.currentIndex >= STATE.pending.length) STATE.currentIndex = 0;
       setStatus('');
+      // Home: load recent games (best-effort, non-blocking)
+      if (STATE.page === 'home') {
+        ensureHomeRecentGamesLoaded().catch(() => {});
+      }
       render();
     } catch (e) {
       setStatus(`Failed: ${e?.message || e}`);
+    }
+  }
+
+  async function ensureHomeRecentGamesLoaded() {
+    if (!STATE.me?.id) return;
+    if (!STATE.homeRecent || typeof STATE.homeRecent !== 'object') STATE.homeRecent = { loading: false, error: '', games: [], selectedGameIdx: 0, plyIdx: 0 };
+    if (STATE.homeRecent.loading) return;
+    STATE.homeRecent.loading = true;
+    STATE.homeRecent.error = '';
+    render();
+    try {
+      const out = await window.BlundersCore.fetchRecentGamesWithBlunders(STATE.me.id, 5);
+      STATE.homeRecent.games = Array.isArray(out?.games) ? out.games : [];
+      STATE.homeRecent.selectedGameIdx = 0;
+      STATE.homeRecent.plyIdx = 0;
+    } catch (e) {
+      STATE.homeRecent.error = String(e?.message || e);
+    } finally {
+      STATE.homeRecent.loading = false;
+      render();
     }
   }
 
@@ -1323,6 +1347,38 @@
         openHomePracticeModal();
         return;
       }
+      if (t?.closest?.('[data-bl-home-recent-refresh]')) {
+        ensureHomeRecentGamesLoaded().catch(() => {});
+        return;
+      }
+      const hg = t?.closest?.('[data-bl-home-game]');
+      if (hg) {
+        const idx = Math.max(0, Number(hg.getAttribute('data-bl-home-game') || 0) || 0);
+        if (STATE.homeRecent && typeof STATE.homeRecent === 'object') {
+          STATE.homeRecent.selectedGameIdx = idx;
+          STATE.homeRecent.plyIdx = 0;
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-pgn-prev]')) {
+        if (STATE.homeRecent && typeof STATE.homeRecent === 'object') {
+          STATE.homeRecent.plyIdx = Math.max(0, Number(STATE.homeRecent.plyIdx || 0) - 1);
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-pgn-next]')) {
+        if (STATE.homeRecent && typeof STATE.homeRecent === 'object') {
+          const games = Array.isArray(STATE.homeRecent.games) ? STATE.homeRecent.games : [];
+          const gIdx = Math.max(0, Math.min(games.length - 1, Number(STATE.homeRecent.selectedGameIdx || 0) || 0));
+          const g = games[gIdx] || null;
+          const max = g && Array.isArray(g.fens) ? Math.max(0, g.fens.length - 1) : 0;
+          STATE.homeRecent.plyIdx = Math.min(max, Number(STATE.homeRecent.plyIdx || 0) + 1);
+          render();
+        }
+        return;
+      }
       const hpd = t?.closest?.('[data-bl-home-practice-duration]');
       if (hpd) {
         STATE.ui.homePracticeDuration = String(hpd.getAttribute('data-bl-home-practice-duration') || 'all');
@@ -1635,7 +1691,16 @@
         }
         if (!found) return;
         const drop = (Number(found?.dropPoints ?? (Number(found?.dropCp || 0) / 100)) || 0).toFixed(2);
-        const tags = Array.isArray(found?.tags) ? found.tags.map(String).filter(Boolean) : [];
+        const tags = (() => {
+          if (Array.isArray(found?.tags)) return found.tags.map(String).filter(Boolean);
+          if (typeof found?.tags === 'string') {
+            try {
+              const parsed = JSON.parse(found.tags);
+              return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+            } catch { return []; }
+          }
+          return [];
+        })();
         openModal('Puzzle', `
           <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(found.studentName || ''))}</div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
