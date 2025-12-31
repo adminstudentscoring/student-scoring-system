@@ -138,16 +138,60 @@
     if (!STATE.me?.id) return;
     const mid = String(masterId || '').trim();
     if (!mid) return;
+    const prevMid = String(STATE.master.selectedMasterId || '').trim();
     STATE.master.loading = true;
     STATE.master.error = '';
     STATE.master.selectedMasterId = mid;
+    if (prevMid && prevMid !== mid) {
+      STATE.master.selectedPuzzleId = '';
+    }
     render();
     try {
-      const data = await fetchMasterPuzzles(STATE.me.id, mid);
-      STATE.master.pending = Array.isArray(data?.pending) ? data.pending : [];
-      STATE.master.completed = Array.isArray(data?.completed) ? data.completed : [];
-      const max = Math.max(0, STATE.master.pending.length - 1);
-      STATE.master.currentIndex = Math.max(0, Math.min(Number(STATE.master.currentIndex || 0), max));
+      // New: bucketed master puzzles (like Review / Teacher All blunders).
+      const data = await window.BlundersCore.fetchMasterPuzzlesSummary(STATE.me.id, mid);
+      const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : {};
+      if (!ui.buckets || typeof ui.buckets !== 'object') ui.buckets = {};
+      ui.pageSize = Number(data?.pageSize || 50) || 50;
+      ui.counts = (data?.counts && typeof data.counts === 'object') ? data.counts : null;
+      // Reset buckets for new master selection
+      for (const k of ['missMate', 'd1', 'd2', 'd3', 'd4']) {
+        if (!ui.buckets[k] || typeof ui.buckets[k] !== 'object') ui.buckets[k] = {};
+        ui.buckets[k] = { ...ui.buckets[k], open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' };
+      }
+      STATE.master.ui = ui;
+      STATE.master.byId = {};
+      STATE.master.pending = [];
+      STATE.master.completed = [];
+      STATE.master.currentIndex = 0;
+
+      // Prefetch first bucket (d1) to show something on the board without expanding buckets.
+      try {
+        const pre = await window.BlundersCore.fetchMasterPuzzlesBucket(STATE.me.id, mid, 'd1', 1);
+        const b = STATE.master.ui.buckets.d1;
+        b.entries = Array.isArray(pre?.entries) ? pre.entries : [];
+        b.page = Number(pre?.page || 1) || 1;
+        b.totalPages = Number(pre?.totalPages || 1) || 1;
+        b.total = Number(pre?.totalBucket || b.entries.length || 0) || 0;
+        // Cache by id
+        const map = (STATE.master.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+        for (const p of b.entries) {
+          const pid = String(p?.id || '');
+          if (pid) map[pid] = p;
+        }
+        STATE.master.byId = map;
+        // Auto-select first pending puzzle if none selected
+        const cur = String(STATE.master.selectedPuzzleId || '');
+        if (!cur) {
+          const firstPending = b.entries.find(p => String(p?.status || 'pending') === 'pending') || b.entries[0] || null;
+          if (firstPending) {
+            STATE.master.selectedPuzzleId = String(firstPending.id || '');
+            STATE.uiBoard.masterFen = String(firstPending.startFEN || '');
+            STATE.uiBoard.masterMoveUci = '';
+            STATE.uiBoard.masterVerdict = '';
+            STATE.uiBoard.masterBestMoveUci = '';
+          }
+        }
+      } catch {}
       STATE.master.loading = false;
       render();
     } catch (e) {
@@ -155,6 +199,91 @@
       STATE.master.error = String(e?.message || e);
       render();
     }
+  }
+
+  async function masterLoadBucket(key, page) {
+    const mid = String(STATE.master?.selectedMasterId || '').trim();
+    if (!STATE.me?.id || !mid) return;
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    if (!ui || !ui.buckets || typeof ui.buckets !== 'object') return;
+    const b = ui.buckets[key];
+    if (!b || b.loading) return;
+    b.loading = true;
+    b.error = '';
+    render();
+    try {
+      const p = Math.max(1, Number(page || 1) || 1);
+      const out = await window.BlundersCore.fetchMasterPuzzlesBucket(STATE.me.id, mid, key, p);
+      b.entries = Array.isArray(out?.entries) ? out.entries : [];
+      b.page = Number(out?.page || p) || p;
+      b.totalPages = Number(out?.totalPages || 1) || 1;
+      b.total = Number(out?.totalBucket || b.entries.length || 0) || 0;
+      // Cache by id
+      const map = (STATE.master.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+      for (const it of b.entries) {
+        const pid = String(it?.id || '');
+        if (pid) map[pid] = it;
+      }
+      STATE.master.byId = map;
+    } catch (e) {
+      b.error = String(e?.message || e);
+    } finally {
+      b.loading = false;
+      render();
+    }
+  }
+
+  function masterBucketToggle(key) {
+    const k = String(key || '').trim();
+    if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(k)) return;
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    if (!ui || !ui.buckets || typeof ui.buckets !== 'object') return;
+    const b = ui.buckets[k];
+    b.open = !b.open;
+    if (b.open && (!Array.isArray(b.entries) || !b.entries.length)) {
+      masterLoadBucket(k, 1).catch(() => {});
+    } else {
+      render();
+    }
+  }
+
+  function masterBucketPrev(key) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b || b.loading) return;
+    const p = Math.max(1, Number(b.page || 1) - 1);
+    masterLoadBucket(k, p).catch(() => {});
+  }
+
+  function masterBucketNext(key) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b || b.loading) return;
+    const max = Math.max(1, Number(b.totalPages || 1) || 1);
+    const p = Math.min(max, Number(b.page || 1) + 1);
+    masterLoadBucket(k, p).catch(() => {});
+  }
+
+  function masterBucketSetJump(key, value) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b) return;
+    b.jump = String(value || '');
+  }
+
+  function masterBucketGo(key) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b || b.loading) return;
+    const raw = String(b.jump || '').trim();
+    const n = Math.floor(Number(raw || 0));
+    const max = Math.max(1, Number(b.totalPages || 1) || 1);
+    if (!Number.isFinite(n) || n < 1) return;
+    masterLoadBucket(k, Math.min(max, n)).catch(() => {});
   }
 
   function setBlunderModePending() {
@@ -645,6 +774,24 @@
   }
 
   function masterCurrentPuzzle() {
+    // Prefer selected puzzle from bucketed UI
+    const pid = String(STATE.master?.selectedPuzzleId || '').trim();
+    if (pid) {
+      const map = (STATE.master?.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+      const hit = map[pid] || null;
+      if (hit) return hit;
+      // Fallback: try locate in loaded bucket entries
+      const ui = STATE.master?.ui && typeof STATE.master.ui === 'object' ? STATE.master.ui : null;
+      const buckets = ui?.buckets && typeof ui.buckets === 'object' ? ui.buckets : null;
+      if (buckets) {
+        for (const b of Object.values(buckets)) {
+          const arr = Array.isArray(b?.entries) ? b.entries : [];
+          const found = arr.find(x => String(x?.id || '') === pid) || null;
+          if (found) return found;
+        }
+      }
+    }
+    // Backward compatibility: pending list + index
     const list = Array.isArray(STATE.master.pending) ? STATE.master.pending : [];
     if (!list.length) return null;
     const idx = Math.max(0, Math.min(list.length - 1, Number(STATE.master.currentIndex) || 0));
@@ -1387,6 +1534,49 @@
         render();
         return;
       }
+      const mbt = t?.closest?.('[data-bl-master-bucket-toggle]');
+      if (mbt) {
+        const key = String(mbt.getAttribute('data-bl-master-bucket-toggle') || '');
+        masterBucketToggle(key);
+        return;
+      }
+      const mbp = t?.closest?.('[data-bl-master-bucket-prev]');
+      if (mbp) {
+        const key = String(mbp.getAttribute('data-bl-master-bucket-prev') || '');
+        masterBucketPrev(key);
+        return;
+      }
+      const mbn = t?.closest?.('[data-bl-master-bucket-next]');
+      if (mbn) {
+        const key = String(mbn.getAttribute('data-bl-master-bucket-next') || '');
+        masterBucketNext(key);
+        return;
+      }
+      const mbg = t?.closest?.('[data-bl-master-bucket-go]');
+      if (mbg) {
+        const key = String(mbg.getAttribute('data-bl-master-bucket-go') || '');
+        masterBucketGo(key);
+        return;
+      }
+      const mp = t?.closest?.('[data-bl-master-pick]');
+      if (mp) {
+        const pid = String(mp.getAttribute('data-bl-master-pick') || '').trim();
+        if (pid) {
+          STATE.master.selectedPuzzleId = pid;
+          const map = (STATE.master.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+          const pz = map[pid] || null;
+          if (pz) {
+            STATE.uiBoard.masterFen = String(pz.startFEN || '');
+          }
+          STATE.uiBoard.masterMoveUci = '';
+          STATE.uiBoard.masterVerdict = '';
+          STATE.uiBoard.masterBestMoveUci = '';
+          STATE.selectedFrom = null;
+          clearInlineResult('master');
+          render();
+        }
+        return;
+      }
       const mb = t?.closest?.('[data-bl-master]');
       if (mb) {
         const mid = String(mb.getAttribute('data-bl-master') || '');
@@ -1540,6 +1730,12 @@
       if (aj) {
         const key = String(aj.getAttribute('data-bl-teacher-all-jump') || '');
         try { window.BlundersTeacher?.teacherAllSetJump?.(key, String(aj.value || '')); } catch {}
+        return;
+      }
+      const mj = el?.closest?.('[data-bl-master-bucket-jump]');
+      if (mj) {
+        const key = String(mj.getAttribute('data-bl-master-bucket-jump') || '');
+        masterBucketSetJump(key, String(mj.value || ''));
         return;
       }
       const bm = el?.closest?.('[data-bl-teacher-bulk-max]');

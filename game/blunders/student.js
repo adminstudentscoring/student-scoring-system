@@ -560,12 +560,98 @@
     const masters = Array.isArray(STATE.master.masters) ? STATE.master.masters : [];
     const selectedId = String(STATE.master.selectedMasterId || '');
     const selected = masters.find(m => String(m.id || '') === selectedId) || null;
-    const puzzle = (Array.isArray(STATE.master.pending) && STATE.master.pending.length)
-      ? STATE.master.pending[Math.max(0, Math.min(STATE.master.pending.length - 1, Number(STATE.master.currentIndex) || 0))]
-      : null;
+    const puzzle = (() => {
+      const pid = String(STATE.master?.selectedPuzzleId || '').trim();
+      if (pid) {
+        const map = (STATE.master?.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+        return map[pid] || null;
+      }
+      // Backward compatibility: old pending list
+      return (Array.isArray(STATE.master.pending) && STATE.master.pending.length)
+        ? STATE.master.pending[Math.max(0, Math.min(STATE.master.pending.length - 1, Number(STATE.master.currentIndex) || 0))]
+        : null;
+    })();
     const flip = puzzle ? String(puzzle.playerColor || puzzle.studentColor || '') === 'b' : false;
     const dropVal = puzzle ? Number(puzzle.dropPoints ?? (Number(puzzle.dropCp || 0) / 100)) : 0;
     const infoLine = puzzle ? `${String(puzzle.blunderSan || puzzle.blunderMoveUci || '')} · Drop ${dropVal.toFixed(2)}` : '';
+    const ui = (STATE.master?.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : { pageSize: 50, counts: null, buckets: {} };
+    const counts = (ui.counts && typeof ui.counts === 'object') ? ui.counts : null;
+    const buckets = (ui.buckets && typeof ui.buckets === 'object') ? ui.buckets : {};
+
+    const renderRows = (arr) => {
+      if (!arr.length) return `<div class="blunders-muted" style="margin-top:10px;">No records.</div>`;
+      const mini = entry().renderMiniBoardFromFen;
+      const curId = String(STATE.master?.selectedPuzzleId || '');
+      return `
+        <div class="bl-grid" style="grid-template-columns: repeat(1, minmax(0, 1fr));">
+          ${arr.map((p) => {
+            const pid = String(p.id || '');
+            const drop = (Number(p?.dropPoints ?? (Number(p?.dropCp || 0) / 100)) || 0).toFixed(2);
+            const title = `${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))} · Drop ${escapeHtml(drop)}`;
+            const when = escapeHtml(String(p.completedAt || p.createdAt || ''));
+            const st = String(p.status || 'pending');
+            const badge = st === 'completed'
+              ? `<span class="bl-badge" style="background:#e5e7eb; color:#111827;">Completed</span>`
+              : `<span class="bl-badge" style="background:#dbeafe; color:#1e40af;">Pending</span>`;
+            const isActive = curId && pid === curId;
+            return `
+              <button class="bl-card" type="button" data-bl-master-pick="${escapeHtml(pid)}" style="text-align:left; display:flex; gap:12px; align-items:center; ${isActive ? 'outline:2px solid #60a5fa;' : ''}">
+                ${mini(String(p.startFEN || ''))}
+                <div style="min-width:0;">
+                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <div style="font-weight:950; color:#111827; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</div>
+                    ${badge}
+                  </div>
+                  ${p.gameUrl ? `<div class="blunders-muted" style="margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Source: ${escapeHtml(String(p.gameUrl))}</div>` : ``}
+                  ${when ? `<div class="blunders-muted" style="margin-top:4px;">${when}</div>` : ``}
+                </div>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+    };
+
+    const renderBucket = (key, label) => {
+      const b = (buckets && buckets[key] && typeof buckets[key] === 'object') ? buckets[key] : {};
+      const open = !!b.open;
+      const bLoading = !!b.loading;
+      const bErr = String(b.error || '');
+      const bEntries = Array.isArray(b.entries) ? b.entries : [];
+      const total = Number(b.total || 0) || 0;
+      const page = Math.max(1, Number(b.page || 1) || 1);
+      const totalPages = Math.max(1, Number(b.totalPages || 1) || 1);
+      const count = counts ? (Number(counts[key] || 0) || 0) : 0;
+      const canPrev = open && !bLoading && page > 1;
+      const canNext = open && !bLoading && page < totalPages;
+      const jumpVal = String(b.jump || '');
+      return `
+        <div class="bl-card" style="margin-top:10px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-toggle="${escapeHtml(key)}">${open ? 'Hide' : 'Show'}</button>
+            <div style="font-weight:900; color:#111827;">${escapeHtml(label)} <span class="blunders-muted">(${escapeHtml(String(count))})</span></div>
+            <div style="flex:1;"></div>
+            ${open ? `
+              <div class="blunders-muted">Page <strong>${escapeHtml(String(page))}</strong> / <strong>${escapeHtml(String(totalPages))}</strong></div>
+              <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-prev="${escapeHtml(key)}" ${canPrev ? '' : 'disabled'}>Prev</button>
+              <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-next="${escapeHtml(key)}" ${canNext ? '' : 'disabled'}>Next</button>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="number" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-master-bucket-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-go="${escapeHtml(key)}" ${bLoading ? 'disabled' : ''}>Go</button>
+              </div>
+            ` : ``}
+          </div>
+          ${open ? `
+            ${bLoading ? `<div class="blunders-muted" style="margin-top:10px;">Loading...</div>` : ``}
+            ${bErr ? `<div class="blunders-muted" style="margin-top:10px; color:#b91c1c;">${escapeHtml(bErr)}</div>` : ``}
+            ${!bLoading ? `
+              <div class="blunders-muted" style="margin-top:10px;">Total: <strong>${escapeHtml(String(total))}</strong></div>
+              <div style="margin-top:10px;">${renderRows(bEntries)}</div>
+            ` : ``}
+          ` : ``}
+        </div>
+      `;
+    };
 
     return `
       <div class="bl-card">
@@ -594,7 +680,7 @@
         ${selected ? `
           <div class="bl-board-wrap" style="margin-top:12px;">
             <div>
-              ${puzzle ? entry().renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom, { fenOverride: (STATE.uiBoard.masterFen || puzzle.startFEN), myMoveUci: (STATE.uiBoard.masterMoveUci || '') }) : `<div class="bl-card" style="box-shadow:none;"><div class="blunders-muted">No pending puzzles for this master.</div></div>`}
+              ${puzzle ? entry().renderBoardForPuzzle(puzzle, flip, STATE.selectedFrom, { fenOverride: (STATE.uiBoard.masterFen || puzzle.startFEN), myMoveUci: (STATE.uiBoard.masterMoveUci || '') }) : `<div class="bl-card" style="box-shadow:none;"><div class="blunders-muted">Pick a puzzle from a bucket below.</div></div>`}
             </div>
             <div>
               <div class="bl-card" style="box-shadow:none;">
@@ -603,10 +689,6 @@
                 ${puzzle ? `
                   <div class="blunders-muted" style="margin-top:10px;">${escapeHtml(infoLine)}</div>
                   ${puzzle.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(puzzle.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(puzzle.gameUrl))}</a></div>` : ''}
-                  <div class="bl-btn-row cols-3">
-                    <button class="btn btn-secondary" type="button" data-bl-master-prev ${STATE.master.currentIndex <= 0 ? 'disabled' : ''}>Prev</button>
-                    <button class="btn btn-secondary" type="button" data-bl-master-next ${STATE.master.currentIndex >= (STATE.master.pending.length - 1) ? 'disabled' : ''}>Next</button>
-                  </div>
                   <div class="blunders-muted" id="blMasterMsg" style="margin-top:10px;"></div>
                   <button class="btn btn-secondary btn-small" type="button" data-bl-copy-fen="master" style="margin-top:12px;">
                     <span style="display:inline-flex; align-items:center; gap:8px;">
@@ -618,6 +700,13 @@
               </div>
               ${entry().renderInlineResultPanel('master')}
             </div>
+          </div>
+          <div style="margin-top:12px;">
+            ${renderBucket('missMate', 'Miss the mate')}
+            ${renderBucket('d1', 'Drop 1.00–1.50')}
+            ${renderBucket('d2', 'Drop 1.51–2.00')}
+            ${renderBucket('d3', 'Drop 2.01–3.00')}
+            ${renderBucket('d4', 'Drop 3.01+')}
           </div>
         ` : ``}
       </div>

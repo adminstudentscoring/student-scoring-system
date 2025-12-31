@@ -35,6 +35,21 @@
       error: '',
       masters: [],
       selectedMasterId: '',
+      selectedPuzzleId: '',
+      // Bucketed paging UI (like Review / All blunders)
+      ui: {
+        pageSize: 50,
+        counts: null, // { missMate, d1, d2, d3, d4, total }
+        buckets: {
+          missMate: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d1: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d2: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d3: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' },
+          d4: { open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' }
+        }
+      },
+      // Local cache: puzzleId -> puzzle (from loaded buckets)
+      byId: {},
       pending: [],
       completed: [],
       countsByMaster: {}, // id -> {pending,completed,total}
@@ -307,6 +322,22 @@
     return data;
   }
 
+  async function fetchMasterPuzzlesSummary(studentId, masterId) {
+    const qs = getStudentPasswordQueryWith({ masterId, paged: 1 });
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/master${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function fetchMasterPuzzlesBucket(studentId, masterId, bucket, page) {
+    const qs = getStudentPasswordQueryWith({ masterId, paged: 1, bucket, page });
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/master${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
   async function submitMasterAttempt(studentId, puzzleId, moveUci, revealBest, practice) {
     const qs = getStudentPasswordQueryWith({});
     const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/master/${encodeURIComponent(String(puzzleId))}/attempt${qs}`, {
@@ -572,6 +603,8 @@
     fetchMyBlunders,
     fetchMasterList,
     fetchMasterPuzzles,
+    fetchMasterPuzzlesSummary,
+    fetchMasterPuzzlesBucket,
     submitMasterAttempt,
     getTeacherAuthHeader,
     teacherApi,

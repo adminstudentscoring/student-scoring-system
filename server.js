@@ -9691,6 +9691,11 @@ app.get('/api/public/students/:id/blunders/master', async (req, res) => {
   try {
     const { id } = req.params;
     const { password, masterId } = req.query;
+    const bucketKey = String(req.query.bucket || '').trim(); // '' | missMate | d1 | d2 | d3 | d4
+    const pageSize = 50; // Fixed (UI requirement)
+    const pageIn = Number(req.query.page || 1);
+    const page = Number.isFinite(pageIn) ? Math.max(1, Math.floor(pageIn)) : 1;
+    const wantsPaged = !!(bucketKey || req.query.paged || req.query.page);
 
     const data = await readData();
     const student = data.students.find(s => s.id === id);
@@ -9738,6 +9743,60 @@ app.get('/api/public/students/:id/blunders/master', async (req, res) => {
       .sort((a, b) => Number(b.endTime || 0) - Number(a.endTime || 0));
 
     const completedIds = new Set(Object.entries(progStu).filter(([, v]) => v && String(v.status || '') === 'completed').map(([k]) => k));
+
+    // New: bucketed paging response (like Teacher All blunders / Student Review).
+    if (wantsPaged) {
+      const normalizeEntry = (p) => {
+        const pid = String(p?.id || '');
+        const pr = pid ? (progStu?.[pid] || null) : null;
+        const status = (pr && String(pr.status || '').trim()) ? String(pr.status) : (completedIds.has(pid) ? 'completed' : 'pending');
+        const completedAt = pr?.completedAt || null;
+        const dropPoints = (typeof p.dropPoints === 'number')
+          ? Number(p.dropPoints)
+          : (Number(p.dropCp || 0) / 100);
+        return {
+          ...p,
+          status,
+          completedAt,
+          dropPoints: Number.isFinite(dropPoints) ? dropPoints : 0
+        };
+      };
+
+      const entriesAll = selected.map(normalizeEntry);
+      const counts = { missMate: 0, d1: 0, d2: 0, d3: 0, d4: 0, total: entriesAll.length };
+      for (const p of entriesAll) {
+        const bk = bucketKeyOfPuzzle(p);
+        if (bk && Object.prototype.hasOwnProperty.call(counts, bk)) counts[bk]++;
+      }
+
+      if (!bucketKey) {
+        return res.json({ ok: true, masters: list, masterId: selectedMasterId, pageSize, counts });
+      }
+      if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(bucketKey)) {
+        return res.status(400).json({ error: 'Invalid bucket (use: missMate, d1, d2, d3, d4)' });
+      }
+
+      const bucketEntries = entriesAll.filter((p) => bucketKeyOfPuzzle(p) === bucketKey);
+      const totalBucket = bucketEntries.length;
+      const totalPages = Math.max(1, Math.ceil(totalBucket / pageSize));
+      const safePage = Math.max(1, Math.min(totalPages, page));
+      const start = (safePage - 1) * pageSize;
+      const pageEntries = bucketEntries.slice(start, start + pageSize);
+
+      return res.json({
+        ok: true,
+        masters: list,
+        masterId: selectedMasterId,
+        pageSize,
+        counts,
+        bucket: bucketKey,
+        page: safePage,
+        totalPages,
+        totalBucket,
+        entries: pageEntries
+      });
+    }
+
     const pending = selected.filter(p => !completedIds.has(String(p.id || '')));
     const completed = selected.filter(p => completedIds.has(String(p.id || '')));
 
