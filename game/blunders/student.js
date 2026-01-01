@@ -367,13 +367,18 @@
       if (!c) return '';
       if (typeof c === 'string') return c;
       if (typeof c?.text === 'string') return c.text;
-      const parts = [];
-      if (c?.summary) parts.push(String(c.summary));
-      for (const k of ['highlights', 'improvements', 'next_actions']) {
-        const arr = Array.isArray(c?.[k]) ? c[k] : [];
-        if (arr.length) parts.push(`${k}: ${arr.map(String).join(' | ')}`);
-      }
-      return parts.join('\n');
+      if (typeof c?.article === 'string' && c.article.trim()) return c.article.trim();
+
+      // Backward-compat: older cached schema (summary + arrays) -> stitch into a short article-like text
+      const s = c?.summary ? String(c.summary).trim() : '';
+      const highlights = (Array.isArray(c?.highlights) ? c.highlights : []).map(String).filter(Boolean);
+      const improvements = (Array.isArray(c?.improvements) ? c.improvements : []).map(String).filter(Boolean);
+      const nextActions = (Array.isArray(c?.next_actions) ? c.next_actions : []).map(String).filter(Boolean);
+      const p1 = s;
+      const p2 = highlights.length ? `Highlights: ${highlights.join(', ')}.` : '';
+      const p3 = improvements.length ? `Focus next: ${improvements.join(', ')}.` : '';
+      const p4 = nextActions.length ? `Next steps: ${nextActions.join(', ')}.` : '';
+      return [p1, p2, p3, p4].filter(Boolean).join('\n\n');
     })();
 
     return `
@@ -423,7 +428,7 @@
 
         <div class="bl-card" style="box-shadow:none; margin-top:12px;">
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <div style="font-weight:950; color:#111827;">AI coach comment (last 30 days)</div>
+            <div style="font-weight:950; color:#111827;">Coach comment (last 30 days)</div>
             <div style="flex:1;"></div>
             <button class="btn btn-secondary btn-small" type="button" data-bl-home-ai-refresh ${ai.loading ? 'disabled' : ''}>Refresh</button>
           </div>

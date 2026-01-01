@@ -169,8 +169,9 @@ async function generateStudentAiCommentMonth({ orgId, studentId, force = false }
       'You are a chess coach writing a short performance comment for a student.',
       'Write in English.',
       'Be constructive, specific, and data-grounded.',
-      'Output JSON only with keys: summary, improvements, highlights, next_actions.',
-      'Constraints: summary 2-3 sentences; each array max 3 items; keep each item under 18 words; no emojis.'
+      'Output JSON only with key: article.',
+      'The article must be 2-3 short paragraphs, flowing naturally (no bullet lists).',
+      'Keep it under 120 words total. No emojis.'
     ].join(' ');
 
     const user = `Student stats JSON (last 30 days):\n${JSON.stringify(compact)}\n\nGenerate the JSON comment now.`;
