@@ -133,6 +133,13 @@
       selectedGameIdx: 0,
       plyIdx: 0
     },
+    homeAi: {
+      loading: false,
+      error: '',
+      status: 'disabled', // disabled | cached | generating
+      updatedAt: null,
+      comment: null
+    },
     challenge: {
       loading: false,
       error: '',
@@ -365,6 +372,14 @@
   async function fetchRecentGamesWithBlunders(studentId, limit) {
     const qs = getStudentPasswordQueryWith({ limit: Number(limit || 5) || 5 });
     const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/recent-games${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  async function fetchAiComment(studentId) {
+    const qs = getStudentPasswordQueryWith({});
+    const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/ai-comment${qs}`);
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
     return data;
@@ -634,6 +649,8 @@
     fetchChallengeLeaderboard,
     // Student home: recent games (PGN viewer)
     fetchRecentGamesWithBlunders,
+    // Student home: AI coach comment
+    fetchAiComment,
     fmtTs,
     fmtIsoUtc,
     parseIsoMs,

@@ -10,6 +10,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
 const { Chess } = require('chess.js');
+const { openAiEnabled, openAiJson } = require('./ai/openai');
 
 const app = express();
 
@@ -58,6 +59,137 @@ const HOPE_MATE_CHALLENGE_LEADERBOARD_FILE = path.join(__dirname, process.env.HO
 const HOPE_MATE_STAGE_PUZZLES_FILE = path.join(__dirname, process.env.HOPE_MATE_STAGE_PUZZLES_FILE || path.join(DATA_DIR, 'hope-mate-stage-puzzles.json'));
 const VCP_CHESS_GAMES_FILE = path.join(__dirname, process.env.VCP_CHESS_GAMES_FILE || path.join(DATA_DIR, 'vcp-chess-games.jsonl'));
 const CHESSCOM_SETTINGS_FILE = path.join(__dirname, process.env.CHESSCOM_SETTINGS_FILE || path.join(DATA_DIR, 'chesscom-settings.json'));
+// AI coach comments (file cache; one per student per range)
+const BLUNDERS_AI_COMMENTS_FILE = path.join(__dirname, process.env.BLUNDERS_AI_COMMENTS_FILE || path.join(DATA_DIR, 'blunders-ai-comments.json'));
+
+let blundersAiCommentsLock = Promise.resolve();
+async function withAiCommentsLock(fn) {
+  const prev = blundersAiCommentsLock;
+  let release;
+  blundersAiCommentsLock = new Promise((r) => (release = r));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+async function readBlundersAiComments() {
+  return await withAiCommentsLock(async () => {
+    try {
+      const raw = await fs.readFile(BLUNDERS_AI_COMMENTS_FILE, 'utf8');
+      const parsed = raw ? JSON.parse(raw) : {};
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+}
+
+async function writeBlundersAiComments(obj) {
+  return await withAiCommentsLock(async () => {
+    const out = (obj && typeof obj === 'object') ? obj : {};
+    await fs.writeFile(BLUNDERS_AI_COMMENTS_FILE, JSON.stringify(out, null, 2), 'utf8');
+    return true;
+  });
+}
+
+const blundersAiCommentInFlight = new Set(); // cacheKey strings
+
+function aiCommentCacheKey({ orgId, studentId, range = 'month' }) {
+  return `${String(orgId || '')}|${String(studentId || '')}|${String(range || 'month')}`;
+}
+
+function aiCommentIsFresh(updatedAtIso, ttlMs) {
+  const t = Date.parse(String(updatedAtIso || ''));
+  return Number.isFinite(t) && (Date.now() - t) < ttlMs;
+}
+
+async function generateStudentAiCommentMonth({ orgId, studentId, force = false }) {
+  const oid = String(orgId || '');
+  const sid = String(studentId || '');
+  if (!oid || !sid) throw new Error('Missing orgId/studentId');
+
+  const range = 'month';
+  const ttlMs = 24 * 60 * 60 * 1000; // low-cost: max once/day per student
+  const key = aiCommentCacheKey({ orgId: oid, studentId: sid, range });
+  const store = await readBlundersAiComments();
+  const cur = store?.[key] || null;
+  if (!force && cur?.updatedAt && aiCommentIsFresh(cur.updatedAt, ttlMs)) return { ok: true, cached: true, entry: cur };
+  if (!openAiEnabled()) return { ok: false, error: 'OpenAI not configured', cached: !!cur, entry: cur };
+
+  // Avoid duplicate concurrent generations
+  if (!force && blundersAiCommentInFlight.has(key)) return { ok: true, cached: true, inFlight: true, entry: cur };
+  blundersAiCommentInFlight.add(key);
+  try {
+    const puzzles = await readBlundersPuzzles();
+    let analyzedMap = {};
+    try {
+      const orgs = await readBlundersStats();
+      analyzedMap = orgs?.[oid]?.[sid]?.analyzed || {};
+    } catch {}
+
+    const monthStats = computeStudentMonthStats({ orgId: oid, studentId: sid, puzzles, analyzedMap });
+
+    const topTags = Object.entries(monthStats?.current?.topTags || {})
+      .map(([t, n]) => ({ t, n: Number(n || 0) || 0 }))
+      .sort((a, b) => (b.n - a.n) || a.t.localeCompare(b.t))
+      .slice(0, 10);
+
+    const compact = {
+      range: 'last_30_days',
+      nowIso: monthStats.nowIso,
+      completionRate: monthStats.current.completionRate,
+      completionRateDelta: monthStats.delta.completionRate,
+      puzzles: {
+        total: monthStats.current.total,
+        completed: monthStats.current.completed,
+        pending: monthStats.current.pending
+      },
+      difficultyBuckets: {
+        missMate: monthStats.current.missMate,
+        d1: monthStats.current.buckets.d1,
+        d2: monthStats.current.buckets.d2,
+        d3: monthStats.current.buckets.d3,
+        d4: monthStats.current.buckets.d4
+      },
+      avgDrop: monthStats.current.avgDrop,
+      avgDropDelta: monthStats.delta.avgDrop,
+      topTags,
+      opponentAvgRating: monthStats?.rolling30d?.avgOpponentRating,
+      analyzedGames: monthStats?.rolling30d?.analyzedGames,
+      totalPlies: monthStats?.rolling30d?.totalPlies,
+      blunderRatesMovesPer: monthStats?.rolling30d?.movesPer
+    };
+
+    const system = [
+      'You are a chess coach writing a short performance comment for a student.',
+      'Write in English.',
+      'Be constructive, specific, and data-grounded.',
+      'Output JSON only with keys: summary, improvements, highlights, next_actions.',
+      'Constraints: summary 2-3 sentences; each array max 3 items; keep each item under 18 words; no emojis.'
+    ].join(' ');
+
+    const user = `Student stats JSON (last 30 days):\n${JSON.stringify(compact)}\n\nGenerate the JSON comment now.`;
+    const out = await openAiJson({ system, user, maxOutputTokens: 220 });
+
+    const entry = {
+      range,
+      updatedAt: nowIso(),
+      model: String(process.env.OPENAI_MODEL || 'gpt-4o-mini'),
+      stats: compact,
+      comment: out?.json || null,
+      text: out?.text || null,
+      usage: out?.usage || null
+    };
+    store[key] = entry;
+    await writeBlundersAiComments(store);
+    return { ok: true, cached: false, entry };
+  } finally {
+    blundersAiCommentInFlight.delete(key);
+  }
+}
 const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_FILE || path.join(DATA_DIR, 'blunders-puzzles.json'));
 const BLUNDERS_STATS_FILE = path.join(__dirname, process.env.BLUNDERS_STATS_FILE || path.join(DATA_DIR, 'blunders-stats.json'));
 const BLUNDERS_SETTINGS_FILE = path.join(__dirname, process.env.BLUNDERS_SETTINGS_FILE || path.join(DATA_DIR, 'blunders-settings.json'));
@@ -1624,6 +1756,114 @@ function computeRolling3mStats({ analyzedMap, puzzles }) {
     avgOpponentRating: avgOpp,
     counts: { gt1: cGt1, gt2: cGt2, gt3: cGt3, missMate: cMiss },
     movesPer: { gt1: movesPer(cGt1), gt2: movesPer(cGt2), gt3: movesPer(cGt3), missMate: movesPer(cMiss) }
+  };
+}
+
+function computeRollingWindowStats({ analyzedMap, puzzles, cutoffMs }) {
+  const analyzed = (analyzedMap && typeof analyzedMap === 'object') ? analyzedMap : {};
+  const list = Array.isArray(puzzles) ? puzzles : [];
+
+  let totalPlies = 0;
+  let oppSum = 0;
+  let oppN = 0;
+  let gamesN = 0;
+  for (const v of Object.values(analyzed)) {
+    const endSec = Number(v?.endTime || 0);
+    if (!(Number.isFinite(endSec) && endSec > 0)) continue;
+    const endMs = endSec * 1000;
+    if (endMs < cutoffMs) continue;
+    gamesN++;
+    const pc = Number(v?.plyCount || 0);
+    if (Number.isFinite(pc) && pc > 0) totalPlies += pc;
+    const r = Number(v?.opponentRating ?? NaN);
+    if (Number.isFinite(r) && r > 0) { oppSum += r; oppN++; }
+  }
+
+  let cGt1 = 0, cGt2 = 0, cGt3 = 0, cMiss = 0;
+  for (const p of list) {
+    const t = puzzleSortKeyMs(p);
+    if (!(Number.isFinite(t) && t > 0) || t < cutoffMs) continue;
+    if (isMissMatePuzzle(p)) cMiss++;
+    const dp = puzzleDropPoints(p);
+    if (dp > 1.0) cGt1++;
+    if (dp > 2.0) cGt2++;
+    if (dp > 3.0) cGt3++;
+  }
+
+  const movesPer = (count) => (count > 0 && totalPlies > 0) ? (totalPlies / count) : null;
+  const avgOpp = (oppN > 0) ? (oppSum / oppN) : null;
+  return {
+    cutoffIso: new Date(cutoffMs).toISOString(),
+    analyzedGames: gamesN,
+    totalPlies,
+    avgOpponentRating: avgOpp,
+    counts: { gt1: cGt1, gt2: cGt2, gt3: cGt3, missMate: cMiss },
+    movesPer: { gt1: movesPer(cGt1), gt2: movesPer(cGt2), gt3: movesPer(cGt3), missMate: movesPer(cMiss) }
+  };
+}
+
+function computeStudentMonthStats({ orgId, studentId, puzzles, analyzedMap }) {
+  const now = Date.now();
+  const cutoffMs = now - 30 * 24 * 60 * 60 * 1000;
+  const prevCutoffMs = now - 60 * 24 * 60 * 60 * 1000;
+
+  const mine = (Array.isArray(puzzles) ? puzzles : [])
+    .filter(p => String(p.orgId || '') === String(orgId || '') && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(studentId || ''));
+
+  const inWindow = (p) => {
+    const t = puzzleSortKeyMs(p);
+    return Number.isFinite(t) && t > 0 && t >= cutoffMs;
+  };
+  const inPrevWindow = (p) => {
+    const t = puzzleSortKeyMs(p);
+    return Number.isFinite(t) && t > 0 && t >= prevCutoffMs && t < cutoffMs;
+  };
+
+  const cur = mine.filter(inWindow);
+  const prev = mine.filter(inPrevWindow);
+
+  const countPack = (arr) => {
+    const out = {
+      total: arr.length,
+      pending: arr.filter(p => String(p.status || 'pending') !== 'completed').length,
+      completed: arr.filter(p => String(p.status || '') === 'completed').length,
+      missMate: 0,
+      buckets: { d1: 0, d2: 0, d3: 0, d4: 0 },
+      avgDrop: null,
+      topTags: {}
+    };
+    let dropSum = 0;
+    let dropN = 0;
+    for (const p of arr) {
+      const bk = blundersBucketKeyOfPuzzle(p);
+      if (bk === 'missMate') out.missMate++;
+      else out.buckets[bk] = (out.buckets[bk] || 0) + 1;
+      const dp = puzzleDropPoints(p);
+      if (Number.isFinite(dp) && dp > 0 && !isMissMatePuzzle(p)) { dropSum += dp; dropN++; }
+      const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+      for (const t of tags) out.topTags[t] = (out.topTags[t] || 0) + 1;
+    }
+    out.avgDrop = dropN > 0 ? (dropSum / dropN) : null;
+    out.completionRate = out.total > 0 ? (out.completed / out.total) : null;
+    return out;
+  };
+
+  const curPack = countPack(cur);
+  const prevPack = countPack(prev);
+  const rolling30d = computeRollingWindowStats({ analyzedMap, puzzles: mine, cutoffMs });
+
+  return {
+    range: 'month',
+    cutoffIso: new Date(cutoffMs).toISOString(),
+    nowIso: new Date(now).toISOString(),
+    current: curPack,
+    previous: prevPack,
+    delta: {
+      completionRate: (curPack.completionRate !== null && prevPack.completionRate !== null) ? (curPack.completionRate - prevPack.completionRate) : null,
+      avgDrop: (curPack.avgDrop !== null && prevPack.avgDrop !== null) ? (curPack.avgDrop - prevPack.avgDrop) : null,
+      missMate: (Number(curPack.missMate || 0) - Number(prevPack.missMate || 0))
+    },
+    rolling30d
   };
 }
 
@@ -10003,6 +10243,26 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
       rolling3m = computeRolling3mStats({ analyzedMap: st?.analyzed || {}, puzzles: mine });
     } catch {}
 
+    // AI coach comment (cached; best-effort background refresh)
+    let aiCommentMonth = null;
+    let aiCommentUpdatedAt = null;
+    let aiCommentStatus = 'disabled'; // disabled | cached | generating
+    try {
+      const key = aiCommentCacheKey({ orgId, studentId: String(student.id), range: 'month' });
+      const store = await readBlundersAiComments();
+      const entry = store?.[key] || null;
+      if (entry) {
+        aiCommentMonth = entry.comment || { text: entry.text || '' };
+        aiCommentUpdatedAt = entry.updatedAt || null;
+        aiCommentStatus = 'cached';
+      }
+      const fresh = entry?.updatedAt && aiCommentIsFresh(entry.updatedAt, 24 * 60 * 60 * 1000);
+      if (!fresh && openAiEnabled()) {
+        aiCommentStatus = entry ? 'cached' : 'generating';
+        generateStudentAiCommentMonth({ orgId, studentId: String(student.id), force: false }).catch(() => {});
+      }
+    } catch {}
+
     return res.json({
       ok: true,
       student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
@@ -10026,6 +10286,7 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
         })()
       },
       stats: { analyzedGamesTotal, rolling3m: rolling3m || undefined },
+      ai: { monthComment: aiCommentMonth || undefined, monthCommentUpdatedAt: aiCommentUpdatedAt || undefined, monthCommentStatus: aiCommentStatus },
       pending,
       completed,
       counts: { pending: pending.length, completed: completed.length, total: mine.length }
@@ -10137,6 +10398,59 @@ app.get('/api/public/students/:id/blunders/recent-games', async (req, res) => {
   } catch (e) {
     console.error('GET /api/public/students/:id/blunders/recent-games error:', e);
     return res.status(500).json({ error: 'Failed to load recent games' });
+  }
+});
+
+// Teacher: Generate AI coach comment (last 30 days) for a student (cached for 24h).
+app.post('/api/teachers/blunders/students/:studentId/ai-comment', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const orgId = String(req.user.organizationId || req.organizationFilter || '');
+    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
+    const studentId = String(req.params.studentId || '').trim();
+    if (!studentId) return res.status(400).json({ error: 'Missing studentId' });
+    const force = !!(req.body && typeof req.body === 'object' && req.body.force);
+    const out = await generateStudentAiCommentMonth({ orgId, studentId, force });
+    if (!out.ok) return res.status(400).json({ error: out.error || 'Failed to generate', cached: !!out.entry, entry: out.entry || null });
+    return res.json({ ok: true, cached: !!out.cached, entry: out.entry || null });
+  } catch (e) {
+    console.error('POST /api/teachers/blunders/students/:studentId/ai-comment error:', e);
+    return res.status(500).json({ error: 'Failed to generate AI comment' });
+  }
+});
+
+// Public Student Access: Fetch AI coach comment (last 30 days). Password protected.
+app.get('/api/public/students/:id/blunders/ai-comment', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.query;
+
+    const data = await readData();
+    const student = data.students.find(s => s.id === id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    const orgId = String(student.organizationId || '');
+    const key = aiCommentCacheKey({ orgId, studentId: String(student.id), range: 'month' });
+    const store = await readBlundersAiComments();
+    const entry = store?.[key] || null;
+    const fresh = entry?.updatedAt && aiCommentIsFresh(entry.updatedAt, 24 * 60 * 60 * 1000);
+
+    if (!fresh && openAiEnabled()) {
+      generateStudentAiCommentMonth({ orgId, studentId: String(student.id), force: false }).catch(() => {});
+    }
+
+    return res.json({
+      ok: true,
+      status: openAiEnabled() ? (fresh ? 'cached' : 'generating') : 'disabled',
+      updatedAt: entry?.updatedAt || null,
+      comment: entry?.comment || (entry?.text ? { text: entry.text } : null),
+      stats: entry?.stats || null
+    });
+  } catch (e) {
+    console.error('GET /api/public/students/:id/blunders/ai-comment error:', e);
+    return res.status(500).json({ error: 'Failed to load AI comment' });
   }
 });
 

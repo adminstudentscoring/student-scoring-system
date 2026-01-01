@@ -361,6 +361,21 @@
     const canPrev = ply > 0;
     const canNext = ply < plyMax;
     const bls = game && Array.isArray(game.blunders) ? game.blunders : [];
+    const ai = (STATE.homeAi && typeof STATE.homeAi === 'object') ? STATE.homeAi : { loading: false, error: '', status: 'disabled', updatedAt: null, comment: null };
+    const aiText = (() => {
+      const c = ai.comment;
+      if (!c) return '';
+      if (typeof c === 'string') return c;
+      if (typeof c?.text === 'string') return c.text;
+      const parts = [];
+      if (c?.summary) parts.push(String(c.summary));
+      for (const k of ['highlights', 'improvements', 'next_actions']) {
+        const arr = Array.isArray(c?.[k]) ? c[k] : [];
+        if (arr.length) parts.push(`${k}: ${arr.map(String).join(' | ')}`);
+      }
+      return parts.join('\n');
+    })();
+
     return `
       <div class="bl-card">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
@@ -404,6 +419,23 @@
             <div class="bl-stat-label">Average Opponents rating (last 3 months)</div>
             <div class="bl-stat-value">${escapeHtml(avgOpp)}</div>
           </div>
+        </div>
+
+        <div class="bl-card" style="box-shadow:none; margin-top:12px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="font-weight:950; color:#111827;">AI coach comment (last 30 days)</div>
+            <div style="flex:1;"></div>
+            <button class="btn btn-secondary btn-small" type="button" data-bl-home-ai-refresh ${ai.loading ? 'disabled' : ''}>Refresh</button>
+          </div>
+          ${ai.error ? `<div class="blunders-muted" style="margin-top:8px; color:#b91c1c;">${escapeHtml(String(ai.error))}</div>` : ``}
+          <div class="blunders-muted" style="margin-top:8px;">
+            Status: <strong>${escapeHtml(String(ai.status || 'disabled'))}</strong>
+            ${ai.updatedAt ? ` · Updated: <strong>${escapeHtml(fmtTs(ai.updatedAt))}</strong>` : ``}
+          </div>
+          ${ai.loading ? `<div class="blunders-muted" style="margin-top:8px;">Loading...</div>` : ``}
+          ${!ai.loading ? `
+            ${aiText ? `<div class="bl-card" style="box-shadow:none; margin-top:10px; white-space:pre-wrap; line-height:1.35;">${escapeHtml(aiText)}</div>` : `<div class="blunders-muted" style="margin-top:10px;">No comment yet.</div>`}
+          ` : ``}
         </div>
 
         <div class="bl-card" style="box-shadow:none; margin-top:12px;">

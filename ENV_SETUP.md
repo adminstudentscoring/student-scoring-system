@@ -82,6 +82,16 @@ npm run blunders:import-db
 BLUNDERS_USE_DB=1
 ```
 
+#### AI Coach Comments（OpenAI）
+如要啟用「每位學生近 30 天表現評語（AI 生成）」，請在 `.env` / Railway Variables 設定：
+
+```text
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
+```
+
+> 建議：用小模型 + 24 小時快取（每位學生每日最多生成一次）以控制成本與延遲。
+
 ### 4. 運行服務器
 
 ```bash

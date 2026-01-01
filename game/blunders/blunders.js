@@ -419,6 +419,20 @@
       STATE.completed = Array.isArray(data?.completed) ? data.completed : [];
       if (STATE.currentIndex >= STATE.pending.length) STATE.currentIndex = 0;
       setStatus('');
+      // Home: AI comment (best-effort, non-blocking)
+      if (STATE.page === 'home') {
+        // Prefer bundled response (fast), then lazy fetch.
+        try {
+          if (data?.ai?.monthComment) {
+            STATE.homeAi = STATE.homeAi && typeof STATE.homeAi === 'object' ? STATE.homeAi : {};
+            STATE.homeAi.status = String(data.ai.monthCommentStatus || 'cached');
+            STATE.homeAi.updatedAt = data.ai.monthCommentUpdatedAt || null;
+            STATE.homeAi.comment = data.ai.monthComment || null;
+          } else {
+            ensureHomeAiLoaded().catch(() => {});
+          }
+        } catch {}
+      }
       // Home: load recent games (best-effort, non-blocking)
       if (STATE.page === 'home') {
         ensureHomeRecentGamesLoaded().catch(() => {});
@@ -445,6 +459,26 @@
       STATE.homeRecent.error = String(e?.message || e);
     } finally {
       STATE.homeRecent.loading = false;
+      render();
+    }
+  }
+
+  async function ensureHomeAiLoaded() {
+    if (!STATE.me?.id) return;
+    if (!STATE.homeAi || typeof STATE.homeAi !== 'object') STATE.homeAi = { loading: false, error: '', status: 'disabled', updatedAt: null, comment: null };
+    if (STATE.homeAi.loading) return;
+    STATE.homeAi.loading = true;
+    STATE.homeAi.error = '';
+    render();
+    try {
+      const out = await window.BlundersCore.fetchAiComment(STATE.me.id);
+      STATE.homeAi.status = String(out?.status || 'disabled');
+      STATE.homeAi.updatedAt = out?.updatedAt || null;
+      STATE.homeAi.comment = out?.comment || null;
+    } catch (e) {
+      STATE.homeAi.error = String(e?.message || e);
+    } finally {
+      STATE.homeAi.loading = false;
       render();
     }
   }
@@ -1349,6 +1383,10 @@
       }
       if (t?.closest?.('[data-bl-home-recent-refresh]')) {
         ensureHomeRecentGamesLoaded().catch(() => {});
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-ai-refresh]')) {
+        ensureHomeAiLoaded().catch(() => {});
         return;
       }
       const hg = t?.closest?.('[data-bl-home-game]');
