@@ -1381,7 +1381,10 @@
       }
       const hpd = t?.closest?.('[data-bl-home-practice-duration]');
       if (hpd) {
-        STATE.ui.homePracticeDuration = String(hpd.getAttribute('data-bl-home-practice-duration') || 'all');
+        const v = String(hpd.getAttribute('data-bl-home-practice-duration') || 'all');
+        STATE.ui.homePracticeDuration = v;
+        STATE.reviewDuration = v; // keep practice duration in sync with filter
+        try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
         openHomePracticeModal();
         return;
       }
@@ -1415,7 +1418,11 @@
       const rp = t?.closest?.('[data-bl-review-practice]');
       if (rp) {
         const key = String(rp.getAttribute('data-bl-review-practice') || '');
-        const all = getReviewPuzzlesFiltered();
+        let all = getReviewPuzzlesFiltered();
+        const theme = String(STATE.ui?.reviewUi?.theme || 'any').trim() || 'any';
+        if (theme !== 'any') {
+          all = all.filter((p) => (Array.isArray(p?.tags) ? p.tags.map(String) : []).includes(theme));
+        }
         if (!all.length) return;
 
         let pool = [];
@@ -1438,16 +1445,12 @@
       const rd = t?.closest?.('[data-bl-review-duration]');
       if (rd) {
         STATE.reviewDuration = String(rd.getAttribute('data-bl-review-duration') || 'all');
+        STATE.ui.homePracticeDuration = STATE.reviewDuration;
         try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
         render();
         return;
       }
-      const rt = t?.closest?.('[data-bl-review-theme]');
-      if (rt) {
-        const v = String(rt.value || rt.getAttribute('value') || 'any');
-        try { window.BlundersStudent?.reviewSetTheme?.(v); } catch {}
-        return;
-      }
+      // NOTE: Review theme/duration selects use 'change' events, not 'click' (avoid dropdown flashing).
 
       // Review (bucketed paging)
       const rvT = t?.closest?.('[data-bl-review-toggle]');
@@ -1796,6 +1799,28 @@
         const pick = all[Math.floor(Math.random() * all.length)];
         setBlunderModePractice(pick);
         setPage('blunder');
+        return;
+      }
+    });
+
+    // Use change events for <select> filters (prevents dropdown from flashing due to re-render on click)
+    root.addEventListener('change', (ev) => {
+      const t = ev.target;
+
+      const rt = t?.closest?.('[data-bl-review-theme]');
+      if (rt) {
+        const v = String(rt.value || 'any').trim() || 'any';
+        try { window.BlundersStudent?.reviewSetTheme?.(v); } catch {}
+        return;
+      }
+
+      const rd = t?.closest?.('[data-bl-review-duration-select]');
+      if (rd) {
+        const v = String(rd.value || 'all').trim() || 'all';
+        STATE.reviewDuration = v;
+        STATE.ui.homePracticeDuration = v;
+        try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
+        render();
         return;
       }
     });

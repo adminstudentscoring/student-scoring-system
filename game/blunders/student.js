@@ -274,7 +274,8 @@
   }
 
   function openHomePracticeModal() {
-    const dur = String(STATE.ui.homePracticeDuration || 'all');
+    const dur = String(STATE.reviewDuration || STATE.ui.homePracticeDuration || 'all');
+    STATE.ui.homePracticeDuration = dur;
     const durBtns = [
       { k: 'week', label: 'Last 7 days' },
       { k: 'month', label: 'Last 30 days' },
@@ -306,9 +307,14 @@
 
   function startPracticeFromHome(key) {
     const k = String(key || 'random');
-    const dur = String(STATE.ui.homePracticeDuration || 'all');
+    const dur = String(STATE.reviewDuration || STATE.ui.homePracticeDuration || 'all');
     STATE.reviewDuration = dur;
-    const all = getReviewPuzzlesFiltered();
+    STATE.ui.homePracticeDuration = dur;
+    let all = getReviewPuzzlesFiltered();
+    const theme = String(ensureReviewUi()?.theme || 'any').trim() || 'any';
+    if (theme !== 'any') {
+      all = all.filter((p) => (Array.isArray(p?.tags) ? p.tags.map(String) : []).includes(theme));
+    }
     if (!all.length) {
       entry().closeModal();
       return;
@@ -649,11 +655,9 @@
 
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
           <span class="blunders-muted" style="margin-right:2px;">Duration:</span>
-          ${durBtns.map(b => `
-            <button class="btn ${dur === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-review-duration="${escapeHtml(b.k)}">
-              ${escapeHtml(b.label)}
-            </button>
-          `).join('')}
+          <select class="btn btn-secondary btn-small" data-bl-review-duration-select style="min-width:220px;">
+            ${durBtns.map(o => `<option value="${escapeHtml(o.k)}" ${dur === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
         </div>
         ${cache.totalFiltered ? `
           ${renderBucket('missMate', 'Miss the mate')}
