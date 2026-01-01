@@ -428,7 +428,8 @@
             STATE.homeAi.status = String(data.ai.monthCommentStatus || 'cached');
             STATE.homeAi.updatedAt = data.ai.monthCommentUpdatedAt || null;
             STATE.homeAi.comment = data.ai.monthComment || null;
-          } else {
+            STATE.homeAi.error = data.ai.monthCommentError || '';
+      } else {
             ensureHomeAiLoaded().catch(() => {});
           }
         } catch {}
@@ -475,6 +476,7 @@
       STATE.homeAi.status = String(out?.status || 'disabled');
       STATE.homeAi.updatedAt = out?.updatedAt || null;
       STATE.homeAi.comment = out?.comment || null;
+      STATE.homeAi.error = out?.error ? String(out.error) : '';
     } catch (e) {
       STATE.homeAi.error = String(e?.message || e);
     } finally {
@@ -489,7 +491,7 @@
     if (mod) return mod;
     try {
       STATE.teacher.error = 'Teacher module not loaded. Please hard refresh (Ctrl+F5) and check that /game/blunders/teacher.js returns 200 in the Network tab.';
-      render();
+        render();
     } catch {}
     console.error('BlundersTeacher missing: teacher actions are disabled. Check /game/blunders/teacher.js load.');
     return null;

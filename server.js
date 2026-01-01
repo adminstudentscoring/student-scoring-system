@@ -113,10 +113,12 @@ async function generateStudentAiCommentMonth({ orgId, studentId, force = false }
 
   const range = 'month';
   const ttlMs = 24 * 60 * 60 * 1000; // low-cost: max once/day per student
+  const errTtlMs = 10 * 60 * 1000; // if it fails, pause retries for a short window to avoid infinite "generating"
   const key = aiCommentCacheKey({ orgId: oid, studentId: sid, range });
   const store = await readBlundersAiComments();
   const cur = store?.[key] || null;
   if (!force && cur?.updatedAt && aiCommentIsFresh(cur.updatedAt, ttlMs)) return { ok: true, cached: true, entry: cur };
+  if (!force && cur?.error && cur?.failedAt && aiCommentIsFresh(cur.failedAt, errTtlMs)) return { ok: false, error: cur.error, cached: true, entry: cur };
   if (!openAiEnabled()) return { ok: false, error: 'OpenAI not configured', cached: !!cur, entry: cur };
 
   // Avoid duplicate concurrent generations
@@ -181,11 +183,29 @@ async function generateStudentAiCommentMonth({ orgId, studentId, force = false }
       stats: compact,
       comment: out?.json || null,
       text: out?.text || null,
-      usage: out?.usage || null
+      usage: out?.usage || null,
+      error: null,
+      failedAt: null
     };
     store[key] = entry;
     await writeBlundersAiComments(store);
     return { ok: true, cached: false, entry };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const entry = {
+      range,
+      updatedAt: cur?.updatedAt || null,
+      model: String(process.env.OPENAI_MODEL || 'gpt-4o-mini'),
+      stats: cur?.stats || null,
+      comment: cur?.comment || null,
+      text: cur?.text || null,
+      usage: cur?.usage || null,
+      error: msg,
+      failedAt: nowIso()
+    };
+    store[key] = entry;
+    try { await writeBlundersAiComments(store); } catch {}
+    return { ok: false, error: msg, cached: false, entry };
   } finally {
     blundersAiCommentInFlight.delete(key);
   }
@@ -10246,7 +10266,8 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     // AI coach comment (cached; best-effort background refresh)
     let aiCommentMonth = null;
     let aiCommentUpdatedAt = null;
-    let aiCommentStatus = 'disabled'; // disabled | cached | generating
+    let aiCommentStatus = 'disabled'; // disabled | cached | generating | error
+    let aiCommentError = null;
     try {
       const key = aiCommentCacheKey({ orgId, studentId: String(student.id), range: 'month' });
       const store = await readBlundersAiComments();
@@ -10254,11 +10275,13 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
       if (entry) {
         aiCommentMonth = entry.comment || { text: entry.text || '' };
         aiCommentUpdatedAt = entry.updatedAt || null;
-        aiCommentStatus = 'cached';
+        aiCommentStatus = entry?.error ? 'error' : 'cached';
+        aiCommentError = entry?.error || null;
       }
       const fresh = entry?.updatedAt && aiCommentIsFresh(entry.updatedAt, 24 * 60 * 60 * 1000);
-      if (!fresh && openAiEnabled()) {
-        aiCommentStatus = entry ? 'cached' : 'generating';
+      const errFresh = entry?.failedAt && aiCommentIsFresh(entry.failedAt, 10 * 60 * 1000);
+      if (!fresh && !errFresh && openAiEnabled()) {
+        aiCommentStatus = entry ? (entry?.error ? 'error' : 'cached') : 'generating';
         generateStudentAiCommentMonth({ orgId, studentId: String(student.id), force: false }).catch(() => {});
       }
     } catch {}
@@ -10286,7 +10309,7 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
         })()
       },
       stats: { analyzedGamesTotal, rolling3m: rolling3m || undefined },
-      ai: { monthComment: aiCommentMonth || undefined, monthCommentUpdatedAt: aiCommentUpdatedAt || undefined, monthCommentStatus: aiCommentStatus },
+      ai: { monthComment: aiCommentMonth || undefined, monthCommentUpdatedAt: aiCommentUpdatedAt || undefined, monthCommentStatus: aiCommentStatus, monthCommentError: aiCommentError || undefined },
       pending,
       completed,
       counts: { pending: pending.length, completed: completed.length, total: mine.length }
@@ -10418,6 +10441,19 @@ app.post('/api/teachers/blunders/students/:studentId/ai-comment', authenticateUs
   }
 });
 
+// Teacher: Ping OpenAI to validate API key/model quickly.
+app.get('/api/teachers/blunders/ai/ping', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    if (!openAiEnabled()) return res.status(400).json({ ok: false, error: 'OpenAI not configured (missing OPENAI_API_KEY)' });
+    const system = 'Return JSON only.';
+    const user = JSON.stringify({ ping: true, now: nowIso() });
+    const out = await openAiJson({ system, user, maxOutputTokens: 20 });
+    return res.json({ ok: true, model: String(process.env.OPENAI_MODEL || 'gpt-4o-mini'), usage: out?.usage || null, sample: out?.json || out?.text || null });
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 // Public Student Access: Fetch AI coach comment (last 30 days). Password protected.
 app.get('/api/public/students/:id/blunders/ai-comment', async (req, res) => {
   try {
@@ -10436,15 +10472,20 @@ app.get('/api/public/students/:id/blunders/ai-comment', async (req, res) => {
     const store = await readBlundersAiComments();
     const entry = store?.[key] || null;
     const fresh = entry?.updatedAt && aiCommentIsFresh(entry.updatedAt, 24 * 60 * 60 * 1000);
+    const errFresh = entry?.failedAt && aiCommentIsFresh(entry.failedAt, 10 * 60 * 1000);
 
-    if (!fresh && openAiEnabled()) {
+    if (!fresh && !errFresh && openAiEnabled()) {
       generateStudentAiCommentMonth({ orgId, studentId: String(student.id), force: false }).catch(() => {});
     }
 
     return res.json({
       ok: true,
-      status: openAiEnabled() ? (fresh ? 'cached' : 'generating') : 'disabled',
+      status: openAiEnabled()
+        ? (entry?.error ? 'error' : (fresh ? 'cached' : 'generating'))
+        : 'disabled',
       updatedAt: entry?.updatedAt || null,
+      error: entry?.error || null,
+      failedAt: entry?.failedAt || null,
       comment: entry?.comment || (entry?.text ? { text: entry.text } : null),
       stats: entry?.stats || null
     });
