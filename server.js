@@ -1416,6 +1416,16 @@ function isMissMatePuzzle(p) {
   return Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999;
 }
 
+function isInvalidSameBestMovePuzzle(p) {
+  // If the played move equals engine best move AND engine indicates a mate score,
+  // this is not a missed mate blunder; it typically means score parsing failed for the played move.
+  const bestCp = Number(p?.bestCp ?? 0);
+  if (!(Number.isFinite(bestCp) && Math.abs(bestCp) >= 99999)) return false;
+  const bm = String(p?.bestMoveUci || '').trim().toLowerCase();
+  const um = String(p?.blunderMoveUci || '').trim().toLowerCase();
+  return !!bm && !!um && bm === um;
+}
+
 function blundersBucketKeyOfPuzzle(p) {
   if (isMissMatePuzzle(p)) return 'missMate';
   const d = puzzleDropPoints(p);
@@ -2524,6 +2534,11 @@ async function syncBlundersForStudent(student, opts = {}) {
         const dropPoints = v.dropPoints;
         if (v.verdict !== 'blunder') continue;
 
+        // Guard: if Stockfish says the played move is the best move, never record it as a blunder.
+        // This also fixes weird mate cases where bestCp is "mate" but after-score parsing fails.
+        const playedUci = `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`;
+        if (playedUci && bestMove && playedUci === String(bestMove || '').trim().toLowerCase()) continue;
+
         const key = `${orgId}|${sid}|${String(game.url || game.uuid || '')}|${ply}`;
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
@@ -2541,7 +2556,7 @@ async function syncBlundersForStudent(student, opts = {}) {
           startFEN: beforeFen,
           opponentMoveUci: prev ? `${String(prev.from || '').toLowerCase()}${String(prev.to || '').toLowerCase()}${prev.promotion ? String(prev.promotion).toLowerCase() : ''}` : '',
           opponentSan: prev ? String(prev.san || '') : '',
-          blunderMoveUci: `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`,
+          blunderMoveUci: playedUci,
           blunderSan: String(mv.san || ''),
           bestMoveUci: bestMove,
           bestCp,
@@ -2872,6 +2887,9 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
         const dropPoints = v.dropPoints;
         if (v.verdict !== 'blunder') continue;
 
+        const playedUci = `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`;
+        if (playedUci && bestMove && playedUci === String(bestMove || '').trim().toLowerCase()) continue;
+
         const key = `${oid}|master|${mid}|${String(game.url || game.uuid || '')}|${ply}`;
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
@@ -2894,7 +2912,7 @@ async function syncBlundersForMaster(orgId, master, opts = {}) {
           startFEN: beforeFen,
           opponentMoveUci: prev ? `${String(prev.from || '').toLowerCase()}${String(prev.to || '').toLowerCase()}${prev.promotion ? String(prev.promotion).toLowerCase() : ''}` : '',
           opponentSan: prev ? String(prev.san || '') : '',
-          blunderMoveUci: `${String(mv.from || '').toLowerCase()}${String(mv.to || '').toLowerCase()}${mv.promotion ? String(mv.promotion).toLowerCase() : ''}`,
+          blunderMoveUci: playedUci,
           blunderSan: String(mv.san || ''),
           bestMoveUci: bestMove,
           bestCp,
@@ -8722,6 +8740,11 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
             WHERE p.org_id = $1
               AND p.student_id = ANY($2)
               AND ($3::timestamptz IS NULL OR COALESCE(pr.completed_at, to_timestamp(p.end_time_sec), p.created_at, to_timestamp(p.sort_at_ms/1000.0)) >= $3::timestamptz)
+              AND NOT (
+                p.best_cp IS NOT NULL AND ABS(p.best_cp) >= 99999
+                AND p.best_move_uci IS NOT NULL AND p.blunder_move_uci IS NOT NULL
+                AND LOWER(p.best_move_uci) = LOWER(p.blunder_move_uci)
+              )
           )
           , base AS (
             SELECT * FROM base0
@@ -8886,7 +8909,8 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
 
     const mineStudents = puzzles
       .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master')
-      .filter(p => allowedStudentIds.has(String(p.studentId || '')));
+      .filter(p => allowedStudentIds.has(String(p.studentId || '')))
+      .filter(p => !isInvalidSameBestMovePuzzle(p));
 
     const mineMasters = puzzles
       .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') === 'master');
@@ -10250,7 +10274,9 @@ app.get('/api/public/students/:id/blunders', async (req, res) => {
     if (pr.changed) {
       try { await writeBlundersPuzzles(puzzles); } catch {}
     }
-    const mine = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id));
+    const mine = puzzles
+      .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id))
+      .filter(p => !isInvalidSameBestMovePuzzle(p));
     const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
     const completed = mine.filter(p => String(p.status || '') === 'completed');
 

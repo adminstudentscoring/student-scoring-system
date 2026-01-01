@@ -507,7 +507,12 @@
     const flip = puzzle ? String(puzzle.studentColor || '') === 'b' : false;
     const modeLabel = STATE.mode === 'practice' ? 'Practice (Random)' : 'Pending';
     const dropVal = puzzle ? Number(puzzle.dropPoints ?? (Number(puzzle.dropCp || 0) / 100)) : 0;
-    const infoLine = puzzle ? `${String(puzzle.blunderSan || puzzle.blunderMoveUci || '')} · Drop ${dropVal.toFixed(2)}` : '';
+    const infoLine = (() => {
+      if (!puzzle) return '';
+      const mv = String(puzzle.blunderSan || puzzle.blunderMoveUci || '');
+      if (isMissMatePuzzle(puzzle)) return `${mv} · Miss the mate`;
+      return `${mv} · Drop ${dropVal.toFixed(2)}`;
+    })();
     const fenOverride = String(STATE.uiBoard.blunderFen || puzzle?.startFEN || '');
     const myMoveUci = String(STATE.uiBoard.blunderMoveUci || '');
     return `
