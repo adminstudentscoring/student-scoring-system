@@ -1442,6 +1442,12 @@
         render();
         return;
       }
+      const rt = t?.closest?.('[data-bl-review-theme]');
+      if (rt) {
+        const v = String(rt.value || rt.getAttribute('value') || 'any');
+        try { window.BlundersStudent?.reviewSetTheme?.(v); } catch {}
+        return;
+      }
 
       // Review (bucketed paging)
       const rvT = t?.closest?.('[data-bl-review-toggle]');

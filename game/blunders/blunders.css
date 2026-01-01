@@ -479,6 +479,7 @@ body.game-is-blunders .game-area-content {
 .bl-mini {
   width: 96px;
   height: 96px;
+  flex: 0 0 auto;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   overflow: hidden;

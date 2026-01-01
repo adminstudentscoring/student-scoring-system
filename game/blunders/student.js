@@ -44,6 +44,7 @@
     if (!STATE.ui.reviewUi || typeof STATE.ui.reviewUi !== 'object') {
       STATE.ui.reviewUi = {
         pageSize: 50,
+        theme: 'any', // any | <tag>
         cacheKey: '',
         cache: null,
         buckets: {
@@ -83,7 +84,8 @@
   function buildReviewCacheIfNeeded() {
     const ui = ensureReviewUi();
     const dur = String(STATE.reviewDuration || 'all');
-    const cacheKey = `dur:${dur}`;
+    const theme = String(ui.theme || 'any').trim() || 'any';
+    const cacheKey = `dur:${dur}|theme:${theme}`;
     if (ui.cache && ui.cacheKey === cacheKey) return ui.cache;
 
     const allAll = [
@@ -92,7 +94,7 @@
     ];
     const all = getReviewPuzzlesFiltered(); // includes pending + completed, filtered by duration
 
-    const sorted = all.slice().sort((a, b) => {
+    const sorted0 = all.slice().sort((a, b) => {
       // Keep mate-miss near top by drop, then by time
       const da = dropOfPuzzle(a);
       const db = dropOfPuzzle(b);
@@ -101,6 +103,17 @@
       const tb = puzzleTimeMs(b);
       return tb - ta;
     });
+
+    // Tag counts (before applying theme filter)
+    const tagCounts = {};
+    for (const p of sorted0) {
+      const tags = Array.isArray(p?.tags) ? p.tags.map(String).filter(Boolean) : [];
+      for (const t of tags) tagCounts[t] = (tagCounts[t] || 0) + 1;
+    }
+
+    const sorted = (theme && theme !== 'any')
+      ? sorted0.filter((p) => (Array.isArray(p?.tags) ? p.tags.map(String) : []).includes(theme))
+      : sorted0;
 
     const buckets = { missMate: [], d1: [], d2: [], d3: [], d4: [] };
     for (const p of sorted) {
@@ -120,7 +133,7 @@
       d4: buckets.d4.length
     };
 
-    ui.cache = { totalAll: allAll.length, totalFiltered: all.length, counts, buckets };
+    ui.cache = { totalAll: allAll.length, totalFiltered: sorted.length, totalDurationFiltered: all.length, theme, tagCounts, counts, buckets };
     ui.cacheKey = cacheKey;
 
     // Update totalPages based on counts
@@ -132,6 +145,20 @@
       b.page = Math.max(1, Math.min(b.totalPages, Number(b.page || 1) || 1));
     }
     return ui.cache;
+  }
+
+  function reviewSetTheme(theme) {
+    const ui = ensureReviewUi();
+    ui.theme = String(theme || 'any').trim() || 'any';
+    ui.cacheKey = '';
+    ui.cache = null;
+    for (const b of Object.values(ui.buckets)) {
+      if (!b || typeof b !== 'object') continue;
+      b.page = 1;
+      b.totalPages = 1;
+      b.jump = '';
+    }
+    entry().render();
   }
 
   function reviewToggleBucket(bucketKey) {
@@ -501,6 +528,18 @@
     const ui = ensureReviewUi();
     const cache = buildReviewCacheIfNeeded();
     const pageSize = Math.max(1, Number(ui.pageSize || 50) || 50);
+    const theme = String(ui.theme || 'any');
+    const tagCounts = (cache && cache.tagCounts && typeof cache.tagCounts === 'object') ? cache.tagCounts : {};
+    const themeOpts = (() => {
+      const base = [{ k: 'any', label: 'Any theme' }];
+      const entries = Object.entries(tagCounts)
+        .map(([k, v]) => ({ k: String(k), n: Number(v || 0) || 0 }))
+        .filter(x => x.k && x.k !== 'any')
+        .sort((a, b) => (b.n - a.n) || a.k.localeCompare(b.k))
+        .slice(0, 50);
+      for (const x of entries) base.push({ k: x.k, label: `${x.k} (${x.n})` });
+      return base;
+    })();
 
     const renderRows = (arr, bucketKey) => {
       const list = Array.isArray(arr) ? arr : [];
@@ -522,7 +561,7 @@
             return `
               <button class="bl-card" type="button" data-bl-open="${escapeHtml(String(p.id || ''))}" style="text-align:left; cursor:pointer;">
                 <div style="display:flex; gap:10px; align-items:center;">
-                  ${entry().renderMiniBoardFromFen(String(p.startFEN || ''))}
+                  <div style="flex:0 0 auto;">${entry().renderMiniBoardFromFen(String(p.startFEN || ''))}</div>
                   <div style="flex:1 1 auto; min-width:0;">
                     <div style="font-weight:950; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(String(p.blunderSan || p.blunderMoveUci || ''))}</div>
                     <div class="blunders-muted" style="margin-top:6px;">${escapeHtml(label)} · <strong>${escapeHtml(status)}</strong></div>
@@ -601,13 +640,20 @@
         </div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
+          <span class="blunders-muted" style="margin-right:2px;">Theme:</span>
+          <select class="btn btn-secondary btn-small" data-bl-review-theme style="min-width:220px;">
+            ${themeOpts.map(o => `<option value="${escapeHtml(o.k)}" ${theme === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
+          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(cache.totalFiltered))}</strong> of <strong>${escapeHtml(String(cache.totalDurationFiltered || cache.totalAll))}</strong></span>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
           <span class="blunders-muted" style="margin-right:2px;">Duration:</span>
           ${durBtns.map(b => `
             <button class="btn ${dur === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-review-duration="${escapeHtml(b.k)}">
               ${escapeHtml(b.label)}
             </button>
           `).join('')}
-          <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(cache.totalFiltered))}</strong> of <strong>${escapeHtml(String(cache.totalAll))}</strong></span>
         </div>
         ${cache.totalFiltered ? `
           ${renderBucket('missMate', 'Miss the mate')}
@@ -845,6 +891,7 @@
     reviewNext,
     reviewGo,
     reviewSetJump,
+    reviewSetTheme,
     resetReviewUi,
     renderStudentMasterGamePage,
     renderSettingsPage
