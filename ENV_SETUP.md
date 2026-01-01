@@ -82,15 +82,18 @@ npm run blunders:import-db
 BLUNDERS_USE_DB=1
 ```
 
-#### AI Coach Comments（OpenAI）
+#### AI Coach Comments（OpenAI / OpenAI-compatible）
 如要啟用「每位學生近 30 天表現評語（AI 生成）」，請在 `.env` / Railway Variables 設定：
 
 ```text
 OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-4o-mini
+OPENAI_BASE_URL=https://api.openai.com
 ```
 
 > 建議：用小模型 + 24 小時快取（每位學生每日最多生成一次）以控制成本與延遲。
+
+如你使用「OpenAI 相容」的第三方轉發（proxy）服務，請把 `OPENAI_BASE_URL` 改為供應商指示的 base_url（例如：`https://api.gptsapi.net`）。
 
 ### 4. 運行服務器
 

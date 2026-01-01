@@ -4,7 +4,9 @@
 function getOpenAiConfig() {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   const model = String(process.env.OPENAI_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
-  return { apiKey, model };
+  const baseUrlRaw = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com').trim() || 'https://api.openai.com';
+  const baseUrl = baseUrlRaw.replace(/\/+$/, '');
+  return { apiKey, model, baseUrl };
 }
 
 function openAiEnabled() {
@@ -13,10 +15,12 @@ function openAiEnabled() {
 }
 
 async function openAiJson({ system, user, maxOutputTokens = 250 }) {
-  const { apiKey, model } = getOpenAiConfig();
+  const { apiKey, model, baseUrl } = getOpenAiConfig();
   if (!apiKey) throw new Error('OpenAI not configured (missing OPENAI_API_KEY)');
 
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+  // Supports OpenAI-compatible proxies (set OPENAI_BASE_URL, e.g. https://api.gptsapi.net)
+  const url = `${baseUrl}/v1/chat/completions`;
+  const resp = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
