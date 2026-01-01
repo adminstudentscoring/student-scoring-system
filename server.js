@@ -1437,12 +1437,14 @@ function blundersBucketKeyOfPuzzle(p) {
 }
 
 // ===== Blunders: tagging (A) =====
-const BLUNDERS_TAGGER_VERSION = 'v1';
+const BLUNDERS_TAGGER_VERSION = 'v2';
 const BLUNDERS_TAGS = {
   MISSED_MATE: 'missed_mate',
   MISSED_WIN: 'missed_win',
   HANGING_PIECE: 'hanging_piece',
   FORK: 'fork',
+  MISSED_FORK: 'missed_fork',
+  ALLOWED_FORK: 'allowed_fork',
   PIN: 'pin',
   SKEWER: 'skewer',
   PHASE_OPENING: 'phase_opening',
@@ -1454,6 +1456,30 @@ const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 function pieceValue(piece) {
   if (!piece) return 0;
   return PIECE_VALUE[String(piece.type || '').toLowerCase()] || 0;
+}
+
+function forkTargetValue(piece) {
+  // For forks, king counts as a high-value target (king+piece forks matter).
+  if (!piece) return 0;
+  const t = String(piece.type || '').toLowerCase();
+  if (t === 'k') return 100;
+  return pieceValue(piece);
+}
+
+function isForkByMovedPiece(chessAfterMove, movedSq, movedPiece, victimColor) {
+  try {
+    const atk = attacksFrom(chessAfterMove, movedSq, movedPiece);
+    let targets = 0;
+    for (const sq of atk) {
+      const pc = chessAfterMove.get(sq);
+      if (!pc || String(pc.color) !== String(victimColor || '')) continue;
+      const v = forkTargetValue(pc);
+      if (v >= 3) targets++;
+    }
+    return targets >= 2;
+  } catch {
+    return false;
+  }
 }
 
 function parseFenFullmove(fen) {
@@ -1593,6 +1619,29 @@ function tagBlunderPuzzle(p) {
     if (Number.isFinite(bestCp) && Math.abs(bestCp) >= 300 && dp >= 1.0) tags.add(BLUNDERS_TAGS.MISSED_WIN);
   }
 
+  // Missed fork: if the engine best move is a fork (but the player didn't play it).
+  try {
+    const bestUci = String(p?.bestMoveUci || '').trim().toLowerCase();
+    if (bestUci && bestUci !== mvUci) {
+      const bp = parseUciMove(bestUci);
+      if (bp) {
+        const ch0 = new Chess(startFen);
+        const actorColor = ch0.turn();
+        const victimColor = actorColor === 'w' ? 'b' : 'w';
+        const ok = ch0.move({ from: bp.from, to: bp.to, promotion: bp.promotion });
+        if (ok) {
+          const movedSq = String(bp.to || '').toLowerCase();
+          const movedPiece = ch0.get(movedSq);
+          if (movedPiece && String(movedPiece.color) === actorColor) {
+            if (isForkByMovedPiece(ch0, movedSq, movedPiece, victimColor)) {
+              tags.add(BLUNDERS_TAGS.MISSED_FORK);
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+
   // Tactical tags: analyze the position AFTER the blunder move.
   const parsed = parseUciMove(mvUci);
   if (!parsed) return Array.from(tags);
@@ -1652,16 +1701,9 @@ function tagBlunderPuzzle(p) {
 
       // Fork: moved piece attacks >=2 valuable victim pieces.
       if (!foundFork) {
-        const atk = attacksFrom(ch3, movedSq, movedPiece);
-        let targets = 0;
-        for (const sq of atk) {
-          const pc = ch3.get(sq);
-          if (!pc || String(pc.color) !== victimColor) continue;
-          const v = pieceValue(pc);
-          if (v >= 3 && String(pc.type) !== 'k') targets++;
-        }
-        if (targets >= 2) {
+        if (isForkByMovedPiece(ch3, movedSq, movedPiece, victimColor)) {
           tags.add(BLUNDERS_TAGS.FORK);
+          tags.add(BLUNDERS_TAGS.ALLOWED_FORK);
           foundFork = true;
         }
       }
