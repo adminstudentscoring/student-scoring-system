@@ -5,8 +5,8 @@
 }
 
 :root {
-  --vcp-board-light: #f1f5f9;
-  --vcp-board-dark: #94a3b8;
+  --vcp-board-light: rgb(231,200,147);
+  --vcp-board-dark: rgb(172,113,76);
 }
 
 .nc-layout {

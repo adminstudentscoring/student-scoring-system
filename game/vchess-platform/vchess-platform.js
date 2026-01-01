@@ -48,8 +48,8 @@
   }
 
   const VCP_DEFAULTS = {
-    boardLight: '#f1f5f9',
-    boardDark: '#94a3b8'
+    boardLight: 'rgb(231,200,147)',
+    boardDark: 'rgb(172,113,76)'
   };
 
   function readBoardColors() {
