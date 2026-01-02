@@ -408,28 +408,14 @@ async function writeUsers(users) {
   }
 }
 
-// Read Chess.com settings (org-scoped)
-async function readChessComSettings() {
-  try {
-    const content = await fs.readFile(CHESSCOM_SETTINGS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
-    return orgs && typeof orgs === 'object' ? orgs : {};
-  } catch (error) {
-    console.error('Error reading chesscom settings:', error);
-    return {};
-  }
-}
-
-async function writeChessComSettings(orgs) {
-  try {
-    const clean = orgs && typeof orgs === 'object' ? orgs : {};
-    await fs.writeFile(CHESSCOM_SETTINGS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing chesscom settings:', error);
-    return false;
-  }
+// ===== Chess.com settings storage (moved to server/storage/chesscomSettings.js) =====
+let readChessComSettings = async () => ({});
+let writeChessComSettings = async () => false;
+{
+  const { createChessComSettingsStore } = require('./server/storage/chesscomSettings');
+  const s = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
+  readChessComSettings = s.readChessComSettings;
+  writeChessComSettings = s.writeChessComSettings;
 }
 
 // ===== Blunders: storage/settings (moved to server/blunders/storage.js) =====
@@ -6053,50 +6039,14 @@ app.post('/api/organizations/timetable/postpone', authenticateUser, authorizeRol
 
 // ==================== Teacher Management API ====================
 
-// Teacher: Chess.com settings (persisted on server, org-scoped)
-app.get('/api/teachers/chesscom/settings', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
-  try {
-    const orgId = String(req.user.organizationId || req.organizationFilter || '');
-    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
-    const orgs = await readChessComSettings();
-    const settings = (orgs && orgs[orgId] && typeof orgs[orgId] === 'object') ? orgs[orgId] : {};
-    return res.json({ ok: true, orgId, settings });
-  } catch (e) {
-    console.error('GET /api/teachers/chesscom/settings error:', e);
-    return res.status(500).json({ error: 'Failed to load settings' });
-  }
-});
-
-app.put('/api/teachers/chesscom/settings', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
-  try {
-    const orgId = String(req.user.organizationId || req.organizationFilter || '');
-    if (!orgId) return res.status(403).json({ error: 'Teacher not associated with organization' });
-    const incoming = req.body && typeof req.body === 'object' ? req.body : {};
-    const settings = incoming.settings && typeof incoming.settings === 'object' ? incoming.settings : null;
-    if (!settings) return res.status(400).json({ error: 'settings is required' });
-
-    // Validate + normalize
-    const clean = {};
-    for (const [studentId, entry] of Object.entries(settings)) {
-      const sid = String(studentId || '').trim();
-      if (!sid) continue;
-      const chessId = String(entry?.chessId ?? '').trim();
-      if (!chessId) continue;
-      clean[sid] = { chessId, updatedAt: new Date().toISOString() };
-    }
-
-    const orgs = await readChessComSettings();
-    const prev = (orgs && orgs[orgId] && typeof orgs[orgId] === 'object') ? orgs[orgId] : {};
-    // Merge updates so partial pushes won't wipe existing mappings.
-    orgs[orgId] = { ...prev, ...clean };
-    const ok = await writeChessComSettings(orgs);
-    if (!ok) return res.status(500).json({ error: 'Failed to save settings' });
-    console.log('[chesscom] settings saved', { orgId, count: Object.keys(clean).length });
-    return res.json({ ok: true, orgId, count: Object.keys(clean).length });
-  } catch (e) {
-    console.error('PUT /api/teachers/chesscom/settings error:', e);
-    return res.status(500).json({ error: 'Failed to save settings' });
-  }
+// ===== Chess.com teacher routes (moved to server/routes/chesscomTeacherRoutes.js) =====
+const { registerChessComTeacherRoutes } = require('./server/routes/chesscomTeacherRoutes');
+registerChessComTeacherRoutes(app, {
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  readChessComSettings,
+  writeChessComSettings
 });
 
 // ===== Blunders: teacher routes (moved to server/routes/blundersTeacherRoutes.js) =====
@@ -6148,79 +6098,14 @@ registerBlundersTeacherRoutes(app, {
   appDb
 });
 
-// Teacher selects students for Class View
-app.post('/api/teachers/class-view/students', authenticateUser, authorizeRole('teacher'), async (req, res) => {
-  try {
-    const { studentIds } = req.body;
-    
-    if (!Array.isArray(studentIds)) {
-      return res.status(400).json({ error: 'studentIds must be an array' });
-    }
-    
-    // Get teacher
-    const users = await readUsers();
-    const teacher = users.find(u => u.id === req.user.id);
-    
-    if (!teacher || !teacher.organizationId) {
-      return res.status(403).json({ error: 'Teacher not found' });
-    }
-    
-    // Verify all students belong to the same organization
-    const data = await readData();
-    const students = data.students.filter(s => 
-      studentIds.includes(s.id) && s.organizationId === teacher.organizationId
-    );
-    
-    if (students.length !== studentIds.length) {
-      return res.status(400).json({ error: 'Some students not found or do not belong to your organization' });
-    }
-    
-    // Update teacher's class view students
-    teacher.classViewStudents = studentIds;
-    
-    const userIndex = users.findIndex(u => u.id === teacher.id);
-    users[userIndex] = teacher;
-    await writeUsers(users);
-    
-    res.json({
-      message: 'Students added to Class View successfully',
-      classViewStudents: studentIds,
-      students: students
-    });
-  } catch (error) {
-    console.error('Error updating class view students:', error);
-    res.status(500).json({ error: 'Failed to update class view students' });
-  }
-});
-
-// Teacher gets students for Class View
-app.get('/api/teachers/class-view/students', authenticateUser, authorizeRole('teacher'), async (req, res) => {
-  try {
-    // Get teacher
-    const users = await readUsers();
-    const teacher = users.find(u => u.id === req.user.id);
-    
-    if (!teacher || !teacher.organizationId) {
-      return res.status(403).json({ error: 'Teacher not found' });
-    }
-    
-    // Get all students in the organization
-    const data = await readData();
-    const allStudents = data.students.filter(s => s.organizationId === teacher.organizationId);
-    
-    // Get selected students for Class View
-    const selectedStudentIds = teacher.classViewStudents || [];
-    const selectedStudents = allStudents.filter(s => selectedStudentIds.includes(s.id));
-    
-    res.json({
-      allStudents: allStudents,
-      selectedStudents: selectedStudents,
-      selectedStudentIds: selectedStudentIds
-    });
-  } catch (error) {
-    console.error('Error getting class view students:', error);
-    res.status(500).json({ error: 'Failed to get class view students' });
-  }
+// ===== Teacher Class View routes (moved to server/routes/teacherClassViewRoutes.js) =====
+const { registerTeacherClassViewRoutes } = require('./server/routes/teacherClassViewRoutes');
+registerTeacherClassViewRoutes(app, {
+  authenticateUser,
+  authorizeRole,
+  readUsers,
+  writeUsers,
+  readData
 });
 
 // ==================== Student API (existing) ====================
