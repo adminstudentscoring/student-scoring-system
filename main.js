@@ -402,6 +402,17 @@ ipcMain.handle('open-student-view', () => {
 // Handle window.open requests (for class-view, game-window and other popups)
 app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
+    const forceAlwaysOnTop = (win) => {
+      try {
+        // Use a stronger level so the window stays on top more reliably across apps.
+        win.setAlwaysOnTop(true, 'screen-saver');
+      } catch {
+        try { win.setAlwaysOnTop(true); } catch {}
+      }
+      // macOS: keep visible across workspaces/fullscreen if supported.
+      try { win.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true }); } catch {}
+    };
+
     // If opening class-view.html, create a narrow, tall, always-on-top window
     if (url.includes('class-view.html')) {
       const classWindow = new BrowserWindow({
@@ -420,20 +431,28 @@ app.on('web-contents-created', (event, contents) => {
       });
 
       // Ensure alwaysOnTop is set after window creation
-      classWindow.setAlwaysOnTop(true);
+      forceAlwaysOnTop(classWindow);
 
       classWindow.loadURL(url);
       
       // Ensure alwaysOnTop remains true after loading
       classWindow.once('ready-to-show', () => {
-        classWindow.setAlwaysOnTop(true);
+        forceAlwaysOnTop(classWindow);
         classWindow.show();
         classWindow.focus(); // Bring window to front
       });
       
       // Ensure alwaysOnTop remains true when window gains focus
       classWindow.on('focus', () => {
-        classWindow.setAlwaysOnTop(true);
+        forceAlwaysOnTop(classWindow);
+      });
+
+      // Re-assert on blur/show too (some OS/window managers can drop the flag transiently)
+      classWindow.on('blur', () => {
+        forceAlwaysOnTop(classWindow);
+      });
+      classWindow.on('show', () => {
+        forceAlwaysOnTop(classWindow);
       });
       
       classWindow.on('closed', () => {
