@@ -327,7 +327,7 @@ function renderClassView() {
                     <div class="class-student-score">${student.score || 0}</div>
                     <div class="class-student-actions">
                         <input type="number" class="class-points-input" id="class-points-${student.id}" min="1" max="100" value="1">
-                        <button class="class-add-btn" onclick="recordPoints('${student.id}')">Add Points</button>
+                        <button class="class-add-btn" onclick="recordPoints('${student.id}')">Add</button>
                     </div>
                 </div>
             </div>
