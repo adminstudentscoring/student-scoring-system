@@ -33,8 +33,12 @@ function classViewMonsterImageSrcByName(name) {
 function classViewDebug(...args) {
     // Keep logs low-noise but always available for troubleshooting.
     // eslint-disable-next-line no-console
-    console.debug('[class-view][monster]', ...args);
+    console.log('[class-view][monster]', ...args);
 }
+
+// Always log one line so we can confirm the latest script is loaded.
+// eslint-disable-next-line no-console
+console.log('[class-view] class-view.js loaded (monster-images v3)', { href: window.location.href });
 
 async function loadClassViewSettings() {
     try {
