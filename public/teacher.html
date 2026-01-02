@@ -22,6 +22,26 @@
             top: 200px !important; /* Header (~80px) + margin-bottom (30px) + Tab Bar (~60px) + margin-bottom (20px) + spacing (10px) */
             max-height: calc(100vh - 220px) !important; /* Adjust max-height for new position */
         }
+
+        /* Teacher dashboard layout rows (Student Management tab) */
+        .teacher-row {
+            display: flex;
+            gap: 20px;
+            align-items: stretch;
+            width: 100%;
+        }
+        .teacher-row > .card {
+            margin: 0 !important;
+        }
+        .teacher-col-30 {
+            flex: 0 0 30%;
+            max-width: 30%;
+        }
+        .teacher-col-70 {
+            flex: 0 0 70%;
+            max-width: 70%;
+        }
+
         @media (max-width: 1200px) {
             .tab-content {
                 margin-right: 0;
@@ -32,6 +52,15 @@
                 right: auto;
                 margin-top: 20px;
                 max-height: none !important;
+            }
+
+            .teacher-row {
+                flex-direction: column;
+            }
+            .teacher-col-30,
+            .teacher-col-70 {
+                flex: 1 1 auto;
+                max-width: 100%;
             }
         }
     </style>
@@ -57,57 +86,63 @@
         <!-- Student Management Tab -->
         <div id="studentsTab" class="tab-content active" style="display: block;">
             <div class="main-content">
-            <!-- Current Class Widget -->
-            <section class="card" id="currentClassSection" style="border-left: 5px solid #ccc; background: #f9fafb; margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <h2 style="margin: 0; color: #666;" id="currentClassTitle">⚪ Current Class</h2>
-                        <div id="currentClassInfo" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #333;">No active class</div>
-                        <div id="currentClassTime" style="color: #666;"></div>
+            <!-- Current Class (30%) + All Classes Today (70%) -->
+            <div class="teacher-row" style="margin-bottom: 20px;">
+                <!-- Current Class Widget -->
+                <section class="card teacher-col-30" id="currentClassSection" style="border-left: 5px solid #ccc; background: #f9fafb;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h2 style="margin: 0; color: #666;" id="currentClassTitle">⚪ Current Class</h2>
+                            <div id="currentClassInfo" style="margin-top: 5px; font-size: 1.1rem; font-weight: bold; color: #333;">No active class</div>
+                            <div id="currentClassTime" style="color: #666;"></div>
+                        </div>
+                        <div style="text-align: right;" id="currentClassActions">
+                            <div id="currentClassStudentCount" style="font-size: 1.2rem; font-weight: bold; color: #333; display: none;">0 Students</div>
+                            <button id="startCurrentClassBtn" class="btn btn-success" style="margin-top: 5px; display: none;">🚀 Start Class</button>
+                        </div>
                     </div>
-                    <div style="text-align: right;" id="currentClassActions">
-                        <div id="currentClassStudentCount" style="font-size: 1.2rem; font-weight: bold; color: #333; display: none;">0 Students</div>
-                        <button id="startCurrentClassBtn" class="btn btn-success" style="margin-top: 5px; display: none;">🚀 Start Class</button>
+                    <div id="currentClassStudents" style="margin-top: 15px; font-size: 0.9rem; color: #555; max-height: 60px; overflow-y: auto; display: none;"></div>
+                </section>
+
+                <!-- Todays Classes Widget -->
+                <section class="card teacher-col-70" id="todaysClassesSection">
+                    <h2 style="margin-bottom: 15px;">📅 All Classes Today</h2>
+                    <div id="todaysClassesList" style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px;">
+                        <p style="padding: 20px; text-align: center; color: #999;">Loading...</p>
                     </div>
-                </div>
-                <div id="currentClassStudents" style="margin-top: 15px; font-size: 0.9rem; color: #555; max-height: 60px; overflow-y: auto; display: none;"></div>
-            </section>
+                </section>
+            </div>
 
-            <!-- Todays Classes Widget -->
-            <section class="card" id="todaysClassesSection">
-                <h2 style="margin-bottom: 15px;">📅 All Classes Today</h2>
-                <div id="todaysClassesList" style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px;">
-                    <p style="padding: 20px; text-align: center; color: #999;">Loading...</p>
-                </div>
-            </section>
+            <!-- Students List (70%) + Class View Selection (30%) -->
+            <div class="teacher-row">
+                <!-- Students List -->
+                <section class="card teacher-col-70">
+                    <h2>Students List</h2>
+                    <div class="search-bar">
+                        <input type="text" id="searchInput" placeholder="Search students...">
+                    </div>
+                    <div id="studentsList" class="students-grid">
+                        <!-- Students will be loaded here -->
+                    </div>
+                </section>
 
-            <!-- Students List -->
-            <section class="card">
-                <h2>Students List</h2>
-                <div class="search-bar">
-                    <input type="text" id="searchInput" placeholder="Search students...">
-                </div>
-                <div id="studentsList" class="students-grid">
-                    <!-- Students will be loaded here -->
-                </div>
-            </section>
-
-            <!-- Select Students for Class -->
-            <section class="card">
-                <h2>Select Students for Class View</h2>
-                <div class="search-bar">
-                    <input type="text" id="classSearchInput" placeholder="Search students for class...">
-                </div>
-                <div id="classStudentsList" class="class-students-list">
-                    <!-- Students with checkboxes will be loaded here -->
-                </div>
-                <div class="class-actions">
-                    <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
-                    <button id="saveClassViewBtn" class="btn btn-primary">Save Selection</button>
-                    <button id="openClassViewBtn" class="btn btn-info">Open Class View</button>
-                    <span id="selectedCount" class="selected-count">0 selected</span>
-                </div>
-            </section>
+                <!-- Select Students for Class -->
+                <section class="card teacher-col-30">
+                    <h2>Select Students for Class View</h2>
+                    <div class="search-bar">
+                        <input type="text" id="classSearchInput" placeholder="Search students for class...">
+                    </div>
+                    <div id="classStudentsList" class="class-students-list">
+                        <!-- Students with checkboxes will be loaded here -->
+                    </div>
+                    <div class="class-actions">
+                        <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
+                        <button id="saveClassViewBtn" class="btn btn-primary">Save Selection</button>
+                        <button id="openClassViewBtn" class="btn btn-info">Open Class View</button>
+                        <span id="selectedCount" class="selected-count">0 selected</span>
+                    </div>
+                </section>
+            </div>
             </div>
         </div>
 
