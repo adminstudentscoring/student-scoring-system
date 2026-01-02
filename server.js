@@ -61,6 +61,8 @@ const VCP_CHESS_GAMES_FILE = path.join(__dirname, process.env.VCP_CHESS_GAMES_FI
 const CHESSCOM_SETTINGS_FILE = path.join(__dirname, process.env.CHESSCOM_SETTINGS_FILE || path.join(DATA_DIR, 'chesscom-settings.json'));
 // AI coach comments (file cache; one per student per range)
 const BLUNDERS_AI_COMMENTS_FILE = path.join(__dirname, process.env.BLUNDERS_AI_COMMENTS_FILE || path.join(DATA_DIR, 'blunders-ai-comments.json'));
+// Best-effort DB sync retry queue (for when Postgres hiccups; keeps UI responsive)
+const BLUNDERS_DB_RETRY_FILE = path.join(__dirname, process.env.BLUNDERS_DB_RETRY_FILE || path.join(DATA_DIR, 'blunders-db-retry.json'));
 
 let blundersAiCommentsLock = Promise.resolve();
 async function withAiCommentsLock(fn) {
@@ -93,6 +95,73 @@ async function writeBlundersAiComments(obj) {
     await fs.writeFile(BLUNDERS_AI_COMMENTS_FILE, JSON.stringify(out, null, 2), 'utf8');
     return true;
   });
+}
+
+let blundersDbRetryLock = Promise.resolve();
+async function withDbRetryLock(fn) {
+  const prev = blundersDbRetryLock;
+  let release;
+  blundersDbRetryLock = new Promise((r) => (release = r));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+async function readBlundersDbRetry() {
+  return await withDbRetryLock(async () => {
+    try {
+      const raw = await fs.readFile(BLUNDERS_DB_RETRY_FILE, 'utf8');
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object') return parsed;
+      return { updatedAt: nowIso(), items: [] };
+    } catch {
+      return { updatedAt: nowIso(), items: [] };
+    }
+  });
+}
+
+async function writeBlundersDbRetry(obj) {
+  return await withDbRetryLock(async () => {
+    const out = (obj && typeof obj === 'object') ? obj : { items: [] };
+    out.updatedAt = nowIso();
+    if (!Array.isArray(out.items)) out.items = [];
+    await fs.writeFile(BLUNDERS_DB_RETRY_FILE, JSON.stringify(out, null, 2), 'utf8');
+    return true;
+  });
+}
+
+function dbRetryBackoffMs(attempts) {
+  const n = Math.max(0, Number(attempts || 0) || 0);
+  const base = 10_000; // 10s
+  const max = 10 * 60_000; // 10m
+  const ms = Math.min(max, base * Math.pow(2, Math.min(6, n))); // cap exponent
+  return ms;
+}
+
+async function enqueueBlundersDbRetry(type, payload, err) {
+  const t = String(type || '').trim();
+  if (!t) return false;
+  const msg = err ? String(err?.message || err) : '';
+  const now = Date.now();
+  const store = await readBlundersDbRetry();
+  const items = Array.isArray(store.items) ? store.items : [];
+  const id = `dbr_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  items.push({
+    id,
+    type: t, // upsert_puzzles | upsert_tags
+    createdAt: nowIso(),
+    attempts: 0,
+    nextAtMs: now,
+    lastError: msg || null,
+    payload: payload && typeof payload === 'object' ? payload : {}
+  });
+  // Bound size to prevent unbounded growth
+  store.items = items.slice(-3000);
+  await writeBlundersDbRetry(store);
+  return true;
 }
 
 const blundersAiCommentInFlight = new Set(); // cacheKey strings
@@ -1034,7 +1103,15 @@ async function blundersTeacherRunNextJob() {
           await writeBlundersPuzzles(puzzles);
           try {
             if (pool && dbBatch.length) await dbUpsertPuzzleTags(pool, dbBatch);
-          } catch {}
+          } catch (e) {
+            // dbUpsertPuzzleTags already enqueues retries; keep job successful.
+            try {
+              job.progress = { ...(job.progress || {}), dbError: String(e?.message || e) };
+              job.updatedAt = nowIso();
+              jobs[jobId] = job;
+              await writeBlundersTeacherJobs(jobs);
+            } catch {}
+          }
 
           job.status = 'done';
           job.finishedAt = nowIso();
@@ -2116,8 +2193,199 @@ async function dbUpsertPuzzleTags(pool, rows) {
     FROM data
     WHERE p.key = data.key
   `;
-  await pool.query(sql, [JSON.stringify(payload)]);
-  return { ok: true, updated: payload.length };
+  try {
+    await pool.query(sql, [JSON.stringify(payload)]);
+    return { ok: true, updated: payload.length };
+  } catch (e) {
+    // Best-effort: queue tag updates for retry if DB is temporarily unavailable.
+    try { await enqueueBlundersDbRetry('upsert_tags', { rows: payload }, e); } catch {}
+    throw e;
+  }
+}
+
+async function dbUpsertPuzzlesFromObjects(pool, orgId, studentId, puzzles) {
+  const oid = String(orgId || '').trim();
+  const sid = String(studentId || '').trim();
+  const list = Array.isArray(puzzles) ? puzzles : [];
+  if (!pool || !oid || !sid || !list.length) return { ok: true, upserted: 0 };
+
+  const cols = [
+    'key',
+    'org_id',
+    'student_id',
+    'chesscom_username',
+    'game_url',
+    'time_class',
+    'end_time_sec',
+    'sort_at_ms',
+    'student_color',
+    'start_fen',
+    'opponent_move_uci',
+    'opponent_san',
+    'blunder_move_uci',
+    'blunder_san',
+    'best_move_uci',
+    'best_cp',
+    'after_cp',
+    'drop_cp',
+    'drop_points',
+    'tags',
+    'tagger_version',
+    'tagged_at',
+    'created_at',
+    'raw'
+  ];
+
+  const values = [];
+  const placeholders = [];
+  let pi = 1;
+  for (const pz of list.slice(0, 500)) {
+    const key = String(pz?.key || '').trim();
+    if (!key) continue;
+    const dp = (typeof pz?.dropPoints === 'number') ? Number(pz.dropPoints) : (Number(pz?.dropCp || 0) / 100);
+    const createdAt = (() => {
+      const t = Date.parse(String(pz?.createdAt || ''));
+      return Number.isFinite(t) ? new Date(t).toISOString() : null;
+    })();
+    const tags = Array.isArray(pz?.tags) ? pz.tags.map(String).filter(Boolean) : [];
+    const taggerVersion = pz?.taggerVersion ? String(pz.taggerVersion) : (pz?.tagger_version ? String(pz.tagger_version) : null);
+    const taggedAt = (() => {
+      const t = Date.parse(String(pz?.taggedAt || ''));
+      return Number.isFinite(t) ? new Date(t).toISOString() : null;
+    })();
+    const row = [
+      key,
+      oid,
+      sid,
+      pz?.chessComUsername ? String(pz.chessComUsername) : null,
+      pz?.gameUrl ? String(pz.gameUrl) : null,
+      pz?.timeClass ? String(pz.timeClass) : null,
+      Number(pz?.endTime || 0) || null,
+      puzzleSortKeyMs(pz),
+      pz?.studentColor ? String(pz.studentColor) : null,
+      pz?.startFEN ? String(pz.startFEN) : null,
+      pz?.opponentMoveUci ? String(pz.opponentMoveUci) : null,
+      pz?.opponentSan ? String(pz.opponentSan) : null,
+      pz?.blunderMoveUci ? String(pz.blunderMoveUci) : null,
+      pz?.blunderSan ? String(pz.blunderSan) : null,
+      pz?.bestMoveUci ? String(pz.bestMoveUci) : null,
+      (pz?.bestCp === null || pz?.bestCp === undefined) ? null : Number(pz.bestCp),
+      (pz?.afterCp === null || pz?.afterCp === undefined) ? null : Number(pz.afterCp),
+      (pz?.dropCp === null || pz?.dropCp === undefined) ? null : Number(pz.dropCp),
+      Number.isFinite(dp) ? dp : 0,
+      JSON.stringify(tags),
+      taggerVersion,
+      taggedAt,
+      createdAt,
+      JSON.stringify(pz || {})
+    ];
+    values.push(...row);
+    placeholders.push(`(${row.map(() => `$${pi++}`).join(',')})`);
+  }
+
+  if (!placeholders.length) return { ok: true, upserted: 0 };
+  await pool.query(
+    `
+    INSERT INTO blunders_puzzles (${cols.join(',')})
+    VALUES ${placeholders.join(',')}
+    ON CONFLICT (key) DO UPDATE SET
+      org_id=EXCLUDED.org_id,
+      student_id=EXCLUDED.student_id,
+      chesscom_username=EXCLUDED.chesscom_username,
+      game_url=EXCLUDED.game_url,
+      time_class=EXCLUDED.time_class,
+      end_time_sec=EXCLUDED.end_time_sec,
+      sort_at_ms=EXCLUDED.sort_at_ms,
+      student_color=EXCLUDED.student_color,
+      start_fen=EXCLUDED.start_fen,
+      opponent_move_uci=EXCLUDED.opponent_move_uci,
+      opponent_san=EXCLUDED.opponent_san,
+      blunder_move_uci=EXCLUDED.blunder_move_uci,
+      blunder_san=EXCLUDED.blunder_san,
+      best_move_uci=EXCLUDED.best_move_uci,
+      best_cp=EXCLUDED.best_cp,
+      after_cp=EXCLUDED.after_cp,
+      drop_cp=EXCLUDED.drop_cp,
+      drop_points=EXCLUDED.drop_points,
+      tags=COALESCE(EXCLUDED.tags, blunders_puzzles.tags),
+      tagger_version=COALESCE(EXCLUDED.tagger_version, blunders_puzzles.tagger_version),
+      tagged_at=COALESCE(EXCLUDED.tagged_at, blunders_puzzles.tagged_at),
+      created_at=COALESCE(EXCLUDED.created_at, blunders_puzzles.created_at),
+      raw=EXCLUDED.raw
+    `,
+    values
+  );
+  return { ok: true, upserted: placeholders.length };
+}
+
+async function blundersDbRetryTick() {
+  const pool = appDb.getPool();
+  if (!pool) return;
+  const store = await readBlundersDbRetry();
+  const items = Array.isArray(store.items) ? store.items : [];
+  if (!items.length) return;
+  const now = Date.now();
+  let changed = false;
+
+  // process a small batch per tick
+  const ready = items
+    .filter(it => it && typeof it === 'object')
+    .filter(it => Number(it.nextAtMs || 0) <= now)
+    .sort((a, b) => Number(a.nextAtMs || 0) - Number(b.nextAtMs || 0))
+    .slice(0, 40);
+  if (!ready.length) return;
+
+  const keep = [];
+  for (const it of items) {
+    const isReady = ready.includes(it);
+    if (!isReady) keep.push(it);
+  }
+
+  for (const it of ready) {
+    const type = String(it.type || '');
+    const attempts = Math.max(0, Number(it.attempts || 0) || 0);
+    const payload = it.payload && typeof it.payload === 'object' ? it.payload : {};
+    try {
+      if (type === 'upsert_tags') {
+        const rows = Array.isArray(payload.rows) ? payload.rows : [];
+        if (rows.length) await dbUpsertPuzzleTags(pool, rows);
+      } else if (type === 'upsert_puzzles') {
+        const oid = String(payload.orgId || '');
+        const sid = String(payload.studentId || '');
+        const puzzles = Array.isArray(payload.puzzles) ? payload.puzzles : [];
+        if (puzzles.length) await dbUpsertPuzzlesFromObjects(pool, oid, sid, puzzles);
+      }
+      changed = true;
+    } catch (e) {
+      const nextAttempts = attempts + 1;
+      const maxAttempts = 12;
+      const msg = String(e?.message || e);
+      if (nextAttempts >= maxAttempts) {
+        // Drop it but keep a marker record (so you can see something went wrong in the file)
+        keep.push({
+          ...it,
+          attempts: nextAttempts,
+          nextAtMs: now + 365 * 24 * 60 * 60 * 1000,
+          lastError: msg,
+          dropped: true,
+          droppedAt: nowIso()
+        });
+      } else {
+        keep.push({
+          ...it,
+          attempts: nextAttempts,
+          nextAtMs: now + dbRetryBackoffMs(nextAttempts),
+          lastError: msg
+        });
+      }
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    store.items = keep.slice(-3000);
+    await writeBlundersDbRetry(store);
+  }
 }
 
 function computeRolling3mStats({ analyzedMap, puzzles }) {
@@ -2481,7 +2749,15 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
         }
       } catch {}
     }
-  } catch {}
+  } catch (e) {
+    // Queue for retry so tags stay in sync even if DB has a transient error.
+    try {
+      const retryPuzzles = newlyAdded.slice(0, 500).map((pz) => (pz && typeof pz === 'object') ? pz : null).filter(Boolean);
+      if (retryPuzzles.length) {
+        await enqueueBlundersDbRetry('upsert_puzzles', { orgId: String(orgId || ''), studentId: String(studentId || ''), puzzles: retryPuzzles }, e);
+      }
+    } catch {}
+  }
   return { ok: true, changed, added, removed: pr.removed, total: list.length };
 }
 
@@ -10855,6 +11131,29 @@ app.get('/api/teachers/blunders/ai/ping', authenticateUser, authorizeRole('teach
   }
 });
 
+// Teacher: DB sync retry status (best-effort). Useful for verifying tags are catching up in Postgres.
+app.get('/api/teachers/blunders/db-sync-status', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {
+  try {
+    const store = await readBlundersDbRetry();
+    const items = Array.isArray(store.items) ? store.items : [];
+    const now = Date.now();
+    const stats = {
+      total: items.length,
+      readyNow: items.filter(it => Number(it?.nextAtMs || 0) <= now).length,
+      upsert_puzzles: items.filter(it => String(it?.type || '') === 'upsert_puzzles').length,
+      upsert_tags: items.filter(it => String(it?.type || '') === 'upsert_tags').length,
+      dropped: items.filter(it => !!it?.dropped).length
+    };
+    const lastErr = items
+      .filter(it => it?.lastError)
+      .slice(-10)
+      .map(it => ({ type: it.type, attempts: it.attempts, lastError: it.lastError, nextAtMs: it.nextAtMs, id: it.id }));
+    return res.json({ ok: true, updatedAt: store.updatedAt || null, stats, lastErrors: lastErr });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to load db sync status' });
+  }
+});
+
 // Public Student Access: Fetch AI coach comment (last 30 days). Password protected.
 app.get('/api/public/students/:id/blunders/ai-comment', async (req, res) => {
   try {
@@ -17805,6 +18104,15 @@ async function startServer() {
       maybeRunChessComRatingsRefreshAllOrgs().catch(() => {});
       maybeRunBlundersDailySyncAllStudents().catch(() => {});
     }, 5 * 60 * 1000);
+  } catch {}
+
+  // Best-effort DB sync retries (tags/puzzles) so UI doesn't depend on transient Postgres availability.
+  try {
+    const t = setInterval(() => {
+      blundersDbRetryTick().catch(() => {});
+    }, 15 * 1000);
+    // Don't keep the process alive just for retries.
+    t.unref?.();
   } catch {}
 
   // Make wss available globally for broadcast
