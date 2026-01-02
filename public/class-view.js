@@ -30,6 +30,12 @@ function classViewMonsterImageSrcByName(name) {
     return null;
 }
 
+function classViewDebug(...args) {
+    // Keep logs low-noise but always available for troubleshooting.
+    // eslint-disable-next-line no-console
+    console.debug('[class-view][monster]', ...args);
+}
+
 async function loadClassViewSettings() {
     try {
         let response;
@@ -507,6 +513,13 @@ function updateChallengeDisplay() {
 
     const monsterImgRel = classViewMonsterImageSrcByName(levelInfo.name);
     const monsterImgSrc = monsterImgRel ? classViewResolveAssetUrl(monsterImgRel) : null;
+    classViewDebug('updateChallengeDisplay', {
+        href: window.location.href,
+        levelName: levelInfo.name,
+        emoji: levelInfo.emoji,
+        monsterImgRel,
+        monsterImgSrc
+    });
     if (monsterAvatar) {
         if (monsterImgSrc) {
             // Default to emoji until image confirms it loaded (prevents blank UI on 404).
@@ -516,12 +529,24 @@ function updateChallengeDisplay() {
             monsterAvatar.onload = () => {
                 monsterAvatar.style.display = '';
                 if (monsterEmoji) monsterEmoji.style.display = 'none';
+                classViewDebug('image onload', {
+                    src: monsterAvatar.src,
+                    naturalWidth: monsterAvatar.naturalWidth,
+                    naturalHeight: monsterAvatar.naturalHeight,
+                    clientWidth: monsterAvatar.clientWidth,
+                    clientHeight: monsterAvatar.clientHeight
+                });
             };
             monsterAvatar.onerror = () => {
                 monsterAvatar.style.display = 'none';
                 if (monsterEmoji) monsterEmoji.style.display = '';
+                classViewDebug('image onerror', {
+                    src: monsterAvatar.src,
+                    levelName: levelInfo.name
+                });
             };
             if (monsterAvatar.src !== monsterImgSrc) {
+                classViewDebug('setting image src', monsterImgSrc);
                 monsterAvatar.src = monsterImgSrc;
             }
         } else {
