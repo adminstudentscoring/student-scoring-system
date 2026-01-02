@@ -1863,6 +1863,25 @@
         render();
         return;
       }
+
+      // Teacher all-blunders theme search (datalist): if user selects an exact tag, apply it.
+      const ts = t?.closest?.('[data-bl-teacher-all-tag-search]');
+      if (ts) {
+        const v = String(ts.value || '').trim();
+        if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = {};
+        STATE.teacher.allUi.tagSearch = v;
+        // If it matches a known tag exactly, apply filter immediately.
+        const tagCounts = (STATE.teacher.allUi.tagCounts && typeof STATE.teacher.allUi.tagCounts === 'object') ? STATE.teacher.allUi.tagCounts : null;
+        if (tagCounts && v && Object.prototype.hasOwnProperty.call(tagCounts, v)) {
+          STATE.teacher.allTag = v;
+          render();
+          teacherLoad('allBlunders').catch(() => {});
+        } else {
+          // Just refresh dropdown options
+          applyTeacherAllTagSearchFilter();
+        }
+        return;
+      }
     });
 
     root.addEventListener('input', (ev) => {
@@ -1942,7 +1961,7 @@
       if (ts) {
         if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = {};
         STATE.teacher.allUi.tagSearch = String(ts.value || '');
-        render();
+        applyTeacherAllTagSearchFilter();
         return;
       }
       const rj = el?.closest?.('[data-bl-review-jump]');
@@ -2039,6 +2058,40 @@
         render();
       }
     });
+
+  function applyTeacherAllTagSearchFilter() {
+    try {
+      const root = document.getElementById('blundersRoot');
+      if (!root) return;
+      const input = root.querySelector('[data-bl-teacher-all-tag-search]');
+      const select = root.querySelector('[data-bl-teacher-all-tag]');
+      const dl = root.querySelector('#blTeacherAllTagList');
+      if (!input || !select) return;
+
+      const ui = (STATE.teacher?.allUi && typeof STATE.teacher.allUi === 'object') ? STATE.teacher.allUi : {};
+      const tagCounts = (ui.tagCounts && typeof ui.tagCounts === 'object') ? ui.tagCounts : null;
+      const q = String(input.value || '').trim().toLowerCase();
+      if (!tagCounts) return;
+
+      const entries = Object.entries(tagCounts)
+        .map(([k, v]) => ({ k: String(k), n: Number(v || 0) || 0 }))
+        .filter(x => x.k && x.k !== 'any')
+        .filter(x => !q || x.k.toLowerCase().includes(q))
+        .sort((a, b) => (b.n - a.n) || a.k.localeCompare(b.k))
+        .slice(0, 200);
+
+      const selected = String(STATE.teacher?.allTag || 'any');
+      const optsHtml = [
+        `<option value="any"${selected === 'any' ? ' selected' : ''}>Any theme</option>`,
+        ...entries.map(x => `<option value="${escapeHtml(x.k)}"${selected === x.k ? ' selected' : ''}>${escapeHtml(`${x.k} (${x.n})`)}</option>`)
+      ].join('');
+      select.innerHTML = optsHtml;
+
+      if (dl) {
+        dl.innerHTML = entries.map(x => `<option value="${escapeHtml(x.k)}"></option>`).join('');
+      }
+    } catch {}
+  }
   }
 
   window.initBlunders = initBlunders;
