@@ -20,6 +20,8 @@
             flex-direction: column;
             height: 100vh;
             width: 100vw;
+            max-width: 340px;
+            margin: 0 auto;
         }
 
         .class-view-titlebar {
@@ -354,6 +356,24 @@
             padding: 15px;
         }
 
+        /* Bottom controls (always visible) */
+        .class-view-footer {
+            flex: 0 0 auto;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.35);
+            border-top: 2px solid #667eea;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .class-view-footer .btn-reset-challenge {
+            flex: 1 1 0;
+            max-width: 110px;
+            padding: 8px 10px;
+            font-size: 0.9rem;
+        }
+
         .class-student-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -368,16 +388,17 @@
             position: relative;
             
             /* Fixed card width for grid layout */
-            width: 250px;
-            max-width: 250px;
-            min-width: 250px;
-            flex: 0 0 250px;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            flex: 1 1 auto;
         }
 
         /* Container for grid layout */
         .students-grid-container {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            flex-wrap: nowrap;
             gap: 10px;
             justify-content: flex-start;
             align-content: flex-start;
@@ -487,7 +508,7 @@
 
         .class-student-name {
             margin: 0;
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: bold;
             white-space: nowrap;
             overflow: hidden;
@@ -497,7 +518,7 @@
         }
 
         .class-student-rank {
-            font-size: 1.5rem;
+            font-size: 1.15rem;
             line-height: 1;
             flex-shrink: 0;
         }
@@ -554,7 +575,7 @@
         }
 
         .class-student-score {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             font-weight: bold;
             margin: 0;
             flex-shrink: 0;
@@ -599,11 +620,6 @@
                             <div class="level-reward">Reward: <span id="levelReward">10</span> points</div>
                         </div>
                     </div>
-                    <div class="challenge-header-actions" style="display: flex; gap: 8px;">
-                        <button id="saveProgressBtn" class="btn-reset-challenge" title="Save Progress">💾</button>
-                        <button id="loadProgressBtn" class="btn-reset-challenge" title="Load Progress">📂</button>
-                        <button id="resetChallengeBtn" class="btn-reset-challenge" title="Reset Challenge">🔄</button>
-                    </div>
                 </div>
                 <div class="monster-hp-container">
                     <div class="monster-display" id="monsterDisplay">
@@ -637,6 +653,13 @@
             <div class="students-section" id="studentsSection">
                 <div class="no-students">No students selected. Please select students from the main dashboard.</div>
             </div>
+        </div>
+
+        <!-- Bottom Actions (always visible) -->
+        <div class="class-view-footer" id="classViewFooter">
+            <button id="saveProgressBtn" class="btn-reset-challenge" title="Save Progress">Save</button>
+            <button id="loadProgressBtn" class="btn-reset-challenge" title="Load Progress">Load</button>
+            <button id="resetChallengeBtn" class="btn-reset-challenge" title="Reset Challenge">Reset</button>
         </div>
     </div>
 

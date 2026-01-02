@@ -313,8 +313,8 @@ function renderClassView() {
         return `
             <div class="class-student-card" style="background: ${rankColors[currentRankIndex]}" data-student-id="${student.id}">
                 <div class="class-student-row class-student-row-1">
-                    <h3 class="class-student-name">${escapeHtml(student.name)}</h3>
                     <div class="class-student-rank">${rankEmojis[currentRankIndex]}</div>
+                    <h3 class="class-student-name">${escapeHtml(student.name)}</h3>
                 </div>
                 <div class="class-student-row class-student-row-2">
                     <div class="class-student-progress">
@@ -940,7 +940,7 @@ loadStudents();
 
 // Set initial window size (narrow and tall)
 if (window.navigator.userAgent.indexOf('Electron') === -1) {
-    window.resizeTo(350, 800);
+    window.resizeTo(340, 800);
 }
 
 
