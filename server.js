@@ -97,71 +97,28 @@ async function writeBlundersAiComments(obj) {
   });
 }
 
-let blundersDbRetryLock = Promise.resolve();
-async function withDbRetryLock(fn) {
-  const prev = blundersDbRetryLock;
-  let release;
-  blundersDbRetryLock = new Promise((r) => (release = r));
-  await prev;
-  try {
-    return await fn();
-  } finally {
-    release();
-  }
-}
+// ===== Blunders: DB retry queue (moved to server/blunders/dbRetry.js) =====
+let readBlundersDbRetry = async () => ({ updatedAt: nowIso(), items: [] });
+let writeBlundersDbRetry = async () => true;
+let enqueueBlundersDbRetry = async () => false;
+let blundersDbRetryTick = async () => {};
+let dbRetryBackoffMs = () => 10_000;
 
-async function readBlundersDbRetry() {
-  return await withDbRetryLock(async () => {
-    try {
-      const raw = await fs.readFile(BLUNDERS_DB_RETRY_FILE, 'utf8');
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (parsed && typeof parsed === 'object') return parsed;
-      return { updatedAt: nowIso(), items: [] };
-    } catch {
-      return { updatedAt: nowIso(), items: [] };
-    }
+{
+  const { createBlundersDbRetry } = require('./server/blunders/dbRetry');
+  const r = createBlundersDbRetry({
+    fs,
+    appDb,
+    nowIso,
+    BLUNDERS_DB_RETRY_FILE,
+    dbUpsertPuzzleTags,
+    dbUpsertPuzzlesFromObjects
   });
-}
-
-async function writeBlundersDbRetry(obj) {
-  return await withDbRetryLock(async () => {
-    const out = (obj && typeof obj === 'object') ? obj : { items: [] };
-    out.updatedAt = nowIso();
-    if (!Array.isArray(out.items)) out.items = [];
-    await fs.writeFile(BLUNDERS_DB_RETRY_FILE, JSON.stringify(out, null, 2), 'utf8');
-    return true;
-  });
-}
-
-function dbRetryBackoffMs(attempts) {
-  const n = Math.max(0, Number(attempts || 0) || 0);
-  const base = 10_000; // 10s
-  const max = 10 * 60_000; // 10m
-  const ms = Math.min(max, base * Math.pow(2, Math.min(6, n))); // cap exponent
-  return ms;
-}
-
-async function enqueueBlundersDbRetry(type, payload, err) {
-  const t = String(type || '').trim();
-  if (!t) return false;
-  const msg = err ? String(err?.message || err) : '';
-  const now = Date.now();
-  const store = await readBlundersDbRetry();
-  const items = Array.isArray(store.items) ? store.items : [];
-  const id = `dbr_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  items.push({
-    id,
-    type: t, // upsert_puzzles | upsert_tags
-    createdAt: nowIso(),
-    attempts: 0,
-    nextAtMs: now,
-    lastError: msg || null,
-    payload: payload && typeof payload === 'object' ? payload : {}
-  });
-  // Bound size to prevent unbounded growth
-  store.items = items.slice(-3000);
-  await writeBlundersDbRetry(store);
-  return true;
+  readBlundersDbRetry = r.readBlundersDbRetry;
+  writeBlundersDbRetry = r.writeBlundersDbRetry;
+  enqueueBlundersDbRetry = r.enqueueBlundersDbRetry;
+  blundersDbRetryTick = r.blundersDbRetryTick;
+  dbRetryBackoffMs = r.dbRetryBackoffMs;
 }
 
 const blundersAiCommentInFlight = new Set(); // cacheKey strings
