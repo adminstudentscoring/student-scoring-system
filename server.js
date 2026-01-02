@@ -708,6 +708,10 @@ let appendBlundersPuzzlesPreserveProgress = async () => ({ ok: false, error: 'bl
 
 // (moved to server/blunders/chesscom.js)
 
+// ===== Blunders: Stockfish runner (moved to server/blunders/stockfish.js) =====
+const { createStockfishRunner } = require('./server/blunders/stockfish');
+const { sfEvalFen } = createStockfishRunner({ fs, path, spawn, processExecPath: process.execPath, baseDir: __dirname });
+
 // ===== Blunders: sync (student/master) (moved to server/blunders/sync.js) =====
 let syncBlundersForStudent = async () => ({ ok: false, error: 'sync not initialized' });
 let syncBlundersForMaster = async () => ({ ok: false, error: 'sync not initialized' });
@@ -772,10 +776,6 @@ let syncBlundersForMaster = async () => ({ ok: false, error: 'sync not initializ
   blundersTeacherJobCancel = jobs.blundersTeacherJobCancel;
   blundersTeacherRunNextJob = jobs.blundersTeacherRunNextJob;
 }
-
-// ===== Blunders: Stockfish runner (moved to server/blunders/stockfish.js) =====
-const { createStockfishRunner } = require('./server/blunders/stockfish');
-const { sfEvalFen } = createStockfishRunner({ fs, path, spawn, processExecPath: process.execPath, baseDir: __dirname });
 
 // Read courses data
 async function readCourses() {
