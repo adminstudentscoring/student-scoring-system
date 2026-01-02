@@ -78,23 +78,6 @@ let enqueueBlundersDbRetry = async () => false;
 let blundersDbRetryTick = async () => {};
 let dbRetryBackoffMs = () => 10_000;
 
-{
-  const { createBlundersDbRetry } = require('./server/blunders/dbRetry');
-  const r = createBlundersDbRetry({
-    fs,
-    appDb,
-    nowIso,
-    BLUNDERS_DB_RETRY_FILE,
-    dbUpsertPuzzleTags,
-    dbUpsertPuzzlesFromObjects
-  });
-  readBlundersDbRetry = r.readBlundersDbRetry;
-  writeBlundersDbRetry = r.writeBlundersDbRetry;
-  enqueueBlundersDbRetry = r.enqueueBlundersDbRetry;
-  blundersDbRetryTick = r.blundersDbRetryTick;
-  dbRetryBackoffMs = r.dbRetryBackoffMs;
-}
-
 // (initialized after Blunders storage + stats helpers are available)
 const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_FILE || path.join(DATA_DIR, 'blunders-puzzles.json'));
 const BLUNDERS_STATS_FILE = path.join(__dirname, process.env.BLUNDERS_STATS_FILE || path.join(DATA_DIR, 'blunders-stats.json'));
@@ -637,12 +620,31 @@ let dbUpsertPuzzlesFromObjects = async () => ({ ok: false, error: 'db helpers no
   const { createBlundersDb } = require('./server/blunders/db');
   const db = createBlundersDb({
     nowIso,
-    enqueueBlundersDbRetry,
+    // Use a wrapper so the DB helpers always call the latest enqueue function (initialized later).
+    enqueueBlundersDbRetry: (...args) => enqueueBlundersDbRetry(...args),
     puzzleSortKeyMs,
     BLUNDERS_TAGGER_VERSION
   });
   dbUpsertPuzzleTags = db.dbUpsertPuzzleTags;
   dbUpsertPuzzlesFromObjects = db.dbUpsertPuzzlesFromObjects;
+}
+
+// Now that appDb + dbUpsert* helpers exist, we can initialize the retry queue.
+{
+  const { createBlundersDbRetry } = require('./server/blunders/dbRetry');
+  const r = createBlundersDbRetry({
+    fs,
+    appDb,
+    nowIso,
+    BLUNDERS_DB_RETRY_FILE,
+    dbUpsertPuzzleTags,
+    dbUpsertPuzzlesFromObjects
+  });
+  readBlundersDbRetry = r.readBlundersDbRetry;
+  writeBlundersDbRetry = r.writeBlundersDbRetry;
+  enqueueBlundersDbRetry = r.enqueueBlundersDbRetry;
+  blundersDbRetryTick = r.blundersDbRetryTick;
+  dbRetryBackoffMs = r.dbRetryBackoffMs;
 }
 
 // (moved to server/blunders/puzzles.js + stats.js)
