@@ -10,6 +10,17 @@ let isResizing = false;
 let resizeStart = { x: 0, y: 0 };
 let windowStartSize = { width: 0, height: 0 };
 
+function classViewMonsterImageSrcByName(name) {
+    const n = String(name || '').toLowerCase();
+    if (!n) return null;
+    if (n.includes('slime')) return '/assets/class-view-monster/Slime.png';
+    if (n.includes('goblin')) return '/assets/class-view-monster/Goblin.png';
+    if (n.includes('orc')) return '/assets/class-view-monster/Orc.png';
+    if (n.includes('dragon')) return '/assets/class-view-monster/Dragon.png';
+    if (n.includes('demon')) return '/assets/class-view-monster/Demon.png';
+    return null;
+}
+
 async function loadClassViewSettings() {
     try {
         let response;
@@ -475,6 +486,7 @@ function updateChallengeDisplay() {
     const levelName = document.getElementById('levelName');
     const levelReward = document.getElementById('levelReward');
     const monsterEmoji = document.getElementById('monsterEmoji');
+    const monsterAvatar = document.getElementById('monsterAvatar');
     const monsterName = document.getElementById('monsterName');
     const currentHP = document.getElementById('currentHP');
     const maxHP = document.getElementById('maxHP');
@@ -483,7 +495,24 @@ function updateChallengeDisplay() {
     if (levelEmoji) levelEmoji.textContent = levelInfo.emoji;
     if (levelName) levelName.textContent = `Level ${challengeData.currentLevel}: ${levelInfo.name}`;
     if (levelReward) levelReward.textContent = levelInfo.reward;
-    if (monsterEmoji) monsterEmoji.textContent = levelInfo.emoji;
+
+    const monsterImgSrc = classViewMonsterImageSrcByName(levelInfo.name);
+    if (monsterAvatar) {
+        if (monsterImgSrc) {
+            monsterAvatar.src = monsterImgSrc;
+            monsterAvatar.style.display = '';
+            monsterAvatar.alt = levelInfo.name || 'Monster';
+        } else {
+            monsterAvatar.removeAttribute('src');
+            monsterAvatar.style.display = 'none';
+            monsterAvatar.alt = 'Monster';
+        }
+    }
+    if (monsterEmoji) {
+        monsterEmoji.textContent = levelInfo.emoji;
+        monsterEmoji.style.display = monsterImgSrc ? 'none' : '';
+    }
+
     if (monsterName) monsterName.textContent = levelInfo.name;
     if (currentHP) currentHP.textContent = challengeData.currentHP;
     if (maxHP) maxHP.textContent = levelInfo.maxHP;

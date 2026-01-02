@@ -206,6 +206,14 @@
             display: inline-block;
         }
 
+        .monster-avatar {
+            width: 72px;
+            height: 72px;
+            object-fit: contain;
+            animation: float 3s ease-in-out infinite;
+            display: none;
+        }
+
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
             50% { transform: translateY(-8px); }
@@ -599,6 +607,7 @@
                 </div>
                 <div class="monster-hp-container">
                     <div class="monster-display" id="monsterDisplay">
+                        <img class="monster-avatar" id="monsterAvatar" alt="Monster">
                         <div class="monster-emoji" id="monsterEmoji">🟢</div>
                         <div class="monster-name" id="monsterName">Slime</div>
                     </div>
