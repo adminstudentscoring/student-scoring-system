@@ -10,14 +10,23 @@ let isResizing = false;
 let resizeStart = { x: 0, y: 0 };
 let windowStartSize = { width: 0, height: 0 };
 
+function classViewResolveAssetUrl(relativePath) {
+    try {
+        return new URL(relativePath, window.location.href).toString();
+    } catch {
+        return relativePath;
+    }
+}
+
 function classViewMonsterImageSrcByName(name) {
     const n = String(name || '').toLowerCase();
     if (!n) return null;
-    if (n.includes('slime')) return '/assets/class-view-monster/Slime.png';
-    if (n.includes('goblin')) return '/assets/class-view-monster/Goblin.png';
-    if (n.includes('orc')) return '/assets/class-view-monster/Orc.png';
-    if (n.includes('dragon')) return '/assets/class-view-monster/Dragon.png';
-    if (n.includes('demon')) return '/assets/class-view-monster/Demon.png';
+    // NOTE: Use relative paths so it works in both http(s) and Electron file:// loads.
+    if (n.includes('slime')) return 'assets/class-view-monster/Slime.png';
+    if (n.includes('goblin')) return 'assets/class-view-monster/Goblin.png';
+    if (n.includes('orc')) return 'assets/class-view-monster/Orc.png';
+    if (n.includes('dragon')) return 'assets/class-view-monster/Dragon.png';
+    if (n.includes('demon')) return 'assets/class-view-monster/Demon.png';
     return null;
 }
 
@@ -496,12 +505,25 @@ function updateChallengeDisplay() {
     if (levelName) levelName.textContent = `Level ${challengeData.currentLevel}: ${levelInfo.name}`;
     if (levelReward) levelReward.textContent = levelInfo.reward;
 
-    const monsterImgSrc = classViewMonsterImageSrcByName(levelInfo.name);
+    const monsterImgRel = classViewMonsterImageSrcByName(levelInfo.name);
+    const monsterImgSrc = monsterImgRel ? classViewResolveAssetUrl(monsterImgRel) : null;
     if (monsterAvatar) {
         if (monsterImgSrc) {
-            monsterAvatar.src = monsterImgSrc;
-            monsterAvatar.style.display = '';
+            // Default to emoji until image confirms it loaded (prevents blank UI on 404).
+            if (monsterEmoji) monsterEmoji.style.display = '';
+            monsterAvatar.style.display = 'none';
             monsterAvatar.alt = levelInfo.name || 'Monster';
+            monsterAvatar.onload = () => {
+                monsterAvatar.style.display = '';
+                if (monsterEmoji) monsterEmoji.style.display = 'none';
+            };
+            monsterAvatar.onerror = () => {
+                monsterAvatar.style.display = 'none';
+                if (monsterEmoji) monsterEmoji.style.display = '';
+            };
+            if (monsterAvatar.src !== monsterImgSrc) {
+                monsterAvatar.src = monsterImgSrc;
+            }
         } else {
             monsterAvatar.removeAttribute('src');
             monsterAvatar.style.display = 'none';
@@ -510,7 +532,8 @@ function updateChallengeDisplay() {
     }
     if (monsterEmoji) {
         monsterEmoji.textContent = levelInfo.emoji;
-        monsterEmoji.style.display = monsterImgSrc ? 'none' : '';
+        // If we have a candidate image, emoji will be hidden after image loads successfully.
+        monsterEmoji.style.display = monsterImgSrc ? '' : '';
     }
 
     if (monsterName) monsterName.textContent = levelInfo.name;
