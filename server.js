@@ -573,185 +573,35 @@ function pickChallengePuzzlesFromAllBlunders({ orgId, difficultyCfg, challengerB
   return arr.slice(0, lim);
 }
 
-// ===== Chess.com ratings cache (daily refresh) =====
-const CHESSCOM_RATINGS_REFRESH_HK_HOUR = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_HOUR || 5); // default 05:00 HK
-const CHESSCOM_RATINGS_REFRESH_HK_MIN = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_MIN || 0);
+// ===== Chess.com helpers (moved to server/blunders/chesscom.js) =====
+let HK_OFFSET_SEC = 8 * 3600;
+let hkDayKeyFromEpochSec = () => '';
+let todayHkKey = () => '';
+let hkNow = () => ({ y: 1970, m: 1, d: 1, hh: 0, mm: 0, ss: 0 });
+let formatHkTime = () => '';
+let fetchJsonWithTimeout = async () => ({ ok: false, status: 0, data: { error: 'chesscom not initialized' } });
 
-async function readChessComRatings() {
-  try {
-    const content = await fs.readFile(CHESSCOM_RATINGS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
-    const meta = data && typeof data === 'object' ? (data.meta || {}) : {};
-    return { orgs: (orgs && typeof orgs === 'object') ? orgs : {}, meta: (meta && typeof meta === 'object') ? meta : {} };
-  } catch (error) {
-    console.error('Error reading chesscom ratings:', error);
-    return { orgs: {}, meta: {} };
-  }
-}
+let CHESSCOM_RATINGS_REFRESH_HK_HOUR = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_HOUR || 5);
+let CHESSCOM_RATINGS_REFRESH_HK_MIN = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_MIN || 0);
+let readChessComRatings = async () => ({ orgs: {}, meta: {} });
+let writeChessComRatings = async () => false;
+let pickChessComRating = () => ({ rating: null, source: null });
+let fetchChessComStats = async () => ({ ok: false, status: 0, data: { error: 'chesscom not initialized' } });
+let getCachedChessComRating = async () => ({ rating: null, source: null, updatedAt: null });
+let refreshChessComRatingsForOrg = async () => ({ ok: false, updated: 0 });
+let computeNextRatingsRunIso = () => new Date().toISOString();
+let maybeRunChessComRatingsRefreshAllOrgs = async () => ({ ok: true, skipped: true });
 
-async function writeChessComRatings(orgs, meta) {
-  try {
-    const cleanOrgs = orgs && typeof orgs === 'object' ? orgs : {};
-    const cleanMeta = meta && typeof meta === 'object' ? meta : {};
-    await fs.writeFile(CHESSCOM_RATINGS_FILE, JSON.stringify({ orgs: cleanOrgs, meta: cleanMeta }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing chesscom ratings:', error);
-    return false;
-  }
-}
+let BLUNDERS_DAILY_SYNC_HK_HOUR = Number(process.env.BLUNDERS_DAILY_SYNC_HK_HOUR || 4);
+let BLUNDERS_DAILY_SYNC_HK_MIN = Number(process.env.BLUNDERS_DAILY_SYNC_HK_MIN || 0);
+let blundersDailySyncMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
+let computeNextBlundersDailyRunIso = () => new Date().toISOString();
+let maybeRunBlundersDailySyncAllStudents = async () => ({ ok: true, skipped: true });
 
-function pickChessComRating(stats) {
-  // Prefer rapid, then blitz.
-  const r = Number(stats?.chess_rapid?.last?.rating);
-  if (Number.isFinite(r) && r > 0) return { rating: r, source: 'rapid' };
-  const b = Number(stats?.chess_blitz?.last?.rating);
-  if (Number.isFinite(b) && b > 0) return { rating: b, source: 'blitz' };
-  return { rating: null, source: null };
-}
-
-async function fetchChessComStats(username) {
-  const u = String(username || '').trim();
-  if (!u) return { ok: false, status: 0, data: { error: 'missing username' } };
-  const url = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/stats`;
-  return await fetchJsonWithTimeout(url, 15000);
-}
-
-async function getCachedChessComRating(orgId, studentId, chessId) {
-  const oid = String(orgId || '');
-  const sid = String(studentId || '');
-  const cid = String(chessId || '').trim();
-  if (!oid || !sid || !cid) return { rating: null, source: null, updatedAt: null };
-  const { orgs } = await readChessComRatings();
-  const org = orgs[oid] && typeof orgs[oid] === 'object' ? orgs[oid] : {};
-  const ent = org[sid] && typeof org[sid] === 'object' ? org[sid] : null;
-  if (!ent || String(ent.chessId || '') !== cid) return { rating: null, source: null, updatedAt: null };
-  return { rating: Number(ent.rating ?? null), source: ent.source || null, updatedAt: ent.updatedAt || null };
-}
-
-async function refreshChessComRatingsForOrg(orgId) {
-  const oid = String(orgId || '');
-  if (!oid) return { ok: false, updated: 0 };
-  const data = await readData();
-  const students = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === oid) : [];
-  const orgSettings = await getOrgBlundersSettings(oid);
-  // Use chesscom settings mapping (studentId -> chessId)
-  const chessSettingsAll = await readChessComSettings();
-  const mapping = (chessSettingsAll && chessSettingsAll[oid] && typeof chessSettingsAll[oid] === 'object') ? chessSettingsAll[oid] : {};
-
-  const { orgs, meta } = await readChessComRatings();
-  if (!orgs[oid] || typeof orgs[oid] !== 'object') orgs[oid] = {};
-  const bucket = orgs[oid];
-
-  let updated = 0;
-  for (const s of students) {
-    const sid = String(s.id || '');
-    const chessId = String(mapping?.[sid]?.chessId || '').trim();
-    if (!chessId) continue;
-    const resp = await fetchChessComStats(chessId);
-    if (!resp.ok) continue;
-    const picked = pickChessComRating(resp.data);
-    bucket[sid] = {
-      chessId,
-      rating: picked.rating,
-      source: picked.source,
-      updatedAt: new Date().toISOString()
-    };
-    updated++;
-  }
-  orgs[oid] = bucket;
-  meta.lastRunAt = new Date().toISOString();
-  meta.lastRunHkDay = todayHkKey();
-  await writeChessComRatings(orgs, meta);
-  return { ok: true, updated };
-}
-
-function computeNextRatingsRunIso() {
-  const now = hkNow();
-  // Build next run in HK date space, then convert back to UTC ISO via subtracting offset.
-  let y = now.y, m = now.m, d = now.d;
-  const afterToday =
-    (now.hh > CHESSCOM_RATINGS_REFRESH_HK_HOUR) ||
-    (now.hh === CHESSCOM_RATINGS_REFRESH_HK_HOUR && now.mm >= CHESSCOM_RATINGS_REFRESH_HK_MIN);
-  if (afterToday) {
-    const t = new Date(Date.UTC(y, m - 1, d) + 24 * 3600 * 1000);
-    y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
-  }
-  const runUtcMs = Date.UTC(y, m - 1, d, CHESSCOM_RATINGS_REFRESH_HK_HOUR, CHESSCOM_RATINGS_REFRESH_HK_MIN) - HK_OFFSET_SEC * 1000;
-  return new Date(runUtcMs).toISOString();
-}
-
-async function maybeRunChessComRatingsRefreshAllOrgs() {
-  const { meta } = await readChessComRatings();
-  const hk = hkNow();
-  const hkDay = todayHkKey();
-  const alreadyRanToday = String(meta?.lastRunHkDay || '') === hkDay;
-  const isAfterTarget =
-    (hk.hh > CHESSCOM_RATINGS_REFRESH_HK_HOUR) ||
-    (hk.hh === CHESSCOM_RATINGS_REFRESH_HK_HOUR && hk.mm >= CHESSCOM_RATINGS_REFRESH_HK_MIN);
-  if (alreadyRanToday || !isAfterTarget) return { ok: true, skipped: true };
-
-  // Run refresh for all orgs that have mappings.
-  const chessSettingsAll = await readChessComSettings();
-  const orgs = chessSettingsAll && chessSettingsAll.orgs ? chessSettingsAll.orgs : chessSettingsAll; // backward compatibility
-  const orgIds = orgs && typeof orgs === 'object' ? Object.keys(orgs) : [];
-  for (const oid of orgIds) {
-    await refreshChessComRatingsForOrg(oid).catch(() => {});
-  }
-  return { ok: true, ran: true };
-}
-
-// ===== Blunders: daily auto sync (all students) =====
-const BLUNDERS_DAILY_SYNC_HK_HOUR = Number(process.env.BLUNDERS_DAILY_SYNC_HK_HOUR || 4); // default 04:00 HK
-const BLUNDERS_DAILY_SYNC_HK_MIN = Number(process.env.BLUNDERS_DAILY_SYNC_HK_MIN || 0);
-const blundersDailySyncMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
-
-function computeNextBlundersDailyRunIso() {
-  const now = hkNow();
-  let y = now.y, m = now.m, d = now.d;
-  const afterToday =
-    (now.hh > BLUNDERS_DAILY_SYNC_HK_HOUR) ||
-    (now.hh === BLUNDERS_DAILY_SYNC_HK_HOUR && now.mm >= BLUNDERS_DAILY_SYNC_HK_MIN);
-  if (afterToday) {
-    const t = new Date(Date.UTC(y, m - 1, d) + 24 * 3600 * 1000);
-    y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
-  }
-  const runUtcMs = Date.UTC(y, m - 1, d, BLUNDERS_DAILY_SYNC_HK_HOUR, BLUNDERS_DAILY_SYNC_HK_MIN) - HK_OFFSET_SEC * 1000;
-  return new Date(runUtcMs).toISOString();
-}
-
-async function maybeRunBlundersDailySyncAllStudents() {
-  const hk = hkNow();
-  const hkDay = todayHkKey();
-  const alreadyRanToday = String(blundersDailySyncMeta.lastRunHkDay || '') === hkDay;
-  const isAfterTarget =
-    (hk.hh > BLUNDERS_DAILY_SYNC_HK_HOUR) ||
-    (hk.hh === BLUNDERS_DAILY_SYNC_HK_HOUR && hk.mm >= BLUNDERS_DAILY_SYNC_HK_MIN);
-  if (alreadyRanToday || !isAfterTarget) return { ok: true, skipped: true };
-
-  let okCount = 0;
-  let errCount = 0;
-  try {
-    const data = await readData();
-    const students = Array.isArray(data?.students) ? data.students : [];
-    for (const s of students) {
-      try {
-        // Non-forced daily run: respects per-student throttle and avoids excessive load.
-        await syncBlundersForStudent(s, { hkDayKey: hkDay, force: '0' });
-        okCount++;
-      } catch {
-        errCount++;
-      }
-    }
-  } finally {
-    blundersDailySyncMeta.lastRunAt = new Date().toISOString();
-    blundersDailySyncMeta.lastRunHkDay = hkDay;
-    blundersDailySyncMeta.lastRunOk = okCount;
-    blundersDailySyncMeta.lastRunErr = errCount;
-  }
-  return { ok: true, ran: true, okCount, errCount };
-}
+let chessComGetGamesForHkDay = async () => [];
+let chessComGetTodayGames = async () => [];
+let chessComGetRecentGames = async () => [];
+let getChessComUsernameForStudent = async () => '';
 
 function parseUciMove(uci) {
   const s = String(uci || '').trim().toLowerCase();
@@ -825,6 +675,53 @@ const blundersLastStudentSync = new Map(); // studentId -> ms
 const blundersLastStudentHistoryScan = new Map(); // studentId -> ms (teacher-triggered history scan throttle)
 const blundersStudentLocks = new Map(); // studentId -> Promise
 const blundersSyncState = new Map(); // studentId -> { running, startedAt, updatedAt, finishedAt, stage, gamesFetched, gamesProcessed, pliesProcessed, blundersAdded, lastError }
+
+// ===== Chess.com helpers init (moved to server/blunders/chesscom.js) =====
+{
+  const { createBlundersChessCom } = require('./server/blunders/chesscom');
+  const cc = createBlundersChessCom({
+    fs,
+    CHESSCOM_RATINGS_FILE,
+    readData,
+    readChessComSettings,
+    getOrgBlundersSettings,
+    normalizeHkDayKey,
+    BLUNDERS_ALLOWED_TIME_CLASSES,
+    BLUNDERS_MAX_GAMES_PER_DAY,
+    blundersSyncState,
+    nowIso,
+    getSyncBlundersForStudent: () => syncBlundersForStudent
+  });
+
+  HK_OFFSET_SEC = cc.HK_OFFSET_SEC;
+  hkDayKeyFromEpochSec = cc.hkDayKeyFromEpochSec;
+  todayHkKey = cc.todayHkKey;
+  hkNow = cc.hkNow;
+  formatHkTime = cc.formatHkTime;
+  fetchJsonWithTimeout = cc.fetchJsonWithTimeout;
+
+  CHESSCOM_RATINGS_REFRESH_HK_HOUR = cc.CHESSCOM_RATINGS_REFRESH_HK_HOUR;
+  CHESSCOM_RATINGS_REFRESH_HK_MIN = cc.CHESSCOM_RATINGS_REFRESH_HK_MIN;
+  readChessComRatings = cc.readChessComRatings;
+  writeChessComRatings = cc.writeChessComRatings;
+  pickChessComRating = cc.pickChessComRating;
+  fetchChessComStats = cc.fetchChessComStats;
+  getCachedChessComRating = cc.getCachedChessComRating;
+  refreshChessComRatingsForOrg = cc.refreshChessComRatingsForOrg;
+  computeNextRatingsRunIso = cc.computeNextRatingsRunIso;
+  maybeRunChessComRatingsRefreshAllOrgs = cc.maybeRunChessComRatingsRefreshAllOrgs;
+
+  BLUNDERS_DAILY_SYNC_HK_HOUR = cc.BLUNDERS_DAILY_SYNC_HK_HOUR;
+  BLUNDERS_DAILY_SYNC_HK_MIN = cc.BLUNDERS_DAILY_SYNC_HK_MIN;
+  blundersDailySyncMeta = cc.blundersDailySyncMeta;
+  computeNextBlundersDailyRunIso = cc.computeNextBlundersDailyRunIso;
+  maybeRunBlundersDailySyncAllStudents = cc.maybeRunBlundersDailySyncAllStudents;
+
+  chessComGetGamesForHkDay = cc.chessComGetGamesForHkDay;
+  chessComGetTodayGames = cc.chessComGetTodayGames;
+  chessComGetRecentGames = cc.chessComGetRecentGames;
+  getChessComUsernameForStudent = cc.getChessComUsernameForStudent;
+}
 
 function puzzleSortKeyMs(p) {
   const done = Date.parse(String(p?.completedAt || ''));
@@ -1343,208 +1240,7 @@ async function appendBlundersPuzzlesPreserveProgress(newPuzzles, orgId, studentI
   return { ok: true, changed, added, removed: pr.removed, total: list.length };
 }
 
-async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const resp = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'student-scoring-system/1.0' } });
-    const data = await resp.json().catch(() => ({}));
-    return { ok: resp.ok, status: resp.status, data };
-  } catch (e) {
-    return { ok: false, status: 0, data: { error: String(e?.message || e) } };
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-// Day key based on Hong Kong time (UTC+8, no DST) to match your user base and Chess.com UI date.
-const HK_OFFSET_SEC = 8 * 3600;
-function hkDayKeyFromEpochSec(sec) {
-  const d = new Date((Number(sec || 0) + HK_OFFSET_SEC) * 1000);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const da = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${da}`;
-}
-
-function todayHkKey() {
-  const nowSec = Math.floor(Date.now() / 1000);
-  return hkDayKeyFromEpochSec(nowSec);
-}
-
-function hkNow() {
-  // Create a Date object representing HK local time (using UTC math, since HK has no DST).
-  const d = new Date(Date.now() + HK_OFFSET_SEC * 1000);
-  return {
-    y: d.getUTCFullYear(),
-    m: d.getUTCMonth() + 1,
-    d: d.getUTCDate(),
-    hh: d.getUTCHours(),
-    mm: d.getUTCMinutes(),
-    ss: d.getUTCSeconds()
-  };
-}
-
-function pad2(n) { return String(Number(n) || 0).padStart(2, '0'); }
-
-function formatHkTime(hh, mm) {
-  return `${pad2(hh)}:${pad2(mm)} HK`;
-}
-
-async function chessComGetGamesForHkDay(username, opts = {}) {
-  const u = String(username || '').trim();
-  if (!u) return [];
-  const sid = String(opts.studentId || '');
-  const hkDay = normalizeHkDayKey(opts.hkDayKey) || todayHkKey();
-  const limit = Math.max(1, Math.min(50, Number(opts.limit || 0) || BLUNDERS_MAX_GAMES_PER_DAY));
-
-  if (sid) {
-    const st0 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st0, stage: 'fetch-archives', updatedAt: new Date().toISOString(), fetch: { label: 'archives', url: null, startedAtMs: Date.now(), timeoutMs: 15000 } });
-  }
-  const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/games/archives`;
-  const a = await fetchJsonWithTimeout(archivesUrl, 15000);
-  if (sid) {
-    const st1 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st1, fetch: { ...(st1.fetch || {}), url: archivesUrl, ok: !!a.ok, status: a.status, error: a.data?.error || null } });
-  }
-  const archives = Array.isArray(a.data?.archives) ? a.data.archives : [];
-  if (!archives.length) return [];
-  // Find month archive URL for requested HK day
-  const ym = hkDay.slice(0, 7);
-  const monthArchiveUrl = String(archives.find((x) => String(x || '').includes(`/${ym}`)) || archives[archives.length - 1] || '');
-  if (!monthArchiveUrl) return [];
-
-  if (sid) {
-    const st2 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st2, stage: 'fetch-month-archive', updatedAt: new Date().toISOString(), fetch: { label: 'month-archive', url: monthArchiveUrl, startedAtMs: Date.now(), timeoutMs: 20000 } });
-  }
-  const g = await fetchJsonWithTimeout(monthArchiveUrl, 20000);
-  if (sid) {
-    const st3 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st3, fetch: { ...(st3.fetch || {}), ok: !!g.ok, status: g.status, error: g.data?.error || null } });
-  }
-  const games = Array.isArray(g.data?.games) ? g.data.games : [];
-  const filtered = games
-    .filter((x) => x && BLUNDERS_ALLOWED_TIME_CLASSES.has(String(x.time_class || '').toLowerCase()))
-    .filter((x) => hkDayKeyFromEpochSec(x.end_time) === hkDay)
-    .filter((x) => {
-      const w = String(x?.white?.username || '').toLowerCase();
-      const b = String(x?.black?.username || '').toLowerCase();
-      const me = u.toLowerCase();
-      return w === me || b === me;
-    })
-    .sort((a, b) => Number(b.end_time || 0) - Number(a.end_time || 0))
-    .slice(0, limit);
-
-  if (sid) {
-    const st4 = blundersSyncState.get(sid) || {};
-    const withPgn = filtered.filter(x => typeof x?.pgn === 'string' && x.pgn.trim().length > 0).length;
-    blundersSyncState.set(sid, {
-      ...st4,
-      stage: 'filter',
-      updatedAt: new Date().toISOString(),
-      fetchSummary: { archivesCount: archives.length, rawGamesInMonth: games.length, matchedToday: filtered.length, withPgn }
-    });
-  }
-  return filtered;
-}
-
-async function chessComGetTodayGames(username, opts = {}) {
-  return chessComGetGamesForHkDay(username, { ...opts, hkDayKey: todayHkKey() });
-}
-
-// Fetch most recent N games across Chess.com month archives (rapid+blitz by default).
-// This is used by teacher "History scan" to build a larger puzzle bank.
-async function chessComGetRecentGames(username, opts = {}) {
-  const u = String(username || '').trim();
-  if (!u) return [];
-  const sid = String(opts.studentId || '');
-  const limit = Math.max(1, Math.min(500, Number(opts.limit || 0) || 100));
-  const includeWithoutPgn = !!opts.includeWithoutPgn;
-  const allowed = opts.allowedTimeClasses instanceof Set ? opts.allowedTimeClasses : BLUNDERS_ALLOWED_TIME_CLASSES;
-
-  if (sid) {
-    const st0 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st0, stage: 'fetch-archives', updatedAt: new Date().toISOString(), fetch: { label: 'archives', url: null, startedAtMs: Date.now(), timeoutMs: 15000 } });
-  }
-
-  const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(u)}/games/archives`;
-  const a = await fetchJsonWithTimeout(archivesUrl, 15000);
-  if (sid) {
-    const st1 = blundersSyncState.get(sid) || {};
-    blundersSyncState.set(sid, { ...st1, fetch: { ...(st1.fetch || {}), url: archivesUrl, ok: !!a.ok, status: a.status, error: a.data?.error || null } });
-  }
-  const archives = Array.isArray(a.data?.archives) ? a.data.archives : [];
-  if (!archives.length) return [];
-
-  const me = u.toLowerCase();
-  const out = [];
-  let monthsFetched = 0;
-  let rawGamesScanned = 0;
-  let collectedWithPgn = 0;
-
-  for (let i = archives.length - 1; i >= 0 && out.length < limit; i--) {
-    const monthUrl = String(archives[i] || '');
-    if (!monthUrl) continue;
-    monthsFetched++;
-
-    if (sid) {
-      const st2 = blundersSyncState.get(sid) || {};
-      blundersSyncState.set(sid, { ...st2, stage: 'fetch-month-archive', updatedAt: new Date().toISOString(), fetch: { label: `month-archive-${monthsFetched}`, url: monthUrl, startedAtMs: Date.now(), timeoutMs: 20000 } });
-    }
-
-    const g = await fetchJsonWithTimeout(monthUrl, 20000);
-    const games = Array.isArray(g.data?.games) ? g.data.games : [];
-    rawGamesScanned += games.length;
-
-    const filtered = games
-      .filter((x) => x && allowed.has(String(x.time_class || '').toLowerCase()))
-      .filter((x) => {
-        const w = String(x?.white?.username || '').toLowerCase();
-        const b = String(x?.black?.username || '').toLowerCase();
-        return w === me || b === me;
-      })
-      .sort((a2, b2) => Number(b2.end_time || 0) - Number(a2.end_time || 0));
-
-    for (const game of filtered) {
-      const pgn = String(game?.pgn || '');
-      if (!includeWithoutPgn && !pgn.trim()) continue;
-      out.push(game);
-      if (pgn.trim()) collectedWithPgn++;
-      if (out.length >= limit) break;
-    }
-
-    if (sid) {
-      const st3 = blundersSyncState.get(sid) || {};
-      blundersSyncState.set(sid, {
-        ...st3,
-        stage: 'filter',
-        updatedAt: new Date().toISOString(),
-        fetchSummary: {
-          archivesCount: archives.length,
-          monthsFetched,
-          rawGamesScanned,
-          collected: out.length,
-          withPgn: collectedWithPgn
-        }
-      });
-    }
-  }
-
-  out.sort((a2, b2) => Number(b2.end_time || 0) - Number(a2.end_time || 0));
-  return out.slice(0, limit);
-}
-
-async function getChessComUsernameForStudent(orgId, studentId) {
-  const o = String(orgId || '');
-  const sid = String(studentId || '');
-  if (!o || !sid) return '';
-  const orgs = await readChessComSettings();
-  const orgSettings = orgs && orgs[o] ? orgs[o] : {};
-  const entry = orgSettings && orgSettings[sid] ? orgSettings[sid] : null;
-  return String(entry?.chessId || '').trim();
-}
+// (moved to server/blunders/chesscom.js)
 
 // ===== Blunders: sync (student/master) (moved to server/blunders/sync.js) =====
 let syncBlundersForStudent = async () => ({ ok: false, error: 'sync not initialized' });
