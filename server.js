@@ -616,533 +616,55 @@ async function writeChessComSettings(orgs) {
   }
 }
 
-// ===== Blunders: Puzzle storage (JSON file) =====
-let blundersPuzzlesWriteLock = Promise.resolve();
+// ===== Blunders: storage/settings (moved to server/blunders/storage.js) =====
+const { createBlundersStorage } = require('./server/blunders/storage');
+const {
+  // constants
+  BLUNDERS_DEFAULTS,
+  // settings helpers
+  normalizeHkDayKey,
+  defaultMastersPreset,
+  sanitizeMasterEntry,
+  getOrgBlundersSettings,
+  getStudentBlundersConfig,
+  getMasterBlundersConfig,
+  // puzzles
+  readBlundersPuzzles,
+  writeBlundersPuzzles,
+  // stats
+  readBlundersStats,
+  writeBlundersStats,
+  blundersMarkGamesAnalyzed,
+  // settings storage
+  readBlundersSettings,
+  writeBlundersSettings,
+  // master progress
+  readBlundersMasterProgress,
+  writeBlundersMasterProgress,
+  // challenge storage
+  readBlundersChallengeSessions,
+  writeBlundersChallengeSessions,
+  readBlundersChallengeLeaderboard,
+  writeBlundersChallengeLeaderboard,
+  // teacher jobs storage
+  readBlundersTeacherJobs,
+  writeBlundersTeacherJobs
+} = createBlundersStorage({
+  fs,
+  BLUNDERS_PUZZLES_FILE,
+  BLUNDERS_STATS_FILE,
+  BLUNDERS_SETTINGS_FILE,
+  BLUNDERS_MASTER_PROGRESS_FILE,
+  BLUNDERS_CHALLENGE_SESSIONS_FILE,
+  BLUNDERS_CHALLENGE_LEADERBOARD_FILE,
+  BLUNDERS_TEACHER_JOBS_FILE
+});
 
-async function readBlundersPuzzles() {
-  try {
-    // Avoid reading while a write is in-progress (prevents transient empty/partial reads).
-    await blundersPuzzlesWriteLock.catch(() => {});
-    const content = await fs.readFile(BLUNDERS_PUZZLES_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const puzzles = data && typeof data === 'object' ? (data.puzzles || []) : [];
-    return Array.isArray(puzzles) ? puzzles : [];
-  } catch (error) {
-    console.error('Error reading blunders puzzles:', error);
-    return [];
-  }
-}
-
-async function writeBlundersPuzzles(puzzles) {
-    const arr = Array.isArray(puzzles) ? puzzles : [];
-  // Serialize writes to prevent concurrent truncation/read issues.
-  const run = async () => {
-    try {
-    await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders puzzles:', error);
-    return false;
-  }
-  };
-  blundersPuzzlesWriteLock = blundersPuzzlesWriteLock.then(run, run);
-  return await blundersPuzzlesWriteLock;
-}
-
-// ===== Blunders: Stats (cumulative analyzed games) =====
-async function readBlundersStats() {
-  try {
-    const content = await fs.readFile(BLUNDERS_STATS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
-    return (orgs && typeof orgs === 'object') ? orgs : {};
-  } catch (error) {
-    console.error('Error reading blunders stats:', error);
-    return {};
-  }
-}
-
-async function writeBlundersStats(orgs) {
-  try {
-    const clean = orgs && typeof orgs === 'object' ? orgs : {};
-    await fs.writeFile(BLUNDERS_STATS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders stats:', error);
-    return false;
-  }
-}
-
-async function blundersMarkGamesAnalyzed(orgId, studentId, games) {
-  const oid = String(orgId || '');
-  const sid = String(studentId || '');
-  if (!oid || !sid) return { ok: false };
-  const list = Array.isArray(games) ? games : [];
-  const orgs = await readBlundersStats();
-  if (!orgs[oid] || typeof orgs[oid] !== 'object') orgs[oid] = {};
-  const org = orgs[oid];
-  if (!org[sid] || typeof org[sid] !== 'object') org[sid] = { analyzed: {}, analyzedCount: 0, lastSyncAt: null };
-  const st = org[sid];
-  if (!st.analyzed || typeof st.analyzed !== 'object') st.analyzed = {};
-  let added = 0;
-  for (const g of list) {
-    const key = String(g?.url || g?.uuid || '').trim();
-    if (!key) continue;
-    if (st.analyzed[key]) continue;
-    st.analyzed[key] = {
-      url: String(g?.url || ''),
-      uuid: String(g?.uuid || ''),
-      endTime: Number(g?.end_time || 0),
-      timeClass: String(g?.time_class || '')
-    };
-    added++;
-  }
-  st.analyzedCount = Object.keys(st.analyzed).length;
-  st.lastSyncAt = new Date().toISOString();
-  org[sid] = st;
-  orgs[oid] = org;
-  await writeBlundersStats(orgs);
-  return { ok: true, added, total: st.analyzedCount };
-}
-
-// ===== Blunders: Settings (per-student config + masters) =====
-const BLUNDERS_DEFAULTS = {
-  maxGamesPerDay: 10,
-  thresholdPoints: 1.0,
-  masterMaxGamesPerDay: 10,
-  masterThresholdPoints: 1.0
-};
-
-function normalizeHkDayKey(ymd) {
-  const s = String(ymd || '').trim();
-  if (!s) return '';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
-  return s;
-}
-
-async function readBlundersSettings() {
-  try {
-    const content = await fs.readFile(BLUNDERS_SETTINGS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
-    return (orgs && typeof orgs === 'object') ? orgs : {};
-  } catch (error) {
-    console.error('Error reading blunders settings:', error);
-    return {};
-  }
-}
-
-async function writeBlundersSettings(orgs) {
-  try {
-    const clean = orgs && typeof orgs === 'object' ? orgs : {};
-    await fs.writeFile(BLUNDERS_SETTINGS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders settings:', error);
-    return false;
-  }
-}
-
-function defaultMastersPreset() {
-  return [
-    { id: 'magnuscarlsen', name: 'MagnusCarlsen', username: 'MagnusCarlsen' },
-    { id: 'hikaru', name: 'Hikaru', username: 'Hikaru' },
-    { id: 'fabianocaruana', name: 'fabianocaruana', username: 'fabianocaruana' }
-  ];
-}
-
-function sanitizeMasterEntry(m) {
-  const name = String(m?.name || '').trim();
-  const username = String(m?.username || '').trim();
-  const id = String(m?.id || '').trim() || username.toLowerCase();
-  if (!name || !username) return null;
-  return { id, name, username };
-}
-
-async function getOrgBlundersSettings(orgId) {
-  const oid = String(orgId || '');
-  if (!oid) return { masters: defaultMastersPreset(), student: {}, master: {} };
-  const orgs = await readBlundersSettings();
-  if (!orgs[oid] || typeof orgs[oid] !== 'object') orgs[oid] = {};
-  const org = orgs[oid];
-  if (!Array.isArray(org.masters) || !org.masters.length) org.masters = defaultMastersPreset();
-  if (!org.student || typeof org.student !== 'object') org.student = {};
-  if (!org.master || typeof org.master !== 'object') org.master = {};
-  // Persist back if we auto-filled defaults
-  orgs[oid] = org;
-  await writeBlundersSettings(orgs);
-  return org;
-}
-
-async function getStudentBlundersConfig(orgId, studentId) {
-  const org = await getOrgBlundersSettings(orgId);
-  const sid = String(studentId || '');
-  const ov = (org.student && org.student[sid] && typeof org.student[sid] === 'object') ? org.student[sid] : {};
-  const maxGamesPerDay = Math.max(1, Math.min(50, Number(ov.maxGamesPerDay ?? BLUNDERS_DEFAULTS.maxGamesPerDay) || BLUNDERS_DEFAULTS.maxGamesPerDay));
-  const thresholdPoints = Math.max(0.1, Math.min(10, Number(ov.thresholdPoints ?? BLUNDERS_DEFAULTS.thresholdPoints) || BLUNDERS_DEFAULTS.thresholdPoints));
-  return { maxGamesPerDay, thresholdPoints };
-}
-
-async function getMasterBlundersConfig(orgId) {
-  const org = await getOrgBlundersSettings(orgId);
-  const ov = (org.master && typeof org.master === 'object') ? org.master : {};
-  const maxGamesPerDay = Math.max(1, Math.min(50, Number(ov.maxGamesPerDay ?? BLUNDERS_DEFAULTS.masterMaxGamesPerDay) || BLUNDERS_DEFAULTS.masterMaxGamesPerDay));
-  const thresholdPoints = Math.max(0.1, Math.min(10, Number(ov.thresholdPoints ?? BLUNDERS_DEFAULTS.masterThresholdPoints) || BLUNDERS_DEFAULTS.masterThresholdPoints));
-  return { maxGamesPerDay, thresholdPoints };
-}
-
-// ===== Blunders: Master progress (per-student completion) =====
-async function readBlundersMasterProgress() {
-  try {
-    const content = await fs.readFile(BLUNDERS_MASTER_PROGRESS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
-    return (orgs && typeof orgs === 'object') ? orgs : {};
-  } catch (error) {
-    console.error('Error reading blunders master progress:', error);
-    return {};
-  }
-}
-
-async function writeBlundersMasterProgress(orgs) {
-  try {
-    const clean = orgs && typeof orgs === 'object' ? orgs : {};
-    await fs.writeFile(BLUNDERS_MASTER_PROGRESS_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders master progress:', error);
-    return false;
-  }
-}
-
-// ===== Blunders Challenge: Sessions + Leaderboard storage =====
-async function readBlundersChallengeSessions() {
-  try {
-    const content = await fs.readFile(BLUNDERS_CHALLENGE_SESSIONS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const sessions = data && typeof data === 'object' ? (data.sessions || {}) : {};
-    return (sessions && typeof sessions === 'object') ? sessions : {};
-  } catch (error) {
-    console.error('Error reading blunders challenge sessions:', error);
-    return {};
-  }
-}
-
-async function writeBlundersChallengeSessions(sessions) {
-  try {
-    const clean = sessions && typeof sessions === 'object' ? sessions : {};
-    await fs.writeFile(BLUNDERS_CHALLENGE_SESSIONS_FILE, JSON.stringify({ sessions: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders challenge sessions:', error);
-    return false;
-  }
-}
-
-async function readBlundersChallengeLeaderboard() {
-  try {
-    const content = await fs.readFile(BLUNDERS_CHALLENGE_LEADERBOARD_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const orgs = data && typeof data === 'object' ? (data.orgs || {}) : {};
-    return (orgs && typeof orgs === 'object') ? orgs : {};
-  } catch (error) {
-    console.error('Error reading blunders challenge leaderboard:', error);
-    return {};
-  }
-}
-
-async function writeBlundersChallengeLeaderboard(orgs) {
-  try {
-    const clean = orgs && typeof orgs === 'object' ? orgs : {};
-    await fs.writeFile(BLUNDERS_CHALLENGE_LEADERBOARD_FILE, JSON.stringify({ orgs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders challenge leaderboard:', error);
-    return false;
-  }
-}
-
-// ===== Blunders Teacher Jobs (async background processing) =====
-async function readBlundersTeacherJobs() {
-  try {
-    const content = await fs.readFile(BLUNDERS_TEACHER_JOBS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    const jobs = data && typeof data === 'object' ? (data.jobs || {}) : {};
-    return (jobs && typeof jobs === 'object') ? jobs : {};
-  } catch (error) {
-    console.error('Error reading blunders teacher jobs:', error);
-    return {};
-  }
-}
-
-async function writeBlundersTeacherJobs(jobs) {
-  try {
-    const clean = jobs && typeof jobs === 'object' ? jobs : {};
-    await fs.writeFile(BLUNDERS_TEACHER_JOBS_FILE, JSON.stringify({ jobs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing blunders teacher jobs:', error);
-    return false;
-  }
-}
-
-const blundersTeacherJobQueue = [];
-let blundersTeacherJobRunnerRunning = false;
-const blundersTeacherJobCancel = new Set(); // jobId
+let blundersTeacherJobQueue = [];
+let blundersTeacherJobCancel = new Set(); // jobId
+let blundersTeacherRunNextJob = async () => {};
 
 function nowIso() { return new Date().toISOString(); }
-
-async function blundersTeacherRunNextJob() {
-  if (blundersTeacherJobRunnerRunning) return;
-  blundersTeacherJobRunnerRunning = true;
-  try {
-    while (blundersTeacherJobQueue.length) {
-      const jobId = String(blundersTeacherJobQueue.shift() || '');
-      if (!jobId) continue;
-      if (blundersTeacherJobCancel.has(jobId)) continue;
-
-      const jobs = await readBlundersTeacherJobs();
-      const job = jobs[jobId] || null;
-      if (!job || job.status === 'done' || job.status === 'error' || job.status === 'cancelled') continue;
-
-      job.status = 'running';
-      job.startedAt = nowIso();
-      job.updatedAt = nowIso();
-      jobs[jobId] = job;
-      await writeBlundersTeacherJobs(jobs);
-
-      try {
-        if (job.type === 'blunders_history_scan') {
-          const orgId = String(job.orgId || '');
-          const studentIds = Array.isArray(job.params?.studentIds) ? job.params.studentIds.map(String) : [];
-          const historyGames = Math.max(1, Math.min(500, Number(job.params?.historyGames || 0) || 200));
-          const force = job.params?.force ? '1' : '0';
-          const thresholdPoints = job.params?.thresholdPoints;
-
-          const data = await readData();
-          const studentsAll = Array.isArray(data?.students) ? data.students : [];
-          const targets = studentsAll.filter(s => String(s.organizationId || '') === orgId && studentIds.includes(String(s.id || '')));
-
-          job.progress = { total: targets.length, done: 0, message: `History scan queued (${targets.length})`, currentStudentId: null, currentStudentName: null };
-          job.updatedAt = nowIso();
-          jobs[jobId] = job;
-          await writeBlundersTeacherJobs(jobs);
-
-          for (let i = 0; i < targets.length; i++) {
-            if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
-            const s = targets[i];
-            job.progress = {
-              total: targets.length,
-              done: i,
-              message: `History scanning ${i + 1}/${targets.length} (N=${historyGames})...`,
-              currentStudentId: String(s.id || ''),
-              currentStudentName: String(s.name || 'Student')
-            };
-            job.updatedAt = nowIso();
-            jobs[jobId] = job;
-            await writeBlundersTeacherJobs(jobs);
-
-            // Heavy work
-            await syncBlundersForStudent(s, { mode: 'history', historyGames, force, thresholdPoints });
-
-            job.progress = { ...(job.progress || {}), done: i + 1 };
-            job.updatedAt = nowIso();
-            jobs[jobId] = job;
-            await writeBlundersTeacherJobs(jobs);
-          }
-
-          job.status = 'done';
-          job.finishedAt = nowIso();
-          job.updatedAt = nowIso();
-          job.progress = { ...(job.progress || {}), message: 'Done.' };
-          jobs[jobId] = job;
-          await writeBlundersTeacherJobs(jobs);
-        } else if (job.type === 'blunders_master_history_scan') {
-          const orgId = String(job.orgId || '');
-          const masterIds = Array.isArray(job.params?.masterIds) ? job.params.masterIds.map(String) : [];
-          const historyGames = Math.max(1, Math.min(500, Number(job.params?.historyGames || 0) || 200));
-          const force = job.params?.force ? '1' : '0';
-          const thresholdPoints = job.params?.thresholdPoints;
-
-          const org = await getOrgBlundersSettings(orgId);
-          const mastersAll = Array.isArray(org?.masters) ? org.masters : [];
-          const targets = mastersAll.filter(m => masterIds.includes(String(m.id || '')));
-
-          job.progress = { total: targets.length, done: 0, message: `Master history scan queued (${targets.length})`, currentMasterId: null, currentMasterName: null };
-          job.updatedAt = nowIso();
-          jobs[jobId] = job;
-          await writeBlundersTeacherJobs(jobs);
-
-          for (let i = 0; i < targets.length; i++) {
-            if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
-            const m = targets[i];
-            job.progress = {
-              total: targets.length,
-              done: i,
-              message: `Master history scanning ${i + 1}/${targets.length} (N=${historyGames})...`,
-              currentMasterId: String(m.id || ''),
-              currentMasterName: String(m.name || m.username || 'Master')
-            };
-            job.updatedAt = nowIso();
-            jobs[jobId] = job;
-            await writeBlundersTeacherJobs(jobs);
-
-            // Heavy work
-            await syncBlundersForMaster(orgId, m, { mode: 'history', historyGames, force, thresholdPoints });
-
-            job.progress = { ...(job.progress || {}), done: i + 1 };
-            job.updatedAt = nowIso();
-            jobs[jobId] = job;
-            await writeBlundersTeacherJobs(jobs);
-          }
-
-          job.status = 'done';
-          job.finishedAt = nowIso();
-          job.updatedAt = nowIso();
-          job.progress = { ...(job.progress || {}), message: 'Done.' };
-          jobs[jobId] = job;
-          await writeBlundersTeacherJobs(jobs);
-        } else if (job.type === 'blunders_tag_puzzles') {
-          const orgId = String(job.orgId || '');
-          const scope = String(job.params?.scope || 'student'); // student | master | all
-          const recompute = !!job.params?.recompute;
-          const syncDb = job.params?.syncDb !== undefined ? !!job.params?.syncDb : true;
-
-          const puzzles = await readBlundersPuzzles();
-          const pool = appDb.getPool();
-          const targets = puzzles.filter((p) => {
-            if (String(p?.orgId || '') !== orgId) return false;
-            const sc = String(p?.scope || '').trim();
-            if (scope === 'student') return sc !== 'master';
-            if (scope === 'master') return sc === 'master';
-            return true;
-          });
-
-          job.progress = { total: targets.length, done: 0, tagged: 0, skipped: 0, message: `Tagging queued (${targets.length})`, scope };
-          job.updatedAt = nowIso();
-          jobs[jobId] = job;
-          await writeBlundersTeacherJobs(jobs);
-
-          const nowTaggedAt = nowIso();
-          let done = 0;
-          let tagged = 0;
-          let skipped = 0;
-          let lastFlushAtMs = 0;
-          let flushedTagged = 0;
-          let dbBatch = [];
-          let dbSynced = 0;
-
-          for (let i = 0; i < puzzles.length; i++) {
-            if (blundersTeacherJobCancel.has(jobId)) throw new Error('__CANCELLED__');
-            const p = puzzles[i];
-            if (String(p?.orgId || '') !== orgId) continue;
-            const sc = String(p?.scope || '').trim();
-            const eligible =
-              (scope === 'student' && sc !== 'master') ||
-              (scope === 'master' && sc === 'master') ||
-              (scope === 'all');
-            if (!eligible) continue;
-
-            const curVer = String(p?.taggerVersion || '');
-            const hasTags = Array.isArray(p?.tags) && p.tags.length > 0;
-            const needs = recompute || !hasTags || curVer !== BLUNDERS_TAGGER_VERSION;
-            if (!needs) {
-              // If tags already exist, we may still want to backfill Postgres.
-              if (syncDb && pool && sc !== 'master' && hasTags && curVer === BLUNDERS_TAGGER_VERSION) {
-                const key = String(p?.key || '').trim();
-                if (key) {
-                  dbBatch.push({ key, tags: p.tags, taggerVersion: curVer, taggedAt: p?.taggedAt || nowTaggedAt });
-                  dbSynced++;
-                  if (dbBatch.length >= 200) {
-                    await dbUpsertPuzzleTags(pool, dbBatch);
-                    dbBatch = [];
-                  }
-                }
-              }
-              skipped++; done++; continue;
-            }
-
-            try {
-              const tags = tagBlunderPuzzle(p);
-              p.tags = Array.isArray(tags) ? tags : [];
-              p.taggerVersion = BLUNDERS_TAGGER_VERSION;
-              p.taggedAt = nowTaggedAt;
-              tagged++;
-              // DB sync (student puzzles only)
-              if (syncDb && pool && sc !== 'master') {
-                const key = String(p?.key || '').trim();
-                if (key) dbBatch.push({ key, tags: p.tags, taggerVersion: BLUNDERS_TAGGER_VERSION, taggedAt: nowTaggedAt });
-                if (dbBatch.length >= 200) {
-                  await dbUpsertPuzzleTags(pool, dbBatch);
-                  dbBatch = [];
-                }
-              }
-            } catch {
-              // Don't fail the whole job on a single puzzle.
-              skipped++;
-            }
-            done++;
-
-            if (done % 200 === 0) {
-              job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, dbSynced, message: `Tagging... ${done}/${targets.length}` };
-              job.updatedAt = nowIso();
-              jobs[jobId] = job;
-              await writeBlundersTeacherJobs(jobs);
-            }
-
-            // Incremental flush to avoid large lost work; rate-limited.
-            const now = Date.now();
-            if (tagged > flushedTagged && (now - lastFlushAtMs) > 2000) {
-              await writeBlundersPuzzles(puzzles);
-              flushedTagged = tagged;
-              lastFlushAtMs = now;
-            }
-          }
-
-          // Final flush
-          await writeBlundersPuzzles(puzzles);
-          try {
-            if (pool && dbBatch.length) await dbUpsertPuzzleTags(pool, dbBatch);
-          } catch (e) {
-            // dbUpsertPuzzleTags already enqueues retries; keep job successful.
-            try {
-              job.progress = { ...(job.progress || {}), dbError: String(e?.message || e) };
-              job.updatedAt = nowIso();
-              jobs[jobId] = job;
-              await writeBlundersTeacherJobs(jobs);
-            } catch {}
-          }
-
-          job.status = 'done';
-          job.finishedAt = nowIso();
-          job.updatedAt = nowIso();
-          job.progress = { ...(job.progress || {}), total: targets.length, done, tagged, skipped, dbSynced, message: 'Done.' };
-          jobs[jobId] = job;
-          await writeBlundersTeacherJobs(jobs);
-        } else {
-          throw new Error(`Unknown job type: ${String(job.type || '')}`);
-        }
-      } catch (e) {
-        if (String(e?.message || e) === '__CANCELLED__') {
-          job.status = 'cancelled';
-          job.finishedAt = nowIso();
-          job.updatedAt = nowIso();
-          job.progress = { ...(job.progress || {}), message: 'Cancelled.' };
-        } else {
-          job.status = 'error';
-          job.finishedAt = nowIso();
-          job.updatedAt = nowIso();
-          job.error = String(e?.message || e);
-          job.progress = { ...(job.progress || {}), message: `Error: ${job.error}` };
-        }
-        jobs[jobId] = job;
-        await writeBlundersTeacherJobs(jobs);
-      }
-    }
-  } finally {
-    blundersTeacherJobRunnerRunning = false;
-  }
-}
 
 function blundersChallengeDifficultyConfig(difficulty) {
   const d = String(difficulty || '').toLowerCase();
@@ -3332,6 +2854,29 @@ async function syncBlundersForStudent(student, opts = {}) {
     });
     throw e;
   });
+}
+
+// ===== Blunders Teacher Jobs (async background processing) (moved to server/blunders/jobs.js) =====
+{
+  const { createBlundersTeacherJobs } = require('./server/blunders/jobs');
+  const jobs = createBlundersTeacherJobs({
+    readBlundersTeacherJobs,
+    writeBlundersTeacherJobs,
+    readData,
+    syncBlundersForStudent,
+    syncBlundersForMaster,
+    getOrgBlundersSettings,
+    readBlundersPuzzles,
+    writeBlundersPuzzles,
+    appDb,
+    dbUpsertPuzzleTags,
+    BLUNDERS_TAGGER_VERSION,
+    tagBlunderPuzzle,
+    nowIso
+  });
+  blundersTeacherJobQueue = jobs.blundersTeacherJobQueue;
+  blundersTeacherJobCancel = jobs.blundersTeacherJobCancel;
+  blundersTeacherRunNextJob = jobs.blundersTeacherRunNextJob;
 }
 
 // ===== Blunders: Master sync (org-scoped) =====
