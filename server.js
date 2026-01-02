@@ -9135,7 +9135,7 @@ app.get('/api/teachers/blunders/all-blunders', authenticateUser, authorizeRole('
            CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(base0.tags, '[]'::jsonb)) AS t(tag)
            GROUP BY t.tag
            ORDER BY count DESC, tag ASC
-           LIMIT 50
+           LIMIT 200
           `,
           [orgId, filteredIds, cutoffTs, 'any']
         );

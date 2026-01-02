@@ -382,14 +382,17 @@
     const stats = (ui.storageStats && typeof ui.storageStats === 'object') ? ui.storageStats : null;
     const tagCounts = (ui.tagCounts && typeof ui.tagCounts === 'object') ? ui.tagCounts : null;
     const selectedTag = String(STATE.teacher.allTag || 'any');
+    const tagSearch = String(ui.tagSearch || '');
     const tagOpts = (() => {
       const base = [{ k: 'any', label: 'Any theme' }];
       if (!tagCounts) return base;
+      const q = tagSearch.trim().toLowerCase();
       const entries = Object.entries(tagCounts)
         .map(([k, v]) => ({ k: String(k), n: Number(v || 0) || 0 }))
         .filter(x => x.k && x.k !== 'any')
+        .filter(x => !q || x.k.toLowerCase().includes(q))
         .sort((a, b) => (b.n - a.n) || a.k.localeCompare(b.k))
-        .slice(0, 50);
+        .slice(0, 200);
       for (const x of entries) base.push({ k: x.k, label: `${x.k} (${x.n})` });
       return base;
     })();
@@ -520,6 +523,7 @@
         <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           ${durationBtns.map(b => `<button class="btn ${duration === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-teacher-all-duration="${escapeHtml(b.k)}">${escapeHtml(b.label)}</button>`).join('')}
           <div style="flex:1;"></div>
+          <input class="btn btn-secondary btn-small" data-bl-teacher-all-tag-search value="${escapeHtml(tagSearch)}" placeholder="Search theme..." style="min-width:220px; text-align:left;">
           <select class="btn btn-secondary btn-small" data-bl-teacher-all-tag style="min-width:200px;">
             ${tagOpts.map(o => `<option value="${escapeHtml(o.k)}" ${selectedTag === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>

@@ -1938,6 +1938,13 @@
         render();
         return;
       }
+      const ts = el?.closest?.('[data-bl-teacher-all-tag-search]');
+      if (ts) {
+        if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = {};
+        STATE.teacher.allUi.tagSearch = String(ts.value || '');
+        render();
+        return;
+      }
       const rj = el?.closest?.('[data-bl-review-jump]');
       if (rj) {
         const key = String(rj.getAttribute('data-bl-review-jump') || '');
