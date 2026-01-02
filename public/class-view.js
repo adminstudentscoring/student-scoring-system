@@ -531,7 +531,8 @@ function updateChallengeDisplay() {
             monsterAvatar.style.display = 'none';
             monsterAvatar.alt = levelInfo.name || 'Monster';
             monsterAvatar.onload = () => {
-                monsterAvatar.style.display = '';
+                // CSS sets .monster-avatar { display:none }, so we must explicitly override it.
+                monsterAvatar.style.display = 'inline-block';
                 if (monsterEmoji) monsterEmoji.style.display = 'none';
                 classViewDebug('image onload', {
                     src: monsterAvatar.src,
