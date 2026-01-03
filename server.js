@@ -133,6 +133,11 @@ app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
+// Avoid noisy 404s in DevTools when no favicon is provided
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
 // Redirect root domain to www subdomain
 // This handles the DNS limitation where @ (root domain) cannot have CNAME due to MX record conflict
 app.use((req, res, next) => {

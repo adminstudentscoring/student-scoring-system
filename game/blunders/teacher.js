@@ -245,7 +245,7 @@
             <button class="btn btn-secondary" type="button" data-bl-teacher-complete-selected ${(!selectedCount || loading) ? 'disabled' : ''}>Complete selected</button>
           </div>
           <div class="bl-teacher-actions" style="grid-template-columns: 140px 1fr 1fr;">
-            <select class="btn btn-secondary" data-bl-teacher-bulk-history style="min-width:140px;" ${loading ? 'disabled' : ''}>
+            <select class="btn btn-secondary" name="bl_teacher_bulk_history" data-bl-teacher-bulk-history style="min-width:140px;" ${loading ? 'disabled' : ''}>
               ${[100, 200, 300, 500].map((n) => `<option value="${n}" ${Number(bulkHistoryGames) === n ? 'selected' : ''}>History N: ${n}</option>`).join('')}
             </select>
             <button class="btn btn-secondary" type="button" data-bl-teacher-history-selected ${(!selectedCount || loading) ? 'disabled' : ''}>History selected</button>
@@ -257,7 +257,7 @@
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
             <div style="font-weight:900; color:#111827;">Blunder themes (A)</div>
             <div style="flex:1;"></div>
-            <select class="btn btn-secondary btn-small" data-bl-teacher-tag-duration style="min-width:160px;" ${loading ? 'disabled' : ''}>
+            <select class="btn btn-secondary btn-small" name="bl_teacher_tag_duration" data-bl-teacher-tag-duration style="min-width:160px;" ${loading ? 'disabled' : ''}>
               ${durationOpts.map(o => `<option value="${escapeHtml(o.k)}" ${tagDuration === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
             </select>
             <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-tag-stats-refresh ${loading ? 'disabled' : ''}>Refresh stats</button>
@@ -277,19 +277,19 @@
         <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
           <div style="flex:1 1 260px;">
             <div class="blunders-muted">Search</div>
-            <input type="text" value="${escapeHtml(String(STATE.teacher.search || ''))}" placeholder="Search name / student id / chess.com id" data-bl-teacher-search style="width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
+            <input type="text" name="bl_teacher_search" value="${escapeHtml(String(STATE.teacher.search || ''))}" placeholder="Search name / student id / chess.com id" data-bl-teacher-search style="width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
           </div>
           <div>
             <div class="blunders-muted">Set selected Max games/day</div>
             <div style="display:flex; gap:8px; align-items:center;">
-              <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(Number(STATE.teacher.bulkMaxGames || 10) || 10))}" data-bl-teacher-bulk-max style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
+              <input type="number" name="bl_teacher_bulk_max_games" min="1" max="50" step="1" value="${escapeHtml(String(Number(STATE.teacher.bulkMaxGames || 10) || 10))}" data-bl-teacher-bulk-max style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
               <button class="btn btn-secondary" type="button" data-bl-teacher-apply-max-selected ${loading ? 'disabled' : ''}>Apply</button>
             </div>
           </div>
           <div>
             <div class="blunders-muted">Set selected Threshold</div>
             <div style="display:flex; gap:8px; align-items:center;">
-              <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(Number(STATE.teacher.bulkThreshold || 1) || 1))}" data-bl-teacher-bulk-thr style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
+              <input type="number" name="bl_teacher_bulk_threshold" min="0.1" max="10" step="0.1" value="${escapeHtml(String(Number(STATE.teacher.bulkThreshold || 1) || 1))}" data-bl-teacher-bulk-thr style="width:120px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px;">
               <button class="btn btn-secondary" type="button" data-bl-teacher-apply-thr-selected ${loading ? 'disabled' : ''}>Apply</button>
             </div>
           </div>
@@ -300,7 +300,7 @@
             <thead>
               <tr class="blunders-muted" style="text-align:left;">
                 <th style="padding:6px 8px; width:42px;">
-                  <input type="checkbox" data-bl-teacher-select-all ${allFilteredSelected ? 'checked' : ''} aria-label="Select all">
+                  <input type="checkbox" name="bl_teacher_select_all" data-bl-teacher-select-all ${allFilteredSelected ? 'checked' : ''} aria-label="Select all">
                 </th>
                 <th style="padding:6px 8px;">Student</th>
                 <th style="padding:6px 8px;">Chess.com rating</th>
@@ -331,7 +331,7 @@
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
-                      <input type="checkbox" data-bl-teacher-select="${escapeHtml(sid)}" ${isChecked ? 'checked' : ''} aria-label="Select student">
+                      <input type="checkbox" name="bl_teacher_select_${escapeHtml(sid)}" data-bl-teacher-select="${escapeHtml(sid)}" ${isChecked ? 'checked' : ''} aria-label="Select student">
                     </td>
                     <td style="padding:10px 8px;">
                       <div style="font-weight:900; color:#111827;">${escapeHtml(nm)}</div>
@@ -342,19 +342,19 @@
                     <td style="padding:10px 8px;">${escapeHtml(String(s?.counts?.completed || 0))}</td>
                     <td style="padding:10px 8px;">${escapeHtml(String(s?.analyzedGamesTotal || 0))}</td>
                     <td style="padding:10px 8px;">
-                      <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(maxGames))}" data-bl-teacher-student-max="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="number" name="bl_teacher_student_max_${escapeHtml(sid)}" min="1" max="50" step="1" value="${escapeHtml(String(maxGames))}" data-bl-teacher-student-max="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px;">
-                      <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-student-thr="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="number" name="bl_teacher_student_thr_${escapeHtml(sid)}" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-student-thr="${escapeHtml(sid)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px;">
-                      <input type="text" value="${escapeHtml(dateVal)}" inputmode="numeric" placeholder="YYYY-MM-DD" data-bl-teacher-student-date="${escapeHtml(sid)}" style="width:110px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="text" name="bl_teacher_student_date_${escapeHtml(sid)}" value="${escapeHtml(dateVal)}" inputmode="numeric" placeholder="YYYY-MM-DD" data-bl-teacher-student-date="${escapeHtml(sid)}" style="width:110px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px; border-radius:0 12px 12px 0; white-space:nowrap;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student="${escapeHtml(sid)}">Sync</button>
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-student-force="${escapeHtml(sid)}">Force</button>
                       <span style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
-                        <select data-bl-teacher-history-n="${escapeHtml(sid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px;">
+                        <select name="bl_teacher_history_n_${escapeHtml(sid)}" data-bl-teacher-history-n="${escapeHtml(sid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px;">
                           ${[100,200,300,500].map((n) => `<option value="${n}" ${Number(historyVal) === n ? 'selected' : ''}>${n}</option>`).join('')}
                         </select>
                         <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-history-scan="${escapeHtml(sid)}">History</button>
@@ -495,7 +495,7 @@
               <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-prev="${escapeHtml(key)}" ${canPrev ? '' : 'disabled'}>Prev</button>
               <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-next="${escapeHtml(key)}" ${canNext ? '' : 'disabled'}>Next</button>
               <div style="display:flex; gap:6px; align-items:center;">
-                <input type="number" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-teacher-all-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                <input type="number" name="bl_teacher_all_jump_${escapeHtml(key)}" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-teacher-all-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                 <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-all-go="${escapeHtml(key)}" ${bLoading ? 'disabled' : ''}>Go</button>
               </div>
             ` : ``}
@@ -521,14 +521,14 @@
         <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           ${durationBtns.map(b => `<button class="btn ${duration === b.k ? 'btn-info' : 'btn-secondary'} btn-small" type="button" data-bl-teacher-all-duration="${escapeHtml(b.k)}">${escapeHtml(b.label)}</button>`).join('')}
           <div style="flex:1;"></div>
-          <input class="btn btn-secondary btn-small" id="blTeacherAllTagSearch" data-bl-teacher-all-tag-search list="blTeacherAllTagList" value="${escapeHtml(tagSearch)}" placeholder="Search theme..." autocomplete="off" style="min-width:220px; text-align:left;">
+          <input class="btn btn-secondary btn-small" id="blTeacherAllTagSearch" name="bl_teacher_all_tag_search" data-bl-teacher-all-tag-search list="blTeacherAllTagList" value="${escapeHtml(tagSearch)}" placeholder="Search theme..." autocomplete="off" style="min-width:220px; text-align:left;">
           <datalist id="blTeacherAllTagList">
             ${tagOpts.filter(o => o.k !== 'any').slice(0, 200).map(o => `<option value="${escapeHtml(o.k)}"></option>`).join('')}
           </datalist>
-          <select class="btn btn-secondary btn-small" data-bl-teacher-all-tag style="min-width:200px;">
+          <select class="btn btn-secondary btn-small" name="bl_teacher_all_tag" data-bl-teacher-all-tag style="min-width:200px;">
             ${tagOpts.map(o => `<option value="${escapeHtml(o.k)}" ${selectedTag === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
-          <select class="btn btn-secondary btn-small" data-bl-teacher-all-rating style="min-width:180px;">
+          <select class="btn btn-secondary btn-small" name="bl_teacher_all_rating" data-bl-teacher-all-rating style="min-width:180px;">
             ${ratingOpts.map(o => `<option value="${escapeHtml(o.k)}" ${rating === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
           <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-refresh-all>Refresh</button>
@@ -582,11 +582,11 @@
         <div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
           <div>
             <div class="blunders-muted">Master max games/day</div>
-            <input type="number" min="1" max="50" step="1" value="${escapeHtml(String(maxGames))}" data-bl-teacher-mastercfg-max style="width:130px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+            <input type="number" name="bl_teacher_mastercfg_max" min="1" max="50" step="1" value="${escapeHtml(String(maxGames))}" data-bl-teacher-mastercfg-max style="width:130px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
           </div>
           <div>
             <div class="blunders-muted">Master threshold</div>
-            <input type="number" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-mastercfg-thr style="width:130px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+            <input type="number" name="bl_teacher_mastercfg_thr" min="0.1" max="10" step="0.1" value="${escapeHtml(String(thr))}" data-bl-teacher-mastercfg-thr style="width:130px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
           </div>
           <button class="btn btn-secondary" type="button" data-bl-teacher-save-mastercfg>Save config</button>
         </div>
@@ -620,22 +620,22 @@
                 return `
                   <tr style="background:#fff; border:1px solid #e5e7eb;">
                     <td style="padding:10px 8px; border-radius:12px 0 0 12px;">
-                      <input type="text" value="${escapeHtml(name)}" data-bl-teacher-master-name="${escapeHtml(String(i))}" style="width:180px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="text" name="bl_teacher_master_name_${escapeHtml(String(i))}" value="${escapeHtml(name)}" data-bl-teacher-master-name="${escapeHtml(String(i))}" style="width:180px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                       <div class="blunders-muted" style="margin-top:4px;">id: ${escapeHtml(mid || '(auto)')}</div>
                     </td>
                     <td style="padding:10px 8px;">
-                      <input type="text" value="${escapeHtml(user)}" data-bl-teacher-master-user="${escapeHtml(String(i))}" style="width:220px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="text" name="bl_teacher_master_user_${escapeHtml(String(i))}" value="${escapeHtml(user)}" data-bl-teacher-master-user="${escapeHtml(String(i))}" style="width:220px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px;">${escapeHtml(ratingLabel)}</td>
                     <td style="padding:10px 8px;">${escapeHtml(String(total))}</td>
                     <td style="padding:10px 8px;">
-                      <input type="date" value="${escapeHtml(dateVal)}" data-bl-teacher-master-date="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                      <input type="date" name="bl_teacher_master_date_${escapeHtml(mid)}" value="${escapeHtml(dateVal)}" data-bl-teacher-master-date="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                     </td>
                     <td style="padding:10px 8px; border-radius:0 12px 12px 0;">
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master="${escapeHtml(mid)}">Sync</button>
                       <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-sync-master-force="${escapeHtml(mid)}">Force</button>
                       <span style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
-                        <select data-bl-teacher-master-history-n="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px;">
+                        <select name="bl_teacher_master_history_n_${escapeHtml(mid)}" data-bl-teacher-master-history-n="${escapeHtml(mid)}" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px;">
                           ${[100,200,300,500].map((n) => `<option value="${n}" ${Number(historyVal) === n ? 'selected' : ''}>${n}</option>`).join('')}
                         </select>
                         <button class="btn btn-secondary btn-small" type="button" data-bl-teacher-history-scan-master="${escapeHtml(mid)}">History</button>

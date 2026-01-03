@@ -644,7 +644,7 @@
               <button class="btn btn-secondary btn-small" type="button" data-bl-review-prev="${escapeHtml(key)}" ${canPrev ? '' : 'disabled'}>Prev</button>
               <button class="btn btn-secondary btn-small" type="button" data-bl-review-next="${escapeHtml(key)}" ${canNext ? '' : 'disabled'}>Next</button>
               <div style="display:flex; gap:6px; align-items:center;">
-                <input type="number" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-review-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                <input type="number" name="bl_review_jump_${escapeHtml(key)}" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-review-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                 <button class="btn btn-secondary btn-small" type="button" data-bl-review-go="${escapeHtml(key)}">Go</button>
               </div>
             ` : ``}
@@ -689,7 +689,7 @@
 
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
           <span class="blunders-muted" style="margin-right:2px;">Theme:</span>
-          <select class="btn btn-secondary btn-small" data-bl-review-theme style="min-width:220px;">
+          <select class="btn btn-secondary btn-small" name="bl_review_theme" data-bl-review-theme style="min-width:220px;">
             ${themeOpts.map(o => `<option value="${escapeHtml(o.k)}" ${theme === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
           <span class="blunders-muted" style="margin-left:6px;">Showing <strong>${escapeHtml(String(cache.totalFiltered))}</strong> of <strong>${escapeHtml(String(cache.totalDurationFiltered || cache.totalAll))}</strong></span>
@@ -697,7 +697,7 @@
 
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
           <span class="blunders-muted" style="margin-right:2px;">Duration:</span>
-          <select class="btn btn-secondary btn-small" data-bl-review-duration-select style="min-width:220px;">
+          <select class="btn btn-secondary btn-small" name="bl_review_duration" data-bl-review-duration-select style="min-width:220px;">
             ${durBtns.map(o => `<option value="${escapeHtml(o.k)}" ${dur === o.k ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
         </div>
@@ -804,7 +804,7 @@
               <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-prev="${escapeHtml(key)}" ${canPrev ? '' : 'disabled'}>Prev</button>
               <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-next="${escapeHtml(key)}" ${canNext ? '' : 'disabled'}>Next</button>
               <div style="display:flex; gap:6px; align-items:center;">
-                <input type="number" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-master-bucket-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
+                <input type="number" name="bl_master_bucket_jump_${escapeHtml(key)}" min="1" max="${escapeHtml(String(totalPages))}" value="${escapeHtml(jumpVal)}" placeholder="Page #" data-bl-master-bucket-jump="${escapeHtml(key)}" style="width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px;">
                 <button class="btn btn-secondary btn-small" type="button" data-bl-master-bucket-go="${escapeHtml(key)}" ${bLoading ? 'disabled' : ''}>Go</button>
               </div>
             ` : ``}
