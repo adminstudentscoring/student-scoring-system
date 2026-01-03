@@ -247,6 +247,26 @@ function getRankInfo(score) {
     };
 }
 
+// Level badge image mapping (rankIndex -> asset filename)
+function levelBadgeSrcByRankIndex(rankIndex) {
+    const idx = Number(rankIndex);
+    const files = [
+        'Wood.png',
+        'Bronze.png',
+        'Silver.png',
+        'Gold.png',
+        'Platinum.png',
+        'Diamond.png',
+        'Candidate_Master.png',
+        // The UI calls this "Master"; assets provide Fide_Master.png.
+        'Fide_Master.png',
+        'International_Master.png',
+        'Grand_Master.png'
+    ];
+    const name = files[idx];
+    return name ? `assets/level-badge/${name}` : '';
+}
+
 // Render class view
 function renderClassView() {
     const container = document.getElementById('studentsSection');
@@ -282,38 +302,12 @@ function renderClassView() {
         const currentRank = rankInfo.rank;
         const currentRankIndex = rankInfo.rankIndex;
 
-        // Rank-specific background colors
-        const rankColors = [
-            'linear-gradient(135deg, #8B4513 0%, #A0522D 100%)', // Wood
-            'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)', // Bronze
-            'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)', // Silver
-            'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)', // Gold
-            'linear-gradient(135deg, #E5E4E2 0%, #D3D3D3 100%)', // Platinum
-            'linear-gradient(135deg, #B9F2FF 0%, #00CED1 100%)', // Diamond
-            'linear-gradient(135deg, #9370DB 0%, #663399 100%)', // Candidate Master
-            'linear-gradient(135deg, #FF1493 0%, #C71585 100%)', // Master
-            'linear-gradient(135deg, #FF4500 0%, #FF6347 100%)', // International Master
-            'linear-gradient(135deg, #FF0000 0%, #8B0000 100%)'  // Grand Master
-        ];
-
-        // Rank emoji icons
-        const rankEmojis = [
-            '🟫', // Wood
-            '🥉', // Bronze
-            '🥈', // Silver
-            '🥇', // Gold
-            '💎', // Platinum
-            '💠', // Diamond
-            '👑', // Candidate Master
-            '⭐', // Master
-            '🌟', // International Master
-            '✨'  // Grand Master
-        ];
+        const badgeSrc = levelBadgeSrcByRankIndex(currentRankIndex);
 
         return `
-            <div class="class-student-card" style="background: ${rankColors[currentRankIndex]}" data-student-id="${student.id}">
+            <div class="class-student-card" data-student-id="${student.id}">
+                ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge">` : ''}
                 <div class="class-student-row class-student-row-1">
-                    <div class="class-student-rank">${rankEmojis[currentRankIndex]}</div>
                     <h3 class="class-student-name">${escapeHtml(student.name)}</h3>
                 </div>
                 <div class="class-student-row class-student-row-2">

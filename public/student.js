@@ -82,17 +82,27 @@ function renderDashboard() {
         document.getElementById('sBalance').parentElement.style.display = 'none';
     }
     
-    // Rank Badge
-    const rankColors = {
-        'Wood': '#8B4513', 'Bronze': '#CD7F32', 'Silver': '#C0C0C0', 'Gold': '#FFD700',
-        'Platinum': '#E5E4E2', 'Diamond': '#00CED1', 'Candidate Master': '#9370DB',
-        'Master': '#FF1493', 'International Master': '#FF4500', 'Grand Master': '#FF0000'
+    // Level badge (image)
+    const badgeFiles = {
+        'Wood': 'Wood.png',
+        'Bronze': 'Bronze.png',
+        'Silver': 'Silver.png',
+        'Gold': 'Gold.png',
+        'Platinum': 'Platinum.png',
+        'Diamond': 'Diamond.png',
+        'Candidate Master': 'Candidate_Master.png',
+        // The UI may say "Master"; assets use Fide_Master.png.
+        'Master': 'Fide_Master.png',
+        'Fide Master': 'Fide_Master.png',
+        'International Master': 'International_Master.png',
+        'Grand Master': 'Grand_Master.png'
     };
-    
-    const badge = document.createElement('div');
-    badge.className = 'rank-badge';
-    badge.style.backgroundColor = rankColors[s.rank] || '#666';
-    badge.textContent = s.rank;
+
+    const badge = document.createElement('img');
+    badge.className = 'level-badge';
+    const file = badgeFiles[String(s.rank || '')] || '';
+    if (file) badge.src = `assets/level-badge/${file}`;
+    badge.alt = `${String(s.rank || 'Level')} badge`;
     document.getElementById('sRankBadge').innerHTML = '';
     document.getElementById('sRankBadge').appendChild(badge);
 

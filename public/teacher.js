@@ -189,6 +189,26 @@ function getRankInfo(score) {
     };
 }
 
+// Level badge image mapping (rankIndex -> asset filename)
+function levelBadgeSrcByRankIndex(rankIndex) {
+    const idx = Number(rankIndex);
+    const files = [
+        'Wood.png',
+        'Bronze.png',
+        'Silver.png',
+        'Gold.png',
+        'Platinum.png',
+        'Diamond.png',
+        'Candidate_Master.png',
+        // The UI calls this "Master"; assets provide Fide_Master.png.
+        'Fide_Master.png',
+        'International_Master.png',
+        'Grand_Master.png'
+    ];
+    const name = files[idx];
+    return name ? `assets/level-badge/${name}` : '';
+}
+
 // Render students list
 function renderStudents() {
     const container = document.getElementById('studentsList');
@@ -220,11 +240,13 @@ function renderStudents() {
         // Escape student data for safe usage in onclick
         const safeStudent = JSON.stringify(student).replace(/"/g, '&quot;');
 
+        const badgeSrc = levelBadgeSrcByRankIndex(currentRankIndex);
+
         return `
         <div class="student-card" data-rank="${currentRankIndex}" data-student-id="${student.id}" onclick='openEditStudentProfile(${safeStudent})'>
+            ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge">` : ''}
             <h3>${escapeHtml(student.name)}</h3>
             <div class="student-id">ID: ${escapeHtml(student.studentId)}</div>
-            <div class="rank-badge rank-${currentRankIndex}">${currentRank}</div>
             <div class="rank-progress">
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: ${rankInfo.progress}%"></div>
@@ -234,7 +256,6 @@ function renderStudents() {
             <div class="student-stats">
                 <div class="stat-item">
                     <span class="stat-value">${student.score || 0}</span>
-                    <span class="stat-label">Score</span>
                 </div>
             </div>
             <div class="student-actions" onclick="event.stopPropagation()">

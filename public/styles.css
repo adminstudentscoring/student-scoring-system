@@ -309,10 +309,11 @@ header h1 {
     margin-bottom: 6px;
 }
 
-#studentsTab .rank-badge {
-    font-size: 0.65rem;
-    padding: 3px 8px;
-    margin-bottom: 5px;
+#studentsTab .student-card .level-badge {
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
 }
 
 #studentsTab .progress-bar {
@@ -348,11 +349,7 @@ header h1 {
 }
 
 /* Share button: icon-only */
-#studentsTab .student-actions button[title="Share Access"] {
-    min-width: 34px;
-    padding-left: 8px;
-    padding-right: 8px;
-}
+/* Keep same size as the other buttons */
 
 @media (max-width: 1400px) {
     #studentsTab #studentsList.students-grid {
@@ -391,62 +388,34 @@ header h1 {
 }
 
 .student-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    position: relative;
+    background: #f8fafc; /* soft */
+    color: #0f172a; /* readable */
     padding: 15px;
     border-radius: 12px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-    transition: transform 0.3s;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
     min-height: auto;
     height: auto;
     overflow: hidden;
     box-sizing: border-box;
 }
 
-/* Rank-specific background colors for student cards */
-.student-card[data-rank="0"] {
-    background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%); /* Wood - Brown */
-}
-
-.student-card[data-rank="1"] {
-    background: linear-gradient(135deg, #CD7F32 0%, #B87333 100%); /* Bronze */
-}
-
-.student-card[data-rank="2"] {
-    background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); /* Silver */
-}
-
-.student-card[data-rank="3"] {
-    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); /* Gold */
-}
-
-.student-card[data-rank="4"] {
-    background: linear-gradient(135deg, #E5E4E2 0%, #D3D3D3 100%); /* Platinum */
-}
-
-.student-card[data-rank="5"] {
-    background: linear-gradient(135deg, #B9F2FF 0%, #00CED1 100%); /* Diamond */
-}
-
-.student-card[data-rank="6"] {
-    background: linear-gradient(135deg, #9370DB 0%, #663399 100%); /* Candidate Master */
-}
-
-.student-card[data-rank="7"] {
-    background: linear-gradient(135deg, #FF1493 0%, #C71585 100%); /* Master */
-}
-
-.student-card[data-rank="8"] {
-    background: linear-gradient(135deg, #FF4500 0%, #FF6347 100%); /* International Master */
-}
-
-.student-card[data-rank="9"] {
-    background: linear-gradient(135deg, #FF0000 0%, #8B0000 100%); /* Grand Master */
+.student-card .level-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    pointer-events: none;
+    filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.16));
 }
 
 .student-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
 }
 
 .student-card h3 {
@@ -455,36 +424,11 @@ header h1 {
 }
 
 .student-card .student-id {
-    opacity: 0.9;
+    opacity: 1;
     font-size: 0.8rem;
     margin-bottom: 8px;
-    color: white;
+    color: #475569;
 }
-
-/* Rank Badge */
-.rank-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 0.75rem;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    background: rgba(255, 255, 255, 0.3);
-    color: white;
-}
-
-.rank-0 { background: rgba(139, 69, 19, 0.8) !important; color: white; } /* Wood */
-.rank-1 { background: rgba(205, 127, 50, 0.8) !important; color: white; } /* Bronze */
-.rank-2 { background: rgba(192, 192, 192, 0.8) !important; color: #333; } /* Silver */
-.rank-3 { background: rgba(255, 215, 0, 0.8) !important; color: #333; } /* Gold */
-.rank-4 { background: rgba(229, 228, 226, 0.8) !important; color: #333; } /* Platinum */
-.rank-5 { background: rgba(185, 242, 255, 0.8) !important; color: #333; } /* Diamond */
-.rank-6 { background: rgba(147, 112, 219, 0.8) !important; color: white; } /* Candidate Master */
-.rank-7 { background: rgba(255, 20, 147, 0.8) !important; color: white; } /* Master */
-.rank-8 { background: rgba(255, 69, 0, 0.8) !important; color: white; } /* International Master */
-.rank-9 { background: rgba(255, 0, 0, 0.8) !important; color: white; } /* Grand Master */
 
 /* Rank Progress - Simplified with Green Bar */
 .rank-progress {
@@ -494,7 +438,7 @@ header h1 {
 .progress-bar {
     width: 100%;
     height: 14px;
-    background: rgba(255, 255, 255, 0.2);
+    background: #e2e8f0;
     border-radius: 7px;
     overflow: hidden;
     margin-bottom: 3px;
@@ -509,9 +453,9 @@ header h1 {
 
 .progress-text {
     font-size: 0.65rem;
-    opacity: 0.9;
+    opacity: 1;
     text-align: center;
-    color: white;
+    color: #475569;
 }
 
 .student-stats {
@@ -522,7 +466,7 @@ header h1 {
 }
 
 .stat-item {
-    background: rgba(255, 255, 255, 0.2);
+    background: #f1f5f9;
     padding: 6px;
     border-radius: 6px;
     text-align: center;
@@ -554,12 +498,20 @@ header h1 {
     width: 60px !important;
     padding: 6px !important;
     text-align: center !important;
-    border: 2px solid rgba(255,255,255,0.3) !important;
+    border: 1px solid #cbd5e1 !important;
     border-radius: 6px !important;
-    background: rgba(255,255,255,0.2) !important;
-    color: white !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
     font-weight: bold !important;
     font-size: 0.9rem !important;
+}
+
+.student-actions button {
+    height: 34px;
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .student-actions input.points-input::-webkit-inner-spin-button,
@@ -664,45 +616,18 @@ header h1 {
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
 }
 
-/* Rank-specific background colors for student list items */
-.student-list-item[data-rank="0"] {
-    background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%); /* Wood - Brown */
+.student-list-item {
+    position: relative;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #0f172a;
 }
 
-.student-list-item[data-rank="1"] {
-    background: linear-gradient(135deg, #CD7F32 0%, #B87333 100%); /* Bronze */
-}
-
-.student-list-item[data-rank="2"] {
-    background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%); /* Silver */
-}
-
-.student-list-item[data-rank="3"] {
-    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); /* Gold */
-}
-
-.student-list-item[data-rank="4"] {
-    background: linear-gradient(135deg, #E5E4E2 0%, #D3D3D3 100%); /* Platinum */
-}
-
-.student-list-item[data-rank="5"] {
-    background: linear-gradient(135deg, #B9F2FF 0%, #00CED1 100%); /* Diamond */
-}
-
-.student-list-item[data-rank="6"] {
-    background: linear-gradient(135deg, #9370DB 0%, #663399 100%); /* Candidate Master */
-}
-
-.student-list-item[data-rank="7"] {
-    background: linear-gradient(135deg, #FF1493 0%, #C71585 100%); /* Master */
-}
-
-.student-list-item[data-rank="8"] {
-    background: linear-gradient(135deg, #FF4500 0%, #FF6347 100%); /* International Master */
-}
-
-.student-list-item[data-rank="9"] {
-    background: linear-gradient(135deg, #FF0000 0%, #8B0000 100%); /* Grand Master */
+.student-list-item .level-badge {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.16));
 }
 
 .student-list-item h3 {
