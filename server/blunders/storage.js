@@ -3,6 +3,7 @@
 
 function createBlundersStorage(deps) {
   const fs = deps?.fs;
+  const path = require('path');
 
   const BLUNDERS_PUZZLES_FILE = deps?.BLUNDERS_PUZZLES_FILE;
   const BLUNDERS_STATS_FILE = deps?.BLUNDERS_STATS_FILE;
@@ -261,27 +262,43 @@ function createBlundersStorage(deps) {
   }
 
   // ===== Blunders Teacher Jobs (async background processing) =====
+  let blundersTeacherJobsWriteLock = Promise.resolve();
+  let blundersTeacherJobsLastGood = null;
+
   async function readBlundersTeacherJobs() {
     try {
+      // Avoid reading while a write is in-progress (prevents transient empty/partial reads).
+      await blundersTeacherJobsWriteLock.catch(() => {});
       const content = await fs.readFile(BLUNDERS_TEACHER_JOBS_FILE, 'utf8');
       const data = JSON.parse(content);
       const jobs = data && typeof data === 'object' ? (data.jobs || {}) : {};
-      return (jobs && typeof jobs === 'object') ? jobs : {};
+      const out = (jobs && typeof jobs === 'object') ? jobs : {};
+      blundersTeacherJobsLastGood = out;
+      return out;
     } catch (error) {
       console.error('Error reading blunders teacher jobs:', error);
-      return {};
+      // If we hit a transient JSON parse error mid-write, fall back to last known good snapshot.
+      return (blundersTeacherJobsLastGood && typeof blundersTeacherJobsLastGood === 'object') ? blundersTeacherJobsLastGood : {};
     }
   }
 
   async function writeBlundersTeacherJobs(jobs) {
-    try {
-      const clean = jobs && typeof jobs === 'object' ? jobs : {};
-      await fs.writeFile(BLUNDERS_TEACHER_JOBS_FILE, JSON.stringify({ jobs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-      return true;
-    } catch (error) {
-      console.error('Error writing blunders teacher jobs:', error);
-      return false;
-    }
+    const clean = jobs && typeof jobs === 'object' ? jobs : {};
+    // Serialize writes to prevent concurrent truncation/read issues.
+    const run = async () => {
+      try {
+        // Ensure parent directory exists (some deployments may start without data dir prepared).
+        await fs.mkdir(path.dirname(BLUNDERS_TEACHER_JOBS_FILE), { recursive: true }).catch(() => {});
+        await fs.writeFile(BLUNDERS_TEACHER_JOBS_FILE, JSON.stringify({ jobs: clean, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
+        blundersTeacherJobsLastGood = clean;
+        return true;
+      } catch (error) {
+        console.error('Error writing blunders teacher jobs:', error);
+        return false;
+      }
+    };
+    blundersTeacherJobsWriteLock = blundersTeacherJobsWriteLock.then(run, run);
+    return await blundersTeacherJobsWriteLock;
   }
 
   return {

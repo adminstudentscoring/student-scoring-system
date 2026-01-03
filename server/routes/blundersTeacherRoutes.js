@@ -797,7 +797,8 @@ function registerBlundersTeacherRoutes(app, deps) {
           params: { studentIds: allowedIds, historyGames, force },
           progress: { total: allowedIds.length, done: 0, message: 'Queued.', currentStudentId: null, currentStudentName: null }
         };
-        await writeBlundersTeacherJobs(jobs);
+        const okWrite = await writeBlundersTeacherJobs(jobs);
+        if (!okWrite) return res.status(500).json({ error: 'Failed to persist job. Please retry.' });
         blundersTeacherJobQueue.push(jobId);
         blundersTeacherRunNextJob().catch(() => {});
         return res.json({ ok: true, jobId, total: allowedIds.length });
@@ -841,7 +842,8 @@ function registerBlundersTeacherRoutes(app, deps) {
           params: { masterIds: allowed, historyGames, force },
           progress: { total: allowed.length, done: 0, message: `Queued (${allowed.length})`, currentMasterId: null, currentMasterName: null }
         };
-        await writeBlundersTeacherJobs(jobs);
+        const okWrite = await writeBlundersTeacherJobs(jobs);
+        if (!okWrite) return res.status(500).json({ error: 'Failed to persist job. Please retry.' });
         blundersTeacherJobQueue.push(jobId);
         blundersTeacherRunNextJob().catch(() => {});
         return res.json({ ok: true, orgId, jobId, queued: allowed.length });
@@ -878,7 +880,8 @@ function registerBlundersTeacherRoutes(app, deps) {
           params: { scope, recompute, syncDb },
           progress: { total: 0, done: 0, tagged: 0, skipped: 0, scope, message: 'Queued' }
         };
-        await writeBlundersTeacherJobs(jobs);
+        const okWrite = await writeBlundersTeacherJobs(jobs);
+        if (!okWrite) return res.status(500).json({ error: 'Failed to persist job. Please retry.' });
         blundersTeacherJobQueue.push(jobId);
         blundersTeacherRunNextJob().catch(() => {});
         return res.json({ ok: true, orgId, jobId, scope, recompute, syncDb });
