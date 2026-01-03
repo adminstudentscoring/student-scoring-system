@@ -654,9 +654,12 @@
                         <input type="text" id="editStudentEmergPhone" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
                     </div>
 
-                    <div class="modal-actions" style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
-                        <button type="button" class="btn btn-secondary" onclick="closeEditStudentProfile()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <div class="modal-actions" style="margin-top:20px; display:flex; justify-content:space-between; gap:10px;">
+                        <button type="button" class="btn btn-danger" onclick="deleteStudentFromProfile()" title="Delete this student">Delete</button>
+                        <div style="display:flex; gap:10px; justify-content:flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="closeEditStudentProfile()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
                     </div>
                 </form>
             </div>

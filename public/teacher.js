@@ -233,10 +233,6 @@ function renderStudents() {
             </div>
             <div class="student-stats">
                 <div class="stat-item">
-                    <span class="stat-value">${student.answerCount || 0}</span>
-                    <span class="stat-label">Answers</span>
-                </div>
-                <div class="stat-item">
                     <span class="stat-value">${student.score || 0}</span>
                     <span class="stat-label">Score</span>
                 </div>
@@ -244,16 +240,13 @@ function renderStudents() {
             <div class="student-actions" onclick="event.stopPropagation()">
                 <input type="number" class="points-input" id="points-${student.id}" min="1" max="100" value="1" style="width: 60px; padding: 6px; text-align: center; border: 2px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.2); color: white; font-weight: bold;">
                 <button class="btn btn-success btn-small" onclick="recordPoints('${student.id}')">
-                    Add Points
+                    Add
                 </button>
                 <button class="btn btn-primary btn-small" onclick="updateStudentScore('${student.id}')" title="Modify Score">
-                    Edit Score
+                    Edit
                 </button>
                 <button class="btn btn-info btn-small" onclick="openShareModal('${student.id}')" title="Share Access">
-                    🔗 Share
-                </button>
-                <button class="btn btn-danger btn-small" onclick="deleteStudent('${student.id}')">
-                    Delete
+                    🔗
                 </button>
             </div>
         </div>
@@ -3243,6 +3236,14 @@ async function saveStudentProfile(event) {
 window.openEditStudentProfile = openEditStudentProfile;
 window.closeEditStudentProfile = closeEditStudentProfile;
 window.saveStudentProfile = saveStudentProfile;
+
+// Delete from Edit Student Profile modal (bottom-left)
+window.deleteStudentFromProfile = function() {
+    const id = document.getElementById('editStudentId_Hidden')?.value;
+    if (!id) return;
+    // Reuse existing delete logic + confirmation prompt.
+    return deleteStudent(String(id));
+};
 
 
 // ==================== Quick Class View Functions ====================

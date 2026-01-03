@@ -288,6 +288,90 @@ header h1 {
     padding-right: 8px;
 }
 
+/* Teacher Dashboard: compact student cards (fit 5 per row) */
+#studentsTab #studentsList.students-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+#studentsTab .student-card {
+    padding: 10px;
+    border-radius: 10px;
+}
+
+#studentsTab .student-card h3 {
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+}
+
+#studentsTab .student-card .student-id {
+    font-size: 0.72rem;
+    margin-bottom: 6px;
+}
+
+#studentsTab .rank-badge {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+    margin-bottom: 5px;
+}
+
+#studentsTab .progress-bar {
+    height: 10px;
+}
+
+#studentsTab .progress-text {
+    font-size: 0.6rem;
+}
+
+#studentsTab .student-stats {
+    grid-template-columns: 1fr;
+    margin-bottom: 8px;
+}
+
+#studentsTab .stat-value {
+    font-size: 1.0rem;
+}
+
+#studentsTab .stat-label {
+    font-size: 0.65rem;
+}
+
+#studentsTab .student-actions {
+    gap: 6px;
+    margin-top: 8px;
+}
+
+#studentsTab .student-actions input.points-input {
+    width: 44px !important;
+    padding: 5px !important;
+    font-size: 0.85rem !important;
+}
+
+/* Share button: icon-only */
+#studentsTab .student-actions button[title="Share Access"] {
+    min-width: 34px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+@media (max-width: 1400px) {
+    #studentsTab #studentsList.students-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1100px) {
+    #studentsTab #studentsList.students-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 800px) {
+    #studentsTab #studentsList.students-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 .students-grid::-webkit-scrollbar {
     width: 8px;
 }
