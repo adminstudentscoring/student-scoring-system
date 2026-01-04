@@ -316,9 +316,29 @@ header h1 {
     margin-top: auto;
 }
 
+/* Align the visible (scrollable) list viewport between left and right columns.
+   Right column has .class-actions footer; left column uses a spacer of equal height. */
+:root {
+    --teacher-class-actions-h: 44px;
+}
+
+#studentsListCard .students-list-footer-spacer {
+    height: var(--teacher-class-actions-h);
+    flex: 0 0 auto;
+}
+
+#classViewSelectionCard .class-actions {
+    min-height: var(--teacher-class-actions-h);
+}
+
 #studentsTab .student-card {
     padding: 10px;
     border-radius: 10px;
+    min-height: 180px; /* ensure card shows all content */
+    height: auto;
+    overflow: visible; /* avoid clipping content on tight layouts */
+    display: flex;
+    flex-direction: column;
 }
 
 #studentsTab .student-card h3 {
@@ -362,6 +382,17 @@ header h1 {
 #studentsTab .student-stats {
     grid-template-columns: 1fr;
     margin-bottom: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#studentsTab .student-stats .stat-item {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #studentsTab .stat-value {
@@ -373,7 +404,7 @@ header h1 {
 }
 
 #studentsTab .student-actions {
-    margin-top: 8px;
+    margin-top: auto; /* keep actions inside card bottom */
     display: grid;
     grid-template-columns: clamp(34px, 3.2vw, 44px) repeat(3, minmax(0, 1fr));
     gap: clamp(4px, 0.6vw, 6px);
