@@ -57,40 +57,17 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab: make both cards the same height (stretch),
-   and let the inner lists fill the available space and scroll as needed. */
-#studentsTab .main-content {
-    display: flex;
-    flex-direction: column;
+/* Student Management tab: fixed list viewport heights (per request) */
+#studentsTab #studentsList {
+    flex: 0 0 auto;
+    height: 550px;
+    max-height: none;
+    overflow: auto;
 }
 
-#studentsRow {
-    flex: 1;
-    min-height: 0; /* allow inner scroll areas */
-}
-
-#studentsListCard,
-#classViewSelectionCard {
-    height: auto;
-    min-height: 0;
-}
-
-#studentsListCard {
-    display: flex;
-    flex-direction: column;
-}
-
-#classViewSelectionCard {
-    display: flex;
-    flex-direction: column;
-}
-
-/* Scroll areas fill remaining space in each card */
-#studentsTab #studentsList,
 #studentsTab #classStudentsList {
-    flex: 1;
-    min-height: 0;
-    height: auto;
+    flex: 0 0 auto;
+    height: 520px;
     max-height: none;
     overflow: auto;
 }
