@@ -264,7 +264,10 @@ function levelBadgeSrcByRankIndex(rankIndex) {
         'Grand_Master.png'
     ];
     const name = files[idx];
-    return name ? `assets/level-badge/${name}` : '';
+    if (!name) return '';
+    // Support both Electron file:// (relative path) and web /game/... routes (need absolute-from-root).
+    const base = (window.location && window.location.protocol === 'file:') ? 'assets/level-badge/' : '/assets/level-badge/';
+    return `${base}${name}`;
 }
 
 // Render class view

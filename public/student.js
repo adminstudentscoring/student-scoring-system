@@ -101,7 +101,10 @@ function renderDashboard() {
     const badge = document.createElement('img');
     badge.className = 'level-badge';
     const file = badgeFiles[String(s.rank || '')] || '';
-    if (file) badge.src = `assets/level-badge/${file}`;
+    if (file) {
+        const base = (window.location && window.location.protocol === 'file:') ? 'assets/level-badge/' : '/assets/level-badge/';
+        badge.src = `${base}${file}`;
+    }
     badge.alt = `${String(s.rank || 'Level')} badge`;
     document.getElementById('sRankBadge').innerHTML = '';
     document.getElementById('sRankBadge').appendChild(badge);
