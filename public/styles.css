@@ -349,6 +349,11 @@ header h1 {
     flex: 0 0 auto;
 }
 
+/* When the left card no longer stretches, the spacer is not needed. */
+#studentsRow #studentsListCard .students-list-footer-spacer {
+    display: none;
+}
+
 #classViewSelectionCard .class-actions {
     min-height: var(--teacher-class-actions-h);
 }
