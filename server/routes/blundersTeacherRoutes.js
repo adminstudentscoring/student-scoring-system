@@ -102,8 +102,13 @@ function registerBlundersTeacherRoutes(app, deps) {
         const out = students.map((s) => {
           const sid = String(s.id || '');
           const mine = orgPuzzles.filter(p => String(p.studentId || '') === sid);
-          const pending = mine.filter(p => String(p.status || 'pending') === 'pending').length;
-          const completed = mine.filter(p => String(p.status || '') === 'completed').length;
+          const isCompletedPuzzle = (p) => {
+            if (String(p?.status || '') === 'completed') return true;
+            const t = Date.parse(String(p?.completedAt || ''));
+            return Number.isFinite(t) && t > 0;
+          };
+          const completed = mine.filter(isCompletedPuzzle).length;
+          const pending = mine.filter(p => !isCompletedPuzzle(p) && String(p?.status || 'pending') === 'pending').length;
           const analyzedGamesTotal = Number(statsOrg?.[sid]?.analyzedCount || 0) || 0;
           const cfg = (settings.student && settings.student[sid]) ? settings.student[sid] : {};
           const chessId = String(chessMap?.[sid]?.chessId || '').trim();

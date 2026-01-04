@@ -53,11 +53,23 @@ function registerBlundersPublicRoutes(app, deps) {
         if (pr.changed) {
           try { await writeBlundersPuzzles(puzzles); } catch {}
         }
-        const mine = puzzles
-          .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id))
-          .filter(p => !isInvalidSameBestMovePuzzle(p));
-        const pending = mine.filter(p => String(p.status || 'pending') === 'pending');
-        const completed = mine.filter(p => String(p.status || '') === 'completed');
+        const mineAll = puzzles
+          .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id));
+        const mineFiltered = mineAll.filter(p => !isInvalidSameBestMovePuzzle(p));
+
+        // If the invalid-filter suddenly drops everything (common after data/schema changes),
+        // fall back to showing raw puzzles so the student UI doesn't go blank.
+        const invalidFilterDroppedAll = mineAll.length > 0 && mineFiltered.length === 0;
+        const mine = invalidFilterDroppedAll ? mineAll : mineFiltered;
+
+        const isCompletedPuzzle = (p) => {
+          if (String(p?.status || '') === 'completed') return true;
+          const t = Date.parse(String(p?.completedAt || ''));
+          return Number.isFinite(t) && t > 0;
+        };
+
+        const completed = mine.filter(isCompletedPuzzle);
+        const pending = mine.filter(p => !isCompletedPuzzle(p) && String(p?.status || 'pending') === 'pending');
 
         // Cumulative analyzed games count (+ rolling 3-month stats)
         let analyzedGamesTotal = 0;
@@ -95,6 +107,11 @@ function registerBlundersPublicRoutes(app, deps) {
         return res.json({
           ok: true,
           student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
+          stats: { analyzedGamesTotal, rolling3m: rolling3m || undefined },
+          ai: { monthComment: aiCommentMonth || undefined, monthCommentUpdatedAt: aiCommentUpdatedAt || undefined, monthCommentStatus: aiCommentStatus, monthCommentError: aiCommentError || undefined },
+          pending,
+          completed,
+          counts: { pending: pending.length, completed: completed.length, total: mine.length },
           debug: {
             hkDay: todayHkKey(),
             orgId: orgId || null,
@@ -104,6 +121,8 @@ function registerBlundersPublicRoutes(app, deps) {
             hasStudentKey,
             gamesTodayRapidBlitz: gamesToday,
             gamesTodayErr,
+            invalidFilterDroppedAll,
+            mineCounts: { all: mineAll.length, filtered: mineFiltered.length, used: mine.length },
             sync: (() => {
               const st = blundersSyncState.get(String(student.id)) || null;
               if (!st) return null;
@@ -113,12 +132,7 @@ function registerBlundersPublicRoutes(app, deps) {
               }
               return st;
             })()
-          },
-          stats: { analyzedGamesTotal, rolling3m: rolling3m || undefined },
-          ai: { monthComment: aiCommentMonth || undefined, monthCommentUpdatedAt: aiCommentUpdatedAt || undefined, monthCommentStatus: aiCommentStatus, monthCommentError: aiCommentError || undefined },
-          pending,
-          completed,
-          counts: { pending: pending.length, completed: completed.length, total: mine.length }
+          }
         });
       } catch (e) {
         console.error('GET /api/public/students/:id/blunders error:', e);
@@ -818,7 +832,7 @@ function registerBlundersPublicRoutes(app, deps) {
           }
         }
 
-        if (String(pr.status || 'pending') === 'completed' && !practice) {
+        if ((String(pr.status || 'pending') === 'completed' || (Number.isFinite(Date.parse(String(pr.completedAt || ''))) && Date.parse(String(pr.completedAt || '')) > 0)) && !practice) {
           return res.json({ ok: true, alreadyCompleted: true, bestMove: revealBest ? (String(puzzle.bestMoveUci || '') || undefined) : undefined });
         }
 
@@ -961,7 +975,7 @@ function registerBlundersPublicRoutes(app, deps) {
             return res.json({ ok: true, bestMove: undefined, afterFEN: undefined, playedUci: undefined, engineError: String(e?.message || e) });
           }
         }
-        if (String(puzzle.status || 'pending') === 'completed' && !practice) {
+        if ((String(puzzle.status || 'pending') === 'completed' || (Number.isFinite(Date.parse(String(puzzle.completedAt || ''))) && Date.parse(String(puzzle.completedAt || '')) > 0)) && !practice) {
           return res.json({
             ok: true,
             alreadyCompleted: true,
