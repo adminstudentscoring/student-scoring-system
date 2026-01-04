@@ -57,23 +57,27 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab: make the Students List row fill remaining vertical space */
-#studentsTab .main-content {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 180px);
+/* Student Management tab: show ~2.5 rows of student cards (and make both columns consistent) */
+:root {
+    --teacher-student-card-h: 180px;
+    --teacher-student-grid-gap: 10px;
+    --teacher-list-rows: 2.5;
+    /* 180*2.5 + 10*2 gaps = 470px */
+    --teacher-list-viewport-h: 470px;
 }
 
-#studentsTab #studentsRow {
-    flex: 1;
-    min-height: 0; /* allow children overflow areas to scroll */
+#studentsTab #studentsList,
+#studentsTab #classStudentsList {
+    max-height: var(--teacher-list-viewport-h);
+    overflow: auto;
 }
 
-#studentsListCard,
-#classViewSelectionCard {
-    height: auto;     /* override old fixed height */
-    flex: 1;
-    min-height: 0;
+/* Prefer computed height when supported */
+@supports (height: calc(180px * 2.5)) {
+    #studentsTab #studentsList,
+    #studentsTab #classStudentsList {
+        max-height: calc(var(--teacher-student-card-h) * var(--teacher-list-rows) + var(--teacher-student-grid-gap) * 2);
+    }
 }
 
 /* Right Sidebar Styles */
