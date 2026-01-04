@@ -352,6 +352,9 @@ header h1 {
 }
 
 #studentsTab .student-card .level-badge {
+    position: static; /* override global absolute positioning */
+    top: auto;
+    right: auto;
     width: clamp(26px, 2.4vw, 34px);
     height: clamp(26px, 2.4vw, 34px);
     margin: 0 auto;
