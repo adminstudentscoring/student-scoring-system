@@ -80,6 +80,22 @@ header h1 {
     }
 }
 
+/* Make the right card match the left card height:
+   the right card has .class-actions footer, so shrink its list viewport accordingly. */
+#studentsTab #classStudentsList {
+    height: 426px; /* 470 - 44 */
+}
+
+@supports (height: calc(180px * 2.5)) {
+    #studentsTab #classStudentsList {
+        height: calc(
+            var(--teacher-student-card-h) * var(--teacher-list-rows)
+            + var(--teacher-student-grid-gap) * 2
+            - var(--teacher-class-actions-h)
+        );
+    }
+}
+
 /* Right Sidebar Styles */
 .right-sidebar {
     width: 250px;
