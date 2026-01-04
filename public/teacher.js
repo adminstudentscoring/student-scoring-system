@@ -244,10 +244,11 @@ function renderStudents() {
         const safeStudent = JSON.stringify(student).replace(/"/g, '&quot;');
 
         const badgeSrc = levelBadgeSrcByRankIndex(currentRankIndex);
+        const scoreVal = (student.score || 0);
 
         return `
         <div class="student-card" data-rank="${currentRankIndex}" data-student-id="${student.id}" onclick='openEditStudentProfile(${safeStudent})'>
-            ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge" onerror="console.warn('[level-badge] failed', this.src); this.remove();">` : ''}
+            <div class="student-score-pill" aria-label="Score">${escapeHtml(String(scoreVal))}</div>
             <h3>${escapeHtml(student.name)}</h3>
             <div class="student-id">ID: ${escapeHtml(student.studentId)}</div>
             <div class="rank-progress">
@@ -258,7 +259,7 @@ function renderStudents() {
             </div>
             <div class="student-stats">
                 <div class="stat-item">
-                    <span class="stat-value">${student.score || 0}</span>
+                    ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge" onerror="console.warn('[level-badge] failed', this.src); this.remove();">` : ''}
                 </div>
             </div>
             <div class="student-actions" onclick="event.stopPropagation()">
