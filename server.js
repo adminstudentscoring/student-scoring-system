@@ -163,13 +163,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static('public'));
+// Serve static files using absolute paths (avoids 404s when server is started from a different cwd)
+app.use(express.static(path.join(__dirname, 'public')));
 // Serve game directory (all game-related files)
-app.use('/game', express.static('game'));
+app.use('/game', express.static(path.join(__dirname, 'game')));
 // Serve standalone project puzzle-monster-fight (now in game directory)
-app.use('/game/puzzle-monster-fight', express.static('game/puzzle-monster-fight'));
+app.use('/game/puzzle-monster-fight', express.static(path.join(__dirname, 'game/puzzle-monster-fight')));
 // Serve standalone project monster-fight (now in game directory)
-app.use('/game/monster-fight', express.static('game/monster-fight'));
+app.use('/game/monster-fight', express.static(path.join(__dirname, 'game/monster-fight')));
 
 // Ensure data directory exists
 async function ensureDataDir() {
