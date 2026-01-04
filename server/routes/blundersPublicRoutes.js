@@ -22,6 +22,8 @@ function registerBlundersPublicRoutes(app, deps) {
         }
 
         const orgId = String(student.organizationId || '');
+        const useDb = String(process.env.BLUNDERS_USE_DB || '') === '1';
+        const pool = useDb ? appDb.getPool() : null;
         // Diagnostics (fast): do we have chess.com username on server? how many games found today?
         const chessComUsername = await getChessComUsernameForStudent(orgId, student.id);
         const orgsAll = await readChessComSettings();
@@ -47,19 +49,98 @@ function registerBlundersPublicRoutes(app, deps) {
           }
         } catch {}
         syncBlundersForStudent(student, { force: String(force || '') === '1' ? '1' : '0' }).catch((e) => console.warn('blunders sync failed:', e));
-        const puzzles = await readBlundersPuzzles();
-        // Keep only latest N puzzles per student if configured to prevent unbounded growth.
-        const pr = pruneStudentBlundersInPlace(puzzles, orgId, String(student.id), BLUNDERS_MAX_PUZZLES_PER_STUDENT);
-        if (pr.changed) {
-          try { await writeBlundersPuzzles(puzzles); } catch {}
+        // If BLUNDERS_USE_DB=1, read puzzles/progress from Postgres so student view matches teacher all-blunders.
+        // Otherwise fall back to JSON file storage.
+        let mineAll = [];
+        let mineFiltered = [];
+        let source = 'file';
+        if (useDb && pool) {
+          source = 'db';
+          const sid = String(student.id || '');
+          const limit = Math.max(100, Math.min(5000, Number(BLUNDERS_MAX_PUZZLES_PER_STUDENT || 500) || 500));
+          const q = await pool.query(
+            `
+            SELECT
+              p.key,
+              p.org_id,
+              p.student_id,
+              p.chesscom_username,
+              p.game_url,
+              p.time_class,
+              p.end_time_sec,
+              p.student_color,
+              p.start_fen,
+              p.opponent_move_uci,
+              p.opponent_san,
+              p.blunder_move_uci,
+              p.blunder_san,
+              p.best_move_uci,
+              p.best_cp,
+              p.after_cp,
+              p.drop_cp,
+              p.drop_points,
+              p.created_at,
+              pr.status,
+              pr.completed_at
+            FROM blunders_puzzles p
+            LEFT JOIN blunders_progress pr
+              ON pr.org_id = p.org_id AND pr.student_id = p.student_id AND pr.puzzle_key = p.key
+            WHERE p.org_id = $1
+              AND p.student_id = $2
+              AND NOT (
+                p.best_cp IS NOT NULL AND ABS(p.best_cp) >= 99999
+                AND p.best_move_uci IS NOT NULL AND p.blunder_move_uci IS NOT NULL
+                AND LOWER(p.best_move_uci) = LOWER(p.blunder_move_uci)
+              )
+            ORDER BY COALESCE(pr.completed_at, to_timestamp(p.end_time_sec), p.created_at, to_timestamp(p.sort_at_ms/1000.0)) DESC
+            LIMIT $3
+            `,
+            [orgId, sid, limit]
+          );
+          mineAll = (q.rows || []).map((r) => {
+            const completedAt = r.completed_at ? new Date(r.completed_at).toISOString() : null;
+            const endTime = Number(r.end_time_sec || 0) || 0;
+            return {
+              key: String(r.key || ''),
+              id: String(r.key || ''),
+              orgId: String(r.org_id || ''),
+              studentId: String(r.student_id || ''),
+              chessComUsername: r.chesscom_username ? String(r.chesscom_username) : null,
+              gameUrl: r.game_url ? String(r.game_url) : '',
+              timeClass: r.time_class ? String(r.time_class) : '',
+              endTime,
+              studentColor: r.student_color ? String(r.student_color) : '',
+              startFEN: r.start_fen ? String(r.start_fen) : '',
+              opponentMoveUci: r.opponent_move_uci ? String(r.opponent_move_uci) : '',
+              opponentSan: r.opponent_san ? String(r.opponent_san) : '',
+              blunderMoveUci: r.blunder_move_uci ? String(r.blunder_move_uci) : '',
+              blunderSan: r.blunder_san ? String(r.blunder_san) : '',
+              bestMoveUci: r.best_move_uci ? String(r.best_move_uci) : '',
+              bestCp: (r.best_cp === null || r.best_cp === undefined) ? null : Number(r.best_cp),
+              afterCp: (r.after_cp === null || r.after_cp === undefined) ? null : Number(r.after_cp),
+              dropCp: (r.drop_cp === null || r.drop_cp === undefined) ? null : Number(r.drop_cp),
+              dropPoints: Number(r.drop_points ?? 0) || 0,
+              status: r.status ? String(r.status) : '',
+              completedAt: completedAt || null,
+              createdAt: r.created_at ? new Date(r.created_at).toISOString() : null
+            };
+          });
+          mineFiltered = mineAll;
+        } else {
+          const puzzles = await readBlundersPuzzles();
+          // Keep only latest N puzzles per student if configured to prevent unbounded growth.
+          const pr = pruneStudentBlundersInPlace(puzzles, orgId, String(student.id), BLUNDERS_MAX_PUZZLES_PER_STUDENT);
+          if (pr.changed) {
+            try { await writeBlundersPuzzles(puzzles); } catch {}
+          }
+          mineAll = puzzles
+            .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id));
+          mineFiltered = mineAll.filter(p => !isInvalidSameBestMovePuzzle(p));
         }
-        const mineAll = puzzles
-          .filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master' && String(p.studentId || '') === String(student.id));
-        const mineFiltered = mineAll.filter(p => !isInvalidSameBestMovePuzzle(p));
 
         // If the invalid-filter suddenly drops everything (common after data/schema changes),
         // fall back to showing raw puzzles so the student UI doesn't go blank.
-        const invalidFilterDroppedAll = mineAll.length > 0 && mineFiltered.length === 0;
+        const invalidFilterDroppedAll = (source === 'file') && mineAll.length > 0 && mineFiltered.length === 0;
         const mine = invalidFilterDroppedAll ? mineAll : mineFiltered;
 
         const isCompletedPuzzle = (p) => {
@@ -121,6 +202,7 @@ function registerBlundersPublicRoutes(app, deps) {
             hasStudentKey,
             gamesTodayRapidBlitz: gamesToday,
             gamesTodayErr,
+            source,
             invalidFilterDroppedAll,
             mineCounts: { all: mineAll.length, filtered: mineFiltered.length, used: mine.length },
             sync: (() => {

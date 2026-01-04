@@ -91,8 +91,61 @@ function registerBlundersTeacherRoutes(app, deps) {
         const studentsAll = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
         const students = assignedIds ? studentsAll.filter(s => assignedIds.has(s.id)) : studentsAll;
 
-        const puzzles = await readBlundersPuzzles();
-        const orgPuzzles = puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master');
+        // When BLUNDERS_USE_DB=1, the canonical dataset is Postgres (blunders_puzzles + blunders_progress).
+        // Align students-summary with teacher all-blunders so counts don't diverge.
+        const useDb = String(process.env.BLUNDERS_USE_DB || '') === '1';
+        const pool = useDb ? appDb.getPool() : null;
+        const studentIds = students.map(s => String(s.id || '')).filter(Boolean);
+        const countsByStudentId = new Map();
+        if (useDb && pool && studentIds.length) {
+          try {
+            const q = await pool.query(
+              `
+              WITH base AS (
+                SELECT
+                  p.student_id,
+                  pr.status,
+                  pr.completed_at,
+                  p.best_cp,
+                  p.best_move_uci,
+                  p.blunder_move_uci
+                FROM blunders_puzzles p
+                LEFT JOIN blunders_progress pr
+                  ON pr.org_id = p.org_id AND pr.student_id = p.student_id AND pr.puzzle_key = p.key
+                WHERE p.org_id = $1
+                  AND p.student_id = ANY($2)
+                  AND NOT (
+                    p.best_cp IS NOT NULL AND ABS(p.best_cp) >= 99999
+                    AND p.best_move_uci IS NOT NULL AND p.blunder_move_uci IS NOT NULL
+                    AND LOWER(p.best_move_uci) = LOWER(p.blunder_move_uci)
+                  )
+              )
+              SELECT
+                student_id,
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE (status='completed' OR completed_at IS NOT NULL))::int AS completed,
+                COUNT(*) FILTER (WHERE NOT (status='completed' OR completed_at IS NOT NULL))::int AS pending
+              FROM base
+              GROUP BY student_id
+              `,
+              [orgId, studentIds]
+            );
+            for (const r of (q.rows || [])) {
+              const sid = String(r.student_id || '');
+              if (!sid) continue;
+              countsByStudentId.set(sid, {
+                total: Number(r.total || 0) || 0,
+                pending: Number(r.pending || 0) || 0,
+                completed: Number(r.completed || 0) || 0
+              });
+            }
+          } catch (e) {
+            console.warn('students-summary BLUNDERS_USE_DB query failed; falling back to file', String(e?.message || e));
+          }
+        }
+
+        const puzzles = (!useDb || !pool) ? await readBlundersPuzzles() : null;
+        const orgPuzzles = puzzles ? puzzles.filter(p => String(p.orgId || '') === orgId && String(p.scope || '') !== 'master') : [];
         const orgsStats = await readBlundersStats();
         const statsOrg = orgsStats?.[orgId] || {};
         const settings = await getOrgBlundersSettings(orgId);
@@ -101,14 +154,26 @@ function registerBlundersTeacherRoutes(app, deps) {
 
         const out = students.map((s) => {
           const sid = String(s.id || '');
-          const mine = orgPuzzles.filter(p => String(p.studentId || '') === sid);
-          const isCompletedPuzzle = (p) => {
-            if (String(p?.status || '') === 'completed') return true;
-            const t = Date.parse(String(p?.completedAt || ''));
-            return Number.isFinite(t) && t > 0;
-          };
-          const completed = mine.filter(isCompletedPuzzle).length;
-          const pending = mine.filter(p => !isCompletedPuzzle(p) && String(p?.status || 'pending') === 'pending').length;
+          let pending = 0;
+          let completed = 0;
+          let total = 0;
+
+          const dbCounts = countsByStudentId.get(sid) || null;
+          if (dbCounts) {
+            pending = dbCounts.pending;
+            completed = dbCounts.completed;
+            total = dbCounts.total;
+          } else if (orgPuzzles.length) {
+            const mine = orgPuzzles.filter(p => String(p.studentId || '') === sid);
+            const isCompletedPuzzle = (p) => {
+              if (String(p?.status || '') === 'completed') return true;
+              const t = Date.parse(String(p?.completedAt || ''));
+              return Number.isFinite(t) && t > 0;
+            };
+            completed = mine.filter(isCompletedPuzzle).length;
+            pending = mine.filter(p => !isCompletedPuzzle(p) && String(p?.status || 'pending') === 'pending').length;
+            total = pending + completed;
+          }
           const analyzedGamesTotal = Number(statsOrg?.[sid]?.analyzedCount || 0) || 0;
           const cfg = (settings.student && settings.student[sid]) ? settings.student[sid] : {};
           const chessId = String(chessMap?.[sid]?.chessId || '').trim();
@@ -120,7 +185,7 @@ function registerBlundersTeacherRoutes(app, deps) {
             chessComRating: null,
             chessComRatingSource: null,
             chessComRatingUpdatedAt: null,
-            counts: { pending, completed, total: pending + completed },
+            counts: { pending, completed, total },
             analyzedGamesTotal,
             config: {
               maxGamesPerDay: Number(cfg.maxGamesPerDay || BLUNDERS_DEFAULTS.maxGamesPerDay),
