@@ -57,43 +57,27 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab: show ~2.5 rows of student cards (and make both columns consistent).
-   Use a fixed HEIGHT (not max-height) to avoid "extra blank space" when parent cards stretch. */
+/* Student Management tab: make the Students List viewport taller (close to the red-line area),
+   while keeping the right column total height aligned with the left. */
 :root {
-    --teacher-student-card-h: 180px;
     --teacher-student-grid-gap: 10px;
-    --teacher-list-rows: 2.5;
+    /* Adjust this to tune the visible height */
+    --teacher-students-viewport-h: clamp(420px, 65vh, 760px);
 }
 
-#studentsTab #studentsList,
-#studentsTab #classStudentsList {
-    flex: 0 0 auto;         /* do NOT stretch (prevents blank space inside the list) */
-    height: 470px;          /* fallback */
+#studentsTab #studentsList {
+    flex: 0 0 auto;
+    height: var(--teacher-students-viewport-h);
     max-height: none;
     overflow: auto;
 }
 
-@supports (height: calc(180px * 2.5)) {
-    #studentsTab #studentsList,
-    #studentsTab #classStudentsList {
-        height: calc(var(--teacher-student-card-h) * var(--teacher-list-rows) + var(--teacher-student-grid-gap) * 2);
-    }
-}
-
-/* Make the right card match the left card height:
-   the right card has .class-actions footer, so shrink its list viewport accordingly. */
+/* Right list has footer buttons; subtract footer height so the card total height matches left */
 #studentsTab #classStudentsList {
-    height: 426px; /* 470 - 44 */
-}
-
-@supports (height: calc(180px * 2.5)) {
-    #studentsTab #classStudentsList {
-        height: calc(
-            var(--teacher-student-card-h) * var(--teacher-list-rows)
-            + var(--teacher-student-grid-gap) * 2
-            - var(--teacher-class-actions-h)
-        );
-    }
+    flex: 0 0 auto;
+    height: calc(var(--teacher-students-viewport-h) - var(--teacher-class-actions-h));
+    max-height: none;
+    overflow: auto;
 }
 
 /* Right Sidebar Styles */
