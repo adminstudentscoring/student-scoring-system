@@ -57,25 +57,40 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab: make the Students List viewport taller (close to the red-line area),
-   while keeping the right column total height aligned with the left. */
-:root {
-    --teacher-student-grid-gap: 10px;
-    /* Adjust this to tune the visible height */
-    --teacher-students-viewport-h: clamp(420px, 65vh, 760px);
+/* Student Management tab: make both cards the same height (stretch),
+   and let the inner lists fill the available space and scroll as needed. */
+#studentsTab .main-content {
+    display: flex;
+    flex-direction: column;
 }
 
-#studentsTab #studentsList {
-    flex: 0 0 auto;
-    height: var(--teacher-students-viewport-h);
-    max-height: none;
-    overflow: auto;
+#studentsRow {
+    flex: 1;
+    min-height: 0; /* allow inner scroll areas */
 }
 
-/* Right list has footer buttons; subtract footer height so the card total height matches left */
+#studentsListCard,
+#classViewSelectionCard {
+    height: auto;
+    min-height: 0;
+}
+
+#studentsListCard {
+    display: flex;
+    flex-direction: column;
+}
+
+#classViewSelectionCard {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scroll areas fill remaining space in each card */
+#studentsTab #studentsList,
 #studentsTab #classStudentsList {
-    flex: 0 0 auto;
-    height: calc(var(--teacher-students-viewport-h) - var(--teacher-class-actions-h));
+    flex: 1;
+    min-height: 0;
+    height: auto;
     max-height: none;
     overflow: auto;
 }
@@ -345,8 +360,7 @@ header h1 {
 }
 
 #studentsListCard .students-list-footer-spacer {
-    height: var(--teacher-class-actions-h);
-    flex: 0 0 auto;
+    display: none; /* no longer needed with stretch layout */
 }
 
 #classViewSelectionCard .class-actions {

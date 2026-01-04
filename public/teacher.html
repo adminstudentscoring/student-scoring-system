@@ -30,10 +30,9 @@
             align-items: stretch;
             width: 100%;
         }
-        /* Students row: do NOT stretch cards to equal height.
-           We want to control the card-grid viewport (#studentsList) height instead. */
+        /* Students row: keep both cards the same height (no purple gap). */
         #studentsRow.teacher-row {
-            align-items: flex-start;
+            align-items: stretch;
         }
         .teacher-row > .card {
             margin: 0 !important;
