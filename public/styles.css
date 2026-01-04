@@ -57,26 +57,26 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab: show ~2.5 rows of student cards (and make both columns consistent) */
+/* Student Management tab: show ~2.5 rows of student cards (and make both columns consistent).
+   Use a fixed HEIGHT (not max-height) to avoid "extra blank space" when parent cards stretch. */
 :root {
     --teacher-student-card-h: 180px;
     --teacher-student-grid-gap: 10px;
     --teacher-list-rows: 2.5;
-    /* 180*2.5 + 10*2 gaps = 470px */
-    --teacher-list-viewport-h: 470px;
 }
 
 #studentsTab #studentsList,
 #studentsTab #classStudentsList {
-    max-height: var(--teacher-list-viewport-h);
+    flex: 0 0 auto;         /* do NOT stretch (prevents blank space inside the list) */
+    height: 470px;          /* fallback */
+    max-height: none;
     overflow: auto;
 }
 
-/* Prefer computed height when supported */
 @supports (height: calc(180px * 2.5)) {
     #studentsTab #studentsList,
     #studentsTab #classStudentsList {
-        max-height: calc(var(--teacher-student-card-h) * var(--teacher-list-rows) + var(--teacher-student-grid-gap) * 2);
+        height: calc(var(--teacher-student-card-h) * var(--teacher-list-rows) + var(--teacher-student-grid-gap) * 2);
     }
 }
 
@@ -325,9 +325,8 @@ header h1 {
 }
 
 #studentsList {
-    flex: 1;
+    /* overridden in #studentsTab #studentsList to a fixed height viewport */
     overflow: auto;
-    max-height: none;
 }
 
 #classStudentsList {
