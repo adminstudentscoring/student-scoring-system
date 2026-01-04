@@ -341,7 +341,7 @@ header h1 {
 /* Align the visible (scrollable) list viewport between left and right columns.
    Right column has .class-actions footer; left column uses a spacer of equal height. */
 :root {
-    --teacher-class-actions-h: 44px;
+    --teacher-class-actions-h: 64px;
 }
 
 #studentsListCard .students-list-footer-spacer {
@@ -349,13 +349,10 @@ header h1 {
     flex: 0 0 auto;
 }
 
-/* When the left card no longer stretches, the spacer is not needed. */
-#studentsRow #studentsListCard .students-list-footer-spacer {
-    display: none;
-}
-
 #classViewSelectionCard .class-actions {
+    height: var(--teacher-class-actions-h);
     min-height: var(--teacher-class-actions-h);
+    flex-wrap: nowrap;
 }
 
 #studentsTab .student-card {
