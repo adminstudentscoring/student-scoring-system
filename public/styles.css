@@ -57,6 +57,25 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
+/* Student Management tab: make the Students List row fill remaining vertical space */
+#studentsTab .main-content {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 180px);
+}
+
+#studentsTab #studentsRow {
+    flex: 1;
+    min-height: 0; /* allow children overflow areas to scroll */
+}
+
+#studentsListCard,
+#classViewSelectionCard {
+    height: auto;     /* override old fixed height */
+    flex: 1;
+    min-height: 0;
+}
+
 /* Right Sidebar Styles */
 .right-sidebar {
     width: 250px;
@@ -296,7 +315,7 @@ header h1 {
 
 #studentsListCard,
 #classViewSelectionCard {
-    height: 520px;
+    height: auto;
     display: flex;
     flex-direction: column;
 }
