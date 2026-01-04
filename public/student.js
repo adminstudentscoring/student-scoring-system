@@ -105,6 +105,10 @@ function renderDashboard() {
         const base = (window.location && window.location.protocol === 'file:') ? 'assets/level-badge/' : '/assets/level-badge/';
         badge.src = `${base}${file}`;
     }
+    badge.onerror = () => {
+        console.warn('[level-badge] failed', badge.src);
+        try { badge.remove(); } catch {}
+    };
     badge.alt = `${String(s.rank || 'Level')} badge`;
     document.getElementById('sRankBadge').innerHTML = '';
     document.getElementById('sRankBadge').appendChild(badge);

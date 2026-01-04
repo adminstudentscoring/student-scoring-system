@@ -309,7 +309,7 @@ function renderClassView() {
 
         return `
             <div class="class-student-card" data-student-id="${student.id}">
-                ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge">` : ''}
+                ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge" onerror="console.warn('[level-badge] failed', this.src); this.remove();">` : ''}
                 <div class="class-student-row class-student-row-1">
                     <h3 class="class-student-name">${escapeHtml(student.name)}</h3>
                 </div>

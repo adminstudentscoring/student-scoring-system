@@ -138,6 +138,23 @@ app.get('/favicon.ico', (req, res) => {
   res.status(204).end();
 });
 
+// Serve level badges explicitly (and log missing files) to make production debugging easy.
+app.get('/assets/level-badge/:file', async (req, res) => {
+  try {
+    const raw = String(req.params.file || '');
+    const file = path.basename(raw); // prevent path traversal
+    const full = path.join(__dirname, 'public', 'assets', 'level-badge', file);
+    await fs.access(full);
+    return res.sendFile(full);
+  } catch (e) {
+    console.warn('GET /assets/level-badge/:file 404', {
+      file: String(req.params.file || ''),
+      error: String(e?.message || e)
+    });
+    return res.status(404).json({ error: 'Not found' });
+  }
+});
+
 // Redirect root domain to www subdomain
 // This handles the DNS limitation where @ (root domain) cannot have CNAME due to MX record conflict
 app.use((req, res, next) => {
@@ -171,6 +188,17 @@ app.use('/game', express.static(path.join(__dirname, 'game')));
 app.use('/game/puzzle-monster-fight', express.static(path.join(__dirname, 'game/puzzle-monster-fight')));
 // Serve standalone project monster-fight (now in game directory)
 app.use('/game/monster-fight', express.static(path.join(__dirname, 'game/monster-fight')));
+
+// Log whether level-badge assets exist at startup (helps diagnose production 404s).
+(async () => {
+  try {
+    const dir = path.join(__dirname, 'public', 'assets', 'level-badge');
+    const items = await fs.readdir(dir);
+    console.log(`[assets] level-badge: ${items.length} file(s)`);
+  } catch (e) {
+    console.warn('[assets] level-badge: missing/unreadable', String(e?.message || e));
+  }
+})();
 
 // Ensure data directory exists
 async function ensureDataDir() {
