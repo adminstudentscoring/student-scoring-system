@@ -57,17 +57,23 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab: fixed list viewport heights (per request) */
+/* Student Management tab (Option B): keep card height stable and set list viewport to show ~2.5 rows.
+   This avoids squashing cards (unlike Option A) and avoids large blank space. */
+:root {
+    --teacher-students-list-h: 470px; /* ~2.5 rows with current card sizing + gap */
+}
+
 #studentsTab #studentsList {
     flex: 0 0 auto;
-    height: 550px;
+    height: var(--teacher-students-list-h);
     max-height: none;
     overflow: auto;
 }
 
+/* Right card has footer (.class-actions); subtract it so BOTH WHITE CARDS end up same total height */
 #studentsTab #classStudentsList {
     flex: 0 0 auto;
-    height: 520px;
+    height: calc(var(--teacher-students-list-h) - var(--teacher-class-actions-h));
     max-height: none;
     overflow: auto;
 }
@@ -307,14 +313,6 @@ header h1 {
 #studentsTab #studentsList.students-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 10px;
-    /* Option A: stretch rows to fill the fixed viewport height (550px) */
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: minmax(0, 1fr);
-    align-content: stretch;
-}
-
-#studentsTab #studentsList.students-grid .student-card {
-    height: 100%;
 }
 
 #studentsListCard,
