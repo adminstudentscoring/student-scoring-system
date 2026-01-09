@@ -127,8 +127,9 @@ body.game-is-tactics-fighter .game-area-content {
 
 .tf-practice-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
+  max-width: 260px;
 }
 
 .tf-practice-btn {

@@ -38,6 +38,7 @@
     const m = String(mode || '').toLowerCase().trim();
     if (m === 'practice') return 'practice';
     if (m === 'challenge') return 'challenge';
+    if (m === 'builder') return 'builder';
     if (m === 'setting' || m === 'settings') return 'settings';
     return 'practice';
   }
@@ -52,6 +53,7 @@
   function renderShell({ role, players, mode }) {
     const playerName = players?.[0]?.name || 'Student';
     const playerId = players?.[0]?.studentId || '';
+    const isTeacher = String(role || '').toLowerCase() === 'teacher';
 
     return `
       <div class="tf-app">
@@ -63,6 +65,7 @@
           <div class="tf-nav" role="navigation" aria-label="Modes">
             <button type="button" class="tf-nav-btn ${mode === 'practice' ? 'is-active' : ''}" data-mode="practice">Practice</button>
             <button type="button" class="tf-nav-btn ${mode === 'challenge' ? 'is-active' : ''}" data-mode="challenge">Challenge</button>
+            ${isTeacher ? `<button type="button" class="tf-nav-btn ${mode === 'builder' ? 'is-active' : ''}" data-mode="builder">Builder</button>` : ''}
             <button type="button" class="tf-nav-btn ${mode === 'settings' ? 'is-active' : ''}" data-mode="settings">Setting</button>
           </div>
         </aside>
@@ -70,7 +73,7 @@
         <main class="tf-main">
           <div class="tf-container">
             <div class="tf-card tf-root-card">
-              <div class="tf-title">${mode === 'practice' ? 'Practice Mode' : mode === 'challenge' ? 'Challenge Mode' : 'Setting'}</div>
+              <div class="tf-title">${mode === 'practice' ? 'Practice Mode' : mode === 'challenge' ? 'Challenge Mode' : mode === 'builder' ? 'Builder' : 'Setting'}</div>
               <div class="tf-muted">Tactics Fighter</div>
               <div id="tfMain" style="margin-top:12px;"></div>
             </div>
@@ -120,8 +123,18 @@
     `;
   }
 
+  function renderBuilder() {
+    return `
+      <div>
+        <div class="tf-section-title">Builder</div>
+        <div style="color:#6b7280;">Coming soon.</div>
+      </div>
+    `;
+  }
+
   function renderMode(mode) {
     if (mode === 'challenge') return renderChallenge();
+    if (mode === 'builder') return renderBuilder();
     if (mode === 'settings') return renderSettings();
     return renderPractice();
   }
