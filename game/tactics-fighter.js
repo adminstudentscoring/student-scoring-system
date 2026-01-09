@@ -747,14 +747,6 @@
 
                 <div>
                   <div class="tf-field">
-                    <label>Side to move</label>
-                    <select id="tfSideSelect" class="tf-select">
-                      <option value="w">White to move</option>
-                      <option value="b">Black to move</option>
-                    </select>
-                  </div>
-
-                  <div class="tf-field">
                     <label>Pieces</label>
                     <div id="tfPalette" class="tf-piece-palette"></div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
@@ -762,6 +754,14 @@
                       <button id="tfClearBoard" class="btn btn-secondary" type="button">Clear board</button>
                       <button id="tfStartPos" class="btn btn-secondary" type="button">Start position</button>
                     </div>
+                  </div>
+
+                  <div class="tf-field">
+                    <label>Side to move</label>
+                    <select id="tfSideSelect" class="tf-select">
+                      <option value="w">White to move</option>
+                      <option value="b">Black to move</option>
+                    </select>
                   </div>
 
                   <div class="tf-field">
@@ -790,6 +790,7 @@
                     </div>
                     <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
                       <button id="tfEngineLoadBtn" class="btn btn-primary" type="button">Engine Load</button>
+                      <button id="tfEngineClearBtn" class="btn btn-secondary" type="button">Clear Engine Load</button>
                       <button id="tfSavePuzzleBtn" class="btn btn-success" type="button" disabled>Confirm & Save</button>
                     </div>
                   </div>
@@ -820,6 +821,7 @@
       const paletteEl = host.querySelector('#tfPalette');
       const engineOutEl = host.querySelector('#tfEngineOut');
       const saveBtn = host.querySelector('#tfSavePuzzleBtn');
+      const selectedAnswerMultiPv = new Set();
 
       function formatPvWithMoveNumbers(fen, pvSan) {
         const parts = String(fen || '').trim().split(/\s+/);
@@ -896,10 +898,18 @@
 
       function setEngineOut(html) { if (engineOutEl) engineOutEl.innerHTML = html; }
 
+      function updateSaveEnabled() {
+        if (!saveBtn) return;
+        const hasEngine = !!(lastEngine && Array.isArray(lastEngine.lines) && lastEngine.lines.length);
+        const hasPick = selectedAnswerMultiPv.size > 0;
+        saveBtn.disabled = !(hasEngine && hasPick);
+      }
+
       // init editor
       syncFenText();
       renderBoard();
       renderPalette();
+      updateSaveEnabled();
 
       boardEl?.addEventListener('click', (e) => {
         const sq = e.target && e.target.closest ? e.target.closest('.tf-sq') : null;
@@ -973,6 +983,8 @@
           const fen = String(fenInput?.value || '').trim();
           const multipv = Math.max(1, Math.min(10, Number(multiPvEl?.value || 1) || 1));
           const pvPlies = Math.max(1, Math.min(32, Number(pvPliesEl?.value || 8) || 8));
+          selectedAnswerMultiPv.clear();
+          updateSaveEnabled();
           setEngineOut(`<div class="tf-muted">Loading engine...</div>`);
           const data = await engineAnalyze({ fen, multipv, pvPlies });
           lastEngine = data;
@@ -981,13 +993,42 @@
             const score = ln?.score?.mate != null ? `mate ${ln.score.mate}` : `cp ${ln?.score?.cp ?? 0}`;
             const pv = formatPvWithMoveNumbers(fen, ln.pvSan);
             const fallback = Array.isArray(ln.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
-            return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(String(ln.multiPv || 1))} · ${escapeHtml(score)}</div><div class="tf-line-meta">${pv || fallback}</div></div>`;
+            const mp = String(ln.multiPv || 1);
+            return `
+              <div class="tf-line">
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                  <label style="display:flex; gap:10px; align-items:center; cursor:pointer;">
+                    <input type="checkbox" data-tf-answer="${escapeHtml(mp)}" style="width:18px; height:18px;">
+                    <div class="tf-line-title">#${escapeHtml(mp)} · ${escapeHtml(score)}</div>
+                  </label>
+                </div>
+                <div class="tf-line-meta">${pv || fallback}</div>
+              </div>
+            `;
           }).join('') : `<div class="tf-muted">No lines.</div>`);
-          if (saveBtn) saveBtn.disabled = false;
+          updateSaveEnabled();
         } catch (e) {
           setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
-          if (saveBtn) saveBtn.disabled = true;
+          selectedAnswerMultiPv.clear();
+          updateSaveEnabled();
         }
+      });
+
+      host.querySelector('#tfEngineClearBtn')?.addEventListener('click', () => {
+        lastEngine = null;
+        selectedAnswerMultiPv.clear();
+        setEngineOut('');
+        updateSaveEnabled();
+      });
+
+      engineOutEl?.addEventListener('change', (e) => {
+        const cb = e.target && e.target.closest ? e.target.closest('input[type="checkbox"][data-tf-answer]') : null;
+        if (!cb) return;
+        const mp = String(cb.getAttribute('data-tf-answer') || '').trim();
+        if (!mp) return;
+        if (cb.checked) selectedAnswerMultiPv.add(mp);
+        else selectedAnswerMultiPv.delete(mp);
+        updateSaveEnabled();
       });
 
       host.querySelector('#tfSavePuzzleBtn')?.addEventListener('click', async () => {
@@ -995,13 +1036,26 @@
           applyFenText();
           const fen = String(fenInput?.value || '').trim();
           if (!fen) throw new Error('Missing FEN');
+          if (!lastEngine) throw new Error('Please run Engine Load first');
+          if (!selectedAnswerMultiPv.size) throw new Error('Please select at least 1 answer line');
           const bucket = getBuilderBucket();
+
+          // Keep only selected lines as accepted answers.
+          const keep = new Set(Array.from(selectedAnswerMultiPv));
+          const allLines = Array.isArray(lastEngine?.lines) ? lastEngine.lines : [];
+          const selectedLines = allLines.filter((ln) => keep.has(String(ln?.multiPv || '1')));
+          const solutions = {
+            ...lastEngine,
+            acceptedMultiPv: Array.from(keep),
+            acceptedLines: selectedLines
+          };
+
           const payload = {
             fen,
             engineDepth: 16,
             multipv: Number(multiPvEl?.value || 1) || 1,
             pvPlies: Number(pvPliesEl?.value || 8) || 8,
-            solutions: lastEngine || null,
+            solutions,
             meta: { bucket }
           };
           await builderCreatePuzzle(subtopicId, payload);
