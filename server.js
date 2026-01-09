@@ -3469,8 +3469,8 @@ app.get('/api/statistics/:period', async (req, res) => {
 });
 
 // ==================== Monster Fight / Game APIs (moved) ====================
-const { registerMonsterFightGameRoutes } = require('./server/routes/monsterFightGameRoutes');
-registerMonsterFightGameRoutes(app, {
+const { registerGameRoutes } = require('./server/routes/gameRoutes');
+registerGameRoutes(app, {
   fs,
   path,
   authenticateUser,
