@@ -161,7 +161,9 @@ function registerTacticsFighterRoutes(app, deps) {
 
   async function resolveOrgId(req) {
     if (!resolveOrgIdFromUser) return null;
-    return await resolveOrgIdFromUser(req.user).catch(() => null);
+    // resolveOrgIdFromUser may be sync (returns string) or async (returns Promise).
+    // Normalize to Promise to avoid ".catch is not a function" runtime errors.
+    return await Promise.resolve(resolveOrgIdFromUser(req.user)).catch(() => null);
   }
 
   // Public (used by game-window UI)
