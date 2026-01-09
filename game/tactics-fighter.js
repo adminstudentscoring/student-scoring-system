@@ -61,7 +61,12 @@
 
   async function tfJson(resp) {
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data?.error || `Request failed (${resp.status})`);
+    if (!resp.ok) {
+      const base = String(data?.error || `Request failed (${resp.status})`);
+      const details = data && Object.prototype.hasOwnProperty.call(data, 'details') ? String(data.details || '').trim() : '';
+      const suffix = details ? ` · ${details}` : '';
+      throw new Error(`${base} [${resp.status}]${suffix}`);
+    }
     return data;
   }
 
