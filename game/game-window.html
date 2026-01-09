@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/game/no-blunder.css">
     <link rel="stylesheet" href="/game/hope-mate.css">
     <link rel="stylesheet" href="/game/blunders/blunders.css">
+    <link rel="stylesheet" href="/game/tactics-fighter.css">
     <link rel="stylesheet" href="/game/vchess-platform/vchess-platform.css">
     <link rel="stylesheet" href="/game/vchess-platform/normal-chess.css">
     <style>
@@ -212,6 +213,27 @@
                         window.initBlunders();
                     } else {
                         showError('Blunders script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'tacticsFighter') {
+                    content.innerHTML = `
+                        <div id="tacticsFighterRoot" class="tactics-fighter-root">
+                            <h2>⚔️ Tactics Fighter</h2>
+                            <p>Loading...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('tacticsFighterPlayers');
+                        if (storedPlayers) {
+                            window.tacticsFighterPlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore tactics fighter players from storage:', error);
+                    }
+                    await loadScript('/game/tactics-fighter.js');
+                    if (window.initTacticsFighter) {
+                        window.initTacticsFighter();
+                    } else {
+                        showError('Tactics Fighter script loaded but init function missing.');
                     }
                 } else if (gameKey === 'vChessPlatform') {
                     content.innerHTML = `

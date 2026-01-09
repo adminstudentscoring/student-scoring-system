@@ -87,6 +87,7 @@ const BLUNDERS_CHALLENGE_SESSIONS_FILE = path.join(__dirname, process.env.BLUNDE
 const BLUNDERS_CHALLENGE_LEADERBOARD_FILE = path.join(__dirname, process.env.BLUNDERS_CHALLENGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'blunders-challenge-leaderboard.json'));
 const BLUNDERS_TEACHER_JOBS_FILE = path.join(__dirname, process.env.BLUNDERS_TEACHER_JOBS_FILE || path.join(DATA_DIR, 'blunders-teacher-jobs.json'));
 const CHESSCOM_RATINGS_FILE = path.join(__dirname, process.env.CHESSCOM_RATINGS_FILE || path.join(DATA_DIR, 'chesscom-ratings.json'));
+const TACTICS_FIGHTER_ATTEMPTS_FILE = path.join(__dirname, process.env.TACTICS_FIGHTER_ATTEMPTS_FILE || path.join(DATA_DIR, 'tactics-fighter-attempts.jsonl'));
 const USERS_FILE = path.join(__dirname, process.env.USERS_FILE || path.join(DATA_DIR, 'users.txt'));
 const ORGANIZATIONS_FILE = path.join(__dirname, process.env.ORGANIZATIONS_FILE || path.join(DATA_DIR, 'organizations.txt'));
 const COURSES_FILE = path.join(__dirname, process.env.COURSES_FILE || path.join(DATA_DIR, 'courses.txt'));
@@ -3338,6 +3339,20 @@ registerGameRoutes(app, {
   HOPE_MATE_LEADERBOARD_FILE,
   HOPE_MATE_CHALLENGE_LEADERBOARD_FILE,
   HOPE_MATE_STAGE_PUZZLES_FILE
+});
+
+// ==================== Tactics Fighter APIs (scaffold) ====================
+const { registerTacticsFighterRoutes } = require('./server/routes/tacticsFighterRoutes');
+registerTacticsFighterRoutes(app, {
+  fs,
+  path,
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  readData,
+  filterStudentsByOrganization,
+  resolveOrgIdFromUser,
+  TACTICS_FIGHTER_ATTEMPTS_FILE
 });
 
 // ============================

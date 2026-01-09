@@ -191,6 +191,7 @@
       royalExchange: 'adminGameSettingRoyalExchangePanel',
       monsterFight: 'adminGameSettingMonsterFightPanel',
       puzzleMonsterFight: 'adminGameSettingPuzzleMonsterFightPanel',
+      tacticsFighter: 'adminGameSettingTacticsFighterPanel',
       chessCom: 'adminGameSettingChessComPanel',
       noBlunder: 'adminGameSettingNoBlunderPanel',
       hopeMate: 'adminGameSettingHopeMatePanel'

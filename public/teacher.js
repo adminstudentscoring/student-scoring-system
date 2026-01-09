@@ -1110,7 +1110,7 @@ function initRightSidebar() {
 // Game Zone Modal Functions
 let gameZoneModalSize = 'normal'; // 'normal', 'large', 'fullscreen'
 let selectedGameStudents = [];
-let applicationPickGameKey = null; // 'monsterFight'|'runningQueen'|'royalExchange'|'hopeMate'
+let applicationPickGameKey = null; // 'monsterFight'|'tacticsFighter'|'runningQueen'|'royalExchange'|'hopeMate'
 
 function openGameZoneModal() {
     const modal = document.getElementById('gameZoneModal');
@@ -1165,6 +1165,7 @@ function openApplicationStudentPicker(gameKey) {
     const titleEl = document.getElementById('gameZoneModalTitle');
     const label =
         applicationPickGameKey === 'monsterFight' ? 'Monster Fight' :
+        applicationPickGameKey === 'tacticsFighter' ? 'Tactics Fighter' :
         applicationPickGameKey === 'runningQueen' ? 'Running Queen' :
         applicationPickGameKey === 'royalExchange' ? 'Royal Exchange' :
         applicationPickGameKey === 'hopeMate' ? 'Hope Mate' : 'Application';
@@ -1254,6 +1255,7 @@ async function confirmApplicationStudentPicker() {
     });
 
     try {
+        if (key === 'tacticsFighter') localStorage.setItem('tacticsFighterPlayers', JSON.stringify(playerDetails));
         if (key === 'runningQueen') localStorage.setItem('runningQueenPlayers', JSON.stringify(playerDetails));
         if (key === 'royalExchange') localStorage.setItem('royalExchangePlayers', JSON.stringify(playerDetails));
         if (key === 'hopeMate') localStorage.setItem('hopeMatePlayers', JSON.stringify(playerDetails));
@@ -1264,6 +1266,11 @@ async function confirmApplicationStudentPicker() {
     // Launch
     if (key === 'monsterFight') {
         await startMonsterFight();
+    } else if (key === 'tacticsFighter') {
+        const url = '/game/game-window.html?game=tacticsFighter&role=teacher';
+        const w = window.open(url, '_blank');
+        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
+        else showNotification('Tactics Fighter opened in new tab', 'success');
     } else if (key === 'runningQueen') {
         const url = '/game/game-window.html?game=runningQueen';
         const w = window.open(url, '_blank');
@@ -1738,12 +1745,12 @@ async function startBlunders() {
                 .then(() => loadJs('/game/blunders/student.js'))
                 .then(() => loadJs('/game/blunders/blunders.js'))
                 .then(() => {
-                    window.blundersLoaded = true;
-                    ensureScriptLoaded();
+                window.blundersLoaded = true;
+                ensureScriptLoaded();
                 })
                 .catch((error) => {
                     console.error('Error loading blunders scripts:', error);
-                    showNotification('Failed to load Blunders scripts', 'error');
+                showNotification('Failed to load Blunders scripts', 'error');
                 });
         } else {
             ensureScriptLoaded();
@@ -2389,6 +2396,7 @@ const SHARE_APP_DEST_ORDER = [
     'game_runningQueen',
     'game_royalExchange',
     'game_hopeMate',
+    'game_tacticsFighter',
     'game_blunders'
 ];
 
@@ -2398,6 +2406,7 @@ const SHARE_APP_DEST_MAP = {
     game_runningQueen: { label: 'Running Queen', openGame: 'runningQueen' },
     game_royalExchange: { label: 'Royal Exchange', openGame: 'royalExchange' },
     game_hopeMate: { label: 'Hope Mate', openGame: 'hopeMate' },
+    game_tacticsFighter: { label: 'Tactics Fighter', openGame: 'tacticsFighter' },
     game_blunders: { label: 'Blunders', openGame: 'blunders' }
 };
 
