@@ -1110,7 +1110,7 @@ function initRightSidebar() {
 // Game Zone Modal Functions
 let gameZoneModalSize = 'normal'; // 'normal', 'large', 'fullscreen'
 let selectedGameStudents = [];
-let applicationPickGameKey = null; // 'monsterFight'|'tacticsFighter'|'runningQueen'|'royalExchange'|'hopeMate'
+let applicationPickGameKey = null; // 'monsterFight'|'runningQueen'|'royalExchange'|'hopeMate'
 
 function openGameZoneModal() {
     const modal = document.getElementById('gameZoneModal');
@@ -1165,7 +1165,6 @@ function openApplicationStudentPicker(gameKey) {
     const titleEl = document.getElementById('gameZoneModalTitle');
     const label =
         applicationPickGameKey === 'monsterFight' ? 'Monster Fight' :
-        applicationPickGameKey === 'tacticsFighter' ? 'Tactics Fighter' :
         applicationPickGameKey === 'runningQueen' ? 'Running Queen' :
         applicationPickGameKey === 'royalExchange' ? 'Royal Exchange' :
         applicationPickGameKey === 'hopeMate' ? 'Hope Mate' : 'Application';
@@ -1214,6 +1213,34 @@ function openPuzzleMonsterFightAsMe() {
 
 window.openPuzzleMonsterFightAsMe = openPuzzleMonsterFightAsMe;
 
+function openTacticsFighterAsMe() {
+    if (!currentUser || !currentUser.id) {
+        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
+        return;
+    }
+    const player = {
+        id: String(currentUser.id),
+        name: String(currentUser.name || currentUser.email || 'Teacher'),
+        studentId: String(currentUser.teacherId || currentUser.id)
+    };
+    try {
+        localStorage.setItem('tacticsFighterPlayers', JSON.stringify([player]));
+    } catch (error) {
+        console.warn('Unable to persist tacticsFighterPlayers to localStorage:', error);
+    }
+
+    const url = '/game/game-window.html?game=tacticsFighter&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Tactics Fighter opened in a new tab', 'success');
+}
+
+window.openTacticsFighterAsMe = openTacticsFighterAsMe;
+
 function openBlundersTeacherMode() {
     // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
     const url = '/game/game-window.html?game=blunders&role=teacher';
@@ -1255,7 +1282,6 @@ async function confirmApplicationStudentPicker() {
     });
 
     try {
-        if (key === 'tacticsFighter') localStorage.setItem('tacticsFighterPlayers', JSON.stringify(playerDetails));
         if (key === 'runningQueen') localStorage.setItem('runningQueenPlayers', JSON.stringify(playerDetails));
         if (key === 'royalExchange') localStorage.setItem('royalExchangePlayers', JSON.stringify(playerDetails));
         if (key === 'hopeMate') localStorage.setItem('hopeMatePlayers', JSON.stringify(playerDetails));
@@ -1266,11 +1292,6 @@ async function confirmApplicationStudentPicker() {
     // Launch
     if (key === 'monsterFight') {
         await startMonsterFight();
-    } else if (key === 'tacticsFighter') {
-        const url = '/game/game-window.html?game=tacticsFighter&role=teacher';
-        const w = window.open(url, '_blank');
-        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
-        else showNotification('Tactics Fighter opened in new tab', 'success');
     } else if (key === 'runningQueen') {
         const url = '/game/game-window.html?game=runningQueen';
         const w = window.open(url, '_blank');
