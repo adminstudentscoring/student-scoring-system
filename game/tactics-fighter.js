@@ -162,6 +162,13 @@
     return await tfJson(resp);
   }
 
+  async function builderDeletePuzzle(puzzleId) {
+    const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/puzzles/${encodeURIComponent(String(puzzleId || ''))}`, {
+      method: 'DELETE'
+    });
+    return await tfJson(resp);
+  }
+
   async function builderFetchTree() {
     const resp = await apiRequest('/api/teachers/tactics-fighter/builder/tree', { method: 'GET' });
     return await tfJson(resp);
@@ -391,6 +398,8 @@
         puzzlesLoaded: new Set()
       },
       puzzlesBySubtopic: new Map()
+      ,
+      puzzlePageBySubtopic: new Map()
     };
 
     function showBuilderMsg(type, text) {
@@ -476,6 +485,13 @@
                             const sOpen = ui.expanded.subtopic.has(sid);
                             const puzzlesLoaded = ui.expanded.puzzlesLoaded.has(sid);
                             const puzzles = ui.puzzlesBySubtopic.get(sid) || [];
+                            const perPage = 10;
+                            const page = Math.max(0, Number(ui.puzzlePageBySubtopic.get(sid) || 0) || 0);
+                            const maxPage = Math.max(0, Math.ceil(puzzles.length / perPage) - 1);
+                            const safePage = Math.min(page, maxPage);
+                            if (safePage !== page) ui.puzzlePageBySubtopic.set(sid, safePage);
+                            const start = safePage * perPage;
+                            const pageItems = puzzles.slice(start, start + perPage);
                             return `
                               <div class="tf-tree-card tf-tree-card--nested2">
                                 <div class="tf-tree-row">
@@ -492,16 +508,25 @@
                                   <div class="tf-tree-children">
                                     <div class="tf-muted">Puzzles: ${escapeHtml(String(puzzles.length))}</div>
                                     <div class="tf-puzzle-list">
-                                      ${puzzles.length ? puzzles.map(p => `
-                                        <div class="tf-tree-card tf-tree-card--nested2" style="display:flex; gap:12px; align-items:center; padding:10px;">
-                                          ${renderMiniBoardHtml(String(p.fen || ''))}
-                                          <div style="min-width:0;">
-                                            <div class="tf-tree-title" style="font-size:13px;">Puzzle #${escapeHtml(String(p.id || ''))}</div>
-                                            <div class="tf-puzzle-item" style="margin-top:6px;">${escapeHtml(String(p.fen || ''))}</div>
+                                      ${puzzles.length ? pageItems.map(p => `
+                                        <button type="button" class="tf-puzzle-card" data-tf-open-puzzle="${escapeHtml(String(p.id || ''))}" data-tf-subtopic="${escapeHtml(sid)}">
+                                          <div class="tf-puzzle-card-row">
+                                            ${renderMiniBoardHtml(String(p.fen || ''))}
+                                            <div style="min-width:0;">
+                                              <div class="tf-puzzle-title">Puzzle #${escapeHtml(String(p.id || ''))}</div>
+                                              <div class="tf-puzzle-meta">${escapeHtml(String(p.createdAt || ''))}</div>
+                                            </div>
                                           </div>
-                                        </div>
+                                        </button>
                                       `).join('') : `<div class="tf-muted">No puzzles loaded.</div>`}
                                     </div>
+                                    ${puzzles.length > perPage ? `
+                                      <div class="tf-pagination">
+                                        <div class="tf-page-label">Page ${escapeHtml(String(safePage + 1))} / ${escapeHtml(String(maxPage + 1))}</div>
+                                        <button type="button" class="btn btn-secondary btn-small" data-tf-page-prev="${escapeHtml(sid)}" ${safePage <= 0 ? 'disabled' : ''}>Prev</button>
+                                        <button type="button" class="btn btn-secondary btn-small" data-tf-page-next="${escapeHtml(sid)}" ${safePage >= maxPage ? 'disabled' : ''}>Next</button>
+                                      </div>
+                                    ` : ''}
                                   </div>
                                 ` : ''}
                               </div>
@@ -517,6 +542,34 @@
           </div>
         `;
       }).join('');
+    }
+
+    function formatPvWithMoveNumbersHtml(fen, pvSan) {
+      const parts = String(fen || '').trim().split(/\s+/);
+      const side = (parts[1] === 'b') ? 'b' : 'w';
+      const fullmove = Math.max(1, Number(parts[5] || 1) || 1);
+      const moves = Array.isArray(pvSan) ? pvSan.map(String).filter(Boolean) : [];
+      if (!moves.length) return '';
+
+      const lines = [];
+      let idx = 0;
+      let m = fullmove;
+
+      if (side === 'b') {
+        const b = moves[idx++];
+        if (b) lines.push(`${m}. ... ${b}`);
+        m += 1;
+      }
+
+      while (idx < moves.length) {
+        const w = moves[idx++] || '';
+        const b = moves[idx++] || '';
+        if (w && b) lines.push(`${m}. ${w} ${b}`);
+        else if (w) lines.push(`${m}. ${w}`);
+        m += 1;
+      }
+
+      return lines.map(escapeHtml).join('<br>');
     }
 
     function getBuilderBucket() {
@@ -612,7 +665,24 @@
             const id = String(toggleBtn.getAttribute('data-id') || '');
             if (!id) return;
             const set = kind === 'cat' ? ui.expanded.cat : kind === 'topic' ? ui.expanded.topic : ui.expanded.subtopic;
-            if (set.has(id)) set.delete(id); else set.add(id);
+            const wasOpen = set.has(id);
+            if (wasOpen) {
+              set.delete(id);
+              await builderRefresh();
+              return;
+            }
+            set.add(id);
+            // Auto-load puzzles on first open of a subtopic (no need to click Load).
+            if (kind === 'subtopic' && !ui.expanded.puzzlesLoaded.has(id)) {
+              try {
+                const data = await builderFetchPuzzles(id);
+                ui.puzzlesBySubtopic.set(id, Array.isArray(data.puzzles) ? data.puzzles : []);
+                ui.expanded.puzzlesLoaded.add(id);
+                ui.puzzlePageBySubtopic.set(id, 0);
+              } catch (e) {
+                showBuilderMsg('err', e?.message || String(e));
+              }
+            }
             await builderRefresh();
             return;
           }
@@ -698,10 +768,40 @@
               ui.puzzlesBySubtopic.set(sid, Array.isArray(data.puzzles) ? data.puzzles : []);
               ui.expanded.puzzlesLoaded.add(sid);
               ui.expanded.subtopic.add(sid);
+              ui.puzzlePageBySubtopic.set(sid, 0);
               await builderRefresh();
             } catch (e) {
               showBuilderMsg('err', e?.message || String(e));
             }
+            return;
+          }
+
+          const pagePrevBtn = t?.closest?.('[data-tf-page-prev]');
+          if (pagePrevBtn) {
+            const sid = String(pagePrevBtn.getAttribute('data-tf-page-prev') || '');
+            const cur = Number(ui.puzzlePageBySubtopic.get(sid) || 0) || 0;
+            ui.puzzlePageBySubtopic.set(sid, Math.max(0, cur - 1));
+            await builderRefresh();
+            return;
+          }
+
+          const pageNextBtn = t?.closest?.('[data-tf-page-next]');
+          if (pageNextBtn) {
+            const sid = String(pageNextBtn.getAttribute('data-tf-page-next') || '');
+            const cur = Number(ui.puzzlePageBySubtopic.get(sid) || 0) || 0;
+            ui.puzzlePageBySubtopic.set(sid, cur + 1);
+            await builderRefresh();
+            return;
+          }
+
+          const openPuzzleBtn = t?.closest?.('[data-tf-open-puzzle]');
+          if (openPuzzleBtn) {
+            const sid = String(openPuzzleBtn.getAttribute('data-tf-subtopic') || '');
+            const pid = String(openPuzzleBtn.getAttribute('data-tf-open-puzzle') || '');
+            const puzzles = ui.puzzlesBySubtopic.get(sid) || [];
+            const p = puzzles.find((x) => String(x?.id || '') === pid);
+            if (!p) return;
+            openPuzzleDetailModal({ subtopicId: sid, puzzle: p }).catch((e) => showBuilderMsg('err', e?.message || String(e)));
             return;
           }
 
@@ -719,6 +819,103 @@
         }
       }
     };
+
+    async function openPuzzleDetailModal({ subtopicId, puzzle }) {
+      const fen = String(puzzle?.fen || '').trim();
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfPuzzleDetailBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Puzzle detail" style="width: calc(100vw - 40px); max-width: 1400px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Puzzle #${escapeHtml(String(puzzle?.id || ''))}</div>
+              <button id="tfPuzzleDetailClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-modal-grid">
+                <div>
+                  <div class="tf-board" id="tfPuzzleDetailBoard" aria-label="Puzzle board"></div>
+                  <div class="tf-field">
+                    <label>FEN</label>
+                    <textarea class="tf-textarea" rows="3" readonly>${escapeHtml(fen)}</textarea>
+                  </div>
+                </div>
+                <div>
+                  <div class="tf-section-title">Answers</div>
+                  <div id="tfPuzzleDetailAnswers" class="tf-lines"></div>
+                  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                    <button id="tfPuzzleDeleteBtn" class="btn btn-danger" type="button">Delete</button>
+                    <button id="tfPuzzleCloseBtn" class="btn btn-secondary" type="button">Close</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfPuzzleDetailClose')?.addEventListener('click', close);
+      host.querySelector('#tfPuzzleCloseBtn')?.addEventListener('click', close);
+      host.querySelector('#tfPuzzleDetailBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfPuzzleDetailBackdrop') close();
+      });
+
+      // Render board
+      try {
+        const b = parseFenToBoard(fen);
+        const boardEl = host.querySelector('#tfPuzzleDetailBoard');
+        if (boardEl) {
+          const sqs = [];
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+              const isDark = (r + c) % 2 === 1;
+              const p = b && b[r] ? (b[r][c] || '') : '';
+              const src = p ? pieceImageSrc(p) : '';
+              const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+              sqs.push(`<div class="tf-sq ${isDark ? 'dark' : 'light'}">${img}</div>`);
+            }
+          }
+          boardEl.innerHTML = sqs.join('');
+        }
+      } catch {}
+
+      // Render answers
+      const answersEl = host.querySelector('#tfPuzzleDetailAnswers');
+      const sol = puzzle?.solutions && typeof puzzle.solutions === 'object' ? puzzle.solutions : null;
+      const accepted = Array.isArray(sol?.acceptedLines) ? sol.acceptedLines : null;
+      const lines = accepted && accepted.length ? accepted : (Array.isArray(sol?.lines) ? sol.lines : []);
+      const html = lines.length ? lines.map((ln) => {
+        const mp = String(ln?.multiPv || 1);
+        const scoreObj = ln?.score || {};
+        const score = (scoreObj && Object.prototype.hasOwnProperty.call(scoreObj, 'mate'))
+          ? `mate ${Number(scoreObj.mate) || 0}`
+          : `cp ${Number(scoreObj.cp) || 0}`;
+        const pv = formatPvWithMoveNumbersHtml(fen, ln?.pvSan);
+        const fallback = Array.isArray(ln?.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
+        return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(mp)} · ${escapeHtml(score)}</div><div class="tf-line-meta">${pv || fallback}</div></div>`;
+      }).join('') : `<div class="tf-muted">No answers saved.</div>`;
+      if (answersEl) answersEl.innerHTML = html;
+
+      host.querySelector('#tfPuzzleDeleteBtn')?.addEventListener('click', async () => {
+        const ok = confirm('Delete this puzzle?');
+        if (!ok) return;
+        await builderDeletePuzzle(puzzle?.id);
+        // refresh puzzles in this subtopic
+        const data = await builderFetchPuzzles(subtopicId);
+        ui.puzzlesBySubtopic.set(subtopicId, Array.isArray(data.puzzles) ? data.puzzles : []);
+        ui.expanded.puzzlesLoaded.add(subtopicId);
+        ui.expanded.subtopic.add(subtopicId);
+        // clamp page
+        const per = 10;
+        const total = ui.puzzlesBySubtopic.get(subtopicId).length;
+        const maxPage = Math.max(0, Math.ceil(total / per) - 1);
+        const cur = Number(ui.puzzlePageBySubtopic.get(subtopicId) || 0) || 0;
+        ui.puzzlePageBySubtopic.set(subtopicId, Math.min(cur, maxPage));
+        await builderRefresh();
+        close();
+      });
+    }
 
     async function openAddPuzzleModal(subtopicId) {
       const roleNow = String(new URLSearchParams(window.location.search).get('role') || '');

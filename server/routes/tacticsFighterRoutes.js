@@ -744,6 +744,30 @@ function registerTacticsFighterRoutes(app, deps) {
         }
       }
     );
+
+    app.delete(
+      "/api/teachers/tactics-fighter/builder/puzzles/:puzzleId",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        if (!(await requireDbReady(res))) return;
+        try {
+          const orgId = await resolveOrgId(req);
+          const id = String(req.params.puzzleId || '').trim();
+          if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
+          if (!id) return res.status(400).json({ ok: false, error: "Missing puzzleId" });
+          const r = await pool.query(
+            `DELETE FROM tactics_fighter_puzzles WHERE org_id = $1 AND id = $2`,
+            [orgId, id]
+          );
+          return res.json({ ok: true, deleted: Number(r.rowCount || 0) });
+        } catch (e) {
+          console.error('[tactics-fighter] delete puzzle error:', e);
+          return res.status(500).json({ ok: false, error: "Delete puzzle failed" });
+        }
+      }
+    );
   }
 }
 

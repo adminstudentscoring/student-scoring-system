@@ -232,6 +232,56 @@ body.game-is-tactics-fighter .game-area-content {
   font-size: 12px;
 }
 
+.tf-puzzle-card {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tf-puzzle-card:hover,
+.tf-puzzle-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  border-color: rgba(79, 70, 229, 0.55);
+}
+
+.tf-puzzle-card-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.tf-puzzle-title {
+  font-weight: 950;
+  color: #111827;
+}
+
+.tf-puzzle-meta {
+  color: #6b7280;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.tf-pagination {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.tf-page-label {
+  color: #6b7280;
+  font-weight: 900;
+  font-size: 12px;
+}
+
 .tf-modal-grid {
   display: grid;
   /* Make the right panel wider (as requested) while keeping board readable */
