@@ -242,6 +242,12 @@ body.game-is-tactics-fighter .game-area-content {
   text-align: left;
 }
 
+.tf-puzzles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
 .tf-puzzle-card:hover,
 .tf-puzzle-card:focus-visible {
   outline: none;

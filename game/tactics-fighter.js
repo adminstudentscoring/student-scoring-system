@@ -59,6 +59,20 @@
     return fetch(path, { ...options, headers });
   }
 
+  function getPublicStudentPassword() {
+    try { return String(localStorage.getItem('studentAccessPassword') || '').trim(); } catch { return ''; }
+  }
+
+  function getPublicStudentId(players) {
+    const p0 = Array.isArray(players) ? players[0] : null;
+    return String(p0?.id || '').trim();
+  }
+
+  function normalizeBucketKey(k) {
+    const s = String(k || '').trim().toLowerCase();
+    return s || 'beginner';
+  }
+
   async function tfJson(resp) {
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -137,6 +151,34 @@
     const placement = boardToFenPlacement(board);
     const stm = (String(side) === 'b') ? 'b' : 'w';
     return `${placement} ${stm} - - 0 1`;
+  }
+
+  async function studentFetchTree(studentId, bucket, password) {
+    const qp = new URLSearchParams();
+    qp.set('bucket', normalizeBucketKey(bucket));
+    if (password) qp.set('password', String(password));
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/tree?${qp.toString()}`, { method: 'GET' });
+    return await tfJson(resp);
+  }
+
+  async function studentFetchSubtopicPuzzles(studentId, subtopicId, bucket, page, pageSize, password) {
+    const qp = new URLSearchParams();
+    qp.set('bucket', normalizeBucketKey(bucket));
+    qp.set('page', String(page || 1));
+    qp.set('pageSize', String(pageSize || 10));
+    if (password) qp.set('password', String(password));
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/subtopics/${encodeURIComponent(String(subtopicId))}/puzzles?${qp.toString()}`, { method: 'GET' });
+    return await tfJson(resp);
+  }
+
+  async function studentPostAttempt(studentId, puzzleId, payload, password) {
+    const body = { ...(payload || {}) };
+    if (password) body.password = String(password);
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/puzzles/${encodeURIComponent(String(puzzleId))}/attempt`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    return await tfJson(resp);
   }
 
   async function builderFetchPuzzles(subtopicId) {
@@ -367,6 +409,9 @@
     const players = Array.isArray(window.tacticsFighterPlayers) ? window.tacticsFighterPlayers : [];
     const role = new URLSearchParams(window.location.search).get('role') || '';
     const mode = normalizeMode(getUrlMode());
+    const isTeacher = String(role || '').toLowerCase() === 'teacher';
+    const publicStudentId = isTeacher ? '' : getPublicStudentId(players);
+    const publicStudentPassword = isTeacher ? '' : getPublicStudentPassword();
 
     root.innerHTML = renderShell({ role, players, mode });
 
@@ -399,7 +444,22 @@
       },
       puzzlesBySubtopic: new Map()
       ,
-      puzzlePageBySubtopic: new Map()
+      puzzlePageBySubtopic: new Map(),
+      student: {
+        bucket: (() => {
+          try { return normalizeBucketKey(localStorage.getItem('tacticsFighterPracticeBucket') || 'beginner'); } catch { return 'beginner'; }
+        })(),
+        tree: null,
+        view: 'bucket',
+        categoryId: null,
+        topicId: null,
+        subtopicId: null,
+        puzzles: [],
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        runner: null
+      }
     };
 
     function showBuilderMsg(type, text) {
@@ -434,6 +494,274 @@
         }
       }
       return `<div class="tf-mini-board" aria-label="Mini board">${sqs.join('')}</div>`;
+    }
+
+    function renderStudentCategories(categories) {
+      const cats = Array.isArray(categories) ? categories : [];
+      if (!cats.length) return `<div class="tf-muted">No categories for this bucket yet.</div>`;
+      return `
+        <div class="tf-section-title">Categories</div>
+        <div class="tf-muted" style="margin-bottom:10px;">Pick a category to see topics.</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${cats.map((c) => `
+            <button type="button" class="btn btn-secondary" data-stu-cat="${escapeHtml(String(c.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(c.name || ''))}</strong>
+            </button>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderStudentTopics(category) {
+      const topics = Array.isArray(category?.topics) ? category.topics : [];
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Topics</div>
+            <div class="tf-muted">${escapeHtml(String(category?.name || ''))}</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-stu-back="categories">Back</button>
+        </div>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          ${topics.length ? topics.map((t) => `
+            <button type="button" class="btn btn-secondary" data-stu-topic="${escapeHtml(String(t.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(t.name || ''))}</strong>
+            </button>
+          `).join('') : `<div class="tf-muted">No topics yet.</div>`}
+        </div>
+      `;
+    }
+
+    function renderStudentSubtopics(category, topic) {
+      const subs = Array.isArray(topic?.subtopics) ? topic.subtopics : [];
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Subtopics</div>
+            <div class="tf-muted">${escapeHtml(String(category?.name || ''))} → ${escapeHtml(String(topic?.name || ''))}</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-stu-back="topics">Back</button>
+        </div>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          ${subs.length ? subs.map((s) => `
+            <button type="button" class="btn btn-secondary" data-stu-subtopic="${escapeHtml(String(s.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(s.name || ''))}</strong>
+              <span class="tf-muted" style="margin-left:8px;">(${Number(s.puzzleCount || 0)} puzzles)</span>
+            </button>
+          `).join('') : `<div class="tf-muted">No subtopics yet.</div>`}
+        </div>
+      `;
+    }
+
+    function renderStudentPuzzles(puzzles, page, pageSize, total) {
+      const list = Array.isArray(puzzles) ? puzzles : [];
+      const totalPages = Math.max(1, Math.ceil(Math.max(0, Number(total || 0)) / Math.max(1, Number(pageSize || 10))));
+      const p = Math.max(1, Number(page || 1));
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Puzzles</div>
+            <div class="tf-muted">Click a puzzle or press Start.</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button type="button" class="btn btn-primary" data-stu-start="1">Start</button>
+            <button type="button" class="btn btn-secondary" data-stu-back="subtopics">Back</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div class="tf-muted">Page ${p} / ${totalPages} · ${Number(total || 0)} puzzles</div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn btn-secondary" data-stu-page="prev" ${p <= 1 ? 'disabled' : ''}>Prev</button>
+            <button type="button" class="btn btn-secondary" data-stu-page="next" ${p >= totalPages ? 'disabled' : ''}>Next</button>
+          </div>
+        </div>
+
+        <div class="tf-puzzles-grid" style="margin-top:12px;">
+          ${list.length ? list.map((pz, idx) => `
+            <button type="button" class="tf-puzzle-card" data-stu-open-puzzle="${escapeHtml(String(pz.id))}" data-stu-idx="${idx}" aria-label="Open puzzle">
+              <div style="position:relative;">
+                ${renderMiniBoardHtml(pz.fen)}
+                ${pz.completed ? `<div style="position:absolute; right:8px; top:8px; font-size:20px; font-weight:900; color:#16a34a;">✓</div>` : ''}
+              </div>
+            </button>
+          `).join('') : `<div class="tf-muted">No puzzle is found.</div>`}
+        </div>
+      `;
+    }
+
+    function openStudentRunnerModal() {
+      const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
+      if (!puzzles.length) return;
+      const startIdx = Math.max(0, Math.min(puzzles.length - 1, Number(ui.student.runner?.index || 0)));
+      ui.student.runner = {
+        index: startIdx,
+        movesUci: [],
+        selectedFrom: null
+      };
+
+      const modal = document.createElement('div');
+      modal.className = 'vcp-modal-backdrop';
+      modal.innerHTML = `
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Practice" style="width: calc(100vw - 40px); max-width: 1100px;">
+          <div class="vcp-modal-header">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
+              <div>
+                <div style="font-weight:900;">Practice</div>
+                <div class="tf-muted" id="tfStuRunnerMeta"></div>
+              </div>
+              <button type="button" class="btn btn-secondary" data-stu-runner-close="1">Close</button>
+            </div>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:start;">
+              <div>
+                <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
+              </div>
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <div class="tf-section-title" style="margin:0;">Moves</div>
+                  <div style="display:flex; gap:10px;">
+                    <button type="button" class="btn btn-secondary" data-stu-prev="1">←</button>
+                    <button type="button" class="btn btn-secondary" data-stu-next="1">→</button>
+                  </div>
+                </div>
+                <div id="tfStuRunnerMoves" style="margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space:pre-wrap;"></div>
+                <div id="tfStuRunnerMsg" class="tf-builder-msg" style="display:none; margin-top:10px;"></div>
+                <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
+                  <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const close = () => { try { document.body.removeChild(modal); } catch {} };
+      const setMsg = (type, text) => {
+        const el = modal.querySelector('#tfStuRunnerMsg');
+        if (!el) return;
+        el.style.display = 'block';
+        el.classList.remove('ok', 'err');
+        if (type === 'ok') el.classList.add('ok');
+        if (type === 'err') el.classList.add('err');
+        el.textContent = String(text || '');
+      };
+      const clearMsg = () => {
+        const el = modal.querySelector('#tfStuRunnerMsg');
+        if (!el) return;
+        el.style.display = 'none';
+        el.textContent = '';
+        el.classList.remove('ok', 'err');
+      };
+
+      function renderBoardInteractive(fen) {
+        const host = modal.querySelector('#tfStuRunnerBoard');
+        if (!host) return;
+        const b = parseFenToBoard(fen);
+        if (!b) { host.innerHTML = ''; return; }
+        const sqs = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const isDark = (r + c) % 2 === 1;
+            const coord = rcToCoord(r, c);
+            const piece = b[r][c] || '';
+            const src = piece ? pieceImageSrc(piece) : '';
+            const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+            const sel = ui.student.runner.selectedFrom === coord ? ' style="outline:3px solid #ef4444; outline-offset:-3px;"' : '';
+            sqs.push(`<button type="button" class="tf-mini-sq ${isDark ? 'dark' : 'light'}" data-stu-sq="${escapeHtml(coord)}"${sel}>${img}</button>`);
+          }
+        }
+        host.innerHTML = `<div class="tf-mini-board" style="width:100%; height:auto; grid-template-columns: repeat(8, 1fr);">${sqs.join('')}</div>`;
+      }
+
+      function currentPuzzle() {
+        const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
+        return puzzles[ui.student.runner.index] || null;
+      }
+
+      function renderRunner() {
+        clearMsg();
+        const pz = currentPuzzle();
+        if (!pz) return close();
+        const meta = modal.querySelector('#tfStuRunnerMeta');
+        if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
+        const movesEl = modal.querySelector('#tfStuRunnerMoves');
+        if (movesEl) movesEl.textContent = ui.student.runner.movesUci.join(' ');
+        renderBoardInteractive(pz.fen);
+      }
+
+      async function submitMove() {
+        const pz = currentPuzzle();
+        if (!pz) return;
+        const moves = ui.student.runner.movesUci.slice();
+        if (!moves.length) return;
+        const last = moves[moves.length - 1];
+        try {
+          const out = await studentPostAttempt(publicStudentId, pz.id, {
+            bucket: ui.student.bucket,
+            subtopicId: ui.student.subtopicId,
+            movesUci: moves,
+            plyIndex: moves.length - 1,
+            moveUci: last
+          }, publicStudentPassword);
+
+          if (out.completed) {
+            pz.completed = true;
+            setMsg('ok', 'Correct. Puzzle completed.');
+          } else if (out.correctPrefix) {
+            setMsg('ok', 'Correct so far.');
+          } else {
+            setMsg('err', 'Wrong move.');
+          }
+        } catch (e) {
+          setMsg('err', e?.message || String(e));
+        }
+      }
+
+      modal.addEventListener('click', (ev) => {
+        const t = ev.target;
+        if (!(t instanceof Element)) return;
+        if (t.closest('[data-stu-runner-close]')) return close();
+        if (t.closest('[data-stu-prev]')) {
+          ui.student.runner.index = Math.max(0, ui.student.runner.index - 1);
+          ui.student.runner.movesUci = [];
+          ui.student.runner.selectedFrom = null;
+          return renderRunner();
+        }
+        if (t.closest('[data-stu-next]')) {
+          ui.student.runner.index = Math.min(ui.student.puzzles.length - 1, ui.student.runner.index + 1);
+          ui.student.runner.movesUci = [];
+          ui.student.runner.selectedFrom = null;
+          return renderRunner();
+        }
+        if (t.closest('[data-stu-undo]')) {
+          ui.student.runner.movesUci.pop();
+          ui.student.runner.selectedFrom = null;
+          return renderRunner();
+        }
+        if (t.closest('[data-stu-submit]')) {
+          return submitMove();
+        }
+        const sq = t.closest('[data-stu-sq]');
+        if (sq) {
+          const coord = String(sq.getAttribute('data-stu-sq') || '').trim();
+          if (!coord) return;
+          if (!ui.student.runner.selectedFrom) {
+            ui.student.runner.selectedFrom = coord;
+          } else {
+            const from = ui.student.runner.selectedFrom;
+            const to = coord;
+            ui.student.runner.selectedFrom = null;
+            if (from !== to) ui.student.runner.movesUci.push(`${from}${to}`);
+          }
+          return renderRunner();
+        }
+      });
+
+      renderRunner();
     }
 
     function renderBuilderTree(categories) {
@@ -605,6 +933,72 @@
       return String(v).trim();
     }
 
+    function studentFindCategoryById(cid) {
+      const cats = Array.isArray(ui.student.tree?.categories) ? ui.student.tree.categories : [];
+      return cats.find((c) => String(c.id) === String(cid)) || null;
+    }
+
+    function studentFindTopicById(category, tid) {
+      const topics = Array.isArray(category?.topics) ? category.topics : [];
+      return topics.find((t) => String(t.id) === String(tid)) || null;
+    }
+
+    async function studentLoadTree(bucket) {
+      ui.student.bucket = normalizeBucketKey(bucket);
+      try { localStorage.setItem('tacticsFighterPracticeBucket', ui.student.bucket); } catch {}
+      if (!publicStudentId) throw new Error('Missing student id');
+      const tree = await studentFetchTree(publicStudentId, ui.student.bucket, publicStudentPassword);
+      ui.student.tree = tree;
+      return tree;
+    }
+
+    async function studentShowCategories(bucket) {
+      setOut(`<div class="tf-muted">Loading...</div>`);
+      try {
+        const tree = await studentLoadTree(bucket);
+        ui.student.view = 'categories';
+        ui.student.categoryId = null;
+        ui.student.topicId = null;
+        ui.student.subtopicId = null;
+        setOut(renderStudentCategories(tree.categories || []));
+      } catch (e) {
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    async function studentOpenSubtopic(subtopicId) {
+      ui.student.view = 'puzzles';
+      ui.student.subtopicId = String(subtopicId);
+      ui.student.page = 1;
+      setOut(`<div class="tf-muted">Loading puzzles...</div>`);
+      try {
+        const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
+        ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
+        ui.student.total = Number(data.total || 0);
+        setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
+      } catch (e) {
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    async function studentChangePuzzlePage(dir) {
+      const total = Number(ui.student.total || 0);
+      const pageSize = Number(ui.student.pageSize || 10);
+      const totalPages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
+      const next = dir === 'next' ? Math.min(totalPages, ui.student.page + 1) : Math.max(1, ui.student.page - 1);
+      if (next === ui.student.page) return;
+      ui.student.page = next;
+      setOut(`<div class="tf-muted">Loading puzzles...</div>`);
+      try {
+        const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
+        ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
+        ui.student.total = Number(data.total || 0);
+        setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
+      } catch (e) {
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
     const activateMode = (m) => {
       const nm = normalizeMode(m);
       setUrlMode(nm);
@@ -618,7 +1012,22 @@
         const titleEl = root.querySelector('.tf-title');
         if (titleEl) titleEl.textContent = (nm === 'practice' ? 'Practice Mode' : nm === 'challenge' ? 'Challenge Mode' : nm === 'builder' ? 'Builder' : 'Setting');
       } catch {}
-      if (cfg) {
+      if (nm === 'practice' && !isTeacher && ui.student.tree && ui.student.view !== 'bucket') {
+        if (ui.student.view === 'categories') {
+          setOut(renderStudentCategories(ui.student.tree.categories || []));
+        } else if (ui.student.view === 'topics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          setOut(cat ? renderStudentTopics(cat) : renderStudentCategories(ui.student.tree.categories || []));
+        } else if (ui.student.view === 'subtopics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          const topic = studentFindTopicById(cat, ui.student.topicId);
+          setOut((cat && topic) ? renderStudentSubtopics(cat, topic) : renderStudentCategories(ui.student.tree.categories || []));
+        } else if (ui.student.view === 'puzzles') {
+          setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
+        } else {
+          setOut(renderStudentCategories(ui.student.tree.categories || []));
+        }
+      } else if (cfg) {
         setOut(`<div style="color:#16a34a; font-weight:800;">API OK</div><div style="color:#6b7280; margin-top:4px;">${escapeHtml(cfg.version || '')}</div>`);
       } else {
         setOut(`<div style="color:#6b7280;">API not ready (ok for now).</div>`);
@@ -1276,14 +1685,106 @@
       });
     });
 
-    // Practice button click (event delegation)
+    // Practice + Student navigation (event delegation)
     root.addEventListener('click', (e) => {
-      const t = e.target && e.target.closest ? e.target.closest('[data-practice]') : null;
-      if (!t) return;
-      const bucket = String(t.getAttribute('data-practice') || '');
-      if (!bucket) return;
-      try { localStorage.setItem('tacticsFighterPracticeBucket', bucket); } catch {}
-      setOut(`<div style="font-weight:900;">Selected:</div><div>${escapeHtml(bucket)}</div>`);
+      const target = e.target && e.target.closest ? e.target.closest(
+        '[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle]'
+      ) : null;
+      if (!target) return;
+
+      // Bucket selection (Beginner/400up/...)
+      const bucketBtn = target.closest('[data-practice]');
+      if (bucketBtn) {
+        const bucket = String(bucketBtn.getAttribute('data-practice') || '').trim();
+        if (!bucket) return;
+        if (isTeacher) {
+          try { localStorage.setItem('tacticsFighterPracticeBucket', bucket); } catch {}
+          setOut(`<div style="font-weight:900;">Selected:</div><div>${escapeHtml(bucket)}</div>`);
+          return;
+        }
+        return void studentShowCategories(bucket);
+      }
+
+      if (isTeacher) return; // below is student-only
+
+      const backBtn = target.closest('[data-stu-back]');
+      if (backBtn) {
+        const dest = String(backBtn.getAttribute('data-stu-back') || '').trim();
+        if (dest === 'categories') {
+          ui.student.view = 'categories';
+          ui.student.categoryId = null;
+          ui.student.topicId = null;
+          ui.student.subtopicId = null;
+          return setOut(renderStudentCategories(ui.student.tree?.categories || []));
+        }
+        if (dest === 'topics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          if (!cat) return;
+          ui.student.view = 'topics';
+          ui.student.topicId = null;
+          ui.student.subtopicId = null;
+          return setOut(renderStudentTopics(cat));
+        }
+        if (dest === 'subtopics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          const topic = studentFindTopicById(cat, ui.student.topicId);
+          if (!cat || !topic) return;
+          ui.student.view = 'subtopics';
+          ui.student.subtopicId = null;
+          return setOut(renderStudentSubtopics(cat, topic));
+        }
+        return;
+      }
+
+      const catBtn = target.closest('[data-stu-cat]');
+      if (catBtn) {
+        const cid = String(catBtn.getAttribute('data-stu-cat') || '').trim();
+        const cat = studentFindCategoryById(cid);
+        if (!cat) return;
+        ui.student.view = 'topics';
+        ui.student.categoryId = cid;
+        ui.student.topicId = null;
+        ui.student.subtopicId = null;
+        return setOut(renderStudentTopics(cat));
+      }
+
+      const topicBtn = target.closest('[data-stu-topic]');
+      if (topicBtn) {
+        const tid = String(topicBtn.getAttribute('data-stu-topic') || '').trim();
+        const cat = studentFindCategoryById(ui.student.categoryId);
+        const topic = studentFindTopicById(cat, tid);
+        if (!cat || !topic) return;
+        ui.student.view = 'subtopics';
+        ui.student.topicId = tid;
+        ui.student.subtopicId = null;
+        return setOut(renderStudentSubtopics(cat, topic));
+      }
+
+      const subBtn = target.closest('[data-stu-subtopic]');
+      if (subBtn) {
+        const sid = String(subBtn.getAttribute('data-stu-subtopic') || '').trim();
+        if (!sid) return;
+        return void studentOpenSubtopic(sid);
+      }
+
+      const pageBtn = target.closest('[data-stu-page]');
+      if (pageBtn) {
+        const dir = String(pageBtn.getAttribute('data-stu-page') || '').trim();
+        return void studentChangePuzzlePage(dir);
+      }
+
+      const startBtn = target.closest('[data-stu-start]');
+      if (startBtn) {
+        ui.student.runner = { index: 0 };
+        return void openStudentRunnerModal();
+      }
+
+      const openBtn = target.closest('[data-stu-open-puzzle]');
+      if (openBtn) {
+        const idx = Number(openBtn.getAttribute('data-stu-idx') || 0);
+        ui.student.runner = { index: Number.isFinite(idx) ? idx : 0 };
+        return void openStudentRunnerModal();
+      }
     });
 
     // Initial render

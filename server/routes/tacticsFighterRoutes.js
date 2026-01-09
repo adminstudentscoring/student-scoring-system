@@ -122,6 +122,46 @@ async function ensureTfSchema(pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_puzzles_subtopic_idx ON tactics_fighter_puzzles(subtopic_id);`);
 }
 
+async function ensureTfStudentSchema(pool) {
+  // Idempotent schema create for safety (still recommend DB migrations).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tactics_fighter_student_progress (
+      org_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      puzzle_id BIGINT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'in_progress',
+      completed_at TIMESTAMPTZ,
+      last_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      attempts_count INT NOT NULL DEFAULT 0,
+      wrong_count INT NOT NULL DEFAULT 0,
+      meta JSONB,
+      PRIMARY KEY (org_id, student_id, puzzle_id)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_student_progress_org_student_idx ON tactics_fighter_student_progress(org_id, student_id);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tactics_fighter_student_attempts (
+      id BIGSERIAL PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      bucket TEXT,
+      subtopic_id BIGINT,
+      puzzle_id BIGINT NOT NULL,
+      attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      moves_uci JSONB,
+      move_uci TEXT,
+      ply_index INT,
+      correct_prefix BOOLEAN NOT NULL DEFAULT FALSE,
+      completed BOOLEAN NOT NULL DEFAULT FALSE,
+      chosen_line INT,
+      meta JSONB
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_student_attempts_org_student_idx ON tactics_fighter_student_attempts(org_id, student_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_student_attempts_puzzle_idx ON tactics_fighter_student_attempts(puzzle_id);`);
+}
+
 function registerTacticsFighterRoutes(app, deps) {
   if (!app) throw new Error("registerTacticsFighterRoutes: missing app");
   const fsPromises = deps?.fs;
@@ -149,6 +189,7 @@ function registerTacticsFighterRoutes(app, deps) {
       // Surface connection errors clearly (these were showing up as 500 in UI).
       await pool.query('SELECT 1 AS ok', []);
       await ensureTfSchema(pool);
+      await ensureTfStudentSchema(pool);
       return true;
     } catch (e) {
       console.error('[tactics-fighter] ensure schema failed:', e);
@@ -157,6 +198,74 @@ function registerTacticsFighterRoutes(app, deps) {
       res.status(isConn ? 503 : 500).json({ ok: false, error: isConn ? 'Postgres connection failed' : 'DB schema not ready', details: msg });
       return false;
     }
+  }
+
+  async function requirePublicStudent(req, res) {
+    if (typeof readData !== 'function') {
+      res.status(500).json({ ok: false, error: 'Server not configured (readData missing)' });
+      return null;
+    }
+    const studentId = String(req?.params?.id || '').trim();
+    const password =
+      (req?.query && Object.prototype.hasOwnProperty.call(req.query, 'password')) ? String(req.query.password || '') :
+      (req?.body && Object.prototype.hasOwnProperty.call(req.body, 'password')) ? String(req.body.password || '') :
+      '';
+
+    const data = await readData().catch(() => null);
+    const students = Array.isArray(data?.students) ? data.students : [];
+    const student = students.find((s) => String(s?.id || '') === studentId);
+    if (!student) {
+      res.status(404).json({ ok: false, error: 'Student not found' });
+      return null;
+    }
+
+    // Password protection: same rules as /api/public/students/:id
+    if (student.accessPassword) {
+      if (!password || password !== student.accessPassword) {
+        res.status(401).json({ ok: false, error: 'Invalid password' });
+        return null;
+      }
+    }
+
+    const orgId = String(student.organizationId || '').trim();
+    if (!orgId) {
+      res.status(403).json({ ok: false, error: 'Student not associated with organization' });
+      return null;
+    }
+
+    return {
+      studentId: String(student.id),
+      orgId,
+      student
+    };
+  }
+
+  function normalizeBucket(b) {
+    const s = String(b || '').trim().toLowerCase();
+    if (!s) return 'beginner';
+    return s;
+  }
+
+  function parseAcceptedLinesFromSolutions(solutions) {
+    const sol = solutions && typeof solutions === 'object' ? solutions : {};
+    const lines = Array.isArray(sol.acceptedLines) ? sol.acceptedLines : Array.isArray(sol.lines) ? sol.lines : [];
+    // Expect each line to include pvUci[].
+    const out = [];
+    for (const ln of lines) {
+      const pvUci = Array.isArray(ln?.pvUci) ? ln.pvUci : Array.isArray(ln?.uci) ? ln.uci : null;
+      if (!pvUci || !pvUci.length) continue;
+      out.push(pvUci.map((m) => String(m || '').trim().toLowerCase()).filter(Boolean));
+    }
+    return out;
+  }
+
+  function prefixMatches(line, moves) {
+    if (!Array.isArray(line) || !Array.isArray(moves)) return false;
+    if (moves.length > line.length) return false;
+    for (let i = 0; i < moves.length; i++) {
+      if (String(line[i] || '').toLowerCase() !== String(moves[i] || '').toLowerCase()) return false;
+    }
+    return true;
   }
 
   async function resolveOrgId(req) {
@@ -769,6 +878,267 @@ function registerTacticsFighterRoutes(app, deps) {
       }
     );
   }
+
+  // ----------------------------
+  // Public Student APIs (bucket scoped)
+  // ----------------------------
+
+  app.get('/api/public/students/:id/tactics-fighter/tree', async (req, res) => {
+    try {
+      const ctx = await requirePublicStudent(req, res);
+      if (!ctx) return;
+      if (!(await requireDbReady(res))) return;
+
+      const bucket = normalizeBucket(req.query?.bucket || 'beginner');
+      const orgId = ctx.orgId;
+
+      const catsRes = await pool.query(
+        `SELECT id, name FROM tactics_fighter_categories WHERE org_id = $1 AND bucket = $2 ORDER BY name ASC`,
+        [orgId, bucket]
+      );
+      const cats = catsRes.rows.map((r) => ({ id: String(r.id), name: String(r.name || ''), topics: [] }));
+      const catIds = cats.map((c) => Number(c.id)).filter((n) => Number.isFinite(n));
+
+      const topicsRes = catIds.length ? await pool.query(
+        `SELECT id, category_id, name FROM tactics_fighter_topics WHERE org_id = $1 AND category_id = ANY($2::bigint[]) ORDER BY name ASC`,
+        [orgId, catIds]
+      ) : { rows: [] };
+
+      const topicsByCat = new Map();
+      for (const t of topicsRes.rows) {
+        const cid = String(t.category_id);
+        if (!topicsByCat.has(cid)) topicsByCat.set(cid, []);
+        topicsByCat.get(cid).push({ id: String(t.id), name: String(t.name || ''), subtopics: [] });
+      }
+
+      const topicIds = topicsRes.rows.map((t) => Number(t.id)).filter((n) => Number.isFinite(n));
+      const subsRes = topicIds.length ? await pool.query(
+        `SELECT id, topic_id, name FROM tactics_fighter_subtopics WHERE org_id = $1 AND topic_id = ANY($2::bigint[]) ORDER BY name ASC`,
+        [orgId, topicIds]
+      ) : { rows: [] };
+
+      const subsByTopic = new Map();
+      for (const s of subsRes.rows) {
+        const tid = String(s.topic_id);
+        if (!subsByTopic.has(tid)) subsByTopic.set(tid, []);
+        subsByTopic.get(tid).push({ id: String(s.id), name: String(s.name || ''), puzzleCount: 0 });
+      }
+
+      const subtopicIds = subsRes.rows.map((s) => Number(s.id)).filter((n) => Number.isFinite(n));
+      const countsRes = subtopicIds.length ? await pool.query(
+        `SELECT subtopic_id, COUNT(*)::int AS cnt FROM tactics_fighter_puzzles WHERE org_id = $1 AND subtopic_id = ANY($2::bigint[]) GROUP BY subtopic_id`,
+        [orgId, subtopicIds]
+      ) : { rows: [] };
+      const cntBySub = new Map(countsRes.rows.map((r) => [String(r.subtopic_id), Number(r.cnt || 0)]));
+
+      // Stitch
+      for (const c of cats) {
+        const topics = topicsByCat.get(String(c.id)) || [];
+        for (const t of topics) {
+          const subs = subsByTopic.get(String(t.id)) || [];
+          for (const s of subs) {
+            s.puzzleCount = cntBySub.get(String(s.id)) || 0;
+          }
+          t.subtopics = subs;
+        }
+        c.topics = topics;
+      }
+
+      return res.json({ ok: true, bucket, categories: cats });
+    } catch (e) {
+      console.error('[tactics-fighter] public tree error:', e);
+      return res.status(500).json({ ok: false, error: 'Failed to load tree' });
+    }
+  });
+
+  app.get('/api/public/students/:id/tactics-fighter/subtopics/:subtopicId/puzzles', async (req, res) => {
+    try {
+      const ctx = await requirePublicStudent(req, res);
+      if (!ctx) return;
+      if (!(await requireDbReady(res))) return;
+
+      const bucket = normalizeBucket(req.query?.bucket || 'beginner');
+      const orgId = ctx.orgId;
+      const studentId = ctx.studentId;
+      const subtopicId = toRangeInt(req.params?.subtopicId, 1, 1_000_000_000, 0);
+      if (!subtopicId) return res.status(400).json({ ok: false, error: 'Invalid subtopicId' });
+
+      // Ensure this subtopic belongs to this org + bucket
+      const okRes = await pool.query(
+        `
+        SELECT s.id AS subtopic_id
+        FROM tactics_fighter_subtopics s
+        JOIN tactics_fighter_topics t ON t.id = s.topic_id
+        JOIN tactics_fighter_categories c ON c.id = t.category_id
+        WHERE s.org_id = $1 AND s.id = $2 AND c.bucket = $3
+        LIMIT 1
+        `,
+        [orgId, subtopicId, bucket]
+      );
+      if (!okRes.rows.length) return res.status(404).json({ ok: false, error: 'Subtopic not found' });
+
+      const page = toRangeInt(req.query?.page, 1, 1000000, 1);
+      const pageSize = toRangeInt(req.query?.pageSize, 1, 50, 10);
+      const offset = (page - 1) * pageSize;
+
+      const puzzlesRes = await pool.query(
+        `
+        SELECT id, fen, solutions, created_at
+        FROM tactics_fighter_puzzles
+        WHERE org_id = $1 AND subtopic_id = $2
+        ORDER BY created_at DESC, id DESC
+        LIMIT $3 OFFSET $4
+        `,
+        [orgId, subtopicId, pageSize, offset]
+      );
+
+      const totalRes = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM tactics_fighter_puzzles WHERE org_id = $1 AND subtopic_id = $2`,
+        [orgId, subtopicId]
+      );
+      const total = Number(totalRes.rows?.[0]?.cnt || 0);
+
+      const puzzleIds = puzzlesRes.rows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
+      const progRes = puzzleIds.length ? await pool.query(
+        `
+        SELECT puzzle_id, status, completed_at
+        FROM tactics_fighter_student_progress
+        WHERE org_id = $1 AND student_id = $2 AND puzzle_id = ANY($3::bigint[])
+        `,
+        [orgId, studentId, puzzleIds]
+      ) : { rows: [] };
+      const completedIds = new Set(progRes.rows.filter((r) => String(r.status) === 'completed').map((r) => String(r.puzzle_id)));
+
+      const puzzles = puzzlesRes.rows.map((r) => ({
+        id: String(r.id),
+        fen: String(r.fen || ''),
+        solutions: r.solutions && typeof r.solutions === 'object' ? r.solutions : {},
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
+        completed: completedIds.has(String(r.id))
+      }));
+
+      return res.json({
+        ok: true,
+        bucket,
+        subtopicId: String(subtopicId),
+        page,
+        pageSize,
+        total,
+        puzzles
+      });
+    } catch (e) {
+      console.error('[tactics-fighter] public puzzles error:', e);
+      return res.status(500).json({ ok: false, error: 'Failed to load puzzles' });
+    }
+  });
+
+  app.post('/api/public/students/:id/tactics-fighter/puzzles/:puzzleId/attempt', async (req, res) => {
+    try {
+      const ctx = await requirePublicStudent(req, res);
+      if (!ctx) return;
+      if (!(await requireDbReady(res))) return;
+
+      const orgId = ctx.orgId;
+      const studentId = ctx.studentId;
+      const bucket = normalizeBucket(req.body?.bucket || req.query?.bucket || 'beginner');
+      const puzzleId = toRangeInt(req.params?.puzzleId, 1, 9_000_000_000_000, 0);
+      if (!puzzleId) return res.status(400).json({ ok: false, error: 'Invalid puzzleId' });
+
+      const movesUciRaw = Array.isArray(req.body?.movesUci) ? req.body.movesUci : [];
+      const movesUci = movesUciRaw.map((m) => String(m || '').trim().toLowerCase()).filter(Boolean);
+      const plyIndex = Number.isFinite(Number(req.body?.plyIndex)) ? Number(req.body.plyIndex) : (movesUci.length ? movesUci.length - 1 : null);
+      const moveUci = String(req.body?.moveUci || (movesUci.length ? movesUci[movesUci.length - 1] : '') || '').trim().toLowerCase();
+      const subtopicId = req.body?.subtopicId ? toRangeInt(req.body.subtopicId, 1, 1_000_000_000, 0) : null;
+
+      const pRes = await pool.query(
+        `SELECT id, subtopic_id, fen, solutions FROM tactics_fighter_puzzles WHERE org_id = $1 AND id = $2 LIMIT 1`,
+        [orgId, puzzleId]
+      );
+      if (!pRes.rows.length) return res.status(404).json({ ok: false, error: 'Puzzle not found' });
+
+      const puzzle = pRes.rows[0];
+      const accepted = parseAcceptedLinesFromSolutions(puzzle.solutions);
+
+      let correctPrefix = false;
+      let completed = false;
+      let chosenLine = null;
+      let matchCount = 0;
+
+      for (let i = 0; i < accepted.length; i++) {
+        const line = accepted[i];
+        if (!prefixMatches(line, movesUci)) continue;
+        correctPrefix = true;
+        matchCount++;
+        if (chosenLine === null) chosenLine = i;
+        if (movesUci.length === line.length) {
+          completed = true;
+          chosenLine = i;
+          break;
+        }
+      }
+
+      await pool.query(
+        `
+        INSERT INTO tactics_fighter_student_attempts
+          (org_id, student_id, bucket, subtopic_id, puzzle_id, moves_uci, move_uci, ply_index, correct_prefix, completed, chosen_line, meta)
+        VALUES
+          ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12::jsonb)
+        `,
+        [
+          orgId,
+          studentId,
+          bucket,
+          (subtopicId || Number(puzzle.subtopic_id) || null),
+          puzzleId,
+          JSON.stringify(movesUci),
+          moveUci || null,
+          (plyIndex === null ? null : Math.trunc(plyIndex)),
+          !!correctPrefix,
+          !!completed,
+          (chosenLine === null ? null : Math.trunc(chosenLine)),
+          JSON.stringify({
+            ua: toCleanString(req.get('user-agent') || '', 500),
+            ip: toCleanString(req.ip || '', 200)
+          })
+        ]
+      );
+
+      await pool.query(
+        `
+        INSERT INTO tactics_fighter_student_progress
+          (org_id, student_id, puzzle_id, status, completed_at, last_attempt_at, attempts_count, wrong_count)
+        VALUES
+          ($1, $2, $3, $4, $5, NOW(), 1, $6)
+        ON CONFLICT (org_id, student_id, puzzle_id) DO UPDATE SET
+          status = CASE WHEN EXCLUDED.status = 'completed' THEN 'completed' ELSE tactics_fighter_student_progress.status END,
+          completed_at = CASE WHEN EXCLUDED.status = 'completed' THEN COALESCE(tactics_fighter_student_progress.completed_at, EXCLUDED.completed_at) ELSE tactics_fighter_student_progress.completed_at END,
+          last_attempt_at = NOW(),
+          attempts_count = tactics_fighter_student_progress.attempts_count + 1,
+          wrong_count = tactics_fighter_student_progress.wrong_count + EXCLUDED.wrong_count
+        `,
+        [
+          orgId,
+          studentId,
+          puzzleId,
+          completed ? 'completed' : 'in_progress',
+          completed ? new Date().toISOString() : null,
+          correctPrefix ? 0 : 1
+        ]
+      );
+
+      return res.json({
+        ok: true,
+        puzzleId: String(puzzleId),
+        correctPrefix,
+        completed,
+        matches: matchCount,
+        chosenLine
+      });
+    } catch (e) {
+      console.error('[tactics-fighter] public attempt error:', e);
+      return res.status(500).json({ ok: false, error: 'Failed to record attempt' });
+    }
+  });
 }
 
 module.exports = { registerTacticsFighterRoutes };
