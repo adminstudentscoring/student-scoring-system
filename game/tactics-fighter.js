@@ -70,6 +70,81 @@
     return data;
   }
 
+  const PIECE_UNICODE = {
+    P: '♙', N: '♘', B: '♗', R: '♖', Q: '♕', K: '♔',
+    p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚'
+  };
+
+  const FILES = 'abcdefgh';
+  function rcToCoord(r, c) { return `${FILES[c]}${8 - r}`; }
+
+  function parseFenToBoard(fen) {
+    const parts = String(fen || '').trim().split(/\s+/);
+    const placement = String(parts[0] || '').trim();
+    const ranks = placement.split('/');
+    if (ranks.length !== 8) return null;
+    const board = Array.from({ length: 8 }, () => Array(8).fill(''));
+    for (let r = 0; r < 8; r++) {
+      let c = 0;
+      for (const ch of ranks[r]) {
+        if (c > 7) return null;
+        if (/\d/.test(ch)) c += Number(ch);
+        else if (/[prnbqkPRNBQK]/.test(ch)) { board[r][c] = ch; c++; }
+        else return null;
+      }
+      if (c !== 8) return null;
+    }
+    return board;
+  }
+
+  function boardToFenPlacement(board) {
+    const ranks = [];
+    for (let r = 0; r < 8; r++) {
+      let empty = 0;
+      let out = '';
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c] || '';
+        if (!p) empty++;
+        else {
+          if (empty) { out += String(empty); empty = 0; }
+          out += p;
+        }
+      }
+      if (empty) out += String(empty);
+      ranks.push(out || '8');
+    }
+    return ranks.join('/');
+  }
+
+  function buildFenFromBoard(board, side) {
+    const placement = boardToFenPlacement(board);
+    const stm = (String(side) === 'b') ? 'b' : 'w';
+    return `${placement} ${stm} - - 0 1`;
+  }
+
+  async function builderFetchPuzzles(subtopicId) {
+    const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(subtopicId)}/puzzles`, {
+      method: 'GET'
+    });
+    return await tfJson(resp);
+  }
+
+  async function builderCreatePuzzle(subtopicId, payload) {
+    const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(subtopicId)}/puzzles`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {})
+    });
+    return await tfJson(resp);
+  }
+
+  async function engineAnalyze(payload) {
+    const resp = await apiRequest('/api/teachers/tactics-fighter/engine/analyze', {
+      method: 'POST',
+      body: JSON.stringify(payload || {})
+    });
+    return await tfJson(resp);
+  }
+
   async function builderFetchTree() {
     const resp = await apiRequest('/api/teachers/tactics-fighter/builder/tree', { method: 'GET' });
     return await tfJson(resp);
@@ -319,6 +394,21 @@
       el.classList.remove('ok', 'err');
     }
 
+    function renderMiniBoardHtml(fen) {
+      const b = parseFenToBoard(fen);
+      if (!b) return `<div class="tf-mini-board" aria-label="Mini board"></div>`;
+      const sqs = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const isDark = (r + c) % 2 === 1;
+          const p = b[r][c] || '';
+          const ch = p ? (PIECE_UNICODE[p] || '') : '';
+          sqs.push(`<div class="tf-mini-sq ${isDark ? 'dark' : 'light'}">${escapeHtml(ch)}</div>`);
+        }
+      }
+      return `<div class="tf-mini-board" aria-label="Mini board">${sqs.join('')}</div>`;
+    }
+
     function renderBuilderTree(categories) {
       const host = document.getElementById('tfBuilderTree');
       if (!host) return;
@@ -374,6 +464,7 @@
                                   <button type="button" class="tf-plus ${sOpen ? 'is-open' : ''}" data-tf-toggle="subtopic" data-id="${escapeHtml(sid)}" aria-label="Toggle subtopic">${sOpen ? '−' : '+'}</button>
                                   <div class="tf-tree-title">${escapeHtml(String(s.name || ''))}</div>
                                   <div class="tf-tree-actions">
+                                    <button type="button" class="btn btn-primary btn-small" data-tf-add-puzzle="${escapeHtml(sid)}">Add puzzles</button>
                                     <button type="button" class="btn btn-secondary btn-small" data-tf-load-puzzles="${escapeHtml(sid)}">${puzzlesLoaded ? 'Reload' : 'Load'} puzzles</button>
                                     <button type="button" class="btn btn-secondary btn-small" data-tf-rename-subtopic="${escapeHtml(sid)}">Rename</button>
                                     <button type="button" class="btn btn-danger btn-small" data-tf-del-subtopic="${escapeHtml(sid)}">Delete</button>
@@ -383,7 +474,15 @@
                                   <div class="tf-tree-children">
                                     <div class="tf-muted">Puzzles: ${escapeHtml(String(puzzles.length))}</div>
                                     <div class="tf-puzzle-list">
-                                      ${puzzles.length ? puzzles.map(p => `<div class="tf-puzzle-item">${escapeHtml(String(p.fen || ''))}</div>`).join('') : `<div class="tf-muted">No puzzles loaded.</div>`}
+                                      ${puzzles.length ? puzzles.map(p => `
+                                        <div class="tf-tree-card tf-tree-card--nested2" style="display:flex; gap:12px; align-items:center; padding:10px;">
+                                          ${renderMiniBoardHtml(String(p.fen || ''))}
+                                          <div style="min-width:0;">
+                                            <div class="tf-tree-title" style="font-size:13px;">Puzzle #${escapeHtml(String(p.id || ''))}</div>
+                                            <div class="tf-puzzle-item" style="margin-top:6px;">${escapeHtml(String(p.fen || ''))}</div>
+                                          </div>
+                                        </div>
+                                      `).join('') : `<div class="tf-muted">No puzzles loaded.</div>`}
                                     </div>
                                   </div>
                                 ` : ''}
@@ -587,6 +686,14 @@
             }
             return;
           }
+
+          const addPuzzleBtn = t?.closest?.('[data-tf-add-puzzle]');
+          if (addPuzzleBtn) {
+            const sid = String(addPuzzleBtn.getAttribute('data-tf-add-puzzle') || '');
+            if (!sid) return;
+            openAddPuzzleModal(sid).catch((e) => showBuilderMsg('err', e?.message || String(e)));
+            return;
+          }
         });
 
         if (!ui.builderLoadedOnce) {
@@ -594,6 +701,268 @@
         }
       }
     };
+
+    async function openAddPuzzleModal(subtopicId) {
+      const roleNow = String(new URLSearchParams(window.location.search).get('role') || '');
+      if (String(roleNow).toLowerCase() !== 'teacher') {
+        alert('Add puzzles is available for teacher only.');
+        return;
+      }
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfAddPuzzleBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Add puzzles" style="max-width: 1100px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Add puzzles</div>
+              <button id="tfAddPuzzleClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-modal-grid">
+                <div>
+                  <div id="tfEditorBoard" class="tf-board" aria-label="Board editor"></div>
+                  <div class="tf-field">
+                    <label for="tfFenInput">FEN</label>
+                    <textarea id="tfFenInput" class="tf-textarea" rows="3" placeholder="Paste FEN here..."></textarea>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="tf-field">
+                    <label>Side to move</label>
+                    <select id="tfSideSelect" class="tf-select">
+                      <option value="w">White to move</option>
+                      <option value="b">Black to move</option>
+                    </select>
+                  </div>
+
+                  <div class="tf-field">
+                    <label>Pieces</label>
+                    <div class="tf-muted">Pick a piece, then tap squares to place it.</div>
+                    <div id="tfPalette" class="tf-piece-palette"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                      <button id="tfClearSelection" class="btn btn-secondary" type="button">Clear selection</button>
+                      <button id="tfClearBoard" class="btn btn-secondary" type="button">Clear board</button>
+                      <button id="tfStartPos" class="btn btn-secondary" type="button">Start position</button>
+                    </div>
+                  </div>
+
+                  <div class="tf-field">
+                    <label>Engine Load</label>
+                    <div class="tf-muted">MultiPV = number of best lines (N-best). PV plies = how many half-moves to display.</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;">
+                      <div>
+                        <div class="tf-muted" style="font-weight:900;">MultiPV (N-best)</div>
+                        <div class="tf-stepper">
+                          <input id="tfMultiPv" type="number" min="1" max="10" value="1">
+                          <button id="tfMultiPvUp" type="button">▲</button>
+                        </div>
+                        <button id="tfMultiPvDown" class="btn btn-secondary btn-small" type="button" style="margin-top:6px;">▼</button>
+                      </div>
+                      <div>
+                        <div class="tf-muted" style="font-weight:900;">PV plies</div>
+                        <div class="tf-stepper">
+                          <input id="tfPvPlies" type="number" min="1" max="32" value="8">
+                          <button id="tfPvPliesUp" type="button">▲</button>
+                        </div>
+                        <button id="tfPvPliesDown" class="btn btn-secondary btn-small" type="button" style="margin-top:6px;">▼</button>
+                      </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                      <button id="tfEngineLoadBtn" class="btn btn-primary" type="button">Engine Load</button>
+                      <button id="tfSavePuzzleBtn" class="btn btn-success" type="button" disabled>Confirm & Save</button>
+                    </div>
+                  </div>
+
+                  <div id="tfEngineOut" class="tf-lines"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfAddPuzzleClose')?.addEventListener('click', close);
+      host.querySelector('#tfAddPuzzleBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfAddPuzzleBackdrop') close();
+      });
+
+      let board = parseFenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1') || Array.from({ length: 8 }, () => Array(8).fill(''));
+      let side = 'w';
+      let selectedPiece = '';
+      let lastEngine = null;
+
+      const fenInput = host.querySelector('#tfFenInput');
+      const sideSel = host.querySelector('#tfSideSelect');
+      const boardEl = host.querySelector('#tfEditorBoard');
+      const paletteEl = host.querySelector('#tfPalette');
+      const engineOutEl = host.querySelector('#tfEngineOut');
+      const saveBtn = host.querySelector('#tfSavePuzzleBtn');
+
+      function renderBoard() {
+        if (!boardEl) return;
+        const sqs = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const isDark = (r + c) % 2 === 1;
+            const p = board[r][c] || '';
+            const ch = p ? (PIECE_UNICODE[p] || '') : '';
+            sqs.push(`<div class="tf-sq ${isDark ? 'dark' : 'light'}" data-r="${r}" data-c="${c}" title="${escapeHtml(rcToCoord(r, c))}">${escapeHtml(ch)}</div>`);
+          }
+        }
+        boardEl.innerHTML = sqs.join('');
+      }
+
+      function syncFenText() {
+        const fen = buildFenFromBoard(board, side);
+        if (fenInput) fenInput.value = fen;
+      }
+
+      function applyFenText() {
+        const fen = String(fenInput?.value || '').trim();
+        const b = parseFenToBoard(fen);
+        const parts = fen.split(/\s+/);
+        const stm = parts[1] === 'b' ? 'b' : 'w';
+        if (b) {
+          board = b;
+          side = stm;
+          if (sideSel) sideSel.value = side;
+          renderBoard();
+        }
+      }
+
+      function renderPalette() {
+        if (!paletteEl) return;
+        const pieces = ['K','Q','R','B','N','P','k','q','r','b','n','p'];
+        paletteEl.innerHTML = pieces.map((p) => {
+          const ch = PIECE_UNICODE[p] || p;
+          return `<button type="button" class="tf-piece-btn ${selectedPiece === p ? 'is-active' : ''}" data-piece="${escapeHtml(p)}" aria-label="Piece ${escapeHtml(p)}">${escapeHtml(ch)}</button>`;
+        }).join('');
+      }
+
+      function setEngineOut(html) { if (engineOutEl) engineOutEl.innerHTML = html; }
+
+      // init editor
+      syncFenText();
+      renderBoard();
+      renderPalette();
+
+      boardEl?.addEventListener('click', (e) => {
+        const sq = e.target && e.target.closest ? e.target.closest('.tf-sq') : null;
+        if (!sq) return;
+        const r = Number(sq.getAttribute('data-r'));
+        const c = Number(sq.getAttribute('data-c'));
+        if (!Number.isFinite(r) || !Number.isFinite(c)) return;
+        board[r][c] = selectedPiece ? selectedPiece : '';
+        renderBoard();
+        syncFenText();
+      });
+
+      paletteEl?.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('.tf-piece-btn') : null;
+        if (!btn) return;
+        selectedPiece = String(btn.getAttribute('data-piece') || '');
+        renderPalette();
+      });
+
+      host.querySelector('#tfClearSelection')?.addEventListener('click', () => {
+        selectedPiece = '';
+        renderPalette();
+      });
+      host.querySelector('#tfClearBoard')?.addEventListener('click', () => {
+        board = Array.from({ length: 8 }, () => Array(8).fill(''));
+        renderBoard();
+        syncFenText();
+      });
+      host.querySelector('#tfStartPos')?.addEventListener('click', () => {
+        const b = parseFenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+        if (b) board = b;
+        side = 'w';
+        if (sideSel) sideSel.value = 'w';
+        renderBoard();
+        syncFenText();
+      });
+
+      sideSel?.addEventListener('change', () => {
+        side = String(sideSel.value || 'w') === 'b' ? 'b' : 'w';
+        syncFenText();
+      });
+
+      fenInput?.addEventListener('blur', applyFenText);
+
+      const multiPvEl = host.querySelector('#tfMultiPv');
+      const pvPliesEl = host.querySelector('#tfPvPlies');
+      host.querySelector('#tfMultiPvUp')?.addEventListener('click', () => {
+        if (!multiPvEl) return;
+        const v = Number(multiPvEl.value || 1) || 1;
+        multiPvEl.value = String(Math.max(1, Math.min(10, v + 1)));
+      });
+      host.querySelector('#tfMultiPvDown')?.addEventListener('click', () => {
+        if (!multiPvEl) return;
+        const v = Number(multiPvEl.value || 1) || 1;
+        multiPvEl.value = String(Math.max(1, Math.min(10, v - 1)));
+      });
+      host.querySelector('#tfPvPliesUp')?.addEventListener('click', () => {
+        if (!pvPliesEl) return;
+        const v = Number(pvPliesEl.value || 8) || 8;
+        pvPliesEl.value = String(Math.max(1, Math.min(32, v + 1)));
+      });
+      host.querySelector('#tfPvPliesDown')?.addEventListener('click', () => {
+        if (!pvPliesEl) return;
+        const v = Number(pvPliesEl.value || 8) || 8;
+        pvPliesEl.value = String(Math.max(1, Math.min(32, v - 1)));
+      });
+
+      host.querySelector('#tfEngineLoadBtn')?.addEventListener('click', async () => {
+        try {
+          applyFenText();
+          const fen = String(fenInput?.value || '').trim();
+          const multipv = Math.max(1, Math.min(10, Number(multiPvEl?.value || 1) || 1));
+          const pvPlies = Math.max(1, Math.min(32, Number(pvPliesEl?.value || 8) || 8));
+          setEngineOut(`<div class="tf-muted">Loading engine...</div>`);
+          const data = await engineAnalyze({ fen, multipv, pvPlies });
+          lastEngine = data;
+          const lines = Array.isArray(data.lines) ? data.lines : [];
+          setEngineOut(lines.length ? lines.map((ln) => {
+            const score = ln?.score?.mate != null ? `mate ${ln.score.mate}` : `cp ${ln?.score?.cp ?? 0}`;
+            const pv = Array.isArray(ln.pvSan) && ln.pvSan.length ? ln.pvSan.join(' ') : (Array.isArray(ln.pvUci) ? ln.pvUci.join(' ') : '');
+            return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(String(ln.multiPv || 1))} · ${escapeHtml(score)}</div><div class="tf-line-meta">${escapeHtml(pv)}</div></div>`;
+          }).join('') : `<div class="tf-muted">No lines.</div>`);
+          if (saveBtn) saveBtn.disabled = false;
+        } catch (e) {
+          setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+          if (saveBtn) saveBtn.disabled = true;
+        }
+      });
+
+      host.querySelector('#tfSavePuzzleBtn')?.addEventListener('click', async () => {
+        try {
+          applyFenText();
+          const fen = String(fenInput?.value || '').trim();
+          if (!fen) throw new Error('Missing FEN');
+          const bucket = getBuilderBucket();
+          const payload = {
+            fen,
+            engineDepth: 16,
+            multipv: Number(multiPvEl?.value || 1) || 1,
+            pvPlies: Number(pvPliesEl?.value || 8) || 8,
+            solutions: lastEngine || null,
+            meta: { bucket }
+          };
+          await builderCreatePuzzle(subtopicId, payload);
+          const data = await builderFetchPuzzles(subtopicId);
+          ui.puzzlesBySubtopic.set(subtopicId, Array.isArray(data.puzzles) ? data.puzzles : []);
+          ui.expanded.puzzlesLoaded.add(subtopicId);
+          ui.expanded.subtopic.add(subtopicId);
+          await builderRefresh();
+          close();
+        } catch (e) {
+          setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      });
+    }
 
     // Sidebar mode switching
     root.querySelectorAll('.tf-nav-btn').forEach((btn) => {

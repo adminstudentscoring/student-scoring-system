@@ -232,6 +232,152 @@ body.game-is-tactics-fighter .game-area-content {
   font-size: 12px;
 }
 
+.tf-modal-grid {
+  display: grid;
+  grid-template-columns: min(460px, 72vh, 100%) minmax(240px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .tf-modal-grid { grid-template-columns: 1fr; }
+}
+
+.tf-board {
+  width: min(460px, 72vh, 100%);
+  aspect-ratio: 1 / 1;
+  border: 2px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  background: #fff;
+}
+
+.tf-sq {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  user-select: none;
+  cursor: pointer;
+}
+
+.tf-sq.light { background: rgb(231,200,147); }
+.tf-sq.dark { background: rgb(172,113,76); }
+
+.tf-piece-palette {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tf-piece-btn {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  height: 44px;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.tf-piece-btn.is-active {
+  outline: 2px solid #4f46e5;
+  border-color: #4f46e5;
+}
+
+.tf-field {
+  margin-top: 10px;
+}
+
+.tf-field label {
+  display: block;
+  font-weight: 900;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.tf-textarea {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.tf-stepper {
+  display: grid;
+  grid-template-columns: 1fr 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.tf-stepper input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  font-weight: 900;
+}
+
+.tf-stepper button {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  height: 42px;
+  font-weight: 950;
+}
+
+.tf-lines {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.tf-line {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.tf-line-title {
+  font-weight: 950;
+  color: #111827;
+}
+
+.tf-line-meta {
+  color: #6b7280;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.tf-mini-board {
+  width: 120px;
+  aspect-ratio: 1 / 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+}
+
+.tf-mini-sq {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  user-select: none;
+}
+
+.tf-mini-sq.light { background: rgb(231,200,147); }
+.tf-mini-sq.dark { background: rgb(172,113,76); }
+
 @media (max-width: 900px) {
   .tf-sidebar { width: 160px; }
   .tf-main { margin-left: 160px; }
