@@ -811,7 +811,7 @@ let appendBlundersPuzzlesPreserveProgress = async () => ({ ok: false, error: 'bl
 
 // ===== Blunders: Stockfish runner (moved to server/blunders/stockfish.js) =====
 const { createStockfishRunner } = require('./server/blunders/stockfish');
-const { sfEvalFen } = createStockfishRunner({ fs, path, spawn, processExecPath: process.execPath, baseDir: __dirname });
+const { sfEvalFen, sfAnalyzeFen } = createStockfishRunner({ fs, path, spawn, processExecPath: process.execPath, baseDir: __dirname });
 
 // ===== Blunders: sync (student/master) (moved to server/blunders/sync.js) =====
 let syncBlundersForStudent = async () => ({ ok: false, error: 'sync not initialized' });
@@ -3346,12 +3346,15 @@ const { registerTacticsFighterRoutes } = require('./server/routes/tacticsFighter
 registerTacticsFighterRoutes(app, {
   fs,
   path,
+  appDb,
+  Chess,
   authenticateUser,
   authorizeRole,
   requireOrganizationAccess,
   readData,
   filterStudentsByOrganization,
   resolveOrgIdFromUser,
+  sfAnalyzeFen,
   TACTICS_FIGHTER_ATTEMPTS_FILE
 });
 

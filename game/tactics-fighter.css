@@ -137,6 +137,92 @@ body.game-is-tactics-fighter .game-area-content {
   width: 100%;
 }
 
+.tf-builder-msg {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 900;
+  margin: 10px 0;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #111827;
+}
+.tf-builder-msg.ok { border-color: rgba(16, 185, 129, 0.45); background: rgba(16,185,129,0.08); }
+.tf-builder-msg.err { border-color: rgba(220, 38, 38, 0.45); background: rgba(220,38,38,0.08); }
+
+.tf-tree-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 10px;
+  background: #ffffff;
+  margin-top: 10px;
+}
+
+.tf-tree-card--nested {
+  background: #f8fafc;
+}
+.tf-tree-card--nested2 {
+  background: #ffffff;
+}
+
+.tf-tree-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.tf-tree-title {
+  font-weight: 950;
+  color: #111827;
+}
+
+.tf-tree-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tf-tree-children {
+  margin-top: 10px;
+  padding-left: 10px;
+  border-left: 2px solid #e5e7eb;
+  display: grid;
+  gap: 10px;
+}
+
+.tf-plus {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  font-weight: 950;
+  color: #111827;
+}
+.tf-plus.is-open {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+
+.tf-puzzle-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tf-puzzle-item {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: #0f172a;
+  background: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+}
+
 @media (max-width: 900px) {
   .tf-sidebar { width: 160px; }
   .tf-main { margin-left: 160px; }

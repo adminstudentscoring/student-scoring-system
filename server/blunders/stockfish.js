@@ -94,7 +94,6 @@ function createStockfishRunner(deps) {
       try {
         p.stdin.write('setoption name Threads value 1\n');
         p.stdin.write('setoption name Hash value 64\n');
-        p.stdin.write('setoption name MultiPV value 1\n');
         p.stdin.write('ucinewgame\n');
         p.stdin.write('isready\n');
       } catch {}
@@ -125,7 +124,11 @@ function createStockfishRunner(deps) {
     return sfInitPromise;
   }
 
-  async function sfEvalFen(fen, depth = 16) {
+  async function sfAnalyzeFen(fen, options = {}) {
+    const depth = Number(options?.depth || 16) || 16;
+    const multiPv = Math.max(1, Math.min(10, Number(options?.multiPv || 1) || 1));
+    const pvPlies = Math.max(1, Math.min(32, Number(options?.pvPlies || 8) || 8));
+
     // serialize all engine work
     sfQueue = sfQueue.then(async () => {
       sfSpawnIfNeeded();
@@ -135,8 +138,7 @@ function createStockfishRunner(deps) {
 
       return await new Promise((resolve, reject) => {
         let buf = '';
-        let lastScore = { cp: 0 };
-        let lastPvMove = null;
+        const linesByMulti = new Map(); // multipv -> { score, pv: [uci], bestMove }
 
         const onData = (chunk) => {
           buf += String(chunk || '');
@@ -146,18 +148,55 @@ function createStockfishRunner(deps) {
             const line = raw.trim();
             if (!line) continue;
             if (line.startsWith('info ')) {
-              // score cp X / score mate X ; pv <move> ...
-              const mCp = line.match(/\bscore\s+cp\s+(-?\d+)\b/);
-              const mMate = line.match(/\bscore\s+mate\s+(-?\d+)\b/);
-              if (mMate) lastScore = { mate: Number(mMate[1]) };
-              else if (mCp) lastScore = { cp: Number(mCp[1]) };
-              const pv = line.match(/\bpv\s+([a-h][1-8][a-h][1-8][qrbn]?)\b/);
-              if (pv) lastPvMove = pv[1];
+              const mp = (() => {
+                const m = line.match(/\bmultipv\s+(\d+)\b/i);
+                const n = m ? Number(m[1]) : 1;
+                return Number.isFinite(n) && n >= 1 ? n : 1;
+              })();
+
+              const mCp = line.match(/\bscore\s+cp\s+(-?\d+)\b/i);
+              const mMate = line.match(/\bscore\s+mate\s+(-?\d+)\b/i);
+              const score = mMate ? { mate: Number(mMate[1]) } : (mCp ? { cp: Number(mCp[1]) } : null);
+
+              const pvMatch = line.match(/\bpv\s+(.+)$/i);
+              const pvMoves = pvMatch
+                ? String(pvMatch[1] || '')
+                    .trim()
+                    .split(/\s+/)
+                    .filter((t) => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(t))
+                    .slice(0, pvPlies)
+                : [];
+
+              const prev = linesByMulti.get(mp) || {};
+              const next = {
+                score: score || prev.score || { cp: 0 },
+                pv: pvMoves.length ? pvMoves : (prev.pv || []),
+                bestMove: (pvMoves[0] || prev.bestMove || null)
+              };
+              linesByMulti.set(mp, next);
             }
             if (line.startsWith('bestmove ')) {
               const bm = line.split(/\s+/)[1] || null;
               cleanup();
-              resolve({ bestMove: (bm && bm !== '(none)') ? bm : (lastPvMove || null), score: lastScore });
+              const outLines = [];
+              for (let i = 1; i <= multiPv; i++) {
+                const ent = linesByMulti.get(i);
+                if (!ent) continue;
+                outLines.push({
+                  multiPv: i,
+                  bestMove: ent.bestMove || null,
+                  score: ent.score || { cp: 0 },
+                  pv: Array.isArray(ent.pv) ? ent.pv : []
+                });
+              }
+              // If engine didn't emit multipv lines, ensure at least one.
+              if (!outLines.length) {
+                outLines.push({ multiPv: 1, bestMove: null, score: { cp: 0 }, pv: [] });
+              }
+              resolve({
+                bestMove: (bm && bm !== '(none)') ? bm : (outLines[0]?.bestMove || null),
+                lines: outLines
+              });
               return;
             }
           }
@@ -180,19 +219,53 @@ function createStockfishRunner(deps) {
         p.stderr.on('data', onErr);
         p.on('exit', onExit);
 
-        try {
-          p.stdin.write(`position fen ${fen}\n`);
-          p.stdin.write(`go depth ${Number(depth) || 16}\n`);
-        } catch (e) {
-          cleanup();
-          reject(e);
-        }
+        (async () => {
+          try {
+            // Per-request MultiPV
+            try { p.stdin.write(`setoption name MultiPV value ${multiPv}\n`); } catch {}
+            // Best-effort wait for readyok so option applies.
+            await new Promise((resolveReady) => {
+              let b = '';
+              const onReady = (chunk) => {
+                b += String(chunk || '');
+                const ls = b.split(/\r?\n/);
+                b = ls.pop() || '';
+                for (const l of ls) {
+                  if (String(l || '').trim() === 'readyok') {
+                    cleanupReady();
+                    resolveReady();
+                    return;
+                  }
+                }
+              };
+              const cleanupReady = () => {
+                try { p.stdout.off('data', onReady); } catch {}
+              };
+              p.stdout.on('data', onReady);
+              try { p.stdin.write('isready\n'); } catch { cleanupReady(); resolveReady(); }
+              // safety timeout
+              try { setTimeout(() => { cleanupReady(); resolveReady(); }, 250).unref?.(); } catch {}
+            });
+
+            p.stdin.write(`position fen ${fen}\n`);
+            p.stdin.write(`go depth ${depth}\n`);
+          } catch (e) {
+            cleanup();
+            reject(e);
+          }
+        })();
       });
     });
     return sfQueue;
   }
 
-  return { sfEvalFen };
+  async function sfEvalFen(fen, depth = 16) {
+    const r = await sfAnalyzeFen(fen, { depth, multiPv: 1, pvPlies: 8 });
+    const first = (r && Array.isArray(r.lines) && r.lines[0]) ? r.lines[0] : null;
+    return { bestMove: r?.bestMove || first?.bestMove || null, score: first?.score || { cp: 0 } };
+  }
+
+  return { sfEvalFen, sfAnalyzeFen };
 }
 
 module.exports = { createStockfishRunner };
