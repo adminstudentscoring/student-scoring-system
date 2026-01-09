@@ -234,7 +234,7 @@ body.game-is-tactics-fighter .game-area-content {
 
 .tf-modal-grid {
   display: grid;
-  grid-template-columns: min(460px, 72vh, 100%) minmax(240px, 1fr);
+  grid-template-columns: minmax(520px, 1fr) minmax(320px, 420px);
   gap: 14px;
   align-items: start;
 }
@@ -244,13 +244,14 @@ body.game-is-tactics-fighter .game-area-content {
 }
 
 .tf-board {
-  width: min(460px, 72vh, 100%);
+  width: min(560px, 72vh, 100%);
   aspect-ratio: 1 / 1;
   border: 2px solid #e5e7eb;
   border-radius: 14px;
   overflow: hidden;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
   background: #fff;
 }
 
@@ -279,8 +280,7 @@ body.game-is-tactics-fighter .game-area-content {
   background: #ffffff;
   cursor: pointer;
   height: 44px;
-  font-size: 24px;
-  font-weight: 900;
+  padding: 0;
 }
 
 .tf-piece-btn.is-active {
@@ -365,6 +365,7 @@ body.game-is-tactics-fighter .game-area-content {
   overflow: hidden;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
 }
 
 .tf-mini-sq {
@@ -377,6 +378,14 @@ body.game-is-tactics-fighter .game-area-content {
 
 .tf-mini-sq.light { background: rgb(231,200,147); }
 .tf-mini-sq.dark { background: rgb(172,113,76); }
+
+.tf-piece-img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
 
 @media (max-width: 900px) {
   .tf-sidebar { width: 160px; }

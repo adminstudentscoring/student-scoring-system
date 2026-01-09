@@ -78,6 +78,23 @@
   const FILES = 'abcdefgh';
   function rcToCoord(r, c) { return `${FILES[c]}${8 - r}`; }
 
+  function pieceImageSrc(p) {
+    const s = String(p || '');
+    if (!s) return '';
+    const isWhite = s === s.toUpperCase();
+    const t = s.toLowerCase();
+    const name =
+      t === 'p' ? 'Pawn' :
+      t === 'n' ? 'Knight' :
+      t === 'b' ? 'Bishop' :
+      t === 'r' ? 'Rook' :
+      t === 'q' ? 'Queen' :
+      t === 'k' ? 'King' : '';
+    if (!name) return '';
+    const color = isWhite ? 'white' : 'black';
+    return `/game/pieces/${color}_${name}.png`;
+  }
+
   function parseFenToBoard(fen) {
     const parts = String(fen || '').trim().split(/\s+/);
     const placement = String(parts[0] || '').trim();
@@ -402,8 +419,9 @@
         for (let c = 0; c < 8; c++) {
           const isDark = (r + c) % 2 === 1;
           const p = b[r][c] || '';
-          const ch = p ? (PIECE_UNICODE[p] || '') : '';
-          sqs.push(`<div class="tf-mini-sq ${isDark ? 'dark' : 'light'}">${escapeHtml(ch)}</div>`);
+          const src = p ? pieceImageSrc(p) : '';
+          const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+          sqs.push(`<div class="tf-mini-sq ${isDark ? 'dark' : 'light'}">${img}</div>`);
         }
       }
       return `<div class="tf-mini-board" aria-label="Mini board">${sqs.join('')}</div>`;
@@ -712,7 +730,7 @@
       const host = document.createElement('div');
       host.innerHTML = `
         <div class="vcp-modal-backdrop" id="tfAddPuzzleBackdrop" role="presentation">
-          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Add puzzles" style="max-width: 1100px;">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Add puzzles" style="width: calc(100vw - 40px); max-width: 1600px;">
             <div class="vcp-modal-header">
               <div class="vcp-modal-title">Add puzzles</div>
               <button id="tfAddPuzzleClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
@@ -808,8 +826,9 @@
           for (let c = 0; c < 8; c++) {
             const isDark = (r + c) % 2 === 1;
             const p = board[r][c] || '';
-            const ch = p ? (PIECE_UNICODE[p] || '') : '';
-            sqs.push(`<div class="tf-sq ${isDark ? 'dark' : 'light'}" data-r="${r}" data-c="${c}" title="${escapeHtml(rcToCoord(r, c))}">${escapeHtml(ch)}</div>`);
+            const src = p ? pieceImageSrc(p) : '';
+            const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+            sqs.push(`<div class="tf-sq ${isDark ? 'dark' : 'light'}" data-r="${r}" data-c="${c}" title="${escapeHtml(rcToCoord(r, c))}">${img}</div>`);
           }
         }
         boardEl.innerHTML = sqs.join('');
@@ -837,8 +856,11 @@
         if (!paletteEl) return;
         const pieces = ['K','Q','R','B','N','P','k','q','r','b','n','p'];
         paletteEl.innerHTML = pieces.map((p) => {
-          const ch = PIECE_UNICODE[p] || p;
-          return `<button type="button" class="tf-piece-btn ${selectedPiece === p ? 'is-active' : ''}" data-piece="${escapeHtml(p)}" aria-label="Piece ${escapeHtml(p)}">${escapeHtml(ch)}</button>`;
+          const src = pieceImageSrc(p);
+          const inner = src
+            ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">`
+            : escapeHtml(PIECE_UNICODE[p] || p);
+          return `<button type="button" class="tf-piece-btn ${selectedPiece === p ? 'is-active' : ''}" data-piece="${escapeHtml(p)}" aria-label="Piece ${escapeHtml(p)}">${inner}</button>`;
         }).join('');
       }
 
