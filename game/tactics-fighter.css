@@ -149,6 +149,15 @@ body.game-is-tactics-fighter .game-area-content {
 .tf-builder-msg.ok { border-color: rgba(16, 185, 129, 0.45); background: rgba(16,185,129,0.08); }
 .tf-builder-msg.err { border-color: rgba(220, 38, 38, 0.45); background: rgba(220,38,38,0.08); }
 
+.tf-select {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #ffffff;
+  font-weight: 900;
+  color: #111827;
+}
+
 .tf-tree-card {
   border: 1px solid #e5e7eb;
   border-radius: 14px;

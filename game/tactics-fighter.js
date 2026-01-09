@@ -224,6 +224,19 @@
       <div>
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
           <div class="tf-section-title">Builder</div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label class="tf-muted" for="tfBuilderBucketSelect" style="font-weight:900;">Bucket</label>
+            <select id="tfBuilderBucketSelect" class="tf-select" style="min-width:180px;">
+              <option value="beginner">Beginner</option>
+              <option value="400up">400 up</option>
+              <option value="700up">700 up</option>
+              <option value="1000up">1000 up</option>
+              <option value="1500up">1500 up</option>
+              <option value="2000up">2000 up</option>
+              <option value="2500up">2500 up</option>
+              <option value="2800up">2800 up</option>
+            </select>
+          </div>
           <div style="display:flex; gap:10px; align-items:center;">
             <button id="tfBuilderCreateCategoryBtn" class="btn btn-primary" type="button">Create</button>
             <button id="tfBuilderRefreshBtn" class="btn btn-secondary" type="button">Refresh</button>
@@ -384,11 +397,25 @@
       }).join('');
     }
 
+    function getBuilderBucket() {
+      try {
+        const v = String(localStorage.getItem('tacticsFighterBuilderBucket') || '').trim();
+        return v || 'beginner';
+      } catch {}
+      return 'beginner';
+    }
+
+    function setBuilderBucket(bucket) {
+      try { localStorage.setItem('tacticsFighterBuilderBucket', String(bucket || 'beginner')); } catch {}
+    }
+
     async function builderRefresh() {
       clearBuilderMsg();
       showBuilderMsg('ok', 'Loading...');
       try {
-        const data = await builderFetchTree();
+        const bucket = getBuilderBucket();
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/tree?bucket=${encodeURIComponent(bucket)}`, { method: 'GET' });
+        const data = await tfJson(resp);
         renderBuilderTree(data.categories || []);
         clearBuilderMsg();
         ui.builderLoadedOnce = true;
@@ -411,6 +438,11 @@
         b.classList.toggle('is-active', bm === nm);
       });
       setMain(renderMode(nm));
+      // Keep the card title in sync when switching modes (avoid showing "Practice Mode" while on Builder).
+      try {
+        const titleEl = root.querySelector('.tf-title');
+        if (titleEl) titleEl.textContent = (nm === 'practice' ? 'Practice Mode' : nm === 'challenge' ? 'Challenge Mode' : nm === 'builder' ? 'Builder' : 'Setting');
+      } catch {}
       if (cfg) {
         setOut(`<div style="color:#16a34a; font-weight:800;">API OK</div><div style="color:#6b7280; margin-top:4px;">${escapeHtml(cfg.version || '')}</div>`);
       } else {
@@ -421,12 +453,25 @@
       if (nm === 'builder') {
         const createBtn = document.getElementById('tfBuilderCreateCategoryBtn');
         const refreshBtn = document.getElementById('tfBuilderRefreshBtn');
+        const bucketSel = document.getElementById('tfBuilderBucketSelect');
+        if (bucketSel) {
+          bucketSel.value = getBuilderBucket();
+          bucketSel.addEventListener('change', () => {
+            setBuilderBucket(bucketSel.value);
+            builderRefresh();
+          });
+        }
         createBtn?.addEventListener('click', async () => {
           const name = await promptText('Create category (unique)', 'Category name');
           if (!name) return;
           clearBuilderMsg();
           try {
-            await builderCreateCategory(name);
+            const bucket = getBuilderBucket();
+            const resp = await apiRequest('/api/teachers/tactics-fighter/builder/categories', {
+              method: 'POST',
+              body: JSON.stringify({ name, bucket })
+            });
+            await tfJson(resp);
             showBuilderMsg('ok', 'Created.');
             await builderRefresh();
           } catch (e) {
