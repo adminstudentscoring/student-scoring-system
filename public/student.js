@@ -331,7 +331,6 @@ window.openStudentGame = function(gameKey, options = {}) {
 // Chess.com (Student modal)
 // =========================
 const STUDENT_CHESS_COM_LOGIN_URL = 'https://www.chess.com/login_and_go?returnUrl=https://www.chess.com/';
-const TEACHER_CHESS_COM_SETTINGS_KEY = 'teacherChessComSettings_v1';
 
 function getStudentInternalId() {
     return String(studentData?.id || studentData?._id || studentId || studentData?.studentId || '');
@@ -342,15 +341,14 @@ function getDefaultChessComUsername() {
     return String(studentData?.studentId || studentId || '');
 }
 
-function loadTeacherChessComSettings() {
-    try {
-        const raw = localStorage.getItem(TEACHER_CHESS_COM_SETTINGS_KEY);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (e) {
-        return {};
-    }
+function getChessComUsernameFromServerData() {
+    const u = String(studentData?.chessComUsername || '').trim();
+    return u || '';
+}
+
+function getChessComPasswordFromServerData() {
+    const p = String(studentData?.chessComPassword || '').trim();
+    return p || '';
 }
 
 function showStudentToast(message) {
@@ -386,12 +384,8 @@ function openStudentChessComModal() {
     const modal = document.getElementById('studentChessComModal');
     if (!modal) return;
 
-    const settings = loadTeacherChessComSettings();
-    const internalId = getStudentInternalId();
-    const entry = settings[internalId] || {};
-
-    const username = String(entry.chessId || getDefaultChessComUsername());
-    const password = String(entry.password || '');
+    const username = String(getChessComUsernameFromServerData() || getDefaultChessComUsername());
+    const password = String(getChessComPasswordFromServerData() || '');
 
     const uEl = document.getElementById('studentChessComUsername');
     const pEl = document.getElementById('studentChessComPassword');

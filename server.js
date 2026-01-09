@@ -425,14 +425,79 @@ async function writeUsers(users) {
   }
 }
 
-// ===== Chess.com settings storage (moved to server/storage/chesscomSettings.js) =====
+// ===== Chess.com settings storage (org-scoped) =====
+// - Teacher Dashboard: stores chessId + password (for Student Dashboard "Chess.com" application)
+// - Blunders: uses chessId mapping (studentId -> chessId) for username lookups
+//
+// Default behavior:
+// - If Postgres is configured: store + read from Postgres
+// - Else: fallback to JSON file at CHESSCOM_SETTINGS_FILE
 let readChessComSettings = async () => ({});
-let writeChessComSettings = async () => false;
+let writeChessComSettings = async () => false; // file-store only fallback
+let getOrgChessComSettings = async () => null;
+let upsertOrgChessComSettings = async () => ({ ok: false, reason: 'not_initialized' });
+let getStudentChessComCredentials = async () => null;
 {
   const { createChessComSettingsStore } = require('./server/storage/chesscomSettings');
-  const s = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
-  readChessComSettings = s.readChessComSettings;
-  writeChessComSettings = s.writeChessComSettings;
+  const fileStore = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
+
+  const { createChessComSettingsDb } = require('./server/chesscom/settingsDb');
+  const dbStore = createChessComSettingsDb({ appDb });
+
+  writeChessComSettings = fileStore.writeChessComSettings;
+
+  getOrgChessComSettings = async (orgId) => {
+    const fromDb = await dbStore.getOrgSettings(orgId);
+    if (fromDb !== null) return fromDb;
+    const orgs = await fileStore.readChessComSettings();
+    const oid = String(orgId || '');
+    return (orgs && orgs[oid] && typeof orgs[oid] === 'object') ? orgs[oid] : {};
+  };
+
+  upsertOrgChessComSettings = async (orgId, mergedSettings) => {
+    const out = await dbStore.upsertOrgSettings(orgId, mergedSettings);
+    if (out && out.ok === true) return out;
+    // File-store fallback (best-effort)
+    try {
+      const oid = String(orgId || '');
+      if (!oid) return { ok: false, reason: 'missing_org' };
+      const orgs = await fileStore.readChessComSettings();
+      const prev = (orgs && orgs[oid] && typeof orgs[oid] === 'object') ? orgs[oid] : {};
+      orgs[oid] = { ...prev, ...(mergedSettings && typeof mergedSettings === 'object' ? mergedSettings : {}) };
+      const ok = await fileStore.writeChessComSettings(orgs);
+      return { ok: !!ok, upserted: ok ? Object.keys(mergedSettings || {}).length : 0, source: 'file' };
+    } catch (e) {
+      return { ok: false, reason: String(e?.message || e) };
+    }
+  };
+
+  getStudentChessComCredentials = async (orgId, studentId) => {
+    const cred = await dbStore.getStudentCredentials(orgId, studentId);
+    if (cred !== null) return cred;
+    // File-store fallback (if present)
+    try {
+      const oid = String(orgId || '');
+      const sid = String(studentId || '');
+      const orgs = await fileStore.readChessComSettings();
+      const bucket = (orgs && orgs[oid] && typeof orgs[oid] === 'object') ? orgs[oid] : {};
+      const ent = bucket && bucket[sid] && typeof bucket[sid] === 'object' ? bucket[sid] : null;
+      if (!ent) return null;
+      return {
+        chessId: ent.chessId != null ? String(ent.chessId) : '',
+        password: ent.password != null ? String(ent.password) : '',
+        updatedAt: ent.updatedAt != null ? String(ent.updatedAt) : null
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  // Used by Blunders Chess.com helpers (needs all org mappings).
+  readChessComSettings = async () => {
+    const all = await dbStore.getAllSettings();
+    if (all !== null) return all;
+    return await fileStore.readChessComSettings();
+  };
 }
 
 // ===== Blunders: storage/settings (moved to server/blunders/storage.js) =====
@@ -3670,7 +3735,9 @@ registerChessComTeacherRoutes(app, {
   authorizeRole,
   requireOrganizationAccess,
   readChessComSettings,
-  writeChessComSettings
+  writeChessComSettings,
+  getOrgChessComSettings,
+  upsertOrgChessComSettings
 });
 
 // ===== Blunders: teacher routes (moved to server/routes/blundersTeacherRoutes.js) =====
@@ -3781,6 +3848,7 @@ registerStudentsRoutes(app, {
   broadcast,
   LEVELS,
   generateToken,
+  getStudentChessComCredentials,
   isValidDateFormat,
   isValidDate,
   isFutureDate,

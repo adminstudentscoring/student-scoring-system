@@ -6,6 +6,7 @@ function registerStudentsRoutes(app, deps) {
   const authenticateUser = deps?.authenticateUser;
   const authorizeRole = deps?.authorizeRole;
   const requireOrganizationAccess = deps?.requireOrganizationAccess;
+  const getStudentChessComCredentials = deps?.getStudentChessComCredentials;
 
   const readData = deps?.readData;
   const writeData = deps?.writeData;
@@ -649,6 +650,20 @@ function registerStudentsRoutes(app, deps) {
         rankInTeacher,
         totalStudentsInTeacher
       };
+
+      // Chess.com credentials (teacher-managed; optional)
+      try {
+        if (typeof getStudentChessComCredentials === 'function' && student.organizationId) {
+          const cred = await getStudentChessComCredentials(String(student.organizationId), String(student.id));
+          if (cred && typeof cred === 'object') {
+            publicData.chessComUsername = cred.chessId != null ? String(cred.chessId) : '';
+            publicData.chessComPassword = cred.password != null ? String(cred.password) : '';
+            publicData.chessComUpdatedAt = cred.updatedAt != null ? String(cred.updatedAt) : null;
+          }
+        }
+      } catch (e) {
+        // Non-fatal: student dashboard can still function without Chess.com creds.
+      }
 
       return res.json(publicData);
     } catch (error) {

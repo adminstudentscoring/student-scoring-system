@@ -2146,15 +2146,14 @@ async function openChessComSettingsModal() {
     const search = document.getElementById('chessComSettingsSearch');
     if (search) search.value = '';
 
-    // Best-effort: hydrate local settings from server so daily jobs can rely on server copy too.
+    // Hydrate local cache from server (server is the source of truth, especially across devices).
     try {
         const serverSettings = await fetchChessComSettingsFromServer();
         if (serverSettings && typeof serverSettings === 'object') {
             const local = loadChessComSettings();
-            const merged = { ...(serverSettings || {}), ...(local || {}) };
+            // Server wins to avoid stale localStorage overwriting newer server values.
+            const merged = { ...(local || {}), ...(serverSettings || {}) };
             saveChessComSettings(merged);
-            // Also push immediately so server definitely has a copy even if user doesn't edit fields.
-            await pushChessComSettingsToServer(merged);
         }
     } catch (e) {
         // ignore
