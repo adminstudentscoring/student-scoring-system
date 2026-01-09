@@ -1,4 +1,4 @@
-// Tactics Fighter (student-first UI scaffold)
+// Tactics Fighter (Running Queen-like fixed sidebar scaffold)
 // UI text is English by design.
 
 (function () {
@@ -50,20 +50,32 @@
   }
 
   function renderShell({ role, players, mode }) {
+    const playerName = players?.[0]?.name || 'Student';
+    const playerId = players?.[0]?.studentId || '';
+
     return `
-      <div class="tactics-fighter-card">
-        <div class="tactics-fighter-meta">
-          <div><strong>Role:</strong> ${escapeHtml(role || 'unknown')}</div>
-          <div><strong>Player:</strong> ${escapeHtml(players?.[0]?.name || 'Student')}</div>
-        </div>
+      <div class="tf-app">
+        <aside class="tf-sidebar" aria-label="Tactics Fighter sidebar">
+          <div class="tf-side-title">⚔️ Tactics Fighter</div>
+          <div class="tf-side-sub">${escapeHtml(playerName)}${playerId ? ` (${escapeHtml(playerId)})` : ''}</div>
+          <div class="tf-side-sub" style="margin-top:-6px; opacity:0.9;">${escapeHtml(role || '')}</div>
 
-        <div class="tf-tabs" role="tablist" aria-label="Tactics Fighter modes">
-          <button type="button" class="tf-tab ${mode === 'practice' ? 'is-active' : ''}" data-mode="practice">Practice Mode</button>
-          <button type="button" class="tf-tab ${mode === 'challenge' ? 'is-active' : ''}" data-mode="challenge">Challenge Mode</button>
-          <button type="button" class="tf-tab ${mode === 'settings' ? 'is-active' : ''}" data-mode="settings">Setting</button>
-        </div>
+          <div class="tf-nav" role="navigation" aria-label="Modes">
+            <button type="button" class="tf-nav-btn ${mode === 'practice' ? 'is-active' : ''}" data-mode="practice">Practice</button>
+            <button type="button" class="tf-nav-btn ${mode === 'challenge' ? 'is-active' : ''}" data-mode="challenge">Challenge</button>
+            <button type="button" class="tf-nav-btn ${mode === 'settings' ? 'is-active' : ''}" data-mode="settings">Setting</button>
+          </div>
+        </aside>
 
-        <div id="tfMain"></div>
+        <main class="tf-main">
+          <div class="tf-container">
+            <div class="tf-card tf-root-card">
+              <div class="tf-title">${mode === 'practice' ? 'Practice Mode' : mode === 'challenge' ? 'Challenge Mode' : 'Setting'}</div>
+              <div class="tf-muted">Tactics Fighter</div>
+              <div id="tfMain" style="margin-top:12px;"></div>
+            </div>
+          </div>
+        </main>
       </div>
     `;
   }
@@ -82,7 +94,6 @@
 
     return `
       <div>
-        <div class="tf-section-title">Practice Mode</div>
         <div class="tf-practice-grid">
           ${levels.map(l => `<button class="btn btn-primary tf-practice-btn" type="button" data-practice="${escapeHtml(l.key)}">${escapeHtml(l.label)}</button>`).join('')}
         </div>
@@ -145,7 +156,7 @@
     const activateMode = (m) => {
       const nm = normalizeMode(m);
       setUrlMode(nm);
-      document.querySelectorAll('.tf-tab').forEach((b) => {
+      root.querySelectorAll('.tf-nav-btn').forEach((b) => {
         const bm = String(b.getAttribute('data-mode') || '');
         b.classList.toggle('is-active', bm === nm);
       });
@@ -157,8 +168,8 @@
       }
     };
 
-    // Tab switching
-    root.querySelectorAll('.tf-tab').forEach((btn) => {
+    // Sidebar mode switching
+    root.querySelectorAll('.tf-nav-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const m = btn.getAttribute('data-mode');
         activateMode(m);

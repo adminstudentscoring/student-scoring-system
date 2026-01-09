@@ -76,6 +76,7 @@
                 // Allow per-game layout overrides via CSS (avoid outer paddings for fixed-sidebar apps like Blunders/Running Queen/VCP)
                 document.body.classList.toggle('game-is-blunders', gameKey === 'blunders');
                 document.body.classList.toggle('game-is-running-queen', gameKey === 'runningQueen');
+                document.body.classList.toggle('game-is-tactics-fighter', gameKey === 'tacticsFighter');
                 document.body.classList.toggle('game-is-vcp', gameKey === 'vChessPlatform');
 
                 if (gameKey === 'runningQueen') {
