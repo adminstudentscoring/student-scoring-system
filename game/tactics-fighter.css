@@ -234,7 +234,8 @@ body.game-is-tactics-fighter .game-area-content {
 
 .tf-modal-grid {
   display: grid;
-  grid-template-columns: minmax(520px, 1fr) minmax(320px, 420px);
+  /* Make the right panel wider (as requested) while keeping board readable */
+  grid-template-columns: minmax(420px, 520px) minmax(520px, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -244,7 +245,7 @@ body.game-is-tactics-fighter .game-area-content {
 }
 
 .tf-board {
-  width: min(560px, 72vh, 100%);
+  width: min(520px, 72vh, 100%);
   aspect-ratio: 1 / 1;
   border: 2px solid #e5e7eb;
   border-radius: 14px;
@@ -311,7 +312,7 @@ body.game-is-tactics-fighter .game-area-content {
 
 .tf-stepper {
   display: grid;
-  grid-template-columns: 1fr 40px;
+  grid-template-columns: 1fr 34px;
   gap: 8px;
   align-items: center;
 }
@@ -329,8 +330,20 @@ body.game-is-tactics-fighter .game-area-content {
   border-radius: 12px;
   background: #ffffff;
   cursor: pointer;
-  height: 42px;
   font-weight: 950;
+}
+
+.tf-stepper-arrows {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+}
+
+.tf-arrow-btn {
+  height: 20px;
+  line-height: 20px;
+  border-radius: 10px;
+  padding: 0;
 }
 
 .tf-lines {

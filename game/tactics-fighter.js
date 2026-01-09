@@ -756,7 +756,6 @@
 
                   <div class="tf-field">
                     <label>Pieces</label>
-                    <div class="tf-muted">Pick a piece, then tap squares to place it.</div>
                     <div id="tfPalette" class="tf-piece-palette"></div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
                       <button id="tfClearSelection" class="btn btn-secondary" type="button">Clear selection</button>
@@ -767,23 +766,26 @@
 
                   <div class="tf-field">
                     <label>Engine Load</label>
-                    <div class="tf-muted">MultiPV = number of best lines (N-best). PV plies = how many half-moves to display.</div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;">
                       <div>
                         <div class="tf-muted" style="font-weight:900;">MultiPV (N-best)</div>
                         <div class="tf-stepper">
                           <input id="tfMultiPv" type="number" min="1" max="10" value="1">
-                          <button id="tfMultiPvUp" type="button">▲</button>
+                          <div class="tf-stepper-arrows">
+                            <button id="tfMultiPvUp" class="tf-arrow-btn" type="button" aria-label="Increase MultiPV">▲</button>
+                            <button id="tfMultiPvDown" class="tf-arrow-btn" type="button" aria-label="Decrease MultiPV">▼</button>
+                          </div>
                         </div>
-                        <button id="tfMultiPvDown" class="btn btn-secondary btn-small" type="button" style="margin-top:6px;">▼</button>
                       </div>
                       <div>
                         <div class="tf-muted" style="font-weight:900;">PV plies</div>
                         <div class="tf-stepper">
                           <input id="tfPvPlies" type="number" min="1" max="32" value="8">
-                          <button id="tfPvPliesUp" type="button">▲</button>
+                          <div class="tf-stepper-arrows">
+                            <button id="tfPvPliesUp" class="tf-arrow-btn" type="button" aria-label="Increase PV plies">▲</button>
+                            <button id="tfPvPliesDown" class="tf-arrow-btn" type="button" aria-label="Decrease PV plies">▼</button>
+                          </div>
                         </div>
-                        <button id="tfPvPliesDown" class="btn btn-secondary btn-small" type="button" style="margin-top:6px;">▼</button>
                       </div>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
@@ -818,6 +820,34 @@
       const paletteEl = host.querySelector('#tfPalette');
       const engineOutEl = host.querySelector('#tfEngineOut');
       const saveBtn = host.querySelector('#tfSavePuzzleBtn');
+
+      function formatPvWithMoveNumbers(fen, pvSan) {
+        const parts = String(fen || '').trim().split(/\s+/);
+        const side = (parts[1] === 'b') ? 'b' : 'w';
+        const fullmove = Math.max(1, Number(parts[5] || 1) || 1);
+        const moves = Array.isArray(pvSan) ? pvSan.map(String).filter(Boolean) : [];
+        if (!moves.length) return '';
+
+        const lines = [];
+        let idx = 0;
+        let m = fullmove;
+
+        if (side === 'b') {
+          const b = moves[idx++];
+          if (b) lines.push(`${m}. ... ${b}`);
+          m += 1;
+        }
+
+        while (idx < moves.length) {
+          const w = moves[idx++] || '';
+          const b = moves[idx++] || '';
+          if (w && b) lines.push(`${m}. ${w} ${b}`);
+          else if (w) lines.push(`${m}. ${w}`);
+          m += 1;
+        }
+
+        return lines.map(escapeHtml).join('<br>');
+      }
 
       function renderBoard() {
         if (!boardEl) return;
@@ -949,8 +979,9 @@
           const lines = Array.isArray(data.lines) ? data.lines : [];
           setEngineOut(lines.length ? lines.map((ln) => {
             const score = ln?.score?.mate != null ? `mate ${ln.score.mate}` : `cp ${ln?.score?.cp ?? 0}`;
-            const pv = Array.isArray(ln.pvSan) && ln.pvSan.length ? ln.pvSan.join(' ') : (Array.isArray(ln.pvUci) ? ln.pvUci.join(' ') : '');
-            return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(String(ln.multiPv || 1))} · ${escapeHtml(score)}</div><div class="tf-line-meta">${escapeHtml(pv)}</div></div>`;
+            const pv = formatPvWithMoveNumbers(fen, ln.pvSan);
+            const fallback = Array.isArray(ln.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
+            return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(String(ln.multiPv || 1))} · ${escapeHtml(score)}</div><div class="tf-line-meta">${pv || fallback}</div></div>`;
           }).join('') : `<div class="tf-muted">No lines.</div>`);
           if (saveBtn) saveBtn.disabled = false;
         } catch (e) {
