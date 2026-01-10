@@ -159,6 +159,10 @@ app.get('/assets/level-badge/:file', async (req, res) => {
 
 // Redirect root domain to www subdomain
 // This handles the DNS limitation where @ (root domain) cannot have CNAME due to MX record conflict
+//
+// IMPORTANT:
+// - Do NOT redirect API calls. Redirecting POST uploads with 301/302 can cause browsers to change POST -> GET.
+// - Only redirect safe methods (GET/HEAD). For other methods, preserve method using 308.
 app.use((req, res, next) => {
   // Get hostname from request, handling both with and without port
   let hostname = req.get('host') || req.hostname || '';
@@ -171,12 +175,19 @@ app.use((req, res, next) => {
   // Check if request is for root domain (without www)
   // Only redirect in production environment
   if (NODE_ENV === 'production' && hostname === 'studentscoring.com') {
+    const path = req.originalUrl || req.url || '';
+    // Never redirect API endpoints (breaks POST/multipart uploads)
+    if (String(path).startsWith('/api/')) return next();
+
     const protocol = req.protocol || (req.secure ? 'https' : 'http') || 'https';
-    const path = req.originalUrl || req.url;
     const redirectUrl = `${protocol}://www.studentscoring.com${path}`;
-    
-    // Use 301 permanent redirect for SEO
-    return res.redirect(301, redirectUrl);
+
+    // Use 301 permanent redirect for SEO only for safe methods.
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return res.redirect(301, redirectUrl);
+    }
+    // Preserve method/body for non-GET.
+    return res.redirect(308, redirectUrl);
   }
   
   next();
