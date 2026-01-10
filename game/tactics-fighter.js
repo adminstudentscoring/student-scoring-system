@@ -2334,7 +2334,7 @@
       }
 
       async function teacherPhotoRecognizeFens(jobId) {
-        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/photo-recognize/jobs/${encodeURIComponent(String(jobId))}/fens?limit=500`, { method: 'GET' });
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/photo-recognize/jobs/${encodeURIComponent(String(jobId))}/fens?limit=2000`, { method: 'GET' });
         return await tfJson(resp);
       }
 

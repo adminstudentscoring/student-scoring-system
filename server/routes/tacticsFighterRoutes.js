@@ -1278,6 +1278,8 @@ function registerTacticsFighterRoutes(app, deps) {
     try { multer = require('multer'); } catch {}
     let OpenAI = null;
     try { OpenAI = require('openai'); } catch {}
+    let sharp = null;
+    try { sharp = require('sharp'); } catch {}
 
     const openAiKey = String(process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
     const upload = multer ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }) : null;
@@ -1295,6 +1297,148 @@ function registerTacticsFighterRoutes(app, deps) {
       const mime = String(file?.mimetype || 'image/png');
       const b64 = Buffer.from(file?.buffer || Buffer.alloc(0)).toString('base64');
       return `data:${mime};base64,${b64}`;
+    }
+
+    function clampInt(n, min, max) {
+      const x = Number.isFinite(Number(n)) ? Math.trunc(Number(n)) : min;
+      return Math.max(min, Math.min(max, x));
+    }
+
+    async function segmentBoardsFromImageBuffer(fileBuffer) {
+      // Heuristic segmentation for long screenshots with many small diagrams.
+      // Strategy:
+      // - Resize to manageable width (<= 900)
+      // - Convert to raw pixels
+      // - Compute per-row non-white density on left region
+      // - Find row segments with high density
+      // - For each segment, compute x-range with high density, then square-crop
+      if (!sharp) return [];
+      const base = sharp(fileBuffer, { failOnError: false });
+      const meta = await base.metadata().catch(() => null);
+      const w0 = Number(meta?.width || 0);
+      const h0 = Number(meta?.height || 0);
+      if (!w0 || !h0) return [];
+
+      const targetW = w0 > 900 ? 900 : w0;
+      const scale = targetW / w0;
+
+      const resized = (targetW !== w0) ? base.clone().resize({ width: targetW }) : base.clone();
+      const rawObj = await resized.clone().raw().toBuffer({ resolveWithObject: true }).catch(() => null);
+      if (!rawObj || !rawObj.data || !rawObj.info) return [];
+      const data = rawObj.data;
+      const info = rawObj.info;
+      const width = info.width;
+      const height = info.height;
+      const channels = info.channels;
+
+      const xLimit = clampInt(Math.floor(width * 0.55), 1, width);
+      const rowCount = new Array(height).fill(0);
+      // Non-white threshold (tune for screenshots)
+      const lumThr = 240;
+      for (let y = 0; y < height; y++) {
+        let cnt = 0;
+        const rowOff = y * width * channels;
+        for (let x = 0; x < xLimit; x++) {
+          const idx = rowOff + x * channels;
+          const r = data[idx] || 0;
+          const g = data[idx + 1] || 0;
+          const b = data[idx + 2] || 0;
+          // luminance approx
+          const lum = (r * 3 + g * 4 + b) / 8;
+          if (lum < lumThr) cnt++;
+        }
+        rowCount[y] = cnt;
+      }
+
+      // Dynamic threshold from percentile (simple)
+      const sorted = rowCount.slice().sort((a, b) => a - b);
+      const p50 = sorted[Math.floor(sorted.length * 0.50)] || 0;
+      const p90 = sorted[Math.floor(sorted.length * 0.90)] || 0;
+      const thrRow = Math.max(25, Math.floor(p50 + (p90 - p50) * 0.55));
+
+      const segments = [];
+      let start = -1;
+      let gap = 0;
+      const maxGap = 6;
+      for (let y = 0; y < height; y++) {
+        const on = rowCount[y] >= thrRow;
+        if (on) {
+          if (start === -1) start = y;
+          gap = 0;
+        } else if (start !== -1) {
+          gap++;
+          if (gap > maxGap) {
+            const end = y - gap;
+            segments.push({ start, end });
+            start = -1;
+            gap = 0;
+          }
+        }
+      }
+      if (start !== -1) segments.push({ start, end: height - 1 });
+
+      const out = [];
+      for (const seg of segments) {
+        const hSeg = seg.end - seg.start + 1;
+        if (hSeg < 40 || hSeg > 520) continue;
+
+        // Column density in segment (left region)
+        const colCount = new Array(xLimit).fill(0);
+        for (let y = seg.start; y <= seg.end; y++) {
+          const rowOff = y * width * channels;
+          for (let x = 0; x < xLimit; x++) {
+            const idx = rowOff + x * channels;
+            const r = data[idx] || 0;
+            const g = data[idx + 1] || 0;
+            const b = data[idx + 2] || 0;
+            const lum = (r * 3 + g * 4 + b) / 8;
+            if (lum < lumThr) colCount[x]++;
+          }
+        }
+        const thrCol = Math.max(8, Math.floor(hSeg * 0.10));
+        let x0 = -1;
+        let x1 = -1;
+        for (let x = 0; x < xLimit; x++) {
+          if (colCount[x] >= thrCol) { x0 = x; break; }
+        }
+        for (let x = xLimit - 1; x >= 0; x--) {
+          if (colCount[x] >= thrCol) { x1 = x; break; }
+        }
+        if (x0 === -1 || x1 === -1 || x1 <= x0) continue;
+        const wSeg = x1 - x0 + 1;
+        if (wSeg < 40) continue;
+
+        // Square crop within segment
+        const size = Math.min(wSeg, hSeg);
+        const cy = (seg.start + seg.end) / 2;
+        const cx = (x0 + x1) / 2;
+        const topR = clampInt(Math.round(cy - size / 2), 0, height - size);
+        const leftR = clampInt(Math.round(cx - size / 2), 0, width - size);
+
+        // Map back to original coordinates and add small padding
+        const pad = 2;
+        const leftO = clampInt(Math.floor(leftR / scale) - pad, 0, w0 - 1);
+        const topO = clampInt(Math.floor(topR / scale) - pad, 0, h0 - 1);
+        const sizeO = clampInt(Math.floor(size / scale) + pad * 2, 10, Math.min(w0 - leftO, h0 - topO));
+
+        out.push({ left: leftO, top: topO, width: sizeO, height: sizeO });
+        if (out.length >= 140) break;
+      }
+
+      // De-dup overlapping crops (simple)
+      const dedup = [];
+      for (const c of out) {
+        const overlaps = dedup.some((d) => {
+          const ix = Math.max(0, Math.min(c.left + c.width, d.left + d.width) - Math.max(c.left, d.left));
+          const iy = Math.max(0, Math.min(c.top + c.height, d.top + d.height) - Math.max(c.top, d.top));
+          const inter = ix * iy;
+          const area = Math.min(c.width * c.height, d.width * d.height);
+          return area > 0 && inter / area > 0.65;
+        });
+        if (!overlaps) dedup.push(c);
+      }
+
+      return dedup;
     }
 
     async function openAiExtractFensFromImage({ imageDataUrl, defaultSide = 'w' }) {
@@ -1396,27 +1540,56 @@ function registerTacticsFighterRoutes(app, deps) {
                   throw new Error('PDF upload is not supported in this build yet. Please convert PDF pages to images.');
                 }
 
-                const imageDataUrl = bufferToDataUrl(f);
-                const extracted = await openAiExtractFensFromImage({ imageDataUrl, defaultSide });
-                totalSegments += 1;
-
-                const normalized = extracted.map((x) => normalizeFenLine(x, defaultSide)).filter(Boolean);
-                const valid = normalized.filter(validateFenWithChessJs);
-
-                for (const fen of valid) {
-                  await pool.query(
-                    `INSERT INTO tf_photo_recognize_items(job_id, idx, fen, meta)
-                     VALUES ($1, $2, $3, $4::jsonb)
-                     ON CONFLICT (job_id, idx) DO NOTHING`,
-                    [jobId, outIdx++, fen, JSON.stringify({ fileName: String(f?.originalname || ''), fileIndex: fi })]
-                  );
+                // Segment long screenshots into per-board crops for better accuracy.
+                const buf = Buffer.from(f?.buffer || Buffer.alloc(0));
+                let crops = [];
+                try { crops = await segmentBoardsFromImageBuffer(buf); } catch { crops = []; }
+                if (!crops.length) {
+                  // fallback: treat as single image
+                  crops = [{ left: 0, top: 0, width: null, height: null }];
                 }
 
-                totalFens += valid.length;
-                await pool.query(
-                  `UPDATE tf_photo_recognize_jobs SET total_segments=$3, total_fens=$4, updated_at=NOW() WHERE id=$1 AND org_id=$2`,
-                  [jobId, orgId, totalSegments, totalFens]
-                );
+                for (let ci = 0; ci < crops.length; ci++) {
+                  const c = crops[ci];
+                  let imgBuf = buf;
+                  if (sharp && c.width && c.height) {
+                    imgBuf = await sharp(buf, { failOnError: false })
+                      .extract({ left: c.left, top: c.top, width: c.width, height: c.height })
+                      .png()
+                      .toBuffer();
+                  }
+
+                  const imageDataUrl = `data:image/png;base64,${imgBuf.toString('base64')}`;
+                  const extracted = await openAiExtractFensFromImage({ imageDataUrl, defaultSide });
+                  totalSegments += 1;
+
+                  const normalized = extracted.map((x) => normalizeFenLine(x, defaultSide)).filter(Boolean);
+                  const valid = normalized.filter(validateFenWithChessJs);
+
+                  for (const fen of valid) {
+                    await pool.query(
+                      `INSERT INTO tf_photo_recognize_items(job_id, idx, fen, meta)
+                       VALUES ($1, $2, $3, $4::jsonb)
+                       ON CONFLICT (job_id, idx) DO NOTHING`,
+                      [jobId, outIdx++, fen, JSON.stringify({
+                        fileName: String(f?.originalname || ''),
+                        fileIndex: fi,
+                        cropIndex: ci,
+                        crop: (c.width && c.height) ? c : null
+                      })]
+                    );
+                  }
+
+                  totalFens += valid.length;
+                  await pool.query(
+                    `UPDATE tf_photo_recognize_jobs SET total_segments=$3, total_fens=$4, updated_at=NOW() WHERE id=$1 AND org_id=$2`,
+                    [jobId, orgId, totalSegments, totalFens]
+                  );
+
+                  // Keep job bounded
+                  if (outIdx >= 3000) break;
+                }
+                if (outIdx >= 3000) break;
               }
 
               await pool.query(
