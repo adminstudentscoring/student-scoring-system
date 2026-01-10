@@ -771,7 +771,7 @@
             </div>
           </div>
           <div class="vcp-modal-body">
-            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:start;">
+            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:stretch;">
               <div>
                 <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
               </div>

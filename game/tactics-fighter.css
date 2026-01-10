@@ -347,6 +347,7 @@ body.game-is-tactics-fighter .game-area-content {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  height: 100%;
 }
 
 .tf-stu-toprow {
@@ -364,7 +365,8 @@ body.game-is-tactics-fighter .game-area-content {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   line-height: 1.6;
   overflow: auto;
-  max-height: min(46vh, 360px);
+  flex: 1 1 auto;
+  min-height: 0;
   color: #111827;
 }
 
