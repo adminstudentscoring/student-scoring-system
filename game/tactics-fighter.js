@@ -670,11 +670,14 @@
             const piece = b[r][c] || '';
             const src = piece ? pieceImageSrc(piece) : '';
             const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
-            const sel = ui.student.runner.selectedFrom === coord ? ' style="outline:3px solid #ef4444; outline-offset:-3px;"' : '';
-            sqs.push(`<button type="button" class="tf-mini-sq ${isDark ? 'dark' : 'light'}" data-stu-sq="${escapeHtml(coord)}"${sel}>${img}</button>`);
+            const sel = ui.student.runner.selectedFrom === coord ? ' is-selected' : '';
+            sqs.push(
+              `<button type="button" class="tf-sq tf-sq-btn ${isDark ? 'dark' : 'light'}${sel}" data-stu-sq="${escapeHtml(coord)}">${img}</button>`
+            );
           }
         }
-        host.innerHTML = `<div class="tf-mini-board" style="width:100%; height:auto; grid-template-columns: repeat(8, 1fr);">${sqs.join('')}</div>`;
+        // Host is already a square 8x8 grid via .tf-board; render squares directly.
+        host.innerHTML = sqs.join('');
       }
 
       function currentPuzzle() {
