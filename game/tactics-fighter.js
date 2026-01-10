@@ -2112,6 +2112,8 @@
                     <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
                       <button id="tfBulkValidate" class="btn btn-secondary" type="button">Validate</button>
                       <button id="tfBulkClear" class="btn btn-secondary" type="button">Clear</button>
+                  <button id="tfBulkPhotoBtn" class="btn btn-primary" type="button">Photo Recognize</button>
+                  <input id="tfBulkPhotoInput" type="file" accept="image/*,application/pdf" multiple style="display:none;">
                     </div>
                   </div>
                   <div id="tfBulkList" class="tf-bulk-list"></div>
@@ -2158,6 +2160,8 @@
       const stopBtn = host.querySelector('#tfBulkStop');
       const saveBtn = host.querySelector('#tfBulkSave');
       const msgEl = host.querySelector('#tfBulkMsg');
+      const photoBtn = host.querySelector('#tfBulkPhotoBtn');
+      const photoInput = host.querySelector('#tfBulkPhotoInput');
 
       const pvPlies = getBulkPvPlies();
       if (pvPliesEl) pvPliesEl.textContent = String(pvPlies);
@@ -2312,6 +2316,93 @@
       renderList();
       updateCounts();
       showSelected();
+
+      async function teacherPhotoRecognizeUpload(files) {
+        if (!files || !files.length) return null;
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(String(subtopicId))}/photo-recognize/upload`, {
+          method: 'POST',
+          body: fd
+        });
+        return await tfJson(resp);
+      }
+
+      async function teacherPhotoRecognizeJob(jobId) {
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/photo-recognize/jobs/${encodeURIComponent(String(jobId))}`, { method: 'GET' });
+        return await tfJson(resp);
+      }
+
+      async function teacherPhotoRecognizeFens(jobId) {
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/photo-recognize/jobs/${encodeURIComponent(String(jobId))}/fens?limit=500`, { method: 'GET' });
+        return await tfJson(resp);
+      }
+
+      function appendFensToEntries(fens) {
+        const list = Array.isArray(fens) ? fens : [];
+        let added = 0;
+        for (const fen of list) {
+          const s = String(fen || '').trim();
+          if (!s) continue;
+          entries.push({ fen: s, status: 'pending', error: '', result: null });
+          added++;
+        }
+        if (added) {
+          absorbedStack.push(added);
+          selectedIdx = Math.max(0, entries.length - added);
+        }
+        renderList();
+        updateCounts();
+        showSelected();
+        return added;
+      }
+
+      photoBtn?.addEventListener('click', () => {
+        try { photoInput?.click(); } catch {}
+      });
+
+      photoInput?.addEventListener('change', async () => {
+        clearMsg();
+        try {
+          const files = Array.from(photoInput?.files || []);
+          if (!files.length) return;
+          showMsg('ok', 'Uploading…');
+          photoBtn.disabled = true;
+          const up = await teacherPhotoRecognizeUpload(files);
+          const jobId = String(up?.jobId || '');
+          if (!jobId) throw new Error('No jobId returned');
+          showMsg('ok', 'Processing…');
+
+          // Poll status
+          const started = Date.now();
+          while (true) {
+            await new Promise((r) => setTimeout(r, 1200));
+            const st = await teacherPhotoRecognizeJob(jobId);
+            const job = st?.job || {};
+            const status = String(job.status || '');
+            if (status === 'done') {
+              showMsg('ok', `Done. Extracted ${Number(job.total_fens || 0)} FENs.`);
+              const out = await teacherPhotoRecognizeFens(jobId);
+              const added = appendFensToEntries(out?.fens || []);
+              showMsg('ok', `Done. Absorbed ${added} FENs.`);
+              break;
+            }
+            if (status === 'error') {
+              throw new Error(String(job.message || 'Photo recognize failed'));
+            }
+            // timeout ~ 5 minutes
+            if (Date.now() - started > 5 * 60 * 1000) {
+              throw new Error('Timed out while processing');
+            }
+            showMsg('ok', `Processing… (${Number(job.total_fens || 0)} extracted)`);
+          }
+        } catch (e) {
+          showMsg('err', e?.message || String(e));
+        } finally {
+          try { photoBtn.disabled = false; } catch {}
+          try { photoInput.value = ''; } catch {}
+        }
+      });
 
       host.querySelector('#tfBulkValidate')?.addEventListener('click', () => {
         clearMsg();

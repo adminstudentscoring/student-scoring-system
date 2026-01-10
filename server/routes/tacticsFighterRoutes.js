@@ -162,6 +162,40 @@ async function ensureTfStudentSchema(pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_student_attempts_puzzle_idx ON tactics_fighter_student_attempts(puzzle_id);`);
 }
 
+async function ensureTfPhotoRecognizeSchema(pool) {
+  // Idempotent schema create for safety (still recommend DB migrations).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tf_photo_recognize_jobs (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      subtopic_id BIGINT NOT NULL,
+      created_by TEXT,
+      status TEXT NOT NULL DEFAULT 'queued', -- queued | running | done | error
+      message TEXT,
+      total_files INT NOT NULL DEFAULT 0,
+      total_segments INT NOT NULL DEFAULT 0,
+      total_fens INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tf_photo_recognize_jobs_org_id_idx ON tf_photo_recognize_jobs(org_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tf_photo_recognize_jobs_subtopic_id_idx ON tf_photo_recognize_jobs(subtopic_id);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tf_photo_recognize_items (
+      id BIGSERIAL PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES tf_photo_recognize_jobs(id) ON DELETE CASCADE,
+      idx INT NOT NULL,
+      fen TEXT NOT NULL,
+      meta JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (job_id, idx)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tf_photo_recognize_items_job_id_idx ON tf_photo_recognize_items(job_id);`);
+}
+
 function registerTacticsFighterRoutes(app, deps) {
   if (!app) throw new Error("registerTacticsFighterRoutes: missing app");
   const fsPromises = deps?.fs;
@@ -190,6 +224,7 @@ function registerTacticsFighterRoutes(app, deps) {
       await pool.query('SELECT 1 AS ok', []);
       await ensureTfSchema(pool);
       await ensureTfStudentSchema(pool);
+      await ensureTfPhotoRecognizeSchema(pool);
       return true;
     } catch (e) {
       console.error('[tactics-fighter] ensure schema failed:', e);
@@ -1234,6 +1269,235 @@ function registerTacticsFighterRoutes(app, deps) {
       return res.status(500).json({ ok: false, error: 'Failed to record attempt' });
     }
   });
+
+  // ===== Teacher: Photo Recognize (upload -> job -> fens) =====
+  // v1 implementation: uses OpenAI Vision to extract FEN lines from screenshots (source is consistent).
+  // If side-to-move text is missing, defaults to 'w'.
+  if (authenticateUser && authorizeRole && requireOrganizationAccess) {
+    let multer = null;
+    try { multer = require('multer'); } catch {}
+    let OpenAI = null;
+    try { OpenAI = require('openai'); } catch {}
+
+    const openAiKey = String(process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
+    const upload = multer ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }) : null;
+
+    function makeId(prefix = 'job') {
+      return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+    }
+
+    function isPdfMime(m) {
+      const s = String(m || '').toLowerCase();
+      return s === 'application/pdf' || s === 'application/x-pdf';
+    }
+
+    function bufferToDataUrl(file) {
+      const mime = String(file?.mimetype || 'image/png');
+      const b64 = Buffer.from(file?.buffer || Buffer.alloc(0)).toString('base64');
+      return `data:${mime};base64,${b64}`;
+    }
+
+    async function openAiExtractFensFromImage({ imageDataUrl, defaultSide = 'w' }) {
+      if (!OpenAI) throw new Error('OpenAI SDK not installed');
+      if (!openAiKey) throw new Error('OPENAI_API_KEY not configured');
+      const client = new OpenAI({ apiKey: openAiKey });
+      const model = String(process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini');
+
+      const prompt = [
+        'You are extracting chess positions from screenshots of chess puzzles.',
+        'Return ONLY valid FEN lines, one per line. No numbering, no commentary.',
+        'Each line MUST be a 6-field FEN: "<placement> <side> - - 0 1".',
+        `If side-to-move is not explicitly stated in nearby text, use "${defaultSide}".`,
+        'If there are multiple chess diagrams in the image, output one FEN per diagram, in top-to-bottom order.',
+        'If a diagram is too small/unclear, skip it.'
+      ].join('\n');
+
+      const resp = await client.chat.completions.create({
+        model,
+        temperature: 0,
+        max_tokens: 2500,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } }
+            ]
+          }
+        ]
+      });
+
+      const text = String(resp?.choices?.[0]?.message?.content || '').trim();
+      if (!text) return [];
+      return text.split(/\r?\n/).map((l) => String(l || '').trim()).filter(Boolean);
+    }
+
+    function normalizeFenLine(s, defaultSide = 'w') {
+      const line = String(s || '').trim();
+      if (!line) return '';
+      const parts = line.split(/\s+/);
+      if (parts.length < 2) return '';
+      const placement = parts[0];
+      const side = (parts[1] === 'b') ? 'b' : (parts[1] === 'w') ? 'w' : (String(defaultSide) === 'b' ? 'b' : 'w');
+      return `${placement} ${side} - - 0 1`;
+    }
+
+    function validateFenWithChessJs(fen) {
+      try { new Chess(fen); return true; } catch { return false; }
+    }
+
+    app.post(
+      '/api/teachers/tactics-fighter/builder/subtopics/:subtopicId/photo-recognize/upload',
+      authenticateUser,
+      authorizeRole('teacher'),
+      requireOrganizationAccess,
+      ...(upload ? [upload.array('files', 20)] : []),
+      async (req, res) => {
+        try {
+          if (!upload) return res.status(501).json({ ok: false, error: 'Upload not configured (multer missing)' });
+          if (!(await requireDbReady(res))) return;
+
+          const orgId = String(req.user.organizationId || req.organizationFilter || '');
+          if (!orgId) return res.status(403).json({ ok: false, error: 'Missing org' });
+
+          const subtopicId = toRangeInt(req.params?.subtopicId, 1, 1_000_000_000, 0);
+          if (!subtopicId) return res.status(400).json({ ok: false, error: 'Invalid subtopicId' });
+
+          const okRes = await pool.query(
+            `SELECT id FROM tactics_fighter_subtopics WHERE org_id = $1 AND id = $2 LIMIT 1`,
+            [orgId, subtopicId]
+          );
+          if (!okRes.rows.length) return res.status(404).json({ ok: false, error: 'Subtopic not found' });
+
+          const files = Array.isArray(req.files) ? req.files : [];
+          if (!files.length) return res.status(400).json({ ok: false, error: 'No files uploaded' });
+
+          const jobId = makeId('tfpr');
+          const createdBy = String(req.user.id || '');
+          await pool.query(
+            `INSERT INTO tf_photo_recognize_jobs (id, org_id, subtopic_id, created_by, status, total_files, updated_at)
+             VALUES ($1, $2, $3, $4, 'queued', $5, NOW())`,
+            [jobId, orgId, subtopicId, createdBy, files.length]
+          );
+
+          // Fire-and-forget background job
+          setTimeout(async () => {
+            try {
+              await pool.query(`UPDATE tf_photo_recognize_jobs SET status='running', message=NULL, updated_at=NOW() WHERE id=$1 AND org_id=$2`, [jobId, orgId]);
+              let outIdx = 0;
+              let totalFens = 0;
+              let totalSegments = 0;
+              const defaultSide = 'w';
+
+              for (let fi = 0; fi < files.length; fi++) {
+                const f = files[fi];
+                const mime = String(f?.mimetype || '');
+                if (isPdfMime(mime)) {
+                  throw new Error('PDF upload is not supported in this build yet. Please convert PDF pages to images.');
+                }
+
+                const imageDataUrl = bufferToDataUrl(f);
+                const extracted = await openAiExtractFensFromImage({ imageDataUrl, defaultSide });
+                totalSegments += 1;
+
+                const normalized = extracted.map((x) => normalizeFenLine(x, defaultSide)).filter(Boolean);
+                const valid = normalized.filter(validateFenWithChessJs);
+
+                for (const fen of valid) {
+                  await pool.query(
+                    `INSERT INTO tf_photo_recognize_items(job_id, idx, fen, meta)
+                     VALUES ($1, $2, $3, $4::jsonb)
+                     ON CONFLICT (job_id, idx) DO NOTHING`,
+                    [jobId, outIdx++, fen, JSON.stringify({ fileName: String(f?.originalname || ''), fileIndex: fi })]
+                  );
+                }
+
+                totalFens += valid.length;
+                await pool.query(
+                  `UPDATE tf_photo_recognize_jobs SET total_segments=$3, total_fens=$4, updated_at=NOW() WHERE id=$1 AND org_id=$2`,
+                  [jobId, orgId, totalSegments, totalFens]
+                );
+              }
+
+              await pool.query(
+                `UPDATE tf_photo_recognize_jobs SET status='done', message=NULL, total_segments=$3, total_fens=$4, updated_at=NOW() WHERE id=$1 AND org_id=$2`,
+                [jobId, orgId, totalSegments, totalFens]
+              );
+            } catch (e) {
+              const msg = String(e?.message || e);
+              console.error('[tactics-fighter] photo recognize job error:', msg);
+              try {
+                await pool.query(
+                  `UPDATE tf_photo_recognize_jobs SET status='error', message=$3, updated_at=NOW() WHERE id=$1 AND org_id=$2`,
+                  [jobId, orgId, msg.slice(0, 500)]
+                );
+              } catch {}
+            }
+          }, 30);
+
+          return res.json({ ok: true, jobId });
+        } catch (e) {
+          console.error('[tactics-fighter] photo recognize upload error:', e);
+          return res.status(500).json({ ok: false, error: 'Upload failed', details: String(e?.message || e) });
+        }
+      }
+    );
+
+    app.get(
+      '/api/teachers/tactics-fighter/builder/photo-recognize/jobs/:jobId',
+      authenticateUser,
+      authorizeRole('teacher'),
+      requireOrganizationAccess,
+      async (req, res) => {
+        try {
+          if (!(await requireDbReady(res))) return;
+          const orgId = String(req.user.organizationId || req.organizationFilter || '');
+          const jobId = toCleanString(req.params?.jobId || '', 200);
+          if (!orgId || !jobId) return res.status(400).json({ ok: false, error: 'Missing org/jobId' });
+
+          const r = await pool.query(
+            `SELECT id, subtopic_id, status, message, total_files, total_segments, total_fens, created_at, updated_at
+             FROM tf_photo_recognize_jobs WHERE org_id=$1 AND id=$2 LIMIT 1`,
+            [orgId, jobId]
+          );
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Job not found' });
+          return res.json({ ok: true, job: r.rows[0] });
+        } catch (e) {
+          console.error('[tactics-fighter] photo recognize job status error:', e);
+          return res.status(500).json({ ok: false, error: 'Failed to load job' });
+        }
+      }
+    );
+
+    app.get(
+      '/api/teachers/tactics-fighter/builder/photo-recognize/jobs/:jobId/fens',
+      authenticateUser,
+      authorizeRole('teacher'),
+      requireOrganizationAccess,
+      async (req, res) => {
+        try {
+          if (!(await requireDbReady(res))) return;
+          const orgId = String(req.user.organizationId || req.organizationFilter || '');
+          const jobId = toCleanString(req.params?.jobId || '', 200);
+          const limit = toRangeInt(req.query?.limit, 1, 2000, 500);
+          if (!orgId || !jobId) return res.status(400).json({ ok: false, error: 'Missing org/jobId' });
+
+          const jr = await pool.query(`SELECT id FROM tf_photo_recognize_jobs WHERE org_id=$1 AND id=$2 LIMIT 1`, [orgId, jobId]);
+          if (!jr.rows.length) return res.status(404).json({ ok: false, error: 'Job not found' });
+
+          const items = await pool.query(
+            `SELECT idx, fen FROM tf_photo_recognize_items WHERE job_id=$1 ORDER BY idx ASC LIMIT $2`,
+            [jobId, limit]
+          );
+          const fens = (items.rows || []).map((r) => String(r.fen || '')).filter(Boolean);
+          return res.json({ ok: true, jobId, fens, count: fens.length });
+        } catch (e) {
+          console.error('[tactics-fighter] photo recognize fens error:', e);
+          return res.status(500).json({ ok: false, error: 'Failed to load fens' });
+        }
+      }
+    );
+  }
 }
 
 module.exports = { registerTacticsFighterRoutes };
