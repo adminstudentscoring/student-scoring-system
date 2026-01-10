@@ -432,6 +432,66 @@ function registerTacticsFighterRoutes(app, deps) {
     );
   }
 
+  // ===== Public Student: Engine analyze (single best line) =====
+  // Used by student practice runner: when student plays a wrong move, engine replies 1 move.
+  if (sfAnalyzeFen && Chess) {
+    app.post('/api/public/students/:id/tactics-fighter/engine/analyze', async (req, res) => {
+      try {
+        const ctx = await requirePublicStudent(req, res);
+        if (!ctx) return;
+
+        const fen = toCleanString(req?.body?.fen || '', 2000);
+        if (!fen) return res.status(400).json({ ok: false, error: 'Missing fen' });
+
+        // Validate FEN via chess.js
+        try { new Chess(fen); } catch { return res.status(400).json({ ok: false, error: 'Invalid FEN' }); }
+
+        // Clamp aggressively for public endpoint
+        const depth = toRangeInt(req?.body?.depth, 4, 14, 12);
+        const pvPlies = toRangeInt(req?.body?.pvPlies, 1, 16, 6);
+        const multipv = 1;
+
+        const r = await sfAnalyzeFen(fen, { depth, multiPv: multipv, pvPlies });
+        const lines = Array.isArray(r?.lines) ? r.lines : [];
+
+        const withSan = lines.map((ln) => {
+          const pvUci = Array.isArray(ln?.pv) ? ln.pv : [];
+          const pvSan = [];
+          try {
+            const ch = new Chess(fen);
+            for (const u of pvUci) {
+              const mv = parseUci(u);
+              if (!mv) break;
+              const out = ch.move({ from: mv.from, to: mv.to, promotion: mv.promotion });
+              if (!out) break;
+              pvSan.push(String(out.san || ''));
+            }
+          } catch {}
+          return {
+            multiPv: Number(ln?.multiPv || 1),
+            score: normalizeScore(ln?.score),
+            bestMove: ln?.bestMove ? String(ln.bestMove) : null,
+            pvUci,
+            pvSan
+          };
+        });
+
+        return res.json({
+          ok: true,
+          fen,
+          depth,
+          multipv,
+          pvPlies,
+          bestMove: r?.bestMove ? String(r.bestMove) : null,
+          lines: withSan
+        });
+      } catch (e) {
+        console.error('[tactics-fighter] public engine analyze error:', e);
+        return res.status(500).json({ ok: false, error: 'Engine analyze failed' });
+      }
+    });
+  }
+
   // ===== Teacher: Builder CRUD (Postgres) =====
   if (authenticateUser && authorizeRole && requireOrganizationAccess && resolveOrgIdFromUser) {
     // Tree: categories + topics + subtopics (no puzzles yet; puzzles are fetched per subtopic)

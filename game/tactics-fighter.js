@@ -153,6 +153,127 @@
     return `${placement} ${stm} - - 0 1`;
   }
 
+  function fenSideToMove(fen) {
+    const parts = String(fen || '').trim().split(/\s+/);
+    const s = String(parts[1] || '').trim();
+    return (s === 'b') ? 'b' : 'w';
+  }
+
+  function cloneBoard(board) {
+    return Array.isArray(board) ? board.map((row) => Array.isArray(row) ? row.slice() : []) : null;
+  }
+
+  function coordToRc(coord) {
+    const s = String(coord || '').trim().toLowerCase();
+    if (!/^[a-h][1-8]$/.test(s)) return null;
+    const c = FILES.indexOf(s[0]);
+    const r = 8 - Number(s[1]);
+    if (r < 0 || r > 7 || c < 0 || c > 7) return null;
+    return { r, c };
+  }
+
+  function applyUciToBoard(state, uci) {
+    const s = String(uci || '').trim().toLowerCase();
+    const m = s.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/);
+    if (!m) return { ok: false, error: 'Invalid move format' };
+    const from = coordToRc(m[1]);
+    const to = coordToRc(m[2]);
+    const promo = m[3] || '';
+    if (!from || !to) return { ok: false, error: 'Invalid squares' };
+
+    const board = state?.board;
+    if (!Array.isArray(board) || !Array.isArray(board[from.r])) return { ok: false, error: 'Board not ready' };
+    const piece = board[from.r][from.c] || '';
+    if (!piece) return { ok: false, error: 'No piece on from-square' };
+
+    // snapshot
+    state.history.push({ board: cloneBoard(board), side: state.side, uci: s });
+
+    // move piece
+    board[from.r][from.c] = '';
+    board[to.r][to.c] = piece;
+
+    // Basic castling rook move (does not validate legality)
+    const isWhiteKing = piece === 'K';
+    const isBlackKing = piece === 'k';
+    const fromCoord = m[1];
+    const toCoord = m[2];
+    if (isWhiteKing && fromCoord === 'e1' && toCoord === 'g1') { // O-O
+      const rookFrom = coordToRc('h1'); const rookTo = coordToRc('f1');
+      if (rookFrom && rookTo) { board[rookTo.r][rookTo.c] = board[rookFrom.r][rookFrom.c] || 'R'; board[rookFrom.r][rookFrom.c] = ''; }
+    } else if (isWhiteKing && fromCoord === 'e1' && toCoord === 'c1') { // O-O-O
+      const rookFrom = coordToRc('a1'); const rookTo = coordToRc('d1');
+      if (rookFrom && rookTo) { board[rookTo.r][rookTo.c] = board[rookFrom.r][rookFrom.c] || 'R'; board[rookFrom.r][rookFrom.c] = ''; }
+    } else if (isBlackKing && fromCoord === 'e8' && toCoord === 'g8') {
+      const rookFrom = coordToRc('h8'); const rookTo = coordToRc('f8');
+      if (rookFrom && rookTo) { board[rookTo.r][rookTo.c] = board[rookFrom.r][rookFrom.c] || 'r'; board[rookFrom.r][rookFrom.c] = ''; }
+    } else if (isBlackKing && fromCoord === 'e8' && toCoord === 'c8') {
+      const rookFrom = coordToRc('a8'); const rookTo = coordToRc('d8');
+      if (rookFrom && rookTo) { board[rookTo.r][rookTo.c] = board[rookFrom.r][rookFrom.c] || 'r'; board[rookFrom.r][rookFrom.c] = ''; }
+    }
+
+    // Promotion (default to queen if omitted and pawn reaches last rank)
+    const isPawn = piece === 'P' || piece === 'p';
+    if (isPawn) {
+      const toRank = Number(m[2][1]);
+      if ((piece === 'P' && toRank === 8) || (piece === 'p' && toRank === 1)) {
+        const want = promo || 'q';
+        const up = piece === 'P';
+        const promPiece =
+          want === 'q' ? (up ? 'Q' : 'q') :
+          want === 'r' ? (up ? 'R' : 'r') :
+          want === 'b' ? (up ? 'B' : 'b') :
+          want === 'n' ? (up ? 'N' : 'n') : (up ? 'Q' : 'q');
+        board[to.r][to.c] = promPiece;
+      }
+    }
+
+    // Toggle side
+    state.side = (state.side === 'b') ? 'w' : 'b';
+    return { ok: true };
+  }
+
+  function undoOnePly(state) {
+    const last = state.history.pop();
+    if (!last) return false;
+    state.board = cloneBoard(last.board);
+    state.side = last.side;
+    return true;
+  }
+
+  function uciToPseudoSan(beforeBoard, uci) {
+    const s = String(uci || '').trim().toLowerCase();
+    const m = s.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/);
+    if (!m) return s;
+    const from = coordToRc(m[1]);
+    const to = coordToRc(m[2]);
+    if (!from || !to) return s;
+    const piece = beforeBoard?.[from.r]?.[from.c] || '';
+    const target = beforeBoard?.[to.r]?.[to.c] || '';
+    const promo = m[3] || '';
+    const pieceLetter = (() => {
+      const p = String(piece || '');
+      const t = p.toLowerCase();
+      if (t === 'p') return '';
+      if (t === 'n') return 'N';
+      if (t === 'b') return 'B';
+      if (t === 'r') return 'R';
+      if (t === 'q') return 'Q';
+      if (t === 'k') return 'K';
+      return '';
+    })();
+    const isCapture = !!target;
+    const toSq = m[2];
+    if (!pieceLetter) {
+      // pawn: include file on capture
+      const file = m[1][0];
+      const cap = isCapture ? `${file}x` : '';
+      const prom = promo ? `=${promo.toUpperCase()}` : '';
+      return `${cap}${toSq}${prom}`;
+    }
+    return `${pieceLetter}${isCapture ? 'x' : ''}${toSq}`;
+  }
+
   async function studentFetchTree(studentId, bucket, password) {
     const qp = new URLSearchParams();
     qp.set('bucket', normalizeBucketKey(bucket));
@@ -175,6 +296,16 @@
     const body = { ...(payload || {}) };
     if (password) body.password = String(password);
     const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/puzzles/${encodeURIComponent(String(puzzleId))}/attempt`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    return await tfJson(resp);
+  }
+
+  async function studentEngineAnalyze(studentId, fen, options, password) {
+    const body = { fen: String(fen || ''), ...(options || {}) };
+    if (password) body.password = String(password);
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/engine/analyze`, {
       method: 'POST',
       body: JSON.stringify(body)
     });
@@ -594,10 +725,24 @@
       const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
       if (!puzzles.length) return;
       const startIdx = Math.max(0, Math.min(puzzles.length - 1, Number(ui.student.runner?.index || 0)));
+      const p0 = puzzles[startIdx];
+      const startFen = String(p0?.fen || '').trim();
+      const startBoard = parseFenToBoard(startFen);
+      const startSide = fenSideToMove(startFen);
       ui.student.runner = {
         index: startIdx,
         movesUci: [],
-        selectedFrom: null
+        movesSan: [],
+        selectedFrom: null,
+        // board state (client-side, no legality validation)
+        board: startBoard || Array.from({ length: 8 }, () => Array(8).fill('')),
+        side: startSide,
+        history: [],
+        // PV selection (chosen accepted line)
+        lineIdx: null,
+        lineUci: null,
+        lineSan: null,
+        busy: false
       };
 
       const modal = document.createElement('div');
@@ -657,10 +802,10 @@
         el.classList.remove('ok', 'err');
       };
 
-      function renderBoardInteractive(fen) {
+      function renderBoardInteractive() {
         const host = modal.querySelector('#tfStuRunnerBoard');
         if (!host) return;
-        const b = parseFenToBoard(fen);
+        const b = ui.student.runner.board;
         if (!b) { host.innerHTML = ''; return; }
         const sqs = [];
         for (let r = 0; r < 8; r++) {
@@ -692,22 +837,99 @@
         const meta = modal.querySelector('#tfStuRunnerMeta');
         if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
-        if (movesEl) movesEl.textContent = ui.student.runner.movesUci.join(' ');
-        renderBoardInteractive(pz.fen);
+        if (movesEl) {
+          const html = formatPvWithMoveNumbersHtml(pz.fen, ui.student.runner.movesSan);
+          movesEl.innerHTML = html || escapeHtml(ui.student.runner.movesUci.join(' '));
+        }
+        renderBoardInteractive();
       }
 
-      async function submitMove() {
+      function chooseAcceptedLineForFirstMove(pz, firstUci) {
+        const sol = pz?.solutions && typeof pz.solutions === 'object' ? pz.solutions : {};
+        const lines = Array.isArray(sol.acceptedLines) ? sol.acceptedLines : (Array.isArray(sol.lines) ? sol.lines : []);
+        const uci = String(firstUci || '').trim().toLowerCase();
+        for (let i = 0; i < lines.length; i++) {
+          const pvUci = Array.isArray(lines[i]?.pvUci) ? lines[i].pvUci : null;
+          if (!pvUci || !pvUci.length) continue;
+          if (String(pvUci[0] || '').trim().toLowerCase() === uci) return { idx: i, line: lines[i] };
+        }
+        return null;
+      }
+
+      function uciAtPlyMatches(uciList, plyIndex, uci) {
+        if (!Array.isArray(uciList)) return false;
+        const want = String(uciList[plyIndex] || '').trim().toLowerCase();
+        return want && want === String(uci || '').trim().toLowerCase();
+      }
+
+      async function submitMoveAndReply() {
         const pz = currentPuzzle();
         if (!pz) return;
+        if (ui.student.runner.busy) return;
         const moves = ui.student.runner.movesUci.slice();
         if (!moves.length) return;
-        const last = moves[moves.length - 1];
+
+        const plyIndex = moves.length - 1;
+        const studentUci = moves[plyIndex];
+        const beforeBoard = ui.student.runner.history.length ? ui.student.runner.history[ui.student.runner.history.length - 1].board : null;
+
+        // Determine correctness vs PV accepted line (choose on first move).
+        if (ui.student.runner.lineIdx == null) {
+          const chosen = chooseAcceptedLineForFirstMove(pz, studentUci);
+          if (chosen) {
+            ui.student.runner.lineIdx = chosen.idx;
+            ui.student.runner.lineUci = Array.isArray(chosen.line?.pvUci) ? chosen.line.pvUci.map((x) => String(x || '').trim().toLowerCase()) : null;
+            ui.student.runner.lineSan = Array.isArray(chosen.line?.pvSan) ? chosen.line.pvSan.map((x) => String(x || '').trim()) : null;
+          }
+        }
+
+        const lineUci = ui.student.runner.lineUci;
+        const lineSan = ui.student.runner.lineSan;
+        const isCorrect = uciAtPlyMatches(lineUci, plyIndex, studentUci);
+
+        // Set SAN for student's move
+        if (Array.isArray(lineSan) && isCorrect) {
+          ui.student.runner.movesSan = lineSan.slice(0, moves.length);
+        } else {
+          const pseudo = uciToPseudoSan(beforeBoard || ui.student.runner.board, studentUci);
+          ui.student.runner.movesSan = ui.student.runner.movesSan.concat([pseudo]);
+        }
+
+        ui.student.runner.busy = true;
         try {
+          clearMsg();
+
+          if (isCorrect && Array.isArray(lineUci) && plyIndex + 1 < lineUci.length) {
+            // PV reply move (computer)
+            const replyUci = lineUci[plyIndex + 1];
+            const applyRes = applyUciToBoard(ui.student.runner, replyUci);
+            if (applyRes.ok) {
+              ui.student.runner.movesUci.push(replyUci);
+              if (Array.isArray(lineSan)) ui.student.runner.movesSan = lineSan.slice(0, ui.student.runner.movesUci.length);
+            }
+          } else if (!isCorrect) {
+            // Engine reply on wrong move
+            const fenNow = buildFenFromBoard(ui.student.runner.board, ui.student.runner.side);
+            const eng = await studentEngineAnalyze(publicStudentId, fenNow, { depth: 12, pvPlies: 6 }, publicStudentPassword);
+            const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
+            if (bestUci) {
+              const before = cloneBoard(ui.student.runner.board);
+              const a2 = applyUciToBoard(ui.student.runner, bestUci);
+              if (a2.ok) {
+                ui.student.runner.movesUci.push(bestUci);
+                const engSan0 = (Array.isArray(eng?.lines?.[0]?.pvSan) && eng.lines[0].pvSan[0]) ? String(eng.lines[0].pvSan[0]) : uciToPseudoSan(before, bestUci);
+                ui.student.runner.movesSan = ui.student.runner.movesSan.concat([String(engSan0 || bestUci)]);
+              }
+            }
+          }
+
+          // Log attempt once per student submission (send the full sequence including reply move, if any)
+          const last = ui.student.runner.movesUci[ui.student.runner.movesUci.length - 1];
           const out = await studentPostAttempt(publicStudentId, pz.id, {
             bucket: ui.student.bucket,
             subtopicId: ui.student.subtopicId,
-            movesUci: moves,
-            plyIndex: moves.length - 1,
+            movesUci: ui.student.runner.movesUci.slice(),
+            plyIndex: ui.student.runner.movesUci.length - 1,
             moveUci: last
           }, publicStudentPassword);
 
@@ -715,12 +937,14 @@
             pz.completed = true;
             setMsg('ok', 'Correct. Puzzle completed.');
           } else if (out.correctPrefix) {
-            setMsg('ok', 'Correct so far.');
+            setMsg('ok', 'Correct. Computer replied.');
           } else {
-            setMsg('err', 'Wrong move.');
+            setMsg('err', 'Wrong. Engine replied.');
           }
         } catch (e) {
           setMsg('err', e?.message || String(e));
+        } finally {
+          ui.student.runner.busy = false;
         }
       }
 
@@ -741,12 +965,15 @@
           return renderRunner();
         }
         if (t.closest('[data-stu-undo]')) {
+          // Undo one ply (could be engine/PV reply too)
           ui.student.runner.movesUci.pop();
+          ui.student.runner.movesSan.pop();
+          undoOnePly(ui.student.runner);
           ui.student.runner.selectedFrom = null;
           return renderRunner();
         }
         if (t.closest('[data-stu-submit]')) {
-          return submitMove();
+          return submitMoveAndReply();
         }
         const sq = t.closest('[data-stu-sq]');
         if (sq) {
@@ -754,12 +981,20 @@
           if (!coord) return;
           if (!ui.student.runner.selectedFrom) {
             ui.student.runner.selectedFrom = coord;
-          } else {
-            const from = ui.student.runner.selectedFrom;
-            const to = coord;
-            ui.student.runner.selectedFrom = null;
-            if (from !== to) ui.student.runner.movesUci.push(`${from}${to}`);
+            return renderRunner();
           }
+          const from = ui.student.runner.selectedFrom;
+          const to = coord;
+          ui.student.runner.selectedFrom = null;
+          if (from === to) return renderRunner();
+
+          const uci = `${from}${to}`;
+          const applyRes = applyUciToBoard(ui.student.runner, uci);
+          if (!applyRes.ok) {
+            setMsg('err', applyRes.error || 'Invalid move');
+            return renderRunner();
+          }
+          ui.student.runner.movesUci.push(uci);
           return renderRunner();
         }
       });
