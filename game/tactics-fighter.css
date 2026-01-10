@@ -208,6 +208,139 @@ body.game-is-tactics-fighter .game-area-content {
   justify-content: flex-end;
 }
 
+.tf-bulk-pv {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 999px;
+  height: 30px;
+}
+
+.tf-bulk-pv-label {
+  color: #6b7280;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.tf-bulk-pv-input {
+  width: 64px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-weight: 950;
+  color: #111827;
+}
+
+.tf-bulk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .tf-bulk-grid { grid-template-columns: 1fr; }
+}
+
+.tf-bulk-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.tf-bulk-list {
+  margin-top: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: auto;
+  max-height: 48vh;
+}
+
+.tf-bulk-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.tf-bulk-item:hover,
+.tf-bulk-item.is-selected {
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.tf-bulk-item-row {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.tf-bulk-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 950;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #0f172a;
+  width: 64px;
+}
+
+.tf-bulk-badge--running { border-color: rgba(59, 130, 246, 0.45); background: rgba(59,130,246,0.10); }
+.tf-bulk-badge--done { border-color: rgba(16, 185, 129, 0.45); background: rgba(16,185,129,0.10); }
+.tf-bulk-badge--saved { border-color: rgba(22, 163, 74, 0.45); background: rgba(22,163,74,0.10); }
+.tf-bulk-badge--error { border-color: rgba(220, 38, 38, 0.45); background: rgba(220,38,38,0.10); }
+
+.tf-bulk-fen {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: #111827;
+  word-break: break-word;
+}
+
+.tf-bulk-engine {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.tf-bulk-engine-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.tf-bulk-pvbox {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: #111827;
+  line-height: 1.6;
+}
+
+.tf-bulk-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .tf-tree-children {
   margin-top: 10px;
   padding-left: 10px;

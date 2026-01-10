@@ -1153,6 +1153,11 @@
                                   <div class="tf-tree-title">${escapeHtml(String(s.name || ''))}</div>
                                   <div class="tf-tree-actions">
                                     <button type="button" class="btn btn-primary btn-small" data-tf-add-puzzle="${escapeHtml(sid)}">Add puzzles</button>
+                                    <button type="button" class="btn btn-secondary btn-small" data-tf-bulk-import="${escapeHtml(sid)}">Bulk Import</button>
+                                    <div class="tf-bulk-pv">
+                                      <span class="tf-bulk-pv-label">PV</span>
+                                      <input class="tf-bulk-pv-input" type="number" min="1" max="32" step="1" value="${escapeHtml(String(getBulkPvPlies()))}" data-tf-bulk-pv="1" aria-label="PV plies">
+                                    </div>
                                     <button type="button" class="btn btn-secondary btn-small" data-tf-load-puzzles="${escapeHtml(sid)}">${puzzlesLoaded ? 'Reload' : 'Load'} puzzles</button>
                                     <button type="button" class="btn btn-secondary btn-small" data-tf-rename-subtopic="${escapeHtml(sid)}">Rename</button>
                                     <button type="button" class="btn btn-danger btn-small" data-tf-del-subtopic="${escapeHtml(sid)}">Delete</button>
@@ -1277,6 +1282,21 @@
 
     function setBuilderBucket(bucket) {
       try { localStorage.setItem('tacticsFighterBuilderBucket', String(bucket || 'beginner')); } catch {}
+    }
+
+    function getBulkPvPlies() {
+      try {
+        const v = Number(localStorage.getItem('tacticsFighterBulkPvPlies') || 0);
+        if (Number.isFinite(v) && v >= 1 && v <= 32) return Math.trunc(v);
+      } catch {}
+      return 8;
+    }
+
+    function setBulkPvPlies(v) {
+      const n = Number(v);
+      const out = Number.isFinite(n) ? Math.max(1, Math.min(32, Math.trunc(n))) : 8;
+      try { localStorage.setItem('tacticsFighterBulkPvPlies', String(out)); } catch {}
+      return out;
     }
 
     async function builderRefresh() {
@@ -1438,6 +1458,15 @@
 
         // Delegated actions
         const tree = document.getElementById('tfBuilderTree');
+        // Bulk PV plies (shared) setting
+        tree?.addEventListener('change', (ev) => {
+          const t = ev.target;
+          if (!(t instanceof Element)) return;
+          const pv = t.closest?.('[data-tf-bulk-pv]');
+          if (!pv) return;
+          const v = Number(pv.value || 0);
+          setBulkPvPlies(v);
+        });
         tree?.addEventListener('click', async (ev) => {
           const t = ev.target;
           const toggleBtn = t?.closest?.('[data-tf-toggle]');
@@ -1551,6 +1580,18 @@
               ui.expanded.subtopic.add(sid);
               ui.puzzlePageBySubtopic.set(sid, 0);
               await builderRefresh();
+            } catch (e) {
+              showBuilderMsg('err', e?.message || String(e));
+            }
+            return;
+          }
+
+          const bulkBtn = t?.closest?.('[data-tf-bulk-import]');
+          if (bulkBtn) {
+            const sid = String(bulkBtn.getAttribute('data-tf-bulk-import') || '');
+            if (!sid) return;
+            try {
+              await openBulkImportModal(sid);
             } catch (e) {
               showBuilderMsg('err', e?.message || String(e));
             }
@@ -2046,6 +2087,302 @@
         } catch (e) {
           setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
         }
+      });
+    }
+
+    async function openBulkImportModal(subtopicId) {
+      const roleNow = String(new URLSearchParams(window.location.search).get('role') || '');
+      if (String(roleNow).toLowerCase() !== 'teacher') {
+        alert('Bulk Import is available for teacher only.');
+        return;
+      }
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfBulkBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Bulk Import" style="width: calc(100vw - 40px); max-width: 1400px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Bulk Import</div>
+              <button id="tfBulkClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-bulk-grid">
+                <div>
+                  <div class="tf-field">
+                    <label for="tfBulkFenInput">FEN (one per line)</label>
+                    <textarea id="tfBulkFenInput" class="tf-textarea" rows="12" placeholder="Paste FEN lines here..."></textarea>
+                  </div>
+                  <div class="tf-bulk-meta">
+                    <div id="tfBulkCounts" class="tf-muted"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                      <button id="tfBulkValidate" class="btn btn-secondary" type="button">Validate</button>
+                      <button id="tfBulkClear" class="btn btn-secondary" type="button">Clear</button>
+                    </div>
+                  </div>
+                  <div id="tfBulkList" class="tf-bulk-list"></div>
+                </div>
+
+                <div>
+                  <div class="tf-field">
+                    <label>Engine (1-best)</label>
+                    <div class="tf-bulk-engine">
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">PV plies</div><div id="tfBulkPvPlies" style="font-weight:950;"></div></div>
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">Status</div><div id="tfBulkStatus" style="font-weight:950;"></div></div>
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">Best move</div><div id="tfBulkBestMove" style="font-family:ui-monospace,monospace;"></div></div>
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">PV</div><div id="tfBulkPv" class="tf-bulk-pvbox"></div></div>
+                    </div>
+                  </div>
+                  <div class="tf-bulk-actions">
+                    <button id="tfBulkRun" class="btn btn-primary" type="button">Run Engine</button>
+                    <button id="tfBulkStop" class="btn btn-secondary" type="button" disabled>Stop</button>
+                    <button id="tfBulkSave" class="btn btn-primary" type="button" disabled>Confirm & Save</button>
+                  </div>
+                  <div id="tfBulkMsg" class="tf-builder-msg" style="display:none;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfBulkClose')?.addEventListener('click', close);
+      host.querySelector('#tfBulkBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfBulkBackdrop') close();
+      });
+
+      const input = host.querySelector('#tfBulkFenInput');
+      const countsEl = host.querySelector('#tfBulkCounts');
+      const listEl = host.querySelector('#tfBulkList');
+      const pvPliesEl = host.querySelector('#tfBulkPvPlies');
+      const statusEl = host.querySelector('#tfBulkStatus');
+      const bestEl = host.querySelector('#tfBulkBestMove');
+      const pvEl = host.querySelector('#tfBulkPv');
+      const runBtn = host.querySelector('#tfBulkRun');
+      const stopBtn = host.querySelector('#tfBulkStop');
+      const saveBtn = host.querySelector('#tfBulkSave');
+      const msgEl = host.querySelector('#tfBulkMsg');
+
+      const pvPlies = getBulkPvPlies();
+      if (pvPliesEl) pvPliesEl.textContent = String(pvPlies);
+
+      let cancelled = false;
+      let selectedIdx = 0;
+      let entries = []; // { fen, status, error, result }
+
+      const showMsg = (type, text) => {
+        if (!msgEl) return;
+        msgEl.style.display = 'block';
+        msgEl.classList.remove('ok', 'err');
+        if (type === 'ok') msgEl.classList.add('ok');
+        if (type === 'err') msgEl.classList.add('err');
+        msgEl.textContent = String(text || '');
+      };
+      const clearMsg = () => {
+        if (!msgEl) return;
+        msgEl.style.display = 'none';
+        msgEl.textContent = '';
+        msgEl.classList.remove('ok', 'err');
+      };
+
+      const parseLines = () => {
+        const raw = String(input?.value || '');
+        const lines = raw.split(/\r?\n/).map((l) => String(l || '').trim()).filter(Boolean);
+        return lines;
+      };
+
+      const updateCounts = () => {
+        const total = entries.length;
+        const done = entries.filter((e) => e.status === 'done').length;
+        const err = entries.filter((e) => e.status === 'error').length;
+        const pending = entries.filter((e) => e.status === 'pending').length;
+        if (countsEl) countsEl.textContent = `Total: ${total} · Done: ${done} · Pending: ${pending} · Error: ${err}`;
+        const savable = done > 0;
+        if (saveBtn) saveBtn.disabled = !savable;
+      };
+
+      const renderList = () => {
+        if (!listEl) return;
+        if (!entries.length) {
+          listEl.innerHTML = `<div class="tf-muted">No FEN lines.</div>`;
+          return;
+        }
+        listEl.innerHTML = entries.map((e, i) => {
+          const isSel = i === selectedIdx;
+          const badge =
+            e.status === 'saved' ? 'Saved' :
+            e.status === 'done' ? 'Done' :
+            e.status === 'running' ? 'Running' :
+            e.status === 'error' ? 'Error' : 'Pending';
+          return `
+            <button type="button" class="tf-bulk-item ${isSel ? 'is-selected' : ''}" data-tf-bulk-idx="${i}">
+              <div class="tf-bulk-item-row">
+                <div class="tf-bulk-badge tf-bulk-badge--${escapeHtml(e.status)}">${escapeHtml(badge)}</div>
+                <div class="tf-bulk-fen">${escapeHtml(e.fen)}</div>
+              </div>
+            </button>
+          `;
+        }).join('');
+      };
+
+      const showSelected = () => {
+        const e = entries[selectedIdx];
+        if (!e) {
+          if (statusEl) statusEl.textContent = '';
+          if (bestEl) bestEl.textContent = '';
+          if (pvEl) pvEl.innerHTML = '';
+          return;
+        }
+        if (statusEl) statusEl.textContent = e.status;
+        if (bestEl) bestEl.textContent = e.result?.bestMove ? String(e.result.bestMove) : '';
+        if (pvEl) {
+          const fen = e.fen;
+          const pvSan = e.result?.pvSan || [];
+          pvEl.innerHTML = pvSan.length ? formatPvWithMoveNumbersHtml(fen, pvSan) : (e.error ? `<span style="color:#dc2626; font-weight:900;">${escapeHtml(e.error)}</span>` : '');
+        }
+      };
+
+      const resetEntries = () => {
+        const lines = parseLines();
+        entries = lines.map((fen) => ({ fen, status: 'pending', error: '', result: null }));
+        selectedIdx = 0;
+        cancelled = false;
+        renderList();
+        updateCounts();
+        showSelected();
+      };
+
+      // initial
+      resetEntries();
+
+      host.querySelector('#tfBulkValidate')?.addEventListener('click', () => {
+        clearMsg();
+        resetEntries();
+        showMsg('ok', 'Ready. Click Run Engine to generate answers (1-best).');
+      });
+      host.querySelector('#tfBulkClear')?.addEventListener('click', () => {
+        if (input) input.value = '';
+        clearMsg();
+        resetEntries();
+      });
+
+      listEl?.addEventListener('click', (ev) => {
+        const t = ev.target;
+        const btn = t && t.closest ? t.closest('[data-tf-bulk-idx]') : null;
+        if (!btn) return;
+        const idx = Number(btn.getAttribute('data-tf-bulk-idx') || 0);
+        if (!Number.isFinite(idx)) return;
+        selectedIdx = Math.max(0, Math.min(entries.length - 1, idx));
+        renderList();
+        showSelected();
+      });
+
+      stopBtn?.addEventListener('click', () => {
+        cancelled = true;
+        if (stopBtn) stopBtn.disabled = true;
+        if (runBtn) runBtn.disabled = false;
+        showMsg('err', 'Stopped.');
+      });
+
+      runBtn?.addEventListener('click', async () => {
+        clearMsg();
+        cancelled = false;
+        if (runBtn) runBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
+
+        const depth = 16;
+        const pvPliesNow = getBulkPvPlies();
+        if (pvPliesEl) pvPliesEl.textContent = String(pvPliesNow);
+
+        for (let i = 0; i < entries.length; i++) {
+          if (cancelled) break;
+          const ent = entries[i];
+          if (!ent || ent.status === 'done') continue;
+          ent.status = 'running';
+          ent.error = '';
+          selectedIdx = i;
+          renderList();
+          updateCounts();
+          showSelected();
+
+          try {
+            const r = await engineAnalyze({ fen: ent.fen, depth, multipv: 1, pvPlies: pvPliesNow });
+            const line0 = Array.isArray(r?.lines) ? r.lines[0] : null;
+            const bestMove = String(r?.bestMove || line0?.bestMove || '').trim();
+            const pvUci = Array.isArray(line0?.pvUci) ? line0.pvUci : [];
+            const pvSan = Array.isArray(line0?.pvSan) ? line0.pvSan : [];
+            const score = line0?.score || { cp: 0 };
+            if (!bestMove) throw new Error('Engine returned empty bestMove');
+
+            ent.result = { bestMove, pvUci, pvSan, score, depth, pvPlies: pvPliesNow };
+            ent.status = 'done';
+          } catch (e) {
+            ent.status = 'error';
+            ent.error = e?.message || String(e);
+          }
+          renderList();
+          updateCounts();
+          showSelected();
+        }
+
+        if (stopBtn) stopBtn.disabled = true;
+        if (runBtn) runBtn.disabled = false;
+        if (!cancelled) showMsg('ok', 'Engine finished.');
+      });
+
+      saveBtn?.addEventListener('click', async () => {
+        clearMsg();
+        const bucket = getBuilderBucket();
+        const pvPliesNow = getBulkPvPlies();
+        const depth = 16;
+        let saved = 0;
+        for (let i = 0; i < entries.length; i++) {
+          const ent = entries[i];
+          if (!ent || ent.status !== 'done' || !ent.result) continue;
+          try {
+            const line = {
+              multiPv: 1,
+              score: ent.result.score || { cp: 0 },
+              bestMove: ent.result.bestMove,
+              pvUci: Array.isArray(ent.result.pvUci) ? ent.result.pvUci : [],
+              pvSan: Array.isArray(ent.result.pvSan) ? ent.result.pvSan : []
+            };
+            const solutions = {
+              bestMove: ent.result.bestMove,
+              lines: [line],
+              acceptedMultiPv: ['1'],
+              acceptedLines: [line]
+            };
+            const payload = {
+              fen: ent.fen,
+              engineDepth: depth,
+              multipv: 1,
+              pvPlies: pvPliesNow,
+              solutions,
+              meta: { bucket, bulk: true }
+            };
+            await builderCreatePuzzle(subtopicId, payload);
+            ent.status = 'saved';
+            saved++;
+          } catch (e) {
+            ent.status = 'error';
+            ent.error = e?.message || String(e);
+          }
+          renderList();
+          updateCounts();
+          showSelected();
+        }
+
+        try {
+          const data = await builderFetchPuzzles(subtopicId);
+          ui.puzzlesBySubtopic.set(String(subtopicId), Array.isArray(data.puzzles) ? data.puzzles : []);
+          ui.expanded.puzzlesLoaded.add(String(subtopicId));
+          ui.expanded.subtopic.add(String(subtopicId));
+          await builderRefresh();
+        } catch {}
+
+        showMsg('ok', `Saved: ${saved}. (Modal stays open)`);
       });
     }
 
