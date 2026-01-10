@@ -492,6 +492,41 @@ function registerTacticsFighterRoutes(app, deps) {
     });
   }
 
+  // ===== Public Student: Apply move (UCI -> SAN + next FEN) =====
+  // Used by student practice runner to update the board and show SAN immediately.
+  if (Chess) {
+    app.post('/api/public/students/:id/tactics-fighter/apply-move', async (req, res) => {
+      try {
+        const ctx = await requirePublicStudent(req, res);
+        if (!ctx) return;
+
+        const fen = toCleanString(req?.body?.fen || '', 2000);
+        const uci = toCleanString(req?.body?.uci || '', 50).toLowerCase();
+        if (!fen) return res.status(400).json({ ok: false, error: 'Missing fen' });
+        if (!uci) return res.status(400).json({ ok: false, error: 'Missing uci' });
+
+        let ch;
+        try { ch = new Chess(fen); } catch { return res.status(400).json({ ok: false, error: 'Invalid FEN' }); }
+
+        const mv = parseUci(uci);
+        if (!mv) return res.status(400).json({ ok: false, error: 'Invalid UCI' });
+
+        const out = ch.move({ from: mv.from, to: mv.to, promotion: mv.promotion });
+        if (!out) return res.status(400).json({ ok: false, error: 'Illegal move' });
+
+        return res.json({
+          ok: true,
+          uci,
+          san: String(out.san || ''),
+          fenAfter: String(ch.fen() || '')
+        });
+      } catch (e) {
+        console.error('[tactics-fighter] public apply-move error:', e);
+        return res.status(500).json({ ok: false, error: 'Failed to apply move' });
+      }
+    });
+  }
+
   // ===== Teacher: Builder CRUD (Postgres) =====
   if (authenticateUser && authorizeRole && requireOrganizationAccess && resolveOrgIdFromUser) {
     // Tree: categories + topics + subtopics (no puzzles yet; puzzles are fetched per subtopic)

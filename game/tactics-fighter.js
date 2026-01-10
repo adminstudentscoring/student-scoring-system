@@ -312,6 +312,16 @@
     return await tfJson(resp);
   }
 
+  async function studentApplyMove(studentId, fen, uci, password) {
+    const body = { fen: String(fen || ''), uci: String(uci || '') };
+    if (password) body.password = String(password);
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/apply-move`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    return await tfJson(resp);
+  }
+
   async function builderFetchPuzzles(subtopicId) {
     const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(subtopicId)}/puzzles`, {
       method: 'GET'
@@ -735,9 +745,11 @@
         movesSan: [],
         selectedFrom: null,
         // board state (client-side, no legality validation)
+        startFen,
+        fen: startFen,
         board: startBoard || Array.from({ length: 8 }, () => Array(8).fill('')),
         side: startSide,
-        history: [],
+        history: [], // entries: { fen, board, side, movesUciLen, movesSanLen }
         // PV selection (chosen accepted line)
         lineIdx: null,
         lineUci: null,
@@ -838,7 +850,7 @@
         if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
         if (movesEl) {
-          const html = formatPvWithMoveNumbersHtml(pz.fen, ui.student.runner.movesSan);
+          const html = formatPvWithMoveNumbersHtml(ui.student.runner.startFen || pz.fen, ui.student.runner.movesSan);
           movesEl.innerHTML = html || escapeHtml(ui.student.runner.movesUci.join(' '));
         }
         renderBoardInteractive();
@@ -887,12 +899,10 @@
         const lineSan = ui.student.runner.lineSan;
         const isCorrect = uciAtPlyMatches(lineUci, plyIndex, studentUci);
 
-        // Set SAN for student's move
+        // SAN is already appended during click-to-move via /apply-move.
+        // Keep it aligned with accepted PV SAN if needed.
         if (Array.isArray(lineSan) && isCorrect) {
           ui.student.runner.movesSan = lineSan.slice(0, moves.length);
-        } else {
-          const pseudo = uciToPseudoSan(beforeBoard || ui.student.runner.board, studentUci);
-          ui.student.runner.movesSan = ui.student.runner.movesSan.concat([pseudo]);
         }
 
         ui.student.runner.busy = true;
@@ -902,23 +912,43 @@
           if (isCorrect && Array.isArray(lineUci) && plyIndex + 1 < lineUci.length) {
             // PV reply move (computer)
             const replyUci = lineUci[plyIndex + 1];
-            const applyRes = applyUciToBoard(ui.student.runner, replyUci);
-            if (applyRes.ok) {
+            const r0 = await studentApplyMove(publicStudentId, ui.student.runner.fen, replyUci, publicStudentPassword);
+            if (r0 && r0.ok && r0.fenAfter) {
+              ui.student.runner.history.push({
+                fen: ui.student.runner.fen,
+                board: cloneBoard(ui.student.runner.board),
+                side: ui.student.runner.side,
+                movesUciLen: ui.student.runner.movesUci.length,
+                movesSanLen: ui.student.runner.movesSan.length
+              });
+              ui.student.runner.fen = String(r0.fenAfter);
+              ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+              ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
               ui.student.runner.movesUci.push(replyUci);
               if (Array.isArray(lineSan)) ui.student.runner.movesSan = lineSan.slice(0, ui.student.runner.movesUci.length);
+              else ui.student.runner.movesSan.push(String(r0.san || replyUci));
             }
           } else if (!isCorrect) {
             // Engine reply on wrong move
-            const fenNow = buildFenFromBoard(ui.student.runner.board, ui.student.runner.side);
+            const fenNow = ui.student.runner.fen;
             const eng = await studentEngineAnalyze(publicStudentId, fenNow, { depth: 12, pvPlies: 6 }, publicStudentPassword);
             const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
             if (bestUci) {
-              const before = cloneBoard(ui.student.runner.board);
-              const a2 = applyUciToBoard(ui.student.runner, bestUci);
-              if (a2.ok) {
+              const r1 = await studentApplyMove(publicStudentId, ui.student.runner.fen, bestUci, publicStudentPassword);
+              if (r1 && r1.ok && r1.fenAfter) {
+                ui.student.runner.history.push({
+                  fen: ui.student.runner.fen,
+                  board: cloneBoard(ui.student.runner.board),
+                  side: ui.student.runner.side,
+                  movesUciLen: ui.student.runner.movesUci.length,
+                  movesSanLen: ui.student.runner.movesSan.length
+                });
+                ui.student.runner.fen = String(r1.fenAfter);
+                ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+                ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
                 ui.student.runner.movesUci.push(bestUci);
-                const engSan0 = (Array.isArray(eng?.lines?.[0]?.pvSan) && eng.lines[0].pvSan[0]) ? String(eng.lines[0].pvSan[0]) : uciToPseudoSan(before, bestUci);
-                ui.student.runner.movesSan = ui.student.runner.movesSan.concat([String(engSan0 || bestUci)]);
+                const engSan0 = String(r1.san || (Array.isArray(eng?.lines?.[0]?.pvSan) ? (eng.lines[0].pvSan[0] || '') : '') || bestUci);
+                ui.student.runner.movesSan = ui.student.runner.movesSan.concat([engSan0]);
               }
             }
           }
@@ -941,6 +971,7 @@
           } else {
             setMsg('err', 'Wrong. Engine replied.');
           }
+          renderRunner();
         } catch (e) {
           setMsg('err', e?.message || String(e));
         } finally {
@@ -965,10 +996,17 @@
           return renderRunner();
         }
         if (t.closest('[data-stu-undo]')) {
-          // Undo one ply (could be engine/PV reply too)
-          ui.student.runner.movesUci.pop();
-          ui.student.runner.movesSan.pop();
-          undoOnePly(ui.student.runner);
+          // Undo one ply (restores previous fen/board)
+          const last = ui.student.runner.history.pop();
+          if (last) {
+            ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
+            ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
+            ui.student.runner.side = last.side || ui.student.runner.side;
+            ui.student.runner.movesUci = ui.student.runner.movesUci.slice(0, Math.max(0, Number(last.movesUciLen || 0)));
+            ui.student.runner.movesSan = ui.student.runner.movesSan.slice(0, Math.max(0, Number(last.movesSanLen || 0)));
+          } else {
+            // fallback: clear selection only
+          }
           ui.student.runner.selectedFrom = null;
           return renderRunner();
         }
@@ -989,13 +1027,40 @@
           if (from === to) return renderRunner();
 
           const uci = `${from}${to}`;
-          const applyRes = applyUciToBoard(ui.student.runner, uci);
-          if (!applyRes.ok) {
-            setMsg('err', applyRes.error || 'Invalid move');
-            return renderRunner();
-          }
-          ui.student.runner.movesUci.push(uci);
-          return renderRunner();
+          (async () => {
+            try {
+              clearMsg();
+              // Save state for undo BEFORE applying.
+              ui.student.runner.history.push({
+                fen: ui.student.runner.fen,
+                board: cloneBoard(ui.student.runner.board),
+                side: ui.student.runner.side,
+                movesUciLen: ui.student.runner.movesUci.length,
+                movesSanLen: ui.student.runner.movesSan.length
+              });
+
+              const r = await studentApplyMove(publicStudentId, ui.student.runner.fen, uci, publicStudentPassword);
+              if (!r || !r.ok || !r.fenAfter) throw new Error('Illegal move');
+
+              ui.student.runner.fen = String(r.fenAfter);
+              ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+              ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
+              ui.student.runner.movesUci.push(String(r.uci || uci));
+              ui.student.runner.movesSan.push(String(r.san || uci));
+              renderRunner();
+            } catch (err) {
+              // rollback history entry
+              const last = ui.student.runner.history.pop();
+              if (last) {
+                ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
+                ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
+                ui.student.runner.side = last.side || ui.student.runner.side;
+              }
+              setMsg('err', err?.message || String(err));
+              renderRunner();
+            }
+          })();
+          return;
         }
       });
 
