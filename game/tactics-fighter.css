@@ -341,6 +341,56 @@ body.game-is-tactics-fighter .game-area-content {
   outline-offset: -3px;
 }
 
+/* Student runner: keep controls at bottom, make move list scrollable */
+.tf-stu-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.tf-stu-toprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tf-stu-moves {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  line-height: 1.6;
+  overflow: auto;
+  max-height: min(46vh, 360px);
+  color: #111827;
+}
+
+.tf-stu-msg {
+  margin: 0;
+}
+
+.tf-stu-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Highlight last move */
+.tf-move {
+  padding: 0 2px;
+}
+.tf-move-last {
+  background: rgba(250, 204, 21, 0.35);
+  border: 1px solid rgba(250, 204, 21, 0.65);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-weight: 950;
+}
+
 .tf-piece-palette {
   display: grid;
   grid-template-columns: repeat(6, 1fr);

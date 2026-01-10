@@ -775,17 +775,17 @@
               <div>
                 <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
               </div>
-              <div>
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+              <div class="tf-stu-right">
+                <div class="tf-stu-toprow">
                   <div class="tf-section-title" style="margin:0;">Moves</div>
                   <div style="display:flex; gap:10px;">
                     <button type="button" class="btn btn-secondary" data-stu-prev="1">←</button>
                     <button type="button" class="btn btn-secondary" data-stu-next="1">→</button>
                   </div>
                 </div>
-                <div id="tfStuRunnerMoves" style="margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space:pre-wrap;"></div>
-                <div id="tfStuRunnerMsg" class="tf-builder-msg" style="display:none; margin-top:10px;"></div>
-                <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+                <div id="tfStuRunnerMoves" class="tf-stu-moves"></div>
+                <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
+                <div class="tf-stu-actions">
                   <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
                   <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
                 </div>
@@ -850,7 +850,11 @@
         if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
         if (movesEl) {
-          const html = formatPvWithMoveNumbersHtml(ui.student.runner.startFen || pz.fen, ui.student.runner.movesSan);
+          const html = formatMovesWithMoveNumbersHighlightedHtml(
+            ui.student.runner.startFen || pz.fen,
+            ui.student.runner.movesSan,
+            ui.student.runner.movesSan.length ? (ui.student.runner.movesSan.length - 1) : -1
+          );
           movesEl.innerHTML = html || escapeHtml(ui.student.runner.movesUci.join(' '));
         }
         renderBoardInteractive();
@@ -1201,6 +1205,47 @@
       }
 
       return lines.map(escapeHtml).join('<br>');
+    }
+
+    function formatMovesWithMoveNumbersHighlightedHtml(fen, movesSan, lastMoveIdx) {
+      const parts = String(fen || '').trim().split(/\s+/);
+      const side = (parts[1] === 'b') ? 'b' : 'w';
+      const fullmove = Math.max(1, Number(parts[5] || 1) || 1);
+      const moves = Array.isArray(movesSan) ? movesSan.map(String).filter(Boolean) : [];
+      if (!moves.length) return '';
+
+      const lines = [];
+      let idx = 0;
+      let m = fullmove;
+
+      const wrap = (txt, i) => {
+        const safe = escapeHtml(txt);
+        if (i === lastMoveIdx) return `<span class="tf-move tf-move-last">${safe}</span>`;
+        return `<span class="tf-move">${safe}</span>`;
+      };
+
+      if (side === 'b') {
+        const b = moves[idx];
+        if (b) lines.push(`${escapeHtml(String(m))}. ... ${wrap(b, idx)}`);
+        idx += 1;
+        m += 1;
+      }
+
+      while (idx < moves.length) {
+        const w = moves[idx] || '';
+        const wIdx = idx;
+        idx += 1;
+        const b = (idx < moves.length) ? (moves[idx] || '') : '';
+        const bIdx = idx;
+        idx += 1;
+
+        const mm = escapeHtml(String(m));
+        if (w && b) lines.push(`${mm}. ${wrap(w, wIdx)} ${wrap(b, bIdx)}`);
+        else if (w) lines.push(`${mm}. ${wrap(w, wIdx)}`);
+        m += 1;
+      }
+
+      return lines.join('<br>');
     }
 
     function getBuilderBucket() {
