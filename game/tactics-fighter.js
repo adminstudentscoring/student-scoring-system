@@ -172,6 +172,12 @@
     return { r, c };
   }
 
+  function displayToBoardRc(displayR, displayC, orientation) {
+    const o = String(orientation || 'white').toLowerCase();
+    if (o === 'black') return { r: 7 - displayR, c: 7 - displayC };
+    return { r: displayR, c: displayC };
+  }
+
   function applyUciToBoard(state, uci) {
     const s = String(uci || '').trim().toLowerCase();
     const m = s.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/);
@@ -480,7 +486,7 @@
 
     return `
       <div>
-        <div class="tf-practice-grid">
+        <div id="tfPracticeBuckets" class="tf-practice-grid">
           ${levels.map(l => `<button class="btn btn-primary tf-practice-btn" type="button" data-practice="${escapeHtml(l.key)}">${escapeHtml(l.label)}</button>`).join('')}
         </div>
         <div id="tfOutput" style="margin-top:12px; color:#111827;"></div>
@@ -641,8 +647,13 @@
       const cats = Array.isArray(categories) ? categories : [];
       if (!cats.length) return `<div class="tf-muted">No categories for this bucket yet.</div>`;
       return `
-        <div class="tf-section-title">Categories</div>
-        <div class="tf-muted" style="margin-bottom:10px;">Pick a category to see topics.</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Categories</div>
+            <div class="tf-muted" style="margin-bottom:10px;">Pick a category to see topics.</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-stu-back="buckets">Change bucket</button>
+        </div>
         <div style="display:flex; flex-direction:column; gap:10px;">
           ${cats.map((c) => `
             <button type="button" class="btn btn-secondary" data-stu-cat="${escapeHtml(String(c.id))}" style="text-align:left;">
@@ -756,6 +767,8 @@
         lineSan: null,
         busy: false
       };
+      ui.student.runner.playerSide = startSide; // 'w' | 'b'
+      ui.student.runner.orientation = (startSide === 'b') ? 'black' : 'white';
 
       const modal = document.createElement('div');
       modal.className = 'vcp-modal-backdrop';
@@ -823,9 +836,10 @@
         const b = ui.student.runner.board;
         if (!b) { host.innerHTML = ''; return; }
         const sqs = [];
-        for (let r = 0; r < 8; r++) {
-          for (let c = 0; c < 8; c++) {
-            const isDark = (r + c) % 2 === 1;
+        for (let dr = 0; dr < 8; dr++) {
+          for (let dc = 0; dc < 8; dc++) {
+            const { r, c } = displayToBoardRc(dr, dc, ui.student.runner.orientation);
+            const isDark = (dr + dc) % 2 === 1;
             const coord = rcToCoord(r, c);
             const piece = b[r][c] || '';
             const src = piece ? pieceImageSrc(piece) : '';
@@ -1313,6 +1327,11 @@
         ui.student.categoryId = null;
         ui.student.topicId = null;
         ui.student.subtopicId = null;
+        // Hide bucket buttons once a bucket is chosen (as requested).
+        try {
+          const bucketsEl = document.getElementById('tfPracticeBuckets');
+          if (bucketsEl) bucketsEl.style.display = 'none';
+        } catch {}
         setOut(renderStudentCategories(tree.categories || []));
       } catch (e) {
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
@@ -2063,6 +2082,19 @@
       const backBtn = target.closest('[data-stu-back]');
       if (backBtn) {
         const dest = String(backBtn.getAttribute('data-stu-back') || '').trim();
+        if (dest === 'buckets') {
+          ui.student.view = 'bucket';
+          ui.student.tree = null;
+          ui.student.categoryId = null;
+          ui.student.topicId = null;
+          ui.student.subtopicId = null;
+          try {
+            const bucketsEl = document.getElementById('tfPracticeBuckets');
+            if (bucketsEl) bucketsEl.style.display = '';
+          } catch {}
+          setOut('');
+          return;
+        }
         if (dest === 'categories') {
           ui.student.view = 'categories';
           ui.student.categoryId = null;
