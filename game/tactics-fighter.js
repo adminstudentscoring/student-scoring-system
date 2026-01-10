@@ -2165,6 +2165,7 @@
       let cancelled = false;
       let selectedIdx = 0;
       let entries = []; // { fen, status, error, result }
+      const absorbedStack = []; // array of counts appended (for undo)
 
       const showMsg = (type, text) => {
         if (!msgEl) return;
@@ -2190,9 +2191,10 @@
       const updateCounts = () => {
         const total = entries.length;
         const done = entries.filter((e) => e.status === 'done').length;
+        const saved = entries.filter((e) => e.status === 'saved').length;
         const err = entries.filter((e) => e.status === 'error').length;
         const pending = entries.filter((e) => e.status === 'pending').length;
-        if (countsEl) countsEl.textContent = `Total: ${total} · Done: ${done} · Pending: ${pending} · Error: ${err}`;
+        if (countsEl) countsEl.textContent = `Total: ${total} · Saved: ${saved} · Done: ${done} · Pending: ${pending} · Error: ${err}`;
         const savable = done > 0;
         if (saveBtn) saveBtn.disabled = !savable;
       };
@@ -2238,28 +2240,118 @@
         }
       };
 
-      const resetEntries = () => {
+      function looksLikeFenLine(line) {
+        const s = String(line || '').trim();
+        if (!s) return false;
+        const parts = s.split(/\s+/);
+        if (parts.length < 6) return false;
+        const placement = parts[0] || '';
+        if (!placement.includes('/')) return false;
+        const slashCount = (placement.match(/\//g) || []).length;
+        if (slashCount !== 7) return false;
+        if (!/^[prnbqkPRNBQK1-8\/]+$/.test(placement)) return false;
+        const stm = parts[1];
+        if (stm !== 'w' && stm !== 'b') return false;
+        // castling / ep / counters: don't validate strictly here
+        return true;
+      }
+
+      function absorbFromTextarea(reason) {
+        const raw = String(input?.value || '').trim();
+        if (!raw) return { absorbed: 0 };
         const lines = parseLines();
-        entries = lines.map((fen) => ({ fen, status: 'pending', error: '', result: null }));
-        selectedIdx = 0;
-        cancelled = false;
+        if (!lines.length) return { absorbed: 0 };
+
+        const valid = [];
+        const invalid = [];
+        for (const l of lines) {
+          if (looksLikeFenLine(l)) valid.push(l);
+          else invalid.push(l);
+        }
+
+        if (!valid.length) {
+          // don't clear; user may still be typing
+          return { absorbed: 0, invalidCount: invalid.length };
+        }
+
+        // Append valid to entries (mode B)
+        for (const fen of valid) {
+          entries.push({ fen, status: 'pending', error: '', result: null });
+        }
+        absorbedStack.push(valid.length);
+        selectedIdx = Math.max(0, entries.length - valid.length);
+
+        // Clear absorbed part; keep invalid lines for user to fix (if any)
+        if (input) {
+          input.value = invalid.join('\n');
+        }
+
         renderList();
         updateCounts();
         showSelected();
-      };
+
+        if (reason) {
+          if (invalid.length) showMsg('err', `Absorbed ${valid.length}. ${invalid.length} invalid line(s) kept in input.`);
+          else showMsg('ok', `Absorbed ${valid.length}.`);
+        }
+        return { absorbed: valid.length, invalidCount: invalid.length };
+      }
+
+      function undoLastAbsorb() {
+        const n = absorbedStack.pop();
+        if (!n) return;
+        entries.splice(Math.max(0, entries.length - n), n);
+        selectedIdx = Math.max(0, Math.min(entries.length - 1, selectedIdx));
+        renderList();
+        updateCounts();
+        showSelected();
+        showMsg('ok', `Undid last absorb (${n}).`);
+      }
 
       // initial
-      resetEntries();
+      renderList();
+      updateCounts();
+      showSelected();
 
       host.querySelector('#tfBulkValidate')?.addEventListener('click', () => {
         clearMsg();
-        resetEntries();
+        const r = absorbFromTextarea('validate');
+        if (!r.absorbed) {
+          showMsg('err', 'No valid FEN lines to absorb.');
+          return;
+        }
         showMsg('ok', 'Ready. Click Run Engine to generate answers (1-best).');
       });
       host.querySelector('#tfBulkClear')?.addEventListener('click', () => {
         if (input) input.value = '';
         clearMsg();
-        resetEntries();
+        entries = [];
+        absorbedStack.length = 0;
+        selectedIdx = 0;
+        renderList();
+        updateCounts();
+        showSelected();
+      });
+
+      // Auto-commit (Mode B): absorb on paste, or after short idle if it looks like a full FEN.
+      let absorbTimer = null;
+      const scheduleAbsorb = (reason) => {
+        try { if (absorbTimer) clearTimeout(absorbTimer); } catch {}
+        absorbTimer = setTimeout(() => {
+          const raw = String(input?.value || '').trim();
+          if (!raw) return;
+          // If user pasted multiple lines, absorb immediately.
+          if (raw.includes('\n')) return void absorbFromTextarea(reason || 'idle');
+          // Single line: absorb if it already looks like a full FEN.
+          if (looksLikeFenLine(raw)) return void absorbFromTextarea(reason || 'idle');
+        }, 280);
+      };
+
+      input?.addEventListener('input', () => scheduleAbsorb('typing'));
+      input?.addEventListener('blur', () => absorbFromTextarea('blur'));
+      input?.addEventListener('paste', () => {
+        // Let the paste land first
+        setTimeout(() => absorbFromTextarea('paste'), 0);
       });
 
       listEl?.addEventListener('click', (ev) => {
@@ -2282,6 +2374,8 @@
 
       runBtn?.addEventListener('click', async () => {
         clearMsg();
+        // Ensure any remaining input is absorbed before running.
+        absorbFromTextarea('run');
         cancelled = false;
         if (runBtn) runBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
@@ -2328,6 +2422,7 @@
 
       saveBtn?.addEventListener('click', async () => {
         clearMsg();
+        absorbFromTextarea('save');
         const bucket = getBuilderBucket();
         const pvPliesNow = getBulkPvPlies();
         const depth = 16;
@@ -2378,6 +2473,18 @@
         } catch {}
 
         showMsg('ok', `Saved: ${saved}. (Modal stays open)`);
+      });
+
+      // Small UX: Ctrl/Cmd+Z in the textarea undoes last absorb (when textarea is empty)
+      input?.addEventListener('keydown', (ev) => {
+        if (!ev) return;
+        const key = String(ev.key || '').toLowerCase();
+        const isUndo = (key === 'z') && (ev.ctrlKey || ev.metaKey);
+        const raw = String(input?.value || '').trim();
+        if (isUndo && !raw) {
+          ev.preventDefault();
+          undoLastAbsorb();
+        }
       });
     }
 
