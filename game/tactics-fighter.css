@@ -365,10 +365,45 @@ body.game-is-tactics-fighter .game-area-content {
   color: #ffffff;
 }
 
-.tf-puzzle-list {
+.tf-puzzle-grid {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
   margin-top: 8px;
+}
+
+@media (max-width: 1100px) {
+  .tf-puzzle-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .tf-puzzle-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .tf-puzzle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.tf-puzzle-mini {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 10px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tf-puzzle-mini:hover,
+.tf-puzzle-mini:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  border-color: rgba(79, 70, 229, 0.55);
+}
+
+.tf-mini-label {
+  margin-top: 8px;
+  font-weight: 950;
+  color: #111827;
+  font-size: 12px;
 }
 
 .tf-puzzle-item {
@@ -663,7 +698,7 @@ body.game-is-tactics-fighter .game-area-content {
 }
 
 .tf-mini-board {
-  width: 120px;
+  width: 100%;
   aspect-ratio: 1 / 1;
   border: 1px solid #e5e7eb;
   border-radius: 10px;

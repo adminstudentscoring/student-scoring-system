@@ -1166,16 +1166,11 @@
                                 ${sOpen ? `
                                   <div class="tf-tree-children">
                                     <div class="tf-muted">Puzzles: ${escapeHtml(String(puzzles.length))}</div>
-                                    <div class="tf-puzzle-list">
+                                    <div class="tf-puzzle-grid">
                                       ${puzzles.length ? pageItems.map(p => `
-                                        <button type="button" class="tf-puzzle-card" data-tf-open-puzzle="${escapeHtml(String(p.id || ''))}" data-tf-subtopic="${escapeHtml(sid)}">
-                                          <div class="tf-puzzle-card-row">
-                                            ${renderMiniBoardHtml(String(p.fen || ''))}
-                                            <div style="min-width:0;">
-                                              <div class="tf-puzzle-title">Puzzle #${escapeHtml(String(p.id || ''))}</div>
-                                              <div class="tf-puzzle-meta">${escapeHtml(String(p.createdAt || ''))}</div>
-                                            </div>
-                                          </div>
+                                        <button type="button" class="tf-puzzle-mini" data-tf-open-puzzle="${escapeHtml(String(p.id || ''))}" data-tf-subtopic="${escapeHtml(sid)}" aria-label="Open puzzle">
+                                          ${renderMiniBoardHtml(String(p.fen || ''))}
+                                          <div class="tf-mini-label">Puzzle #${escapeHtml(String(p.id || ''))}</div>
                                         </button>
                                       `).join('') : `<div class="tf-muted">No puzzles loaded.</div>`}
                                     </div>
