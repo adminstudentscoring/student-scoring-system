@@ -214,6 +214,29 @@ function registerTacticsFighterRoutes(app, deps) {
   const pool = appDb?.getPool?.();
   const hasDb = !!pool;
 
+  // ===== Teacher debug: verify deployed routes (helps diagnose 404 on Railway) =====
+  if (authenticateUser && authorizeRole && requireOrganizationAccess) {
+    app.get(
+      '/api/teachers/tactics-fighter/debug/routes',
+      authenticateUser,
+      authorizeRole('teacher'),
+      requireOrganizationAccess,
+      async (req, res) => {
+        // Keep this intentionally simple and stable.
+        return res.json({
+          ok: true,
+          app: 'tactics-fighter',
+          hasPhotoRecognize: true,
+          endpoints: {
+            photoUpload: '/api/teachers/tactics-fighter/builder/subtopics/:subtopicId/photo-recognize/upload',
+            photoJob: '/api/teachers/tactics-fighter/builder/photo-recognize/jobs/:jobId',
+            photoFens: '/api/teachers/tactics-fighter/builder/photo-recognize/jobs/:jobId/fens'
+          }
+        });
+      }
+    );
+  }
+
   async function requireDbReady(res) {
     if (!hasDb) {
       res.status(501).json({ ok: false, error: 'Postgres not configured' });

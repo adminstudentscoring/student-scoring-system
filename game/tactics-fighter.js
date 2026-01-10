@@ -2323,6 +2323,14 @@
 
       async function teacherPhotoRecognizeUpload(files) {
         if (!files || !files.length) return null;
+        // Quick deploy check: if this endpoint is missing in production, we'll get 404.
+        try {
+          const ping = await apiRequest('/api/teachers/tactics-fighter/debug/routes', { method: 'GET' });
+          const pingJson = await ping.json().catch(() => null);
+          console.log('[tf][photo] debug/routes:', ping.status, pingJson);
+        } catch (e) {
+          console.log('[tf][photo] debug/routes failed:', e);
+        }
         const fd = new FormData();
         for (const f of files) fd.append('files', f);
         const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(String(subtopicId))}/photo-recognize/upload`, {
@@ -2372,7 +2380,17 @@
           if (!files.length) return;
           showMsg('ok', 'Uploading…');
           photoBtn.disabled = true;
-          const up = await teacherPhotoRecognizeUpload(files);
+          let up = null;
+          try {
+            up = await teacherPhotoRecognizeUpload(files);
+          } catch (e) {
+            // Make 404 extremely obvious in UI.
+            const msg = String(e?.message || e);
+            if (/\[404\]/.test(msg) || /404/.test(msg)) {
+              throw new Error('Photo Recognize endpoint not found (404). This usually means Railway is still running an older build, or /api is being routed elsewhere.');
+            }
+            throw e;
+          }
           const jobId = String(up?.jobId || '');
           if (!jobId) throw new Error('No jobId returned');
           showMsg('ok', 'Processing…');
