@@ -130,11 +130,27 @@ body.game-is-tactics-fighter .game-area-content {
   grid-template-columns: 1fr;
   gap: 10px;
   max-width: 260px;
+  margin: 0 auto;
 }
 
 .tf-practice-btn {
   justify-content: center;
   width: 100%;
+}
+
+/* Practice bucket buttons: teal theme */
+.tf-practice-btn.btn-primary {
+  background: #14b8a6;
+  border-color: #14b8a6;
+}
+.tf-practice-btn.btn-primary:hover,
+.tf-practice-btn.btn-primary:focus-visible {
+  background: #0d9488;
+  border-color: #0d9488;
+}
+.tf-practice-btn.btn-primary:active {
+  background: #0f766e;
+  border-color: #0f766e;
 }
 
 .tf-builder-msg {
