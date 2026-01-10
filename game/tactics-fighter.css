@@ -381,6 +381,24 @@ body.game-is-tactics-fighter .game-area-content {
   flex-wrap: wrap;
 }
 
+.tf-stu-actions-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tf-stu-status {
+  margin-left: auto;
+  font-weight: 950;
+  color: #16a34a;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(22, 163, 74, 0.35);
+  background: rgba(22, 163, 74, 0.08);
+  white-space: nowrap;
+}
+
 /* Highlight last move */
 .tf-move {
   padding: 0 2px;

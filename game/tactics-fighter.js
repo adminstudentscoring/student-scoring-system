@@ -786,8 +786,11 @@
                 <div id="tfStuRunnerMoves" class="tf-stu-moves"></div>
                 <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
                 <div class="tf-stu-actions">
-                  <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
-                  <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
+                  <div class="tf-stu-actions-left">
+                    <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
+                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
+                  </div>
+                  <div id="tfStuRunnerStatus" class="tf-stu-status"></div>
                 </div>
               </div>
             </div>
@@ -848,6 +851,8 @@
         if (!pz) return close();
         const meta = modal.querySelector('#tfStuRunnerMeta');
         if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
+        const statusEl = modal.querySelector('#tfStuRunnerStatus');
+        if (statusEl) statusEl.textContent = pz.completed ? 'Completed' : '';
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
         if (movesEl) {
           const html = formatMovesWithMoveNumbersHighlightedHtml(
