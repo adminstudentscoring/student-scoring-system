@@ -53,7 +53,11 @@
   function apiRequest(path, options = {}) {
     // Teacher endpoints require Bearer auth; student endpoints generally don't.
     const headers = { ...(options.headers || {}) };
-    if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    // IMPORTANT:
+    // - For JSON bodies, set Content-Type.
+    // - For FormData (multipart), NEVER set Content-Type manually (browser must set boundary).
+    const isFormData = (typeof FormData !== 'undefined') && (options.body instanceof FormData);
+    if (options.body && !headers['Content-Type'] && !isFormData) headers['Content-Type'] = 'application/json';
     const token = localStorage.getItem('authToken');
     if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
     return fetch(path, { ...options, headers });
@@ -2113,7 +2117,7 @@
                       <button id="tfBulkValidate" class="btn btn-secondary" type="button">Validate</button>
                       <button id="tfBulkClear" class="btn btn-secondary" type="button">Clear</button>
                   <button id="tfBulkPhotoBtn" class="btn btn-primary" type="button">Photo Recognize</button>
-                  <input id="tfBulkPhotoInput" type="file" accept="image/*,application/pdf" multiple style="display:none;">
+                  <input id="tfBulkPhotoInput" name="tfBulkPhotoInput" type="file" accept="image/*,application/pdf" multiple style="display:none;">
                     </div>
                   </div>
                   <div id="tfBulkList" class="tf-bulk-list"></div>
