@@ -1464,10 +1464,21 @@ function registerTacticsFighterRoutes(app, deps) {
       return dedup;
     }
 
+    function normalizeOpenAiBaseUrl(raw) {
+      let u = String(raw || '').trim();
+      if (!u) return 'https://api.openai.com/v1';
+      // Common misconfig: user sets https://api.openai.com (missing /v1) -> causes 404.
+      u = u.replace(/\/+$/, '');
+      if (/^https:\/\/api\.openai\.com$/i.test(u)) return 'https://api.openai.com/v1';
+      if (!/\/v1$/i.test(u)) u = `${u}/v1`;
+      return u;
+    }
+
     async function openAiExtractFensFromImage({ imageDataUrl, defaultSide = 'w' }) {
       if (!OpenAI) throw new Error('OpenAI SDK not installed');
       if (!openAiKey) throw new Error('OPENAI_API_KEY not configured');
-      const client = new OpenAI({ apiKey: openAiKey });
+      const baseURL = normalizeOpenAiBaseUrl(process.env.OPENAI_BASE_URL);
+      const client = new OpenAI({ apiKey: openAiKey, baseURL });
       const model = String(process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini');
 
       const prompt = [
