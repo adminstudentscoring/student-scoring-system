@@ -614,6 +614,7 @@
     tfJson,
 
     // board utils
+    rcToCoord,
     pieceImageSrc,
     parseFenToBoard,
     boardToFenPlacement,

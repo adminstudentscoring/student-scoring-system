@@ -19,6 +19,7 @@
     tfJson,
 
     pieceImageSrc,
+    rcToCoord,
     parseFenToBoard,
     buildFenFromBoard,
     fenSideToMove,
