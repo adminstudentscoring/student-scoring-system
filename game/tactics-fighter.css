@@ -589,6 +589,12 @@ body.game-is-tactics-fighter .game-area-content {
   white-space: nowrap;
 }
 
+.tf-stu-status.is-err {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.40);
+  background: rgba(220, 38, 38, 0.08);
+}
+
 /* Highlight last move */
 .tf-move {
   padding: 0 2px;

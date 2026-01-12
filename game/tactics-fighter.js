@@ -759,6 +759,7 @@
         movesUci: [],
         movesSan: [],
         selectedFrom: null,
+        lastVerdict: null, // 'correct' | 'incorrect' | null (persistent until next submit)
         // board state (client-side, no legality validation)
         startFen,
         fen: startFen,
@@ -884,6 +885,7 @@
         ui.student.runner.lineIdx = null;
         ui.student.runner.lineUci = null;
         ui.student.runner.lineSan = null;
+        ui.student.runner.lastVerdict = null;
         ui.student.runner.busy = false;
         ui.student.runner.playerSide = startSide;
         ui.student.runner.orientation = (startSide === 'b') ? 'black' : 'white';
@@ -902,7 +904,21 @@
           turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
         }
         const statusEl = modal.querySelector('#tfStuRunnerStatus');
-        if (statusEl) statusEl.textContent = pz.completed ? 'Completed' : '';
+        if (statusEl) {
+          statusEl.classList.remove('is-ok', 'is-err');
+          if (pz.completed) {
+            statusEl.textContent = 'Completed';
+            statusEl.classList.add('is-ok');
+          } else if (ui.student.runner.lastVerdict === 'incorrect') {
+            statusEl.textContent = 'Incorrect';
+            statusEl.classList.add('is-err');
+          } else if (ui.student.runner.lastVerdict === 'correct') {
+            statusEl.textContent = 'Correct';
+            statusEl.classList.add('is-ok');
+          } else {
+            statusEl.textContent = '';
+          }
+        }
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
         if (movesEl) {
           const html = formatMovesWithMoveNumbersHighlightedHtml(
@@ -1024,10 +1040,13 @@
 
           if (out.completed) {
             pz.completed = true;
+            ui.student.runner.lastVerdict = 'correct';
             setMsg('ok', 'Correct. Puzzle completed.');
           } else if (out.correctPrefix) {
+            ui.student.runner.lastVerdict = 'correct';
             setMsg('ok', 'Correct. Computer replied.');
           } else {
+            ui.student.runner.lastVerdict = 'incorrect';
             setMsg('err', 'Wrong. Engine replied.');
           }
           renderRunner();
