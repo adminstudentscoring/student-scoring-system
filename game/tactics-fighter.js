@@ -794,7 +794,7 @@
               </div>
               <div class="tf-stu-right">
                 <div class="tf-stu-toprow">
-                  <div class="tf-section-title" style="margin:0;">Moves</div>
+                  <div class="tf-section-title" id="tfStuRunnerTurnLabel" style="margin:0;"></div>
                 </div>
                 <div id="tfStuRunnerMoves" class="tf-stu-moves"></div>
                 <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
@@ -896,6 +896,11 @@
         if (!pz) return close();
         const meta = modal.querySelector('#tfStuRunnerMeta');
         if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
+        const turnEl = modal.querySelector('#tfStuRunnerTurnLabel');
+        if (turnEl) {
+          const side = ui.student.runner?.side;
+          turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
+        }
         const statusEl = modal.querySelector('#tfStuRunnerStatus');
         if (statusEl) statusEl.textContent = pz.completed ? 'Completed' : '';
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
