@@ -19,7 +19,7 @@
     } catch {}
     // fallback: hash
     const h = String(window.location.hash || '').replace('#', '').trim();
-    return h || 'practice';
+    return h || '';
   }
 
   function setUrlMode(mode) {
@@ -36,6 +36,7 @@
 
   function normalizeMode(mode) {
     const m = String(mode || '').toLowerCase().trim();
+    if (m === 'home') return 'home';
     if (m === 'practice') return 'practice';
     if (m === 'challenge') return 'challenge';
     if (m === 'builder') return 'builder';
@@ -302,6 +303,23 @@
     return await tfJson(resp);
   }
 
+  async function studentFetchStats(studentId, bucket, password) {
+    const qp = new URLSearchParams();
+    if (bucket) qp.set('bucket', normalizeBucketKey(bucket));
+    if (password) qp.set('password', String(password));
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/stats?${qp.toString()}`, { method: 'GET' });
+    return await tfJson(resp);
+  }
+
+  async function studentFetchGhostPuzzles(studentId, bucket, limit, password) {
+    const qp = new URLSearchParams();
+    if (bucket) qp.set('bucket', normalizeBucketKey(bucket));
+    if (limit) qp.set('limit', String(limit));
+    if (password) qp.set('password', String(password));
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(studentId)}/tactics-fighter/challenge/ghost?${qp.toString()}`, { method: 'GET' });
+    return await tfJson(resp);
+  }
+
   async function studentPostAttempt(studentId, puzzleId, payload, password) {
     const body = { ...(payload || {}) };
     if (password) body.password = String(password);
@@ -456,6 +474,7 @@
           <div class="tf-side-sub" style="margin-top:-6px; opacity:0.9;">${escapeHtml(role || '')}</div>
 
           <div class="tf-nav" role="navigation" aria-label="Modes">
+            ${!isTeacher ? `<button type="button" class="tf-nav-btn ${mode === 'home' ? 'is-active' : ''}" data-mode="home">Home</button>` : ''}
             <button type="button" class="tf-nav-btn ${mode === 'practice' ? 'is-active' : ''}" data-mode="practice">Practice</button>
             <button type="button" class="tf-nav-btn ${mode === 'challenge' ? 'is-active' : ''}" data-mode="challenge">Challenge</button>
             ${isTeacher ? `<button type="button" class="tf-nav-btn ${mode === 'builder' ? 'is-active' : ''}" data-mode="builder">Builder</button>` : ''}
@@ -466,12 +485,26 @@
         <main class="tf-main">
           <div class="tf-container">
             <div class="tf-card tf-root-card">
-              <div class="tf-title">${mode === 'practice' ? 'Practice Mode' : mode === 'challenge' ? 'Challenge Mode' : mode === 'builder' ? 'Builder' : 'Setting'}</div>
+              <div class="tf-title">${mode === 'home' ? 'Home' : mode === 'practice' ? 'Practice Mode' : mode === 'challenge' ? 'Challenge Mode' : mode === 'builder' ? 'Builder' : 'Setting'}</div>
               <div class="tf-muted">Tactics Fighter</div>
               <div id="tfMain" style="margin-top:12px;"></div>
             </div>
           </div>
         </main>
+      </div>
+    `;
+  }
+
+  function renderHome(stats) {
+    const done = Number(stats?.completedCount || 0);
+    return `
+      <div>
+        <div class="tf-section-title">Home</div>
+        <div class="tf-muted">Your progress</div>
+        <div style="margin-top:12px; border:1px solid #e5e7eb; border-radius:14px; padding:14px; background:#f8fafc;">
+          <div style="font-weight:950; color:#111827;">Completed puzzles</div>
+          <div style="font-size:32px; font-weight:950; color:#16a34a; margin-top:6px;">${done}</div>
+        </div>
       </div>
     `;
   }
@@ -502,7 +535,18 @@
     return `
       <div>
         <div class="tf-section-title">Challenge Mode</div>
-        <div style="color:#6b7280;">Coming soon.</div>
+        <div class="tf-muted" style="margin-bottom:10px;">Choose a mode.</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <button type="button" class="tf-puzzle-card" data-chal-mode="ghost">
+            <div class="tf-puzzle-title">Dancing with your Ghost</div>
+            <div class="tf-puzzle-meta">Replay puzzles you have answered incorrectly before.</div>
+          </button>
+          <button type="button" class="tf-puzzle-card" data-chal-mode="random" disabled style="opacity:0.55; cursor:not-allowed;">
+            <div class="tf-puzzle-title">Random</div>
+            <div class="tf-puzzle-meta">Coming soon.</div>
+          </button>
+        </div>
+        <div id="tfChallengePanel" style="margin-top:12px;"></div>
       </div>
     `;
   }
@@ -547,6 +591,7 @@
   }
 
   function renderMode(mode) {
+    if (mode === 'home') return renderHome(null);
     if (mode === 'challenge') return renderChallenge();
     if (mode === 'builder') return renderBuilder();
     if (mode === 'settings') return renderSettings();
@@ -559,8 +604,8 @@
 
     const players = Array.isArray(window.tacticsFighterPlayers) ? window.tacticsFighterPlayers : [];
     const role = new URLSearchParams(window.location.search).get('role') || '';
-    const mode = normalizeMode(getUrlMode());
     const isTeacher = String(role || '').toLowerCase() === 'teacher';
+    const mode = normalizeMode(getUrlMode() || (isTeacher ? 'practice' : 'home'));
     const publicStudentId = isTeacher ? '' : getPublicStudentId(players);
     const publicStudentPassword = isTeacher ? '' : getPublicStudentPassword();
 
@@ -600,6 +645,7 @@
         bucket: (() => {
           try { return normalizeBucketKey(localStorage.getItem('tacticsFighterPracticeBucket') || 'beginner'); } catch { return 'beginner'; }
         })(),
+        stats: null,
         tree: null,
         view: 'bucket',
         categoryId: null,
@@ -609,10 +655,12 @@
         page: 1,
         pageSize: 10,
         total: 0,
+        puzzleSource: 'subtopic', // 'subtopic' | 'ghost'
         // Cache pages so the runner can navigate across all puzzles without forcing user to click Next in the subtopic list.
         puzzlePages: {}, // { [page:number]: { puzzles: [], total:number, pageSize:number } }
         // Local session verdicts (per puzzle id). Used for Start/Next skip logic.
         verdictByPuzzleId: {}, // { [puzzleId:string]: 'correct' | 'incorrect' }
+        challenge: { mode: null, ghostCount: 0, msg: '' },
         runner: null
       }
     };
@@ -1118,6 +1166,7 @@
           const out = await studentPostAttempt(publicStudentId, pz.id, {
             bucket: ui.student.bucket,
             subtopicId: ui.student.subtopicId,
+            mode: (String(ui.student.puzzleSource || '') === 'ghost') ? 'ghost' : 'practice',
             movesUci: ui.student.runner.movesUci.slice(),
             plyIndex: ui.student.runner.movesUci.length - 1,
             moveUci: last
@@ -1520,6 +1569,7 @@
       ui.student.puzzles = [];
       ui.student.puzzlePages = {};
       ui.student.verdictByPuzzleId = {};
+      ui.student.puzzleSource = 'subtopic';
       setOut(`<div class="tf-muted">Loading puzzles...</div>`);
       try {
         const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
@@ -1536,6 +1586,10 @@
       const p = Math.max(1, Number(page || 1));
       const key = String(p);
       if (ui.student.puzzlePages && ui.student.puzzlePages[key]) return ui.student.puzzlePages[key];
+      if (String(ui.student.puzzleSource || '') === 'ghost') {
+        // Ghost mode uses preloaded in-memory pages only.
+        return { puzzles: [], total: Number(ui.student.total || 0), pageSize: Number(ui.student.pageSize || 10) };
+      }
       const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, p, ui.student.pageSize, publicStudentPassword);
       const puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
       const total = Number(data.total || 0);
@@ -1574,8 +1628,23 @@
       // Keep the card title in sync when switching modes (avoid showing "Practice Mode" while on Builder).
       try {
         const titleEl = root.querySelector('.tf-title');
-        if (titleEl) titleEl.textContent = (nm === 'practice' ? 'Practice Mode' : nm === 'challenge' ? 'Challenge Mode' : nm === 'builder' ? 'Builder' : 'Setting');
+        if (titleEl) titleEl.textContent = (nm === 'home' ? 'Home' : nm === 'practice' ? 'Practice Mode' : nm === 'challenge' ? 'Challenge Mode' : nm === 'builder' ? 'Builder' : 'Setting');
       } catch {}
+      // Home: load stats (student only)
+      if (nm === 'home' && !isTeacher && publicStudentId) {
+        (async () => {
+          try {
+            const main = document.getElementById('tfMain');
+            if (main) main.innerHTML = `<div class="tf-muted">Loading...</div>`;
+            const stats = await studentFetchStats(publicStudentId, null, publicStudentPassword);
+            ui.student.stats = stats;
+            if (main) main.innerHTML = renderHome(stats);
+          } catch (e) {
+            const main = document.getElementById('tfMain');
+            if (main) main.innerHTML = `<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`;
+          }
+        })();
+      }
       if (nm === 'practice' && !isTeacher && ui.student.tree && ui.student.view !== 'bucket') {
         if (ui.student.view === 'categories') {
           setOut(renderStudentCategories(ui.student.tree.categories || []));
@@ -2785,9 +2854,66 @@
     // Practice + Student navigation (event delegation)
     root.addEventListener('click', (e) => {
       const target = e.target && e.target.closest ? e.target.closest(
-        '[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle]'
+        '[data-chal-mode],[data-chal-ghost-start],[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle]'
       ) : null;
       if (!target) return;
+
+      // Challenge (student only)
+      if (!isTeacher) {
+        const chalModeBtn = target.closest('[data-chal-mode]');
+        if (chalModeBtn) {
+          const m = String(chalModeBtn.getAttribute('data-chal-mode') || '').trim();
+          if (m === 'random') return;
+          ui.student.challenge.mode = m;
+          ui.student.challenge.msg = '';
+          const panel = document.getElementById('tfChallengePanel');
+          if (panel && m === 'ghost') {
+            panel.innerHTML = `
+              <div style="border:1px solid #e5e7eb; border-radius:14px; padding:12px; background:#f8fafc;">
+                <div style="font-weight:950; color:#111827;">Dancing with your Ghost</div>
+                <div class="tf-muted" style="margin-top:6px;">Only puzzles you have answered incorrectly before will appear.</div>
+                <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-primary" data-chal-ghost-start="1">Start</button>
+                  <span id="tfChalGhostMsg" class="tf-muted"></span>
+                </div>
+              </div>
+            `;
+          }
+          return;
+        }
+
+        const ghostStartBtn = target.closest('[data-chal-ghost-start]');
+        if (ghostStartBtn) {
+          (async () => {
+            try {
+              const msgEl = document.getElementById('tfChalGhostMsg');
+              if (msgEl) msgEl.textContent = 'Loading...';
+              const out = await studentFetchGhostPuzzles(publicStudentId, ui.student.bucket, 120, publicStudentPassword);
+              const puzzles = Array.isArray(out?.puzzles) ? out.puzzles : [];
+              if (!puzzles.length) {
+                if (msgEl) msgEl.textContent = 'No incorrect puzzles.';
+                return;
+              }
+
+              ui.student.puzzleSource = 'ghost';
+              ui.student.subtopicId = null;
+              ui.student.page = 1;
+              ui.student.pageSize = Math.max(1, puzzles.length);
+              ui.student.total = puzzles.length;
+              ui.student.puzzles = puzzles.map((p) => ({ ...p, completed: false })); // per-session completion
+              ui.student.puzzlePages = { '1': { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize } };
+
+              ui.student.runner = { absIndex: 0 };
+              await openStudentRunnerModal();
+              if (msgEl) msgEl.textContent = '';
+            } catch (err) {
+              const msgEl = document.getElementById('tfChalGhostMsg');
+              if (msgEl) msgEl.textContent = err?.message || String(err);
+            }
+          })();
+          return;
+        }
+      }
 
       // Bucket selection (Beginner/400up/...)
       const bucketBtn = target.closest('[data-practice]');

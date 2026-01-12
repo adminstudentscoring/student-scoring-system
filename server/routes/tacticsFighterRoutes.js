@@ -1185,6 +1185,48 @@ function registerTacticsFighterRoutes(app, deps) {
     }
   });
 
+  // ===== Public Student: Stats (Home) =====
+  // Returns total completed puzzles for this student (optionally bucket scoped).
+  app.get('/api/public/students/:id/tactics-fighter/stats', async (req, res) => {
+    try {
+      const ctx = await requirePublicStudent(req, res);
+      if (!ctx) return;
+      if (!(await requireDbReady(res))) return;
+
+      const orgId = ctx.orgId;
+      const studentId = ctx.studentId;
+      const bucket = normalizeBucket(req.query?.bucket || '');
+
+      const useBucket = !!String(req.query?.bucket || '').trim();
+      if (!useBucket) {
+        const r = await pool.query(
+          `SELECT COUNT(*)::int AS cnt
+           FROM tactics_fighter_student_progress
+           WHERE org_id = $1 AND student_id = $2 AND status = 'completed'`,
+          [orgId, studentId]
+        );
+        return res.json({ ok: true, completedCount: Number(r.rows?.[0]?.cnt || 0) });
+      }
+
+      const r = await pool.query(
+        `
+        SELECT COUNT(*)::int AS cnt
+        FROM tactics_fighter_student_progress p
+        JOIN tactics_fighter_puzzles z ON z.id = p.puzzle_id AND z.org_id = p.org_id
+        JOIN tactics_fighter_subtopics s ON s.id = z.subtopic_id AND s.org_id = z.org_id
+        JOIN tactics_fighter_topics t ON t.id = s.topic_id AND t.org_id = s.org_id
+        JOIN tactics_fighter_categories c ON c.id = t.category_id AND c.org_id = t.org_id
+        WHERE p.org_id = $1 AND p.student_id = $2 AND p.status = 'completed' AND c.bucket = $3
+        `,
+        [orgId, studentId, bucket]
+      );
+      return res.json({ ok: true, bucket, completedCount: Number(r.rows?.[0]?.cnt || 0) });
+    } catch (e) {
+      console.error('[tactics-fighter] public stats error:', e);
+      return res.status(500).json({ ok: false, error: 'Failed to load stats' });
+    }
+  });
+
   app.post('/api/public/students/:id/tactics-fighter/puzzles/:puzzleId/attempt', async (req, res) => {
     try {
       const ctx = await requirePublicStudent(req, res);
@@ -1202,6 +1244,7 @@ function registerTacticsFighterRoutes(app, deps) {
       const plyIndex = Number.isFinite(Number(req.body?.plyIndex)) ? Number(req.body.plyIndex) : (movesUci.length ? movesUci.length - 1 : null);
       const moveUci = String(req.body?.moveUci || (movesUci.length ? movesUci[movesUci.length - 1] : '') || '').trim().toLowerCase();
       const subtopicId = req.body?.subtopicId ? toRangeInt(req.body.subtopicId, 1, 1_000_000_000, 0) : null;
+      const mode = String(req.body?.mode || '').trim().toLowerCase(); // 'practice' | 'ghost'
 
       const pRes = await pool.query(
         `SELECT id, subtopic_id, fen, solutions FROM tactics_fighter_puzzles WHERE org_id = $1 AND id = $2 LIMIT 1`,
@@ -1251,7 +1294,8 @@ function registerTacticsFighterRoutes(app, deps) {
           (chosenLine === null ? null : Math.trunc(chosenLine)),
           JSON.stringify({
             ua: toCleanString(req.get('user-agent') || '', 500),
-            ip: toCleanString(req.ip || '', 200)
+            ip: toCleanString(req.ip || '', 200),
+            mode: mode || null
           })
         ]
       );
@@ -1279,6 +1323,27 @@ function registerTacticsFighterRoutes(app, deps) {
         ]
       );
 
+      // Ghost: if completed, increment meta.ghostReplays (cap handled by query).
+      if (completed && mode === 'ghost') {
+        try {
+          await pool.query(
+            `
+            UPDATE tactics_fighter_student_progress
+            SET meta = jsonb_set(
+              COALESCE(meta, '{}'::jsonb),
+              '{ghostReplays}',
+              to_jsonb(COALESCE((meta->>'ghostReplays')::int, 0) + 1),
+              true
+            )
+            WHERE org_id = $1 AND student_id = $2 AND puzzle_id = $3
+            `,
+            [orgId, studentId, puzzleId]
+          );
+        } catch (e) {
+          console.warn('[tactics-fighter] ghostReplays update failed:', e?.message || e);
+        }
+      }
+
       return res.json({
         ok: true,
         puzzleId: String(puzzleId),
@@ -1290,6 +1355,97 @@ function registerTacticsFighterRoutes(app, deps) {
     } catch (e) {
       console.error('[tactics-fighter] public attempt error:', e);
       return res.status(500).json({ ok: false, error: 'Failed to record attempt' });
+    }
+  });
+
+  // ===== Public Student: Challenge - Dancing with your Ghost =====
+  // Returns puzzles that were ever answered incorrectly (wrong_count > 0) and have ghostReplays < 3.
+  // Weighted priority by ghostReplays: 0 -> 60%, 1 -> 30%, 2 -> 10%.
+  app.get('/api/public/students/:id/tactics-fighter/challenge/ghost', async (req, res) => {
+    try {
+      const ctx = await requirePublicStudent(req, res);
+      if (!ctx) return;
+      if (!(await requireDbReady(res))) return;
+
+      const orgId = ctx.orgId;
+      const studentId = ctx.studentId;
+      const bucket = normalizeBucket(req.query?.bucket || 'beginner');
+      const limit = toRangeInt(req.query?.limit, 1, 500, 120);
+
+      const rowsRes = await pool.query(
+        `
+        SELECT
+          z.id,
+          z.fen,
+          z.solutions,
+          p.wrong_count,
+          COALESCE((p.meta->>'ghostReplays')::int, 0) AS ghost_replays
+        FROM tactics_fighter_student_progress p
+        JOIN tactics_fighter_puzzles z ON z.id = p.puzzle_id AND z.org_id = p.org_id
+        JOIN tactics_fighter_subtopics s ON s.id = z.subtopic_id AND s.org_id = z.org_id
+        JOIN tactics_fighter_topics t ON t.id = s.topic_id AND t.org_id = s.org_id
+        JOIN tactics_fighter_categories c ON c.id = t.category_id AND c.org_id = t.org_id
+        WHERE
+          p.org_id = $1
+          AND p.student_id = $2
+          AND c.bucket = $3
+          AND p.wrong_count > 0
+          AND COALESCE((p.meta->>'ghostReplays')::int, 0) < 3
+        `,
+        [orgId, studentId, bucket]
+      );
+
+      const rows = rowsRes.rows || [];
+      if (!rows.length) return res.json({ ok: true, bucket, puzzles: [] });
+
+      // Group by ghostReplays (0/1/2)
+      const g0 = [];
+      const g1 = [];
+      const g2 = [];
+      for (const r of rows) {
+        const gr = Number(r.ghost_replays || 0);
+        const item = {
+          id: String(r.id),
+          fen: String(r.fen || ''),
+          solutions: (r.solutions && typeof r.solutions === 'object') ? r.solutions : {},
+          ghostReplays: Math.max(0, Math.min(2, gr))
+        };
+        if (gr <= 0) g0.push(item);
+        else if (gr === 1) g1.push(item);
+        else g2.push(item);
+      }
+
+      // Shuffle helper
+      function shuffleInPlace(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        }
+      }
+      shuffleInPlace(g0); shuffleInPlace(g1); shuffleInPlace(g2);
+
+      const out = [];
+      while (out.length < limit && (g0.length || g1.length || g2.length)) {
+        // Determine available weights
+        const choices = [];
+        if (g0.length) choices.push({ w: 0.60, arr: g0 });
+        if (g1.length) choices.push({ w: 0.30, arr: g1 });
+        if (g2.length) choices.push({ w: 0.10, arr: g2 });
+        const sum = choices.reduce((a, c) => a + c.w, 0);
+        let r = Math.random() * (sum || 1);
+        let picked = choices[choices.length - 1];
+        for (const c of choices) {
+          r -= c.w;
+          if (r <= 0) { picked = c; break; }
+        }
+        const item = picked.arr.pop();
+        if (item) out.push(item);
+      }
+
+      return res.json({ ok: true, bucket, puzzles: out });
+    } catch (e) {
+      console.error('[tactics-fighter] ghost challenge error:', e);
+      return res.status(500).json({ ok: false, error: 'Failed to load ghost puzzles' });
     }
   });
 
