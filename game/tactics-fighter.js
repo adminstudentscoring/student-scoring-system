@@ -795,10 +795,6 @@
               <div class="tf-stu-right">
                 <div class="tf-stu-toprow">
                   <div class="tf-section-title" style="margin:0;">Moves</div>
-                  <div style="display:flex; gap:10px;">
-                    <button type="button" class="btn btn-secondary" data-stu-prev="1">←</button>
-                    <button type="button" class="btn btn-secondary" data-stu-next="1">→</button>
-                  </div>
                 </div>
                 <div id="tfStuRunnerMoves" class="tf-stu-moves"></div>
                 <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
@@ -806,6 +802,10 @@
                   <div class="tf-stu-actions-left">
                     <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
                     <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
+                    <div class="tf-stu-nav" aria-label="Puzzle navigation">
+                      <button type="button" class="btn btn-secondary" data-stu-prev="1" title="Previous puzzle">←</button>
+                      <button type="button" class="btn btn-secondary" data-stu-next="1" title="Next puzzle">→</button>
+                    </div>
                   </div>
                   <div id="tfStuRunnerStatus" class="tf-stu-status"></div>
                 </div>
@@ -861,6 +861,33 @@
       function currentPuzzle() {
         const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
         return puzzles[ui.student.runner.index] || null;
+      }
+
+      function resetRunnerToPuzzleIndex(nextIdx) {
+        const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
+        const idx = Math.max(0, Math.min(puzzles.length - 1, Number(nextIdx || 0)));
+        const pz = puzzles[idx];
+        if (!pz) return false;
+
+        const startFen = String(pz?.fen || '').trim();
+        const startBoard = parseFenToBoard(startFen);
+        const startSide = fenSideToMove(startFen);
+        ui.student.runner.index = idx;
+        ui.student.runner.movesUci = [];
+        ui.student.runner.movesSan = [];
+        ui.student.runner.selectedFrom = null;
+        ui.student.runner.startFen = startFen;
+        ui.student.runner.fen = startFen;
+        ui.student.runner.board = startBoard || Array.from({ length: 8 }, () => Array(8).fill(''));
+        ui.student.runner.side = startSide;
+        ui.student.runner.history = [];
+        ui.student.runner.lineIdx = null;
+        ui.student.runner.lineUci = null;
+        ui.student.runner.lineSan = null;
+        ui.student.runner.busy = false;
+        ui.student.runner.playerSide = startSide;
+        ui.student.runner.orientation = (startSide === 'b') ? 'black' : 'white';
+        return true;
       }
 
       function renderRunner() {
@@ -1011,15 +1038,13 @@
         if (!(t instanceof Element)) return;
         if (t.closest('[data-stu-runner-close]')) return close();
         if (t.closest('[data-stu-prev]')) {
-          ui.student.runner.index = Math.max(0, ui.student.runner.index - 1);
-          ui.student.runner.movesUci = [];
-          ui.student.runner.selectedFrom = null;
+          const ok = resetRunnerToPuzzleIndex(ui.student.runner.index - 1);
+          if (!ok) return;
           return renderRunner();
         }
         if (t.closest('[data-stu-next]')) {
-          ui.student.runner.index = Math.min(ui.student.puzzles.length - 1, ui.student.runner.index + 1);
-          ui.student.runner.movesUci = [];
-          ui.student.runner.selectedFrom = null;
+          const ok = resetRunnerToPuzzleIndex(ui.student.runner.index + 1);
+          if (!ok) return;
           return renderRunner();
         }
         if (t.closest('[data-stu-undo]')) {
