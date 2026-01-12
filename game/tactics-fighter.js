@@ -609,6 +609,10 @@
         page: 1,
         pageSize: 10,
         total: 0,
+        // Cache pages so the runner can navigate across all puzzles without forcing user to click Next in the subtopic list.
+        puzzlePages: {}, // { [page:number]: { puzzles: [], total:number, pageSize:number } }
+        // Local session verdicts (per puzzle id). Used for Start/Next skip logic.
+        verdictByPuzzleId: {}, // { [puzzleId:string]: 'correct' | 'incorrect' }
         runner: null
       }
     };
@@ -746,16 +750,79 @@
       `;
     }
 
-    function openStudentRunnerModal() {
-      const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
-      if (!puzzles.length) return;
-      const startIdx = Math.max(0, Math.min(puzzles.length - 1, Number(ui.student.runner?.index || 0)));
-      const p0 = puzzles[startIdx];
+    function absIndexToPage(absIndex) {
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      const ai = Math.max(0, Number(absIndex || 0));
+      const page = Math.floor(ai / ps) + 1;
+      const idx = ai % ps;
+      return { page, idx };
+    }
+
+    function puzzleIsTarget(pz) {
+      if (!pz || typeof pz !== 'object') return false;
+      if (pz.completed) return false;
+      // "Incorrect" vs "not done" is not persisted yet, but for selection rules both are valid targets.
+      return true;
+    }
+
+    async function findFirstTargetAbsIndex() {
+      const total = Math.max(0, Number(ui.student.total || 0));
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      for (let p = 1; p <= totalPages; p++) {
+        const pageData = await studentEnsurePuzzlePage(p);
+        const list = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+        for (let i = 0; i < list.length; i++) {
+          if (puzzleIsTarget(list[i])) return (p - 1) * ps + i;
+        }
+      }
+      return 0;
+    }
+
+    async function findNextTargetAbsIndex(fromAbsIndex) {
+      const total = Math.max(0, Number(ui.student.total || 0));
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      const start = Math.max(0, Number(fromAbsIndex || 0) + 1);
+      if (start >= total) return null;
+      const { page: startPage, idx: startIdx } = absIndexToPage(start);
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      for (let p = startPage; p <= totalPages; p++) {
+        const pageData = await studentEnsurePuzzlePage(p);
+        const list = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+        const i0 = (p === startPage) ? startIdx : 0;
+        for (let i = i0; i < list.length; i++) {
+          if (puzzleIsTarget(list[i])) return (p - 1) * ps + i;
+        }
+      }
+      return null;
+    }
+
+    async function openStudentRunnerModal() {
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      // Ensure we know the total (load page 1 if needed).
+      if (!ui.student.total) {
+        await studentEnsurePuzzlePage(ui.student.page || 1);
+      }
+      const total = Math.max(0, Number(ui.student.total || 0));
+      if (!total) return;
+
+      let startAbs = Number(ui.student.runner?.absIndex);
+      if (!Number.isFinite(startAbs)) startAbs = 0;
+      startAbs = Math.max(0, Math.min(total - 1, Math.trunc(startAbs)));
+
+      const { page: startPage, idx: startIdx } = absIndexToPage(startAbs);
+      // Keep list page in sync with what the runner is showing.
+      ui.student.page = startPage;
+      const pageData = await studentEnsurePuzzlePage(startPage);
+      ui.student.puzzles = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+
+      const p0 = ui.student.puzzles[startIdx];
+      if (!p0) return;
       const startFen = String(p0?.fen || '').trim();
       const startBoard = parseFenToBoard(startFen);
       const startSide = fenSideToMove(startFen);
       ui.student.runner = {
-        index: startIdx,
+        absIndex: startAbs,
         movesUci: [],
         movesSan: [],
         selectedFrom: null,
@@ -860,20 +927,36 @@
       }
 
       function currentPuzzle() {
-        const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
-        return puzzles[ui.student.runner.index] || null;
+        const total = Math.max(0, Number(ui.student.total || 0));
+        if (!total) return null;
+        const abs = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+        const { page, idx } = absIndexToPage(abs);
+        const pageData = ui.student.puzzlePages?.[String(page)];
+        const list = Array.isArray(pageData?.puzzles) ? pageData.puzzles : Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
+        return list[idx] || null;
       }
 
       function resetRunnerToPuzzleIndex(nextIdx) {
-        const puzzles = Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
-        const idx = Math.max(0, Math.min(puzzles.length - 1, Number(nextIdx || 0)));
-        const pz = puzzles[idx];
+        // Back-compat shim (should not be used anymore)
+        ui.student.runner.absIndex = Math.max(0, Math.trunc(Number(nextIdx || 0)));
+        return true;
+      }
+
+      async function resetRunnerToAbsIndex(nextAbs) {
+        const total = Math.max(0, Number(ui.student.total || 0));
+        if (!total) return false;
+        const abs = Math.max(0, Math.min(total - 1, Math.trunc(Number(nextAbs || 0))));
+        const { page, idx } = absIndexToPage(abs);
+        ui.student.page = page;
+        const pageData = await studentEnsurePuzzlePage(page);
+        ui.student.puzzles = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+        const pz = ui.student.puzzles[idx];
         if (!pz) return false;
 
         const startFen = String(pz?.fen || '').trim();
         const startBoard = parseFenToBoard(startFen);
         const startSide = fenSideToMove(startFen);
-        ui.student.runner.index = idx;
+        ui.student.runner.absIndex = abs;
         ui.student.runner.movesUci = [];
         ui.student.runner.movesSan = [];
         ui.student.runner.selectedFrom = null;
@@ -897,7 +980,9 @@
         const pz = currentPuzzle();
         if (!pz) return close();
         const meta = modal.querySelector('#tfStuRunnerMeta');
-        if (meta) meta.textContent = `Puzzle ${ui.student.runner.index + 1} / ${ui.student.puzzles.length} · ${pz.completed ? 'Completed' : 'Not completed'}`;
+        const total = Math.max(0, Number(ui.student.total || 0));
+        const abs = Math.max(0, Math.min(Math.max(0, total - 1), Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+        if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total || 0} · ${pz.completed ? 'Completed' : 'Not completed'}`;
         const turnEl = modal.querySelector('#tfStuRunnerTurnLabel');
         if (turnEl) {
           const side = ui.student.runner?.side;
@@ -1041,12 +1126,15 @@
           if (out.completed) {
             pz.completed = true;
             ui.student.runner.lastVerdict = 'correct';
+            try { ui.student.verdictByPuzzleId[String(pz.id)] = 'correct'; } catch {}
             setMsg('ok', 'Correct. Puzzle completed.');
           } else if (out.correctPrefix) {
             ui.student.runner.lastVerdict = 'correct';
+            try { ui.student.verdictByPuzzleId[String(pz.id)] = 'correct'; } catch {}
             setMsg('ok', 'Correct. Computer replied.');
           } else {
             ui.student.runner.lastVerdict = 'incorrect';
+            try { ui.student.verdictByPuzzleId[String(pz.id)] = 'incorrect'; } catch {}
             setMsg('err', 'Wrong. Engine replied.');
           }
           renderRunner();
@@ -1062,14 +1150,32 @@
         if (!(t instanceof Element)) return;
         if (t.closest('[data-stu-runner-close]')) return close();
         if (t.closest('[data-stu-prev]')) {
-          const ok = resetRunnerToPuzzleIndex(ui.student.runner.index - 1);
-          if (!ok) return;
-          return renderRunner();
+          (async () => {
+            const total = Math.max(0, Number(ui.student.total || 0));
+            if (!total) return;
+            const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+            const ok = await resetRunnerToAbsIndex(cur - 1);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
         }
         if (t.closest('[data-stu-next]')) {
-          const ok = resetRunnerToPuzzleIndex(ui.student.runner.index + 1);
-          if (!ok) return;
-          return renderRunner();
+          // Next: jump to the next not-completed / incorrect puzzle (auto-loads next pages).
+          (async () => {
+            const total = Math.max(0, Number(ui.student.total || 0));
+            if (!total) return;
+            const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+            const nextAbs = await findNextTargetAbsIndex(cur);
+            if (nextAbs == null) {
+              setMsg('ok', 'No more incomplete puzzles.');
+              return renderRunner();
+            }
+            const ok = await resetRunnerToAbsIndex(nextAbs);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
         }
         if (t.closest('[data-stu-undo]')) {
           // Undo one ply (restores previous fen/board)
@@ -1410,15 +1516,33 @@
       ui.student.view = 'puzzles';
       ui.student.subtopicId = String(subtopicId);
       ui.student.page = 1;
+      ui.student.total = 0;
+      ui.student.puzzles = [];
+      ui.student.puzzlePages = {};
+      ui.student.verdictByPuzzleId = {};
       setOut(`<div class="tf-muted">Loading puzzles...</div>`);
       try {
         const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
         ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
         ui.student.total = Number(data.total || 0);
+        ui.student.puzzlePages[String(ui.student.page)] = { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize };
         setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
       } catch (e) {
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
       }
+    }
+
+    async function studentEnsurePuzzlePage(page) {
+      const p = Math.max(1, Number(page || 1));
+      const key = String(p);
+      if (ui.student.puzzlePages && ui.student.puzzlePages[key]) return ui.student.puzzlePages[key];
+      const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, p, ui.student.pageSize, publicStudentPassword);
+      const puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
+      const total = Number(data.total || 0);
+      ui.student.total = total;
+      if (!ui.student.puzzlePages) ui.student.puzzlePages = {};
+      ui.student.puzzlePages[key] = { puzzles, total, pageSize: ui.student.pageSize };
+      return ui.student.puzzlePages[key];
     }
 
     async function studentChangePuzzlePage(dir) {
@@ -1430,9 +1554,9 @@
       ui.student.page = next;
       setOut(`<div class="tf-muted">Loading puzzles...</div>`);
       try {
-        const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
-        ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
-        ui.student.total = Number(data.total || 0);
+        const cached = await studentEnsurePuzzlePage(ui.student.page);
+        ui.student.puzzles = Array.isArray(cached?.puzzles) ? cached.puzzles : [];
+        ui.student.total = Number(cached?.total || ui.student.total || 0);
         setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
       } catch (e) {
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
@@ -2761,15 +2885,23 @@
 
       const startBtn = target.closest('[data-stu-start]');
       if (startBtn) {
-        ui.student.runner = { index: 0 };
-        return void openStudentRunnerModal();
+        (async () => {
+          // Start: skip completed, jump to the earliest not-completed (or previously incorrect) puzzle.
+          const abs = await findFirstTargetAbsIndex();
+          ui.student.runner = { absIndex: abs };
+          await openStudentRunnerModal();
+        })();
+        return;
       }
 
       const openBtn = target.closest('[data-stu-open-puzzle]');
       if (openBtn) {
         const idx = Number(openBtn.getAttribute('data-stu-idx') || 0);
-        ui.student.runner = { index: Number.isFinite(idx) ? idx : 0 };
-        return void openStudentRunnerModal();
+        const ps = Math.max(1, Number(ui.student.pageSize || 10));
+        const abs = (Math.max(1, Number(ui.student.page || 1)) - 1) * ps + (Number.isFinite(idx) ? idx : 0);
+        ui.student.runner = { absIndex: abs };
+        (async () => { await openStudentRunnerModal(); })();
+        return;
       }
     });
 
