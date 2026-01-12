@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/game/no-blunder.css">
     <link rel="stylesheet" href="/game/hope-mate.css">
     <link rel="stylesheet" href="/game/blunders/blunders.css">
-    <link rel="stylesheet" href="/game/tactics-fighter.css">
+    <link rel="stylesheet" href="/game/tactics-fighter/tactics-fighter.css">
     <link rel="stylesheet" href="/game/vchess-platform/vchess-platform.css">
     <link rel="stylesheet" href="/game/vchess-platform/normal-chess.css">
     <style>
@@ -42,10 +42,11 @@
         console.log('Game window opened');
         window.API_BASE = '/api';
 
-        function loadScript(src) {
+        function loadScript(src, opts = {}) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = src;
+                if (opts && opts.type) script.type = opts.type;
                 script.onload = () => resolve();
                 script.onerror = (error) => reject(error);
                 document.body.appendChild(script);
@@ -230,7 +231,10 @@
                     } catch (error) {
                         console.warn('Unable to restore tactics fighter players from storage:', error);
                     }
-                    await loadScript('/game/tactics-fighter.js');
+                    // Tactics Fighter is located under /game/tactics-fighter/
+                    // Load core first, then the main file.
+                    await loadScript('/game/tactics-fighter/core.js');
+                    await loadScript('/game/tactics-fighter/tactics-fighter.js');
                     if (window.initTacticsFighter) {
                         window.initTacticsFighter();
                     } else {

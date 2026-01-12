@@ -1,0 +1,2499 @@
+(function () {
+  const TF = window.__TacticsFighterCore;
+  if (!TF) {
+    console.error('[tactics-fighter] Missing core.js (window.__TacticsFighterCore). Ensure /game/tactics-fighter/core.js is loaded before tactics-fighter.js');
+    return;
+  }
+
+  // Pull core symbols into this file's scope to avoid rewriting the existing code.
+  const {
+    escapeHtml,
+    getUrlMode,
+    setUrlMode,
+    normalizeMode,
+    fetchConfig,
+    apiRequest,
+    getPublicStudentPassword,
+    getPublicStudentId,
+    normalizeBucketKey,
+    tfJson,
+
+    pieceImageSrc,
+    parseFenToBoard,
+    buildFenFromBoard,
+    fenSideToMove,
+    cloneBoard,
+    coordToRc,
+    displayToBoardRc,
+    applyUciToBoard,
+    undoOnePly,
+    uciToPseudoSan,
+
+    studentFetchTree,
+    studentFetchSubtopicPuzzles,
+    studentFetchStats,
+    studentFetchGhostPuzzles,
+    studentPostAttempt,
+    studentEngineAnalyze,
+    studentApplyMove,
+
+    builderFetchPuzzles,
+    builderCreatePuzzle,
+    engineAnalyze,
+    builderDeletePuzzle,
+    builderFetchTree,
+    builderCreateCategory,
+    builderRenameCategory,
+    builderDeleteCategory,
+    builderCreateTopic,
+    builderRenameTopic,
+    builderDeleteTopic,
+    builderCreateSubtopic,
+    builderRenameSubtopic,
+    builderDeleteSubtopic,
+
+    renderShell,
+    renderHome,
+    renderMode
+  } = TF;
+
+  window.initTacticsFighter = async function initTacticsFighter() {
+    const root = document.getElementById('tacticsFighterRoot');
+    if (!root) return;
+
+    const players = Array.isArray(window.tacticsFighterPlayers) ? window.tacticsFighterPlayers : [];
+    const role = new URLSearchParams(window.location.search).get('role') || '';
+    const isTeacher = String(role || '').toLowerCase() === 'teacher';
+    const mode = normalizeMode(getUrlMode() || (isTeacher ? 'practice' : 'home'));
+    const publicStudentId = isTeacher ? '' : getPublicStudentId(players);
+    const publicStudentPassword = isTeacher ? '' : getPublicStudentPassword();
+
+    root.innerHTML = renderShell({ role, players, mode });
+
+    const main = document.getElementById('tfMain');
+    const setMain = (html) => { if (main) main.innerHTML = html; };
+    const setOut = (html) => {
+      const out = document.getElementById('tfOutput');
+      if (out) out.innerHTML = html;
+    };
+
+    const loadConfigOnce = async () => {
+      try {
+        const cfg = await fetchConfig();
+        return cfg;
+      } catch {
+        return null;
+      }
+    };
+    const cfg = await loadConfigOnce();
+
+    const ui = {
+      builderTree: null,
+      builderMsg: null,
+      builderLoadedOnce: false,
+      expanded: {
+        cat: new Set(),
+        topic: new Set(),
+        subtopic: new Set(),
+        puzzlesLoaded: new Set()
+      },
+      puzzlesBySubtopic: new Map()
+      ,
+      puzzlePageBySubtopic: new Map(),
+      student: {
+        bucket: (() => {
+          try { return normalizeBucketKey(localStorage.getItem('tacticsFighterPracticeBucket') || 'beginner'); } catch { return 'beginner'; }
+        })(),
+        stats: null,
+        tree: null,
+        view: 'bucket',
+        categoryId: null,
+        topicId: null,
+        subtopicId: null,
+        puzzles: [],
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        puzzleSource: 'subtopic', // 'subtopic' | 'ghost'
+        // Cache pages so the runner can navigate across all puzzles without forcing user to click Next in the subtopic list.
+        puzzlePages: {}, // { [page:number]: { puzzles: [], total:number, pageSize:number } }
+        // Local session verdicts (per puzzle id). Used for Start/Next skip logic.
+        verdictByPuzzleId: {}, // { [puzzleId:string]: 'correct' | 'incorrect' }
+        challenge: { mode: null, ghostCount: 0, msg: '' },
+        runner: null
+      }
+    };
+
+    function showBuilderMsg(type, text) {
+      const el = document.getElementById('tfBuilderMsg');
+      if (!el) return;
+      el.style.display = 'block';
+      el.classList.remove('ok', 'err');
+      if (type === 'ok') el.classList.add('ok');
+      if (type === 'err') el.classList.add('err');
+      el.textContent = String(text || '');
+    }
+
+    function clearBuilderMsg() {
+      const el = document.getElementById('tfBuilderMsg');
+      if (!el) return;
+      el.style.display = 'none';
+      el.textContent = '';
+      el.classList.remove('ok', 'err');
+    }
+
+    function renderMiniBoardHtml(fen) {
+      const b = parseFenToBoard(fen);
+      if (!b) return `<div class="tf-mini-board" aria-label="Mini board"></div>`;
+      const sqs = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const isDark = (r + c) % 2 === 1;
+          const p = b[r][c] || '';
+          const src = p ? pieceImageSrc(p) : '';
+          const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+          sqs.push(`<div class="tf-mini-sq ${isDark ? 'dark' : 'light'}">${img}</div>`);
+        }
+      }
+      return `<div class="tf-mini-board" aria-label="Mini board">${sqs.join('')}</div>`;
+    }
+
+    function renderStudentCategories(categories) {
+      const cats = Array.isArray(categories) ? categories : [];
+      if (!cats.length) return `<div class="tf-muted">No categories for this bucket yet.</div>`;
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Categories</div>
+            <div class="tf-muted" style="margin-bottom:10px;">Pick a category to see topics.</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-stu-back="buckets">Change bucket</button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${cats.map((c) => `
+            <button type="button" class="btn btn-secondary" data-stu-cat="${escapeHtml(String(c.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(c.name || ''))}</strong>
+            </button>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderStudentTopics(category) {
+      const topics = Array.isArray(category?.topics) ? category.topics : [];
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Topics</div>
+            <div class="tf-muted">${escapeHtml(String(category?.name || ''))}</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-stu-back="categories">Back</button>
+        </div>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          ${topics.length ? topics.map((t) => `
+            <button type="button" class="btn btn-secondary" data-stu-topic="${escapeHtml(String(t.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(t.name || ''))}</strong>
+            </button>
+          `).join('') : `<div class="tf-muted">No topics yet.</div>`}
+        </div>
+      `;
+    }
+
+    function renderStudentSubtopics(category, topic) {
+      const subs = Array.isArray(topic?.subtopics) ? topic.subtopics : [];
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Subtopics</div>
+            <div class="tf-muted">${escapeHtml(String(category?.name || ''))} → ${escapeHtml(String(topic?.name || ''))}</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-stu-back="topics">Back</button>
+        </div>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          ${subs.length ? subs.map((s) => `
+            <button type="button" class="btn btn-secondary" data-stu-subtopic="${escapeHtml(String(s.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(s.name || ''))}</strong>
+              <span class="tf-muted" style="margin-left:8px;">(${Number(s.puzzleCount || 0)} puzzles)</span>
+            </button>
+          `).join('') : `<div class="tf-muted">No subtopics yet.</div>`}
+        </div>
+      `;
+    }
+
+    function renderStudentPuzzles(puzzles, page, pageSize, total) {
+      const list = Array.isArray(puzzles) ? puzzles : [];
+      const totalPages = Math.max(1, Math.ceil(Math.max(0, Number(total || 0)) / Math.max(1, Number(pageSize || 10))));
+      const p = Math.max(1, Number(page || 1));
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Puzzles</div>
+            <div class="tf-muted">Click a puzzle or press Start.</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button type="button" class="btn btn-primary" data-stu-start="1">Start</button>
+            <button type="button" class="btn btn-secondary" data-stu-back="subtopics">Back</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div class="tf-muted">Page ${p} / ${totalPages} · ${Number(total || 0)} puzzles</div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn btn-secondary" data-stu-page="prev" ${p <= 1 ? 'disabled' : ''}>Prev</button>
+            <button type="button" class="btn btn-secondary" data-stu-page="next" ${p >= totalPages ? 'disabled' : ''}>Next</button>
+          </div>
+        </div>
+
+        <div class="tf-puzzles-grid" style="margin-top:12px;">
+          ${list.length ? list.map((pz, idx) => `
+            <button type="button" class="tf-puzzle-card" data-stu-open-puzzle="${escapeHtml(String(pz.id))}" data-stu-idx="${idx}" aria-label="Open puzzle">
+              <div style="position:relative;">
+                ${renderMiniBoardHtml(pz.fen)}
+                ${pz.completed ? `<div style="position:absolute; right:8px; top:8px; font-size:20px; font-weight:900; color:#16a34a;">✓</div>` : ''}
+              </div>
+            </button>
+          `).join('') : `<div class="tf-muted">No puzzle is found.</div>`}
+        </div>
+      `;
+    }
+
+    function absIndexToPage(absIndex) {
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      const ai = Math.max(0, Number(absIndex || 0));
+      const page = Math.floor(ai / ps) + 1;
+      const idx = ai % ps;
+      return { page, idx };
+    }
+
+    function puzzleIsTarget(pz) {
+      if (!pz || typeof pz !== 'object') return false;
+      if (pz.completed) return false;
+      // "Incorrect" vs "not done" is not persisted yet, but for selection rules both are valid targets.
+      return true;
+    }
+
+    async function findFirstTargetAbsIndex() {
+      const total = Math.max(0, Number(ui.student.total || 0));
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      for (let p = 1; p <= totalPages; p++) {
+        const pageData = await studentEnsurePuzzlePage(p);
+        const list = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+        for (let i = 0; i < list.length; i++) {
+          if (puzzleIsTarget(list[i])) return (p - 1) * ps + i;
+        }
+      }
+      return 0;
+    }
+
+    async function findNextTargetAbsIndex(fromAbsIndex) {
+      const total = Math.max(0, Number(ui.student.total || 0));
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      const start = Math.max(0, Number(fromAbsIndex || 0) + 1);
+      if (start >= total) return null;
+      const { page: startPage, idx: startIdx } = absIndexToPage(start);
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      for (let p = startPage; p <= totalPages; p++) {
+        const pageData = await studentEnsurePuzzlePage(p);
+        const list = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+        const i0 = (p === startPage) ? startIdx : 0;
+        for (let i = i0; i < list.length; i++) {
+          if (puzzleIsTarget(list[i])) return (p - 1) * ps + i;
+        }
+      }
+      return null;
+    }
+
+    async function openStudentRunnerModal() {
+      const ps = Math.max(1, Number(ui.student.pageSize || 10));
+      // Ensure we know the total (load page 1 if needed).
+      if (!ui.student.total) {
+        await studentEnsurePuzzlePage(ui.student.page || 1);
+      }
+      const total = Math.max(0, Number(ui.student.total || 0));
+      if (!total) return;
+
+      let startAbs = Number(ui.student.runner?.absIndex);
+      if (!Number.isFinite(startAbs)) startAbs = 0;
+      startAbs = Math.max(0, Math.min(total - 1, Math.trunc(startAbs)));
+
+      const { page: startPage, idx: startIdx } = absIndexToPage(startAbs);
+      // Keep list page in sync with what the runner is showing.
+      ui.student.page = startPage;
+      const pageData = await studentEnsurePuzzlePage(startPage);
+      ui.student.puzzles = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+
+      const p0 = ui.student.puzzles[startIdx];
+      if (!p0) return;
+      const startFen = String(p0?.fen || '').trim();
+      const startBoard = parseFenToBoard(startFen);
+      const startSide = fenSideToMove(startFen);
+      ui.student.runner = {
+        absIndex: startAbs,
+        movesUci: [],
+        movesSan: [],
+        selectedFrom: null,
+        lastVerdict: null, // 'correct' | 'incorrect' | null (persistent until next submit)
+        // board state (client-side, no legality validation)
+        startFen,
+        fen: startFen,
+        board: startBoard || Array.from({ length: 8 }, () => Array(8).fill('')),
+        side: startSide,
+        history: [], // entries: { fen, board, side, movesUciLen, movesSanLen }
+        // PV selection (chosen accepted line)
+        lineIdx: null,
+        lineUci: null,
+        lineSan: null,
+        busy: false
+      };
+      ui.student.runner.playerSide = startSide; // 'w' | 'b'
+      ui.student.runner.orientation = (startSide === 'b') ? 'black' : 'white';
+
+      const modal = document.createElement('div');
+      modal.className = 'vcp-modal-backdrop';
+      modal.innerHTML = `
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Practice" style="width: calc(100vw - 40px); max-width: 1100px;">
+          <div class="vcp-modal-header">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
+              <div>
+                <div style="font-weight:900;">Practice</div>
+                <div class="tf-muted" id="tfStuRunnerMeta"></div>
+              </div>
+              <button type="button" class="btn btn-secondary" data-stu-runner-close="1">Close</button>
+            </div>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:stretch;">
+              <div>
+                <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
+              </div>
+              <div class="tf-stu-right">
+                <div class="tf-stu-toprow">
+                  <div class="tf-section-title" id="tfStuRunnerTurnLabel" style="margin:0;"></div>
+                </div>
+                <div id="tfStuRunnerMoves" class="tf-stu-moves"></div>
+                <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
+                <div class="tf-stu-actions">
+                  <div class="tf-stu-actions-left">
+                    <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
+                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
+                    <div class="tf-stu-nav" aria-label="Puzzle navigation">
+                      <button type="button" class="btn btn-secondary" data-stu-prev="1" title="Previous puzzle">←</button>
+                      <button type="button" class="btn btn-secondary" data-stu-next="1" title="Next puzzle">→</button>
+                    </div>
+                  </div>
+                  <div id="tfStuRunnerStatus" class="tf-stu-status"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const close = () => { try { document.body.removeChild(modal); } catch {} };
+      const setMsg = (type, text) => {
+        const el = modal.querySelector('#tfStuRunnerMsg');
+        if (!el) return;
+        el.style.display = 'block';
+        el.classList.remove('ok', 'err');
+        if (type === 'ok') el.classList.add('ok');
+        if (type === 'err') el.classList.add('err');
+        el.textContent = String(text || '');
+      };
+      const clearMsg = () => {
+        const el = modal.querySelector('#tfStuRunnerMsg');
+        if (!el) return;
+        el.style.display = 'none';
+        el.textContent = '';
+        el.classList.remove('ok', 'err');
+      };
+
+      function renderBoardInteractive() {
+        const host = modal.querySelector('#tfStuRunnerBoard');
+        if (!host) return;
+        const b = ui.student.runner.board;
+        if (!b) { host.innerHTML = ''; return; }
+        const sqs = [];
+        for (let dr = 0; dr < 8; dr++) {
+          for (let dc = 0; dc < 8; dc++) {
+            const { r, c } = displayToBoardRc(dr, dc, ui.student.runner.orientation);
+            const isDark = (dr + dc) % 2 === 1;
+            const coord = rcToCoord(r, c);
+            const piece = b[r][c] || '';
+            const src = piece ? pieceImageSrc(piece) : '';
+            const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+            const sel = ui.student.runner.selectedFrom === coord ? ' is-selected' : '';
+            sqs.push(
+              `<button type="button" class="tf-sq tf-sq-btn ${isDark ? 'dark' : 'light'}${sel}" data-stu-sq="${escapeHtml(coord)}">${img}</button>`
+            );
+          }
+        }
+        // Host is already a square 8x8 grid via .tf-board; render squares directly.
+        host.innerHTML = sqs.join('');
+      }
+
+      function currentPuzzle() {
+        const total = Math.max(0, Number(ui.student.total || 0));
+        if (!total) return null;
+        const abs = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+        const { page, idx } = absIndexToPage(abs);
+        const pageData = ui.student.puzzlePages?.[String(page)];
+        const list = Array.isArray(pageData?.puzzles) ? pageData.puzzles : Array.isArray(ui.student.puzzles) ? ui.student.puzzles : [];
+        return list[idx] || null;
+      }
+
+      function resetRunnerToPuzzleIndex(nextIdx) {
+        // Back-compat shim (should not be used anymore)
+        ui.student.runner.absIndex = Math.max(0, Math.trunc(Number(nextIdx || 0)));
+        return true;
+      }
+
+      async function resetRunnerToAbsIndex(nextAbs) {
+        const total = Math.max(0, Number(ui.student.total || 0));
+        if (!total) return false;
+        const abs = Math.max(0, Math.min(total - 1, Math.trunc(Number(nextAbs || 0))));
+        const { page, idx } = absIndexToPage(abs);
+        ui.student.page = page;
+        const pageData = await studentEnsurePuzzlePage(page);
+        ui.student.puzzles = Array.isArray(pageData?.puzzles) ? pageData.puzzles : [];
+        const pz = ui.student.puzzles[idx];
+        if (!pz) return false;
+
+        const startFen = String(pz?.fen || '').trim();
+        const startBoard = parseFenToBoard(startFen);
+        const startSide = fenSideToMove(startFen);
+        ui.student.runner.absIndex = abs;
+        ui.student.runner.movesUci = [];
+        ui.student.runner.movesSan = [];
+        ui.student.runner.selectedFrom = null;
+        ui.student.runner.startFen = startFen;
+        ui.student.runner.fen = startFen;
+        ui.student.runner.board = startBoard || Array.from({ length: 8 }, () => Array(8).fill(''));
+        ui.student.runner.side = startSide;
+        ui.student.runner.history = [];
+        ui.student.runner.lineIdx = null;
+        ui.student.runner.lineUci = null;
+        ui.student.runner.lineSan = null;
+        ui.student.runner.lastVerdict = null;
+        ui.student.runner.busy = false;
+        ui.student.runner.playerSide = startSide;
+        ui.student.runner.orientation = (startSide === 'b') ? 'black' : 'white';
+        return true;
+      }
+
+      function renderRunner() {
+        clearMsg();
+        const pz = currentPuzzle();
+        if (!pz) return close();
+        const meta = modal.querySelector('#tfStuRunnerMeta');
+        const total = Math.max(0, Number(ui.student.total || 0));
+        const abs = Math.max(0, Math.min(Math.max(0, total - 1), Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+        if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total || 0} · ${pz.completed ? 'Completed' : 'Not completed'}`;
+        const turnEl = modal.querySelector('#tfStuRunnerTurnLabel');
+        if (turnEl) {
+          const side = ui.student.runner?.side;
+          turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
+        }
+        const statusEl = modal.querySelector('#tfStuRunnerStatus');
+        if (statusEl) {
+          statusEl.classList.remove('is-ok', 'is-err');
+          if (pz.completed) {
+            statusEl.textContent = 'Completed';
+            statusEl.classList.add('is-ok');
+          } else if (ui.student.runner.lastVerdict === 'incorrect') {
+            statusEl.textContent = 'Incorrect';
+            statusEl.classList.add('is-err');
+          } else if (ui.student.runner.lastVerdict === 'correct') {
+            statusEl.textContent = 'Correct';
+            statusEl.classList.add('is-ok');
+          } else {
+            statusEl.textContent = '';
+          }
+        }
+        const movesEl = modal.querySelector('#tfStuRunnerMoves');
+        if (movesEl) {
+          const html = formatMovesWithMoveNumbersHighlightedHtml(
+            ui.student.runner.startFen || pz.fen,
+            ui.student.runner.movesSan,
+            ui.student.runner.movesSan.length ? (ui.student.runner.movesSan.length - 1) : -1
+          );
+          movesEl.innerHTML = html || escapeHtml(ui.student.runner.movesUci.join(' '));
+        }
+        renderBoardInteractive();
+      }
+
+      function chooseAcceptedLineForFirstMove(pz, firstUci) {
+        const sol = pz?.solutions && typeof pz.solutions === 'object' ? pz.solutions : {};
+        const lines = Array.isArray(sol.acceptedLines) ? sol.acceptedLines : (Array.isArray(sol.lines) ? sol.lines : []);
+        const uci = String(firstUci || '').trim().toLowerCase();
+        for (let i = 0; i < lines.length; i++) {
+          const pvUci = Array.isArray(lines[i]?.pvUci) ? lines[i].pvUci : null;
+          if (!pvUci || !pvUci.length) continue;
+          if (String(pvUci[0] || '').trim().toLowerCase() === uci) return { idx: i, line: lines[i] };
+        }
+        return null;
+      }
+
+      function uciAtPlyMatches(uciList, plyIndex, uci) {
+        if (!Array.isArray(uciList)) return false;
+        const want = String(uciList[plyIndex] || '').trim().toLowerCase();
+        return want && want === String(uci || '').trim().toLowerCase();
+      }
+
+      async function submitMoveAndReply() {
+        const pz = currentPuzzle();
+        if (!pz) return;
+        if (ui.student.runner.busy) return;
+        const moves = ui.student.runner.movesUci.slice();
+        if (!moves.length) return;
+
+        const plyIndex = moves.length - 1;
+        const studentUci = moves[plyIndex];
+        const beforeBoard = ui.student.runner.history.length ? ui.student.runner.history[ui.student.runner.history.length - 1].board : null;
+
+        // Determine correctness vs PV accepted line (choose on first move).
+        if (ui.student.runner.lineIdx == null) {
+          const chosen = chooseAcceptedLineForFirstMove(pz, studentUci);
+          if (chosen) {
+            ui.student.runner.lineIdx = chosen.idx;
+            ui.student.runner.lineUci = Array.isArray(chosen.line?.pvUci) ? chosen.line.pvUci.map((x) => String(x || '').trim().toLowerCase()) : null;
+            ui.student.runner.lineSan = Array.isArray(chosen.line?.pvSan) ? chosen.line.pvSan.map((x) => String(x || '').trim()) : null;
+          }
+        }
+
+        const lineUci = ui.student.runner.lineUci;
+        const lineSan = ui.student.runner.lineSan;
+        const isCorrect = uciAtPlyMatches(lineUci, plyIndex, studentUci);
+
+        // SAN is already appended during click-to-move via /apply-move.
+        // Keep it aligned with accepted PV SAN if needed.
+        if (Array.isArray(lineSan) && isCorrect) {
+          ui.student.runner.movesSan = lineSan.slice(0, moves.length);
+        }
+
+        ui.student.runner.busy = true;
+        try {
+          clearMsg();
+
+          if (isCorrect && Array.isArray(lineUci) && plyIndex + 1 < lineUci.length) {
+            // PV reply move (computer)
+            const replyUci = lineUci[plyIndex + 1];
+            const r0 = await studentApplyMove(publicStudentId, ui.student.runner.fen, replyUci, publicStudentPassword);
+            if (r0 && r0.ok && r0.fenAfter) {
+              ui.student.runner.history.push({
+                fen: ui.student.runner.fen,
+                board: cloneBoard(ui.student.runner.board),
+                side: ui.student.runner.side,
+                movesUciLen: ui.student.runner.movesUci.length,
+                movesSanLen: ui.student.runner.movesSan.length
+              });
+              ui.student.runner.fen = String(r0.fenAfter);
+              ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+              ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
+              ui.student.runner.movesUci.push(replyUci);
+              if (Array.isArray(lineSan)) ui.student.runner.movesSan = lineSan.slice(0, ui.student.runner.movesUci.length);
+              else ui.student.runner.movesSan.push(String(r0.san || replyUci));
+            }
+          } else if (!isCorrect) {
+            // Engine reply on wrong move
+            const fenNow = ui.student.runner.fen;
+            const eng = await studentEngineAnalyze(publicStudentId, fenNow, { depth: 12, pvPlies: 6 }, publicStudentPassword);
+            const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
+            if (bestUci) {
+              const r1 = await studentApplyMove(publicStudentId, ui.student.runner.fen, bestUci, publicStudentPassword);
+              if (r1 && r1.ok && r1.fenAfter) {
+                ui.student.runner.history.push({
+                  fen: ui.student.runner.fen,
+                  board: cloneBoard(ui.student.runner.board),
+                  side: ui.student.runner.side,
+                  movesUciLen: ui.student.runner.movesUci.length,
+                  movesSanLen: ui.student.runner.movesSan.length
+                });
+                ui.student.runner.fen = String(r1.fenAfter);
+                ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+                ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
+                ui.student.runner.movesUci.push(bestUci);
+                const engSan0 = String(r1.san || (Array.isArray(eng?.lines?.[0]?.pvSan) ? (eng.lines[0].pvSan[0] || '') : '') || bestUci);
+                ui.student.runner.movesSan = ui.student.runner.movesSan.concat([engSan0]);
+              }
+            }
+          }
+
+          // Log attempt once per student submission (send the full sequence including reply move, if any)
+          const last = ui.student.runner.movesUci[ui.student.runner.movesUci.length - 1];
+          const out = await studentPostAttempt(publicStudentId, pz.id, {
+            bucket: ui.student.bucket,
+            subtopicId: ui.student.subtopicId,
+            mode: (String(ui.student.puzzleSource || '') === 'ghost') ? 'ghost' : 'practice',
+            movesUci: ui.student.runner.movesUci.slice(),
+            plyIndex: ui.student.runner.movesUci.length - 1,
+            moveUci: last
+          }, publicStudentPassword);
+
+          if (out.completed) {
+            pz.completed = true;
+            ui.student.runner.lastVerdict = 'correct';
+            try { ui.student.verdictByPuzzleId[String(pz.id)] = 'correct'; } catch {}
+            setMsg('ok', 'Correct. Puzzle completed.');
+          } else if (out.correctPrefix) {
+            ui.student.runner.lastVerdict = 'correct';
+            try { ui.student.verdictByPuzzleId[String(pz.id)] = 'correct'; } catch {}
+            setMsg('ok', 'Correct. Computer replied.');
+          } else {
+            ui.student.runner.lastVerdict = 'incorrect';
+            try { ui.student.verdictByPuzzleId[String(pz.id)] = 'incorrect'; } catch {}
+            setMsg('err', 'Wrong. Engine replied.');
+          }
+          renderRunner();
+        } catch (e) {
+          setMsg('err', e?.message || String(e));
+        } finally {
+          ui.student.runner.busy = false;
+        }
+      }
+
+      modal.addEventListener('click', (ev) => {
+        const t = ev.target;
+        if (!(t instanceof Element)) return;
+        if (t.closest('[data-stu-runner-close]')) return close();
+        if (t.closest('[data-stu-prev]')) {
+          (async () => {
+            const total = Math.max(0, Number(ui.student.total || 0));
+            if (!total) return;
+            const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+            const ok = await resetRunnerToAbsIndex(cur - 1);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
+        }
+        if (t.closest('[data-stu-next]')) {
+          // Next: jump to the next not-completed / incorrect puzzle (auto-loads next pages).
+          (async () => {
+            const total = Math.max(0, Number(ui.student.total || 0));
+            if (!total) return;
+            const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+            const nextAbs = await findNextTargetAbsIndex(cur);
+            if (nextAbs == null) {
+              setMsg('ok', 'No more incomplete puzzles.');
+              return renderRunner();
+            }
+            const ok = await resetRunnerToAbsIndex(nextAbs);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
+        }
+        if (t.closest('[data-stu-undo]')) {
+          // Undo one ply (restores previous fen/board)
+          const last = ui.student.runner.history.pop();
+          if (last) {
+            ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
+            ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
+            ui.student.runner.side = last.side || ui.student.runner.side;
+            ui.student.runner.movesUci = ui.student.runner.movesUci.slice(0, Math.max(0, Number(last.movesUciLen || 0)));
+            ui.student.runner.movesSan = ui.student.runner.movesSan.slice(0, Math.max(0, Number(last.movesSanLen || 0)));
+          } else {
+            // fallback: clear selection only
+          }
+          ui.student.runner.selectedFrom = null;
+          return renderRunner();
+        }
+        if (t.closest('[data-stu-submit]')) {
+          return submitMoveAndReply();
+        }
+        const sq = t.closest('[data-stu-sq]');
+        if (sq) {
+          const coord = String(sq.getAttribute('data-stu-sq') || '').trim();
+          if (!coord) return;
+          if (!ui.student.runner.selectedFrom) {
+            ui.student.runner.selectedFrom = coord;
+            return renderRunner();
+          }
+          const from = ui.student.runner.selectedFrom;
+          const to = coord;
+          ui.student.runner.selectedFrom = null;
+          if (from === to) return renderRunner();
+
+          const uci = `${from}${to}`;
+          (async () => {
+            try {
+              clearMsg();
+              // Save state for undo BEFORE applying.
+              ui.student.runner.history.push({
+                fen: ui.student.runner.fen,
+                board: cloneBoard(ui.student.runner.board),
+                side: ui.student.runner.side,
+                movesUciLen: ui.student.runner.movesUci.length,
+                movesSanLen: ui.student.runner.movesSan.length
+              });
+
+              const r = await studentApplyMove(publicStudentId, ui.student.runner.fen, uci, publicStudentPassword);
+              if (!r || !r.ok || !r.fenAfter) throw new Error('Illegal move');
+
+              ui.student.runner.fen = String(r.fenAfter);
+              ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+              ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
+              ui.student.runner.movesUci.push(String(r.uci || uci));
+              ui.student.runner.movesSan.push(String(r.san || uci));
+              renderRunner();
+            } catch (err) {
+              // rollback history entry
+              const last = ui.student.runner.history.pop();
+              if (last) {
+                ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
+                ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
+                ui.student.runner.side = last.side || ui.student.runner.side;
+              }
+              setMsg('err', err?.message || String(err));
+              renderRunner();
+            }
+          })();
+          return;
+        }
+      });
+
+      renderRunner();
+    }
+
+    function renderBuilderTree(categories) {
+      const host = document.getElementById('tfBuilderTree');
+      if (!host) return;
+
+      const cats = Array.isArray(categories) ? categories : [];
+      if (!cats.length) {
+        host.innerHTML = `<div class="tf-muted">No categories yet. Click <strong>Create</strong> to add one.</div>`;
+        return;
+      }
+
+      host.innerHTML = cats.map((c) => {
+        const catId = String(c.id);
+        const catOpen = ui.expanded.cat.has(catId);
+        const topics = Array.isArray(c.topics) ? c.topics : [];
+        return `
+          <div class="tf-tree-card">
+            <div class="tf-tree-row">
+              <button type="button" class="tf-plus ${catOpen ? 'is-open' : ''}" data-tf-toggle="cat" data-id="${escapeHtml(catId)}" aria-label="Toggle category">${catOpen ? '−' : '+'}</button>
+              <div class="tf-tree-title">${escapeHtml(String(c.name || ''))}</div>
+              <div class="tf-tree-actions">
+                <button type="button" class="btn btn-secondary btn-small" data-tf-add-topic="${escapeHtml(catId)}">+ Topic</button>
+                <button type="button" class="btn btn-secondary btn-small" data-tf-rename-cat="${escapeHtml(catId)}">Rename</button>
+                <button type="button" class="btn btn-danger btn-small" data-tf-del-cat="${escapeHtml(catId)}">Delete</button>
+              </div>
+            </div>
+            ${catOpen ? `
+              <div class="tf-tree-children">
+                ${topics.length ? topics.map((t) => {
+                  const tid = String(t.id);
+                  const tOpen = ui.expanded.topic.has(tid);
+                  const subs = Array.isArray(t.subtopics) ? t.subtopics : [];
+                  return `
+                    <div class="tf-tree-card tf-tree-card--nested">
+                      <div class="tf-tree-row">
+                        <button type="button" class="tf-plus ${tOpen ? 'is-open' : ''}" data-tf-toggle="topic" data-id="${escapeHtml(tid)}" aria-label="Toggle topic">${tOpen ? '−' : '+'}</button>
+                        <div class="tf-tree-title">${escapeHtml(String(t.name || ''))}</div>
+                        <div class="tf-tree-actions">
+                          <button type="button" class="btn btn-secondary btn-small" data-tf-add-subtopic="${escapeHtml(tid)}">+ Subtopic</button>
+                          <button type="button" class="btn btn-secondary btn-small" data-tf-rename-topic="${escapeHtml(tid)}">Rename</button>
+                          <button type="button" class="btn btn-danger btn-small" data-tf-del-topic="${escapeHtml(tid)}">Delete</button>
+                        </div>
+                      </div>
+                      ${tOpen ? `
+                        <div class="tf-tree-children">
+                          ${subs.length ? subs.map((s) => {
+                            const sid = String(s.id);
+                            const sOpen = ui.expanded.subtopic.has(sid);
+                            const puzzlesLoaded = ui.expanded.puzzlesLoaded.has(sid);
+                            const puzzles = ui.puzzlesBySubtopic.get(sid) || [];
+                            const perPage = 10;
+                            const page = Math.max(0, Number(ui.puzzlePageBySubtopic.get(sid) || 0) || 0);
+                            const maxPage = Math.max(0, Math.ceil(puzzles.length / perPage) - 1);
+                            const safePage = Math.min(page, maxPage);
+                            if (safePage !== page) ui.puzzlePageBySubtopic.set(sid, safePage);
+                            const start = safePage * perPage;
+                            const pageItems = puzzles.slice(start, start + perPage);
+                            return `
+                              <div class="tf-tree-card tf-tree-card--nested2">
+                                <div class="tf-tree-row">
+                                  <button type="button" class="tf-plus ${sOpen ? 'is-open' : ''}" data-tf-toggle="subtopic" data-id="${escapeHtml(sid)}" aria-label="Toggle subtopic">${sOpen ? '−' : '+'}</button>
+                                  <div class="tf-tree-title">${escapeHtml(String(s.name || ''))}</div>
+                                  <div class="tf-tree-actions">
+                                    <button type="button" class="btn btn-primary btn-small" data-tf-add-puzzle="${escapeHtml(sid)}">Add puzzles</button>
+                                    <button type="button" class="btn btn-secondary btn-small" data-tf-bulk-import="${escapeHtml(sid)}">Bulk Import</button>
+                                    <div class="tf-bulk-pv">
+                                      <span class="tf-bulk-pv-label">PV</span>
+                                      <input class="tf-bulk-pv-input" type="number" min="1" max="32" step="1" value="${escapeHtml(String(getBulkPvPlies()))}" data-tf-bulk-pv="1" aria-label="PV plies">
+                                    </div>
+                                    <button type="button" class="btn btn-secondary btn-small" data-tf-load-puzzles="${escapeHtml(sid)}">${puzzlesLoaded ? 'Reload' : 'Load'} puzzles</button>
+                                    <button type="button" class="btn btn-secondary btn-small" data-tf-rename-subtopic="${escapeHtml(sid)}">Rename</button>
+                                    <button type="button" class="btn btn-danger btn-small" data-tf-del-subtopic="${escapeHtml(sid)}">Delete</button>
+                                  </div>
+                                </div>
+                                ${sOpen ? `
+                                  <div class="tf-tree-children">
+                                    <div class="tf-muted">Puzzles: ${escapeHtml(String(puzzles.length))}</div>
+                                    <div class="tf-puzzle-grid">
+                                      ${puzzles.length ? pageItems.map(p => `
+                                        <button type="button" class="tf-puzzle-mini" data-tf-open-puzzle="${escapeHtml(String(p.id || ''))}" data-tf-subtopic="${escapeHtml(sid)}" aria-label="Open puzzle">
+                                          ${renderMiniBoardHtml(String(p.fen || ''))}
+                                          <div class="tf-mini-label">Puzzle #${escapeHtml(String(p.id || ''))}</div>
+                                        </button>
+                                      `).join('') : `<div class="tf-muted">No puzzles loaded.</div>`}
+                                    </div>
+                                    ${puzzles.length > perPage ? `
+                                      <div class="tf-pagination">
+                                        <div class="tf-page-label">Page ${escapeHtml(String(safePage + 1))} / ${escapeHtml(String(maxPage + 1))}</div>
+                                        <button type="button" class="btn btn-secondary btn-small" data-tf-page-prev="${escapeHtml(sid)}" ${safePage <= 0 ? 'disabled' : ''}>Prev</button>
+                                        <button type="button" class="btn btn-secondary btn-small" data-tf-page-next="${escapeHtml(sid)}" ${safePage >= maxPage ? 'disabled' : ''}>Next</button>
+                                      </div>
+                                    ` : ''}
+                                  </div>
+                                ` : ''}
+                              </div>
+                            `;
+                          }).join('') : `<div class="tf-muted">No subtopics.</div>`}
+                        </div>
+                      ` : ''}
+                    </div>
+                  `;
+                }).join('') : `<div class="tf-muted">No topics.</div>`}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatPvWithMoveNumbersHtml(fen, pvSan) {
+      const parts = String(fen || '').trim().split(/\s+/);
+      const side = (parts[1] === 'b') ? 'b' : 'w';
+      const fullmove = Math.max(1, Number(parts[5] || 1) || 1);
+      const moves = Array.isArray(pvSan) ? pvSan.map(String).filter(Boolean) : [];
+      if (!moves.length) return '';
+
+      const lines = [];
+      let idx = 0;
+      let m = fullmove;
+
+      if (side === 'b') {
+        const b = moves[idx++];
+        if (b) lines.push(`${m}. ... ${b}`);
+        m += 1;
+      }
+
+      while (idx < moves.length) {
+        const w = moves[idx++] || '';
+        const b = moves[idx++] || '';
+        if (w && b) lines.push(`${m}. ${w} ${b}`);
+        else if (w) lines.push(`${m}. ${w}`);
+        m += 1;
+      }
+
+      return lines.map(escapeHtml).join('<br>');
+    }
+
+    function formatMovesWithMoveNumbersHighlightedHtml(fen, movesSan, lastMoveIdx) {
+      const parts = String(fen || '').trim().split(/\s+/);
+      const side = (parts[1] === 'b') ? 'b' : 'w';
+      const fullmove = Math.max(1, Number(parts[5] || 1) || 1);
+      const moves = Array.isArray(movesSan) ? movesSan.map(String).filter(Boolean) : [];
+      if (!moves.length) return '';
+
+      const lines = [];
+      let idx = 0;
+      let m = fullmove;
+
+      const wrap = (txt, i) => {
+        const safe = escapeHtml(txt);
+        if (i === lastMoveIdx) return `<span class="tf-move tf-move-last">${safe}</span>`;
+        return `<span class="tf-move">${safe}</span>`;
+      };
+
+      if (side === 'b') {
+        const b = moves[idx];
+        if (b) lines.push(`${escapeHtml(String(m))}. ... ${wrap(b, idx)}`);
+        idx += 1;
+        m += 1;
+      }
+
+      while (idx < moves.length) {
+        const w = moves[idx] || '';
+        const wIdx = idx;
+        idx += 1;
+        const b = (idx < moves.length) ? (moves[idx] || '') : '';
+        const bIdx = idx;
+        idx += 1;
+
+        const mm = escapeHtml(String(m));
+        if (w && b) lines.push(`${mm}. ${wrap(w, wIdx)} ${wrap(b, bIdx)}`);
+        else if (w) lines.push(`${mm}. ${wrap(w, wIdx)}`);
+        m += 1;
+      }
+
+      return lines.join('<br>');
+    }
+
+    function getBuilderBucket() {
+      try {
+        const v = String(localStorage.getItem('tacticsFighterBuilderBucket') || '').trim();
+        return v || 'beginner';
+      } catch {}
+      return 'beginner';
+    }
+
+    function setBuilderBucket(bucket) {
+      try { localStorage.setItem('tacticsFighterBuilderBucket', String(bucket || 'beginner')); } catch {}
+    }
+
+    function getBulkPvPlies() {
+      try {
+        const v = Number(localStorage.getItem('tacticsFighterBulkPvPlies') || 0);
+        if (Number.isFinite(v) && v >= 1 && v <= 32) return Math.trunc(v);
+      } catch {}
+      return 8;
+    }
+
+    function setBulkPvPlies(v) {
+      const n = Number(v);
+      const out = Number.isFinite(n) ? Math.max(1, Math.min(32, Math.trunc(n))) : 8;
+      try { localStorage.setItem('tacticsFighterBulkPvPlies', String(out)); } catch {}
+      return out;
+    }
+
+    async function builderRefresh() {
+      clearBuilderMsg();
+      showBuilderMsg('ok', 'Loading...');
+      try {
+        const bucket = getBuilderBucket();
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/tree?bucket=${encodeURIComponent(bucket)}`, { method: 'GET' });
+        const data = await tfJson(resp);
+        renderBuilderTree(data.categories || []);
+        clearBuilderMsg();
+        ui.builderLoadedOnce = true;
+      } catch (e) {
+        showBuilderMsg('err', e?.message || String(e));
+      }
+    }
+
+    async function promptText(title, placeholder) {
+      const v = prompt(String(title || ''), String(placeholder || ''));
+      if (v == null) return null;
+      return String(v).trim();
+    }
+
+    function studentFindCategoryById(cid) {
+      const cats = Array.isArray(ui.student.tree?.categories) ? ui.student.tree.categories : [];
+      return cats.find((c) => String(c.id) === String(cid)) || null;
+    }
+
+    function studentFindTopicById(category, tid) {
+      const topics = Array.isArray(category?.topics) ? category.topics : [];
+      return topics.find((t) => String(t.id) === String(tid)) || null;
+    }
+
+    async function studentLoadTree(bucket) {
+      ui.student.bucket = normalizeBucketKey(bucket);
+      try { localStorage.setItem('tacticsFighterPracticeBucket', ui.student.bucket); } catch {}
+      if (!publicStudentId) throw new Error('Missing student id');
+      const tree = await studentFetchTree(publicStudentId, ui.student.bucket, publicStudentPassword);
+      ui.student.tree = tree;
+      return tree;
+    }
+
+    async function studentShowCategories(bucket) {
+      setOut(`<div class="tf-muted">Loading...</div>`);
+      try {
+        const tree = await studentLoadTree(bucket);
+        ui.student.view = 'categories';
+        ui.student.categoryId = null;
+        ui.student.topicId = null;
+        ui.student.subtopicId = null;
+        // Hide bucket buttons once a bucket is chosen (as requested).
+        try {
+          const bucketsEl = document.getElementById('tfPracticeBuckets');
+          if (bucketsEl) bucketsEl.style.display = 'none';
+        } catch {}
+        setOut(renderStudentCategories(tree.categories || []));
+      } catch (e) {
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    async function studentOpenSubtopic(subtopicId) {
+      ui.student.view = 'puzzles';
+      ui.student.subtopicId = String(subtopicId);
+      ui.student.page = 1;
+      ui.student.total = 0;
+      ui.student.puzzles = [];
+      ui.student.puzzlePages = {};
+      ui.student.verdictByPuzzleId = {};
+      ui.student.puzzleSource = 'subtopic';
+      setOut(`<div class="tf-muted">Loading puzzles...</div>`);
+      try {
+        const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
+        ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
+        ui.student.total = Number(data.total || 0);
+        ui.student.puzzlePages[String(ui.student.page)] = { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize };
+        setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
+      } catch (e) {
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    async function studentEnsurePuzzlePage(page) {
+      const p = Math.max(1, Number(page || 1));
+      const key = String(p);
+      if (ui.student.puzzlePages && ui.student.puzzlePages[key]) return ui.student.puzzlePages[key];
+      if (String(ui.student.puzzleSource || '') === 'ghost') {
+        // Ghost mode uses preloaded in-memory pages only.
+        return { puzzles: [], total: Number(ui.student.total || 0), pageSize: Number(ui.student.pageSize || 10) };
+      }
+      const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, p, ui.student.pageSize, publicStudentPassword);
+      const puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
+      const total = Number(data.total || 0);
+      ui.student.total = total;
+      if (!ui.student.puzzlePages) ui.student.puzzlePages = {};
+      ui.student.puzzlePages[key] = { puzzles, total, pageSize: ui.student.pageSize };
+      return ui.student.puzzlePages[key];
+    }
+
+    async function studentChangePuzzlePage(dir) {
+      const total = Number(ui.student.total || 0);
+      const pageSize = Number(ui.student.pageSize || 10);
+      const totalPages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
+      const next = dir === 'next' ? Math.min(totalPages, ui.student.page + 1) : Math.max(1, ui.student.page - 1);
+      if (next === ui.student.page) return;
+      ui.student.page = next;
+      setOut(`<div class="tf-muted">Loading puzzles...</div>`);
+      try {
+        const cached = await studentEnsurePuzzlePage(ui.student.page);
+        ui.student.puzzles = Array.isArray(cached?.puzzles) ? cached.puzzles : [];
+        ui.student.total = Number(cached?.total || ui.student.total || 0);
+        setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
+      } catch (e) {
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    const activateMode = (m) => {
+      const nm = normalizeMode(m);
+      setUrlMode(nm);
+      root.querySelectorAll('.tf-nav-btn').forEach((b) => {
+        const bm = String(b.getAttribute('data-mode') || '');
+        b.classList.toggle('is-active', bm === nm);
+      });
+      setMain(renderMode(nm));
+      // Keep the card title in sync when switching modes (avoid showing "Practice Mode" while on Builder).
+      try {
+        const titleEl = root.querySelector('.tf-title');
+        if (titleEl) titleEl.textContent = (nm === 'home' ? 'Home' : nm === 'practice' ? 'Practice Mode' : nm === 'challenge' ? 'Challenge Mode' : nm === 'builder' ? 'Builder' : 'Setting');
+      } catch {}
+      // Home: load stats (student only)
+      if (nm === 'home' && !isTeacher && publicStudentId) {
+        (async () => {
+          try {
+            const main = document.getElementById('tfMain');
+            if (main) main.innerHTML = `<div class="tf-muted">Loading...</div>`;
+            const stats = await studentFetchStats(publicStudentId, null, publicStudentPassword);
+            ui.student.stats = stats;
+            if (main) main.innerHTML = renderHome(stats);
+          } catch (e) {
+            const main = document.getElementById('tfMain');
+            if (main) main.innerHTML = `<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`;
+          }
+        })();
+      }
+      if (nm === 'practice' && !isTeacher && ui.student.tree && ui.student.view !== 'bucket') {
+        if (ui.student.view === 'categories') {
+          setOut(renderStudentCategories(ui.student.tree.categories || []));
+        } else if (ui.student.view === 'topics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          setOut(cat ? renderStudentTopics(cat) : renderStudentCategories(ui.student.tree.categories || []));
+        } else if (ui.student.view === 'subtopics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          const topic = studentFindTopicById(cat, ui.student.topicId);
+          setOut((cat && topic) ? renderStudentSubtopics(cat, topic) : renderStudentCategories(ui.student.tree.categories || []));
+        } else if (ui.student.view === 'puzzles') {
+          setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
+        } else {
+          setOut(renderStudentCategories(ui.student.tree.categories || []));
+        }
+      } else if (cfg) {
+        setOut(`<div style="color:#16a34a; font-weight:800;">API OK</div><div style="color:#6b7280; margin-top:4px;">${escapeHtml(cfg.version || '')}</div>`);
+      } else {
+        setOut(`<div style="color:#6b7280;">API not ready (ok for now).</div>`);
+      }
+
+      // Builder wire-up (teacher only)
+      if (nm === 'builder') {
+        const createBtn = document.getElementById('tfBuilderCreateCategoryBtn');
+        const refreshBtn = document.getElementById('tfBuilderRefreshBtn');
+        const bucketSel = document.getElementById('tfBuilderBucketSelect');
+        if (bucketSel) {
+          bucketSel.value = getBuilderBucket();
+          bucketSel.addEventListener('change', () => {
+            setBuilderBucket(bucketSel.value);
+            builderRefresh();
+          });
+        }
+        createBtn?.addEventListener('click', async () => {
+          const name = await promptText('Create category (unique)', 'Category name');
+          if (!name) return;
+          clearBuilderMsg();
+          try {
+            const bucket = getBuilderBucket();
+            const resp = await apiRequest('/api/teachers/tactics-fighter/builder/categories', {
+              method: 'POST',
+              body: JSON.stringify({ name, bucket })
+            });
+            await tfJson(resp);
+            showBuilderMsg('ok', 'Created.');
+            await builderRefresh();
+          } catch (e) {
+            showBuilderMsg('err', e?.message || String(e));
+          }
+        });
+        refreshBtn?.addEventListener('click', () => builderRefresh());
+
+        // Delegated actions
+        const tree = document.getElementById('tfBuilderTree');
+        // Bulk PV plies (shared) setting
+        tree?.addEventListener('change', (ev) => {
+          const t = ev.target;
+          if (!(t instanceof Element)) return;
+          const pv = t.closest?.('[data-tf-bulk-pv]');
+          if (!pv) return;
+          const v = Number(pv.value || 0);
+          setBulkPvPlies(v);
+        });
+        tree?.addEventListener('click', async (ev) => {
+          const t = ev.target;
+          const toggleBtn = t?.closest?.('[data-tf-toggle]');
+          if (toggleBtn) {
+            const kind = String(toggleBtn.getAttribute('data-tf-toggle') || '');
+            const id = String(toggleBtn.getAttribute('data-id') || '');
+            if (!id) return;
+            const set = kind === 'cat' ? ui.expanded.cat : kind === 'topic' ? ui.expanded.topic : ui.expanded.subtopic;
+            const wasOpen = set.has(id);
+            if (wasOpen) {
+              set.delete(id);
+              await builderRefresh();
+              return;
+            }
+            set.add(id);
+            // Auto-load puzzles on first open of a subtopic (no need to click Load).
+            if (kind === 'subtopic' && !ui.expanded.puzzlesLoaded.has(id)) {
+              try {
+                const data = await builderFetchPuzzles(id);
+                ui.puzzlesBySubtopic.set(id, Array.isArray(data.puzzles) ? data.puzzles : []);
+                ui.expanded.puzzlesLoaded.add(id);
+                ui.puzzlePageBySubtopic.set(id, 0);
+              } catch (e) {
+                showBuilderMsg('err', e?.message || String(e));
+              }
+            }
+            await builderRefresh();
+            return;
+          }
+
+          const addTopicBtn = t?.closest?.('[data-tf-add-topic]');
+          if (addTopicBtn) {
+            const cid = String(addTopicBtn.getAttribute('data-tf-add-topic') || '');
+            const name = await promptText('Create topic (unique in category)', 'Topic name');
+            if (!name) return;
+            try { await builderCreateTopic(cid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const addSubBtn = t?.closest?.('[data-tf-add-subtopic]');
+          if (addSubBtn) {
+            const tid = String(addSubBtn.getAttribute('data-tf-add-subtopic') || '');
+            const name = await promptText('Create subtopic (unique in topic)', 'Subtopic name');
+            if (!name) return;
+            try { await builderCreateSubtopic(tid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const renCatBtn = t?.closest?.('[data-tf-rename-cat]');
+          if (renCatBtn) {
+            const cid = String(renCatBtn.getAttribute('data-tf-rename-cat') || '');
+            const name = await promptText('Rename category', 'New name');
+            if (!name) return;
+            try { await builderRenameCategory(cid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const delCatBtn = t?.closest?.('[data-tf-del-cat]');
+          if (delCatBtn) {
+            const cid = String(delCatBtn.getAttribute('data-tf-del-cat') || '');
+            const ok = confirm('Delete this category? (Topics/Subtopics/Puzzles will be deleted too)');
+            if (!ok) return;
+            try { await builderDeleteCategory(cid); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const renTopicBtn = t?.closest?.('[data-tf-rename-topic]');
+          if (renTopicBtn) {
+            const tid = String(renTopicBtn.getAttribute('data-tf-rename-topic') || '');
+            const name = await promptText('Rename topic', 'New name');
+            if (!name) return;
+            try { await builderRenameTopic(tid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const delTopicBtn = t?.closest?.('[data-tf-del-topic]');
+          if (delTopicBtn) {
+            const tid = String(delTopicBtn.getAttribute('data-tf-del-topic') || '');
+            const ok = confirm('Delete this topic? (Subtopics/Puzzles will be deleted too)');
+            if (!ok) return;
+            try { await builderDeleteTopic(tid); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const renSubBtn = t?.closest?.('[data-tf-rename-subtopic]');
+          if (renSubBtn) {
+            const sid = String(renSubBtn.getAttribute('data-tf-rename-subtopic') || '');
+            const name = await promptText('Rename subtopic', 'New name');
+            if (!name) return;
+            try { await builderRenameSubtopic(sid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const delSubBtn = t?.closest?.('[data-tf-del-subtopic]');
+          if (delSubBtn) {
+            const sid = String(delSubBtn.getAttribute('data-tf-del-subtopic') || '');
+            const ok = confirm('Delete this subtopic? (Puzzles will be deleted too)');
+            if (!ok) return;
+            try { await builderDeleteSubtopic(sid); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const loadPuzzlesBtn = t?.closest?.('[data-tf-load-puzzles]');
+          if (loadPuzzlesBtn) {
+            const sid = String(loadPuzzlesBtn.getAttribute('data-tf-load-puzzles') || '');
+            if (!sid) return;
+            try {
+              const data = await builderFetchPuzzles(sid);
+              ui.puzzlesBySubtopic.set(sid, Array.isArray(data.puzzles) ? data.puzzles : []);
+              ui.expanded.puzzlesLoaded.add(sid);
+              ui.expanded.subtopic.add(sid);
+              ui.puzzlePageBySubtopic.set(sid, 0);
+              await builderRefresh();
+            } catch (e) {
+              showBuilderMsg('err', e?.message || String(e));
+            }
+            return;
+          }
+
+          const bulkBtn = t?.closest?.('[data-tf-bulk-import]');
+          if (bulkBtn) {
+            const sid = String(bulkBtn.getAttribute('data-tf-bulk-import') || '');
+            if (!sid) return;
+            try {
+              await openBulkImportModal(sid);
+            } catch (e) {
+              showBuilderMsg('err', e?.message || String(e));
+            }
+            return;
+          }
+
+          const pagePrevBtn = t?.closest?.('[data-tf-page-prev]');
+          if (pagePrevBtn) {
+            const sid = String(pagePrevBtn.getAttribute('data-tf-page-prev') || '');
+            const cur = Number(ui.puzzlePageBySubtopic.get(sid) || 0) || 0;
+            ui.puzzlePageBySubtopic.set(sid, Math.max(0, cur - 1));
+            await builderRefresh();
+            return;
+          }
+
+          const pageNextBtn = t?.closest?.('[data-tf-page-next]');
+          if (pageNextBtn) {
+            const sid = String(pageNextBtn.getAttribute('data-tf-page-next') || '');
+            const cur = Number(ui.puzzlePageBySubtopic.get(sid) || 0) || 0;
+            ui.puzzlePageBySubtopic.set(sid, cur + 1);
+            await builderRefresh();
+            return;
+          }
+
+          const openPuzzleBtn = t?.closest?.('[data-tf-open-puzzle]');
+          if (openPuzzleBtn) {
+            const sid = String(openPuzzleBtn.getAttribute('data-tf-subtopic') || '');
+            const pid = String(openPuzzleBtn.getAttribute('data-tf-open-puzzle') || '');
+            const puzzles = ui.puzzlesBySubtopic.get(sid) || [];
+            const p = puzzles.find((x) => String(x?.id || '') === pid);
+            if (!p) return;
+            openPuzzleDetailModal({ subtopicId: sid, puzzle: p }).catch((e) => showBuilderMsg('err', e?.message || String(e)));
+            return;
+          }
+
+          const addPuzzleBtn = t?.closest?.('[data-tf-add-puzzle]');
+          if (addPuzzleBtn) {
+            const sid = String(addPuzzleBtn.getAttribute('data-tf-add-puzzle') || '');
+            if (!sid) return;
+            openAddPuzzleModal(sid).catch((e) => showBuilderMsg('err', e?.message || String(e)));
+            return;
+          }
+        });
+
+        if (!ui.builderLoadedOnce) {
+          builderRefresh();
+        }
+      }
+    };
+
+    async function openPuzzleDetailModal({ subtopicId, puzzle }) {
+      const fen = String(puzzle?.fen || '').trim();
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfPuzzleDetailBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Puzzle detail" style="width: calc(100vw - 40px); max-width: 1400px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Puzzle #${escapeHtml(String(puzzle?.id || ''))}</div>
+              <button id="tfPuzzleDetailClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-modal-grid">
+                <div>
+                  <div class="tf-board" id="tfPuzzleDetailBoard" aria-label="Puzzle board"></div>
+                  <div class="tf-field">
+                    <label>FEN</label>
+                    <textarea class="tf-textarea" rows="3" readonly>${escapeHtml(fen)}</textarea>
+                  </div>
+                </div>
+                <div>
+                  <div class="tf-section-title">Answers</div>
+                  <div id="tfPuzzleDetailAnswers" class="tf-lines"></div>
+                  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                    <button id="tfPuzzleDeleteBtn" class="btn btn-danger" type="button">Delete</button>
+                    <button id="tfPuzzleCloseBtn" class="btn btn-secondary" type="button">Close</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfPuzzleDetailClose')?.addEventListener('click', close);
+      host.querySelector('#tfPuzzleCloseBtn')?.addEventListener('click', close);
+      host.querySelector('#tfPuzzleDetailBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfPuzzleDetailBackdrop') close();
+      });
+
+      // Render board
+      try {
+        const b = parseFenToBoard(fen);
+        const boardEl = host.querySelector('#tfPuzzleDetailBoard');
+        if (boardEl) {
+          const sqs = [];
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+              const isDark = (r + c) % 2 === 1;
+              const p = b && b[r] ? (b[r][c] || '') : '';
+              const src = p ? pieceImageSrc(p) : '';
+              const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+              sqs.push(`<div class="tf-sq ${isDark ? 'dark' : 'light'}">${img}</div>`);
+            }
+          }
+          boardEl.innerHTML = sqs.join('');
+        }
+      } catch {}
+
+      // Render answers
+      const answersEl = host.querySelector('#tfPuzzleDetailAnswers');
+      const sol = puzzle?.solutions && typeof puzzle.solutions === 'object' ? puzzle.solutions : null;
+      const accepted = Array.isArray(sol?.acceptedLines) ? sol.acceptedLines : null;
+      const lines = accepted && accepted.length ? accepted : (Array.isArray(sol?.lines) ? sol.lines : []);
+      const html = lines.length ? lines.map((ln) => {
+        const mp = String(ln?.multiPv || 1);
+        const scoreObj = ln?.score || {};
+        const score = (scoreObj && Object.prototype.hasOwnProperty.call(scoreObj, 'mate'))
+          ? `mate ${Number(scoreObj.mate) || 0}`
+          : `cp ${Number(scoreObj.cp) || 0}`;
+        const pv = formatPvWithMoveNumbersHtml(fen, ln?.pvSan);
+        const fallback = Array.isArray(ln?.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
+        return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(mp)} · ${escapeHtml(score)}</div><div class="tf-line-meta">${pv || fallback}</div></div>`;
+      }).join('') : `<div class="tf-muted">No answers saved.</div>`;
+      if (answersEl) answersEl.innerHTML = html;
+
+      host.querySelector('#tfPuzzleDeleteBtn')?.addEventListener('click', async () => {
+        const ok = confirm('Delete this puzzle?');
+        if (!ok) return;
+        await builderDeletePuzzle(puzzle?.id);
+        // refresh puzzles in this subtopic
+        const data = await builderFetchPuzzles(subtopicId);
+        ui.puzzlesBySubtopic.set(subtopicId, Array.isArray(data.puzzles) ? data.puzzles : []);
+        ui.expanded.puzzlesLoaded.add(subtopicId);
+        ui.expanded.subtopic.add(subtopicId);
+        // clamp page
+        const per = 10;
+        const total = ui.puzzlesBySubtopic.get(subtopicId).length;
+        const maxPage = Math.max(0, Math.ceil(total / per) - 1);
+        const cur = Number(ui.puzzlePageBySubtopic.get(subtopicId) || 0) || 0;
+        ui.puzzlePageBySubtopic.set(subtopicId, Math.min(cur, maxPage));
+        await builderRefresh();
+        close();
+      });
+    }
+
+    async function openAddPuzzleModal(subtopicId) {
+      const roleNow = String(new URLSearchParams(window.location.search).get('role') || '');
+      if (String(roleNow).toLowerCase() !== 'teacher') {
+        alert('Add puzzles is available for teacher only.');
+        return;
+      }
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfAddPuzzleBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Add puzzles" style="width: calc(100vw - 40px); max-width: 1600px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Add puzzles</div>
+              <button id="tfAddPuzzleClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-modal-grid">
+                <div>
+                  <div id="tfEditorBoard" class="tf-board" aria-label="Board editor"></div>
+                  <div class="tf-field">
+                    <label for="tfFenInput">FEN</label>
+                    <textarea id="tfFenInput" class="tf-textarea" rows="3" placeholder="Paste FEN here..."></textarea>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="tf-field">
+                    <label>Pieces</label>
+                    <div id="tfPalette" class="tf-piece-palette"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                      <button id="tfClearSelection" class="btn btn-secondary" type="button">Clear selection</button>
+                      <button id="tfClearBoard" class="btn btn-secondary" type="button">Clear board</button>
+                      <button id="tfStartPos" class="btn btn-secondary" type="button">Start position</button>
+                    </div>
+                  </div>
+
+                  <div class="tf-field">
+                    <label>Side to move</label>
+                    <select id="tfSideSelect" class="tf-select">
+                      <option value="w">White to move</option>
+                      <option value="b">Black to move</option>
+                    </select>
+                  </div>
+
+                  <div class="tf-field">
+                    <label>Engine Load</label>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;">
+                      <div>
+                        <div class="tf-muted" style="font-weight:900;">MultiPV (N-best)</div>
+                        <div class="tf-stepper">
+                          <input id="tfMultiPv" type="number" min="1" max="10" value="1">
+                          <div class="tf-stepper-arrows">
+                            <button id="tfMultiPvUp" class="tf-arrow-btn" type="button" aria-label="Increase MultiPV">▲</button>
+                            <button id="tfMultiPvDown" class="tf-arrow-btn" type="button" aria-label="Decrease MultiPV">▼</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="tf-muted" style="font-weight:900;">PV plies</div>
+                        <div class="tf-stepper">
+                          <input id="tfPvPlies" type="number" min="1" max="32" value="8">
+                          <div class="tf-stepper-arrows">
+                            <button id="tfPvPliesUp" class="tf-arrow-btn" type="button" aria-label="Increase PV plies">▲</button>
+                            <button id="tfPvPliesDown" class="tf-arrow-btn" type="button" aria-label="Decrease PV plies">▼</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                      <button id="tfEngineLoadBtn" class="btn btn-primary" type="button">Engine Load</button>
+                      <button id="tfEngineClearBtn" class="btn btn-secondary" type="button">Clear Engine Load</button>
+                      <button id="tfSavePuzzleBtn" class="btn btn-success" type="button" disabled>Confirm & Save</button>
+                    </div>
+                  </div>
+
+                  <div id="tfEngineOut" class="tf-lines"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfAddPuzzleClose')?.addEventListener('click', close);
+      host.querySelector('#tfAddPuzzleBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfAddPuzzleBackdrop') close();
+      });
+
+      let board = parseFenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1') || Array.from({ length: 8 }, () => Array(8).fill(''));
+      let side = 'w';
+      let selectedPiece = '';
+      let lastEngine = null;
+
+      const fenInput = host.querySelector('#tfFenInput');
+      const sideSel = host.querySelector('#tfSideSelect');
+      const boardEl = host.querySelector('#tfEditorBoard');
+      const paletteEl = host.querySelector('#tfPalette');
+      const engineOutEl = host.querySelector('#tfEngineOut');
+      const saveBtn = host.querySelector('#tfSavePuzzleBtn');
+      const selectedAnswerMultiPv = new Set();
+
+      function formatPvWithMoveNumbers(fen, pvSan) {
+        const parts = String(fen || '').trim().split(/\s+/);
+        const side = (parts[1] === 'b') ? 'b' : 'w';
+        const fullmove = Math.max(1, Number(parts[5] || 1) || 1);
+        const moves = Array.isArray(pvSan) ? pvSan.map(String).filter(Boolean) : [];
+        if (!moves.length) return '';
+
+        const lines = [];
+        let idx = 0;
+        let m = fullmove;
+
+        if (side === 'b') {
+          const b = moves[idx++];
+          if (b) lines.push(`${m}. ... ${b}`);
+          m += 1;
+        }
+
+        while (idx < moves.length) {
+          const w = moves[idx++] || '';
+          const b = moves[idx++] || '';
+          if (w && b) lines.push(`${m}. ${w} ${b}`);
+          else if (w) lines.push(`${m}. ${w}`);
+          m += 1;
+        }
+
+        return lines.map(escapeHtml).join('<br>');
+      }
+
+      function renderBoard() {
+        if (!boardEl) return;
+        const sqs = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const isDark = (r + c) % 2 === 1;
+            const p = board[r][c] || '';
+            const src = p ? pieceImageSrc(p) : '';
+            const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+            sqs.push(`<div class="tf-sq ${isDark ? 'dark' : 'light'}" data-r="${r}" data-c="${c}" title="${escapeHtml(rcToCoord(r, c))}">${img}</div>`);
+          }
+        }
+        boardEl.innerHTML = sqs.join('');
+      }
+
+      function syncFenText() {
+        const fen = buildFenFromBoard(board, side);
+        if (fenInput) fenInput.value = fen;
+      }
+
+      function applyFenText() {
+        const fen = String(fenInput?.value || '').trim();
+        const b = parseFenToBoard(fen);
+        const parts = fen.split(/\s+/);
+        const stm = parts[1] === 'b' ? 'b' : 'w';
+        if (b) {
+          board = b;
+          side = stm;
+          if (sideSel) sideSel.value = side;
+          renderBoard();
+        }
+      }
+
+      function renderPalette() {
+        if (!paletteEl) return;
+        const pieces = ['K','Q','R','B','N','P','k','q','r','b','n','p'];
+        paletteEl.innerHTML = pieces.map((p) => {
+          const src = pieceImageSrc(p);
+          const inner = src
+            ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">`
+            : escapeHtml(PIECE_UNICODE[p] || p);
+          return `<button type="button" class="tf-piece-btn ${selectedPiece === p ? 'is-active' : ''}" data-piece="${escapeHtml(p)}" aria-label="Piece ${escapeHtml(p)}">${inner}</button>`;
+        }).join('');
+      }
+
+      function setEngineOut(html) { if (engineOutEl) engineOutEl.innerHTML = html; }
+
+      function updateSaveEnabled() {
+        if (!saveBtn) return;
+        const hasEngine = !!(lastEngine && Array.isArray(lastEngine.lines) && lastEngine.lines.length);
+        const hasPick = selectedAnswerMultiPv.size > 0;
+        saveBtn.disabled = !(hasEngine && hasPick);
+      }
+
+      // init editor
+      syncFenText();
+      renderBoard();
+      renderPalette();
+      updateSaveEnabled();
+
+      boardEl?.addEventListener('click', (e) => {
+        const sq = e.target && e.target.closest ? e.target.closest('.tf-sq') : null;
+        if (!sq) return;
+        const r = Number(sq.getAttribute('data-r'));
+        const c = Number(sq.getAttribute('data-c'));
+        if (!Number.isFinite(r) || !Number.isFinite(c)) return;
+        board[r][c] = selectedPiece ? selectedPiece : '';
+        renderBoard();
+        syncFenText();
+      });
+
+      paletteEl?.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('.tf-piece-btn') : null;
+        if (!btn) return;
+        selectedPiece = String(btn.getAttribute('data-piece') || '');
+        renderPalette();
+      });
+
+      host.querySelector('#tfClearSelection')?.addEventListener('click', () => {
+        selectedPiece = '';
+        renderPalette();
+      });
+      host.querySelector('#tfClearBoard')?.addEventListener('click', () => {
+        board = Array.from({ length: 8 }, () => Array(8).fill(''));
+        renderBoard();
+        syncFenText();
+      });
+      host.querySelector('#tfStartPos')?.addEventListener('click', () => {
+        const b = parseFenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+        if (b) board = b;
+        side = 'w';
+        if (sideSel) sideSel.value = 'w';
+        renderBoard();
+        syncFenText();
+      });
+
+      sideSel?.addEventListener('change', () => {
+        side = String(sideSel.value || 'w') === 'b' ? 'b' : 'w';
+        syncFenText();
+      });
+
+      fenInput?.addEventListener('blur', applyFenText);
+
+      const multiPvEl = host.querySelector('#tfMultiPv');
+      const pvPliesEl = host.querySelector('#tfPvPlies');
+      host.querySelector('#tfMultiPvUp')?.addEventListener('click', () => {
+        if (!multiPvEl) return;
+        const v = Number(multiPvEl.value || 1) || 1;
+        multiPvEl.value = String(Math.max(1, Math.min(10, v + 1)));
+      });
+      host.querySelector('#tfMultiPvDown')?.addEventListener('click', () => {
+        if (!multiPvEl) return;
+        const v = Number(multiPvEl.value || 1) || 1;
+        multiPvEl.value = String(Math.max(1, Math.min(10, v - 1)));
+      });
+      host.querySelector('#tfPvPliesUp')?.addEventListener('click', () => {
+        if (!pvPliesEl) return;
+        const v = Number(pvPliesEl.value || 8) || 8;
+        pvPliesEl.value = String(Math.max(1, Math.min(32, v + 1)));
+      });
+      host.querySelector('#tfPvPliesDown')?.addEventListener('click', () => {
+        if (!pvPliesEl) return;
+        const v = Number(pvPliesEl.value || 8) || 8;
+        pvPliesEl.value = String(Math.max(1, Math.min(32, v - 1)));
+      });
+
+      host.querySelector('#tfEngineLoadBtn')?.addEventListener('click', async () => {
+        try {
+          applyFenText();
+          const fen = String(fenInput?.value || '').trim();
+          const multipv = Math.max(1, Math.min(10, Number(multiPvEl?.value || 1) || 1));
+          const pvPlies = Math.max(1, Math.min(32, Number(pvPliesEl?.value || 8) || 8));
+          selectedAnswerMultiPv.clear();
+          updateSaveEnabled();
+          setEngineOut(`<div class="tf-muted">Loading engine...</div>`);
+          const data = await engineAnalyze({ fen, multipv, pvPlies });
+          lastEngine = data;
+          const lines = Array.isArray(data.lines) ? data.lines : [];
+          setEngineOut(lines.length ? lines.map((ln) => {
+            const score = ln?.score?.mate != null ? `mate ${ln.score.mate}` : `cp ${ln?.score?.cp ?? 0}`;
+            const pv = formatPvWithMoveNumbers(fen, ln.pvSan);
+            const fallback = Array.isArray(ln.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
+            const mp = String(ln.multiPv || 1);
+            return `
+              <div class="tf-line">
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                  <label style="display:flex; gap:10px; align-items:center; cursor:pointer;">
+                    <input type="checkbox" data-tf-answer="${escapeHtml(mp)}" style="width:18px; height:18px;">
+                    <div class="tf-line-title">#${escapeHtml(mp)} · ${escapeHtml(score)}</div>
+                  </label>
+                </div>
+                <div class="tf-line-meta">${pv || fallback}</div>
+              </div>
+            `;
+          }).join('') : `<div class="tf-muted">No lines.</div>`);
+          updateSaveEnabled();
+        } catch (e) {
+          setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+          selectedAnswerMultiPv.clear();
+          updateSaveEnabled();
+        }
+      });
+
+      host.querySelector('#tfEngineClearBtn')?.addEventListener('click', () => {
+        lastEngine = null;
+        selectedAnswerMultiPv.clear();
+        setEngineOut('');
+        updateSaveEnabled();
+      });
+
+      engineOutEl?.addEventListener('change', (e) => {
+        const cb = e.target && e.target.closest ? e.target.closest('input[type="checkbox"][data-tf-answer]') : null;
+        if (!cb) return;
+        const mp = String(cb.getAttribute('data-tf-answer') || '').trim();
+        if (!mp) return;
+        if (cb.checked) selectedAnswerMultiPv.add(mp);
+        else selectedAnswerMultiPv.delete(mp);
+        updateSaveEnabled();
+      });
+
+      host.querySelector('#tfSavePuzzleBtn')?.addEventListener('click', async () => {
+        try {
+          applyFenText();
+          const fen = String(fenInput?.value || '').trim();
+          if (!fen) throw new Error('Missing FEN');
+          if (!lastEngine) throw new Error('Please run Engine Load first');
+          if (!selectedAnswerMultiPv.size) throw new Error('Please select at least 1 answer line');
+          const bucket = getBuilderBucket();
+
+          // Keep only selected lines as accepted answers.
+          const keep = new Set(Array.from(selectedAnswerMultiPv));
+          const allLines = Array.isArray(lastEngine?.lines) ? lastEngine.lines : [];
+          const selectedLines = allLines.filter((ln) => keep.has(String(ln?.multiPv || '1')));
+          const solutions = {
+            ...lastEngine,
+            acceptedMultiPv: Array.from(keep),
+            acceptedLines: selectedLines
+          };
+
+          const payload = {
+            fen,
+            engineDepth: 16,
+            multipv: Number(multiPvEl?.value || 1) || 1,
+            pvPlies: Number(pvPliesEl?.value || 8) || 8,
+            solutions,
+            meta: { bucket }
+          };
+          await builderCreatePuzzle(subtopicId, payload);
+          const data = await builderFetchPuzzles(subtopicId);
+          ui.puzzlesBySubtopic.set(subtopicId, Array.isArray(data.puzzles) ? data.puzzles : []);
+          ui.expanded.puzzlesLoaded.add(subtopicId);
+          ui.expanded.subtopic.add(subtopicId);
+          await builderRefresh();
+          close();
+        } catch (e) {
+          setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      });
+    }
+
+    async function openBulkImportModal(subtopicId) {
+      const roleNow = String(new URLSearchParams(window.location.search).get('role') || '');
+      if (String(roleNow).toLowerCase() !== 'teacher') {
+        alert('Bulk Import is available for teacher only.');
+        return;
+      }
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfBulkBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Bulk Import" style="width: calc(100vw - 40px); max-width: 1400px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Bulk Import</div>
+              <button id="tfBulkClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-bulk-grid">
+                <div>
+                  <div class="tf-field">
+                    <label for="tfBulkFenInput">FEN (one per line)</label>
+                    <textarea id="tfBulkFenInput" class="tf-textarea" rows="12" placeholder="Paste FEN lines here..."></textarea>
+                  </div>
+                  <div class="tf-bulk-meta">
+                    <div id="tfBulkCounts" class="tf-muted"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                      <button id="tfBulkValidate" class="btn btn-secondary" type="button">Validate</button>
+                      <button id="tfBulkClear" class="btn btn-secondary" type="button">Clear</button>
+                  <button id="tfBulkPhotoBtn" class="btn btn-primary" type="button">Photo Recognize</button>
+                  <input id="tfBulkPhotoInput" name="tfBulkPhotoInput" type="file" accept="image/*,application/pdf" multiple style="display:none;">
+                    </div>
+                  </div>
+                  <div id="tfBulkList" class="tf-bulk-list"></div>
+                </div>
+
+                <div>
+                  <div class="tf-field">
+                    <label>Engine (1-best)</label>
+                    <div class="tf-bulk-engine">
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">PV plies</div><div id="tfBulkPvPlies" style="font-weight:950;"></div></div>
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">Status</div><div id="tfBulkStatus" style="font-weight:950;"></div></div>
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">Best move</div><div id="tfBulkBestMove" style="font-family:ui-monospace,monospace;"></div></div>
+                      <div class="tf-bulk-engine-row"><div class="tf-muted">PV</div><div id="tfBulkPv" class="tf-bulk-pvbox"></div></div>
+                    </div>
+                  </div>
+                  <div class="tf-bulk-actions">
+                    <button id="tfBulkRun" class="btn btn-primary" type="button">Run Engine</button>
+                    <button id="tfBulkStop" class="btn btn-secondary" type="button" disabled>Stop</button>
+                    <button id="tfBulkSave" class="btn btn-primary" type="button" disabled>Confirm & Save</button>
+                  </div>
+                  <div id="tfBulkMsg" class="tf-builder-msg" style="display:none;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfBulkClose')?.addEventListener('click', close);
+      host.querySelector('#tfBulkBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfBulkBackdrop') close();
+      });
+
+      const input = host.querySelector('#tfBulkFenInput');
+      const countsEl = host.querySelector('#tfBulkCounts');
+      const listEl = host.querySelector('#tfBulkList');
+      const pvPliesEl = host.querySelector('#tfBulkPvPlies');
+      const statusEl = host.querySelector('#tfBulkStatus');
+      const bestEl = host.querySelector('#tfBulkBestMove');
+      const pvEl = host.querySelector('#tfBulkPv');
+      const runBtn = host.querySelector('#tfBulkRun');
+      const stopBtn = host.querySelector('#tfBulkStop');
+      const saveBtn = host.querySelector('#tfBulkSave');
+      const msgEl = host.querySelector('#tfBulkMsg');
+      const photoBtn = host.querySelector('#tfBulkPhotoBtn');
+      const photoInput = host.querySelector('#tfBulkPhotoInput');
+
+      const pvPlies = getBulkPvPlies();
+      if (pvPliesEl) pvPliesEl.textContent = String(pvPlies);
+
+      let cancelled = false;
+      let selectedIdx = 0;
+      let entries = []; // { fen, status, error, result }
+      const absorbedStack = []; // array of counts appended (for undo)
+
+      const showMsg = (type, text) => {
+        if (!msgEl) return;
+        msgEl.style.display = 'block';
+        msgEl.classList.remove('ok', 'err');
+        if (type === 'ok') msgEl.classList.add('ok');
+        if (type === 'err') msgEl.classList.add('err');
+        msgEl.textContent = String(text || '');
+      };
+      const clearMsg = () => {
+        if (!msgEl) return;
+        msgEl.style.display = 'none';
+        msgEl.textContent = '';
+        msgEl.classList.remove('ok', 'err');
+      };
+
+      const parseLines = () => {
+        const raw = String(input?.value || '');
+        const lines = raw.split(/\r?\n/).map((l) => String(l || '').trim()).filter(Boolean);
+        return lines;
+      };
+
+      const updateCounts = () => {
+        const total = entries.length;
+        const done = entries.filter((e) => e.status === 'done').length;
+        const saved = entries.filter((e) => e.status === 'saved').length;
+        const err = entries.filter((e) => e.status === 'error').length;
+        const pending = entries.filter((e) => e.status === 'pending').length;
+        if (countsEl) countsEl.textContent = `Total: ${total} · Saved: ${saved} · Done: ${done} · Pending: ${pending} · Error: ${err}`;
+        const savable = done > 0;
+        if (saveBtn) saveBtn.disabled = !savable;
+      };
+
+      const renderList = () => {
+        if (!listEl) return;
+        if (!entries.length) {
+          listEl.innerHTML = `<div class="tf-muted">No FEN lines.</div>`;
+          return;
+        }
+        listEl.innerHTML = entries.map((e, i) => {
+          const isSel = i === selectedIdx;
+          const badge =
+            e.status === 'saved' ? 'Saved' :
+            e.status === 'done' ? 'Done' :
+            e.status === 'running' ? 'Running' :
+            e.status === 'error' ? 'Error' : 'Pending';
+          return `
+            <button type="button" class="tf-bulk-item ${isSel ? 'is-selected' : ''}" data-tf-bulk-idx="${i}">
+              <div class="tf-bulk-item-row">
+                <div class="tf-bulk-badge tf-bulk-badge--${escapeHtml(e.status)}">${escapeHtml(badge)}</div>
+                <div class="tf-bulk-fen">${escapeHtml(e.fen)}</div>
+              </div>
+            </button>
+          `;
+        }).join('');
+      };
+
+      const showSelected = () => {
+        const e = entries[selectedIdx];
+        if (!e) {
+          if (statusEl) statusEl.textContent = '';
+          if (bestEl) bestEl.textContent = '';
+          if (pvEl) pvEl.innerHTML = '';
+          return;
+        }
+        if (statusEl) statusEl.textContent = e.status;
+        if (bestEl) bestEl.textContent = e.result?.bestMove ? String(e.result.bestMove) : '';
+        if (pvEl) {
+          const fen = e.fen;
+          const pvSan = e.result?.pvSan || [];
+          pvEl.innerHTML = pvSan.length ? formatPvWithMoveNumbersHtml(fen, pvSan) : (e.error ? `<span style="color:#dc2626; font-weight:900;">${escapeHtml(e.error)}</span>` : '');
+        }
+      };
+
+      function looksLikeFenLine(line) {
+        const s = String(line || '').trim();
+        if (!s) return false;
+        const parts = s.split(/\s+/);
+        if (parts.length < 6) return false;
+        const placement = parts[0] || '';
+        if (!placement.includes('/')) return false;
+        const slashCount = (placement.match(/\//g) || []).length;
+        if (slashCount !== 7) return false;
+        if (!/^[prnbqkPRNBQK1-8\/]+$/.test(placement)) return false;
+        const stm = parts[1];
+        if (stm !== 'w' && stm !== 'b') return false;
+        // castling / ep / counters: don't validate strictly here
+        return true;
+      }
+
+      function absorbFromTextarea(reason) {
+        const raw = String(input?.value || '').trim();
+        if (!raw) return { absorbed: 0 };
+        const lines = parseLines();
+        if (!lines.length) return { absorbed: 0 };
+
+        const valid = [];
+        const invalid = [];
+        for (const l of lines) {
+          if (looksLikeFenLine(l)) valid.push(l);
+          else invalid.push(l);
+        }
+
+        if (!valid.length) {
+          // don't clear; user may still be typing
+          return { absorbed: 0, invalidCount: invalid.length };
+        }
+
+        // Append valid to entries (mode B)
+        for (const fen of valid) {
+          entries.push({ fen, status: 'pending', error: '', result: null });
+        }
+        absorbedStack.push(valid.length);
+        selectedIdx = Math.max(0, entries.length - valid.length);
+
+        // Clear absorbed part; keep invalid lines for user to fix (if any)
+        if (input) {
+          input.value = invalid.join('\n');
+        }
+
+        renderList();
+        updateCounts();
+        showSelected();
+
+        if (reason) {
+          if (invalid.length) showMsg('err', `Absorbed ${valid.length}. ${invalid.length} invalid line(s) kept in input.`);
+          else showMsg('ok', `Absorbed ${valid.length}.`);
+        }
+        return { absorbed: valid.length, invalidCount: invalid.length };
+      }
+
+      function undoLastAbsorb() {
+        const n = absorbedStack.pop();
+        if (!n) return;
+        entries.splice(Math.max(0, entries.length - n), n);
+        selectedIdx = Math.max(0, Math.min(entries.length - 1, selectedIdx));
+        renderList();
+        updateCounts();
+        showSelected();
+        showMsg('ok', `Undid last absorb (${n}).`);
+      }
+
+      // initial
+      renderList();
+      updateCounts();
+      showSelected();
+
+      async function teacherPhotoRecognizeUpload(files) {
+        if (!files || !files.length) return null;
+        // Quick deploy check: if this endpoint is missing in production, we'll get 404.
+        try {
+          const ping = await apiRequest('/api/teachers/tactics-fighter/debug/routes', { method: 'GET' });
+          const pingJson = await ping.json().catch(() => null);
+          console.log('[tf][photo] debug/routes:', ping.status, pingJson);
+        } catch (e) {
+          console.log('[tf][photo] debug/routes failed:', e);
+        }
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(String(subtopicId))}/photo-recognize/upload`, {
+          method: 'POST',
+          body: fd
+        });
+        return await tfJson(resp);
+      }
+
+      async function teacherPhotoRecognizeJob(jobId) {
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/photo-recognize/jobs/${encodeURIComponent(String(jobId))}`, { method: 'GET' });
+        return await tfJson(resp);
+      }
+
+      async function teacherPhotoRecognizeFens(jobId) {
+        const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/photo-recognize/jobs/${encodeURIComponent(String(jobId))}/fens?limit=2000`, { method: 'GET' });
+        return await tfJson(resp);
+      }
+
+      function appendFensToEntries(fens) {
+        const list = Array.isArray(fens) ? fens : [];
+        let added = 0;
+        for (const fen of list) {
+          const s = String(fen || '').trim();
+          if (!s) continue;
+          entries.push({ fen: s, status: 'pending', error: '', result: null });
+          added++;
+        }
+        if (added) {
+          absorbedStack.push(added);
+          selectedIdx = Math.max(0, entries.length - added);
+        }
+        renderList();
+        updateCounts();
+        showSelected();
+        return added;
+      }
+
+      photoBtn?.addEventListener('click', () => {
+        try { photoInput?.click(); } catch {}
+      });
+
+      photoInput?.addEventListener('change', async () => {
+        clearMsg();
+        try {
+          const files = Array.from(photoInput?.files || []);
+          if (!files.length) return;
+          showMsg('ok', 'Uploading…');
+          photoBtn.disabled = true;
+          let up = null;
+          try {
+            up = await teacherPhotoRecognizeUpload(files);
+          } catch (e) {
+            // Make 404 extremely obvious in UI.
+            const msg = String(e?.message || e);
+            if (/\[404\]/.test(msg) || /404/.test(msg)) {
+              throw new Error('Photo Recognize endpoint not found (404). This usually means Railway is still running an older build, or /api is being routed elsewhere.');
+            }
+            throw e;
+          }
+          const jobId = String(up?.jobId || '');
+          if (!jobId) throw new Error('No jobId returned');
+          showMsg('ok', 'Processing…');
+
+          // Poll status
+          const started = Date.now();
+          while (true) {
+            await new Promise((r) => setTimeout(r, 1200));
+            const st = await teacherPhotoRecognizeJob(jobId);
+            const job = st?.job || {};
+            const status = String(job.status || '');
+            if (status === 'done') {
+              showMsg('ok', `Done. Extracted ${Number(job.total_fens || 0)} FENs.`);
+              const out = await teacherPhotoRecognizeFens(jobId);
+              const added = appendFensToEntries(out?.fens || []);
+              showMsg('ok', `Done. Absorbed ${added} FENs.`);
+              break;
+            }
+            if (status === 'error') {
+              throw new Error(String(job.message || 'Photo recognize failed'));
+            }
+            // timeout ~ 5 minutes
+            if (Date.now() - started > 5 * 60 * 1000) {
+              throw new Error('Timed out while processing');
+            }
+            showMsg('ok', `Processing… (${Number(job.total_fens || 0)} extracted)`);
+          }
+        } catch (e) {
+          showMsg('err', e?.message || String(e));
+        } finally {
+          try { photoBtn.disabled = false; } catch {}
+          try { photoInput.value = ''; } catch {}
+        }
+      });
+
+      host.querySelector('#tfBulkValidate')?.addEventListener('click', () => {
+        clearMsg();
+        const r = absorbFromTextarea('validate');
+        if (!r.absorbed) {
+          showMsg('err', 'No valid FEN lines to absorb.');
+          return;
+        }
+        showMsg('ok', 'Ready. Click Run Engine to generate answers (1-best).');
+      });
+      host.querySelector('#tfBulkClear')?.addEventListener('click', () => {
+        if (input) input.value = '';
+        clearMsg();
+        entries = [];
+        absorbedStack.length = 0;
+        selectedIdx = 0;
+        renderList();
+        updateCounts();
+        showSelected();
+      });
+
+      // Auto-commit (Mode B): absorb on paste, or after short idle if it looks like a full FEN.
+      let absorbTimer = null;
+      const scheduleAbsorb = (reason) => {
+        try { if (absorbTimer) clearTimeout(absorbTimer); } catch {}
+        absorbTimer = setTimeout(() => {
+          const raw = String(input?.value || '').trim();
+          if (!raw) return;
+          // If user pasted multiple lines, absorb immediately.
+          if (raw.includes('\n')) return void absorbFromTextarea(reason || 'idle');
+          // Single line: absorb if it already looks like a full FEN.
+          if (looksLikeFenLine(raw)) return void absorbFromTextarea(reason || 'idle');
+        }, 280);
+      };
+
+      input?.addEventListener('input', () => scheduleAbsorb('typing'));
+      input?.addEventListener('blur', () => absorbFromTextarea('blur'));
+      input?.addEventListener('paste', () => {
+        // Let the paste land first
+        setTimeout(() => absorbFromTextarea('paste'), 0);
+      });
+
+      listEl?.addEventListener('click', (ev) => {
+        const t = ev.target;
+        const btn = t && t.closest ? t.closest('[data-tf-bulk-idx]') : null;
+        if (!btn) return;
+        const idx = Number(btn.getAttribute('data-tf-bulk-idx') || 0);
+        if (!Number.isFinite(idx)) return;
+        selectedIdx = Math.max(0, Math.min(entries.length - 1, idx));
+        renderList();
+        showSelected();
+      });
+
+      stopBtn?.addEventListener('click', () => {
+        cancelled = true;
+        if (stopBtn) stopBtn.disabled = true;
+        if (runBtn) runBtn.disabled = false;
+        showMsg('err', 'Stopped.');
+      });
+
+      runBtn?.addEventListener('click', async () => {
+        clearMsg();
+        // Ensure any remaining input is absorbed before running.
+        absorbFromTextarea('run');
+        cancelled = false;
+        if (runBtn) runBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
+
+        const depth = 16;
+        const pvPliesNow = getBulkPvPlies();
+        if (pvPliesEl) pvPliesEl.textContent = String(pvPliesNow);
+
+        for (let i = 0; i < entries.length; i++) {
+          if (cancelled) break;
+          const ent = entries[i];
+          if (!ent || ent.status === 'done') continue;
+          ent.status = 'running';
+          ent.error = '';
+          selectedIdx = i;
+          renderList();
+          updateCounts();
+          showSelected();
+
+          try {
+            const r = await engineAnalyze({ fen: ent.fen, depth, multipv: 1, pvPlies: pvPliesNow });
+            const line0 = Array.isArray(r?.lines) ? r.lines[0] : null;
+            const bestMove = String(r?.bestMove || line0?.bestMove || '').trim();
+            const pvUci = Array.isArray(line0?.pvUci) ? line0.pvUci : [];
+            const pvSan = Array.isArray(line0?.pvSan) ? line0.pvSan : [];
+            const score = line0?.score || { cp: 0 };
+            if (!bestMove) throw new Error('Engine returned empty bestMove');
+
+            ent.result = { bestMove, pvUci, pvSan, score, depth, pvPlies: pvPliesNow };
+            ent.status = 'done';
+          } catch (e) {
+            ent.status = 'error';
+            ent.error = e?.message || String(e);
+          }
+          renderList();
+          updateCounts();
+          showSelected();
+        }
+
+        if (stopBtn) stopBtn.disabled = true;
+        if (runBtn) runBtn.disabled = false;
+        if (!cancelled) showMsg('ok', 'Engine finished.');
+      });
+
+      saveBtn?.addEventListener('click', async () => {
+        clearMsg();
+        absorbFromTextarea('save');
+        const bucket = getBuilderBucket();
+        const pvPliesNow = getBulkPvPlies();
+        const depth = 16;
+        let saved = 0;
+        for (let i = 0; i < entries.length; i++) {
+          const ent = entries[i];
+          if (!ent || ent.status !== 'done' || !ent.result) continue;
+          try {
+            const line = {
+              multiPv: 1,
+              score: ent.result.score || { cp: 0 },
+              bestMove: ent.result.bestMove,
+              pvUci: Array.isArray(ent.result.pvUci) ? ent.result.pvUci : [],
+              pvSan: Array.isArray(ent.result.pvSan) ? ent.result.pvSan : []
+            };
+            const solutions = {
+              bestMove: ent.result.bestMove,
+              lines: [line],
+              acceptedMultiPv: ['1'],
+              acceptedLines: [line]
+            };
+            const payload = {
+              fen: ent.fen,
+              engineDepth: depth,
+              multipv: 1,
+              pvPlies: pvPliesNow,
+              solutions,
+              meta: { bucket, bulk: true }
+            };
+            await builderCreatePuzzle(subtopicId, payload);
+            ent.status = 'saved';
+            saved++;
+          } catch (e) {
+            ent.status = 'error';
+            ent.error = e?.message || String(e);
+          }
+          renderList();
+          updateCounts();
+          showSelected();
+        }
+
+        try {
+          const data = await builderFetchPuzzles(subtopicId);
+          ui.puzzlesBySubtopic.set(String(subtopicId), Array.isArray(data.puzzles) ? data.puzzles : []);
+          ui.expanded.puzzlesLoaded.add(String(subtopicId));
+          ui.expanded.subtopic.add(String(subtopicId));
+          await builderRefresh();
+        } catch {}
+
+        showMsg('ok', `Saved: ${saved}. (Modal stays open)`);
+      });
+
+      // Small UX: Ctrl/Cmd+Z in the textarea undoes last absorb (when textarea is empty)
+      input?.addEventListener('keydown', (ev) => {
+        if (!ev) return;
+        const key = String(ev.key || '').toLowerCase();
+        const isUndo = (key === 'z') && (ev.ctrlKey || ev.metaKey);
+        const raw = String(input?.value || '').trim();
+        if (isUndo && !raw) {
+          ev.preventDefault();
+          undoLastAbsorb();
+        }
+      });
+    }
+
+    // Sidebar mode switching
+    root.querySelectorAll('.tf-nav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const m = btn.getAttribute('data-mode');
+        activateMode(m);
+      });
+    });
+
+    // Practice + Student navigation (event delegation)
+    root.addEventListener('click', (e) => {
+      const target = e.target && e.target.closest ? e.target.closest(
+        '[data-chal-mode],[data-chal-ghost-start],[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle]'
+      ) : null;
+      if (!target) return;
+
+      // Challenge (student only)
+      if (!isTeacher) {
+        const chalModeBtn = target.closest('[data-chal-mode]');
+        if (chalModeBtn) {
+          const m = String(chalModeBtn.getAttribute('data-chal-mode') || '').trim();
+          if (m === 'random') return;
+          ui.student.challenge.mode = m;
+          ui.student.challenge.msg = '';
+          const panel = document.getElementById('tfChallengePanel');
+          if (panel && m === 'ghost') {
+            panel.innerHTML = `
+              <div style="border:1px solid #e5e7eb; border-radius:14px; padding:12px; background:#f8fafc;">
+                <div style="font-weight:950; color:#111827;">Dancing with your Ghost</div>
+                <div class="tf-muted" style="margin-top:6px;">Only puzzles you have answered incorrectly before will appear.</div>
+                <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-primary" data-chal-ghost-start="1">Start</button>
+                  <span id="tfChalGhostMsg" class="tf-muted"></span>
+                </div>
+              </div>
+            `;
+          }
+          return;
+        }
+
+        const ghostStartBtn = target.closest('[data-chal-ghost-start]');
+        if (ghostStartBtn) {
+          (async () => {
+            try {
+              const msgEl = document.getElementById('tfChalGhostMsg');
+              if (msgEl) msgEl.textContent = 'Loading...';
+              const out = await studentFetchGhostPuzzles(publicStudentId, ui.student.bucket, 120, publicStudentPassword);
+              const puzzles = Array.isArray(out?.puzzles) ? out.puzzles : [];
+              if (!puzzles.length) {
+                if (msgEl) msgEl.textContent = 'No incorrect puzzles.';
+                return;
+              }
+
+              ui.student.puzzleSource = 'ghost';
+              ui.student.subtopicId = null;
+              ui.student.page = 1;
+              ui.student.pageSize = Math.max(1, puzzles.length);
+              ui.student.total = puzzles.length;
+              ui.student.puzzles = puzzles.map((p) => ({ ...p, completed: false })); // per-session completion
+              ui.student.puzzlePages = { '1': { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize } };
+
+              ui.student.runner = { absIndex: 0 };
+              await openStudentRunnerModal();
+              if (msgEl) msgEl.textContent = '';
+            } catch (err) {
+              const msgEl = document.getElementById('tfChalGhostMsg');
+              if (msgEl) msgEl.textContent = err?.message || String(err);
+            }
+          })();
+          return;
+        }
+      }
+
+      // Bucket selection (Beginner/400up/...)
+      const bucketBtn = target.closest('[data-practice]');
+      if (bucketBtn) {
+        const bucket = String(bucketBtn.getAttribute('data-practice') || '').trim();
+        if (!bucket) return;
+        if (isTeacher) {
+          try { localStorage.setItem('tacticsFighterPracticeBucket', bucket); } catch {}
+          setOut(`<div style="font-weight:900;">Selected:</div><div>${escapeHtml(bucket)}</div>`);
+          return;
+        }
+        return void studentShowCategories(bucket);
+      }
+
+      if (isTeacher) return; // below is student-only
+
+      const backBtn = target.closest('[data-stu-back]');
+      if (backBtn) {
+        const dest = String(backBtn.getAttribute('data-stu-back') || '').trim();
+        if (dest === 'buckets') {
+          ui.student.view = 'bucket';
+          ui.student.tree = null;
+          ui.student.categoryId = null;
+          ui.student.topicId = null;
+          ui.student.subtopicId = null;
+          try {
+            const bucketsEl = document.getElementById('tfPracticeBuckets');
+            if (bucketsEl) bucketsEl.style.display = '';
+          } catch {}
+          setOut('');
+          return;
+        }
+        if (dest === 'categories') {
+          ui.student.view = 'categories';
+          ui.student.categoryId = null;
+          ui.student.topicId = null;
+          ui.student.subtopicId = null;
+          return setOut(renderStudentCategories(ui.student.tree?.categories || []));
+        }
+        if (dest === 'topics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          if (!cat) return;
+          ui.student.view = 'topics';
+          ui.student.topicId = null;
+          ui.student.subtopicId = null;
+          return setOut(renderStudentTopics(cat));
+        }
+        if (dest === 'subtopics') {
+          const cat = studentFindCategoryById(ui.student.categoryId);
+          const topic = studentFindTopicById(cat, ui.student.topicId);
+          if (!cat || !topic) return;
+          ui.student.view = 'subtopics';
+          ui.student.subtopicId = null;
+          return setOut(renderStudentSubtopics(cat, topic));
+        }
+        return;
+      }
+
+      const catBtn = target.closest('[data-stu-cat]');
+      if (catBtn) {
+        const cid = String(catBtn.getAttribute('data-stu-cat') || '').trim();
+        const cat = studentFindCategoryById(cid);
+        if (!cat) return;
+        ui.student.view = 'topics';
+        ui.student.categoryId = cid;
+        ui.student.topicId = null;
+        ui.student.subtopicId = null;
+        return setOut(renderStudentTopics(cat));
+      }
+
+      const topicBtn = target.closest('[data-stu-topic]');
+      if (topicBtn) {
+        const tid = String(topicBtn.getAttribute('data-stu-topic') || '').trim();
+        const cat = studentFindCategoryById(ui.student.categoryId);
+        const topic = studentFindTopicById(cat, tid);
+        if (!cat || !topic) return;
+        ui.student.view = 'subtopics';
+        ui.student.topicId = tid;
+        ui.student.subtopicId = null;
+        return setOut(renderStudentSubtopics(cat, topic));
+      }
+
+      const subBtn = target.closest('[data-stu-subtopic]');
+      if (subBtn) {
+        const sid = String(subBtn.getAttribute('data-stu-subtopic') || '').trim();
+        if (!sid) return;
+        return void studentOpenSubtopic(sid);
+      }
+
+      const pageBtn = target.closest('[data-stu-page]');
+      if (pageBtn) {
+        const dir = String(pageBtn.getAttribute('data-stu-page') || '').trim();
+        return void studentChangePuzzlePage(dir);
+      }
+
+      const startBtn = target.closest('[data-stu-start]');
+      if (startBtn) {
+        (async () => {
+          // Start: skip completed, jump to the earliest not-completed (or previously incorrect) puzzle.
+          const abs = await findFirstTargetAbsIndex();
+          ui.student.runner = { absIndex: abs };
+          await openStudentRunnerModal();
+        })();
+        return;
+      }
+
+      const openBtn = target.closest('[data-stu-open-puzzle]');
+      if (openBtn) {
+        const idx = Number(openBtn.getAttribute('data-stu-idx') || 0);
+        const ps = Math.max(1, Number(ui.student.pageSize || 10));
+        const abs = (Math.max(1, Number(ui.student.page || 1)) - 1) * ps + (Number.isFinite(idx) ? idx : 0);
+        ui.student.runner = { absIndex: abs };
+        (async () => { await openStudentRunnerModal(); })();
+        return;
+      }
+    });
+
+    // Initial render
+    activateMode(mode);
+  };
+
+})();
+
+
