@@ -77,7 +77,9 @@
     saving: false,
     pendingSave: false,
     editPersonId: null,
-    foodSlotDraft: new Set()
+    foodSlotDraft: new Set(),
+    canvasCssPx: 320,
+    canvasDpr: 1
   };
 
   const MEAL_SLOTS = [
@@ -358,8 +360,10 @@
     const ctx = cv.getContext("2d");
     if (!ctx) return;
 
-    const w = cv.width;
-    const h = cv.height;
+    // Important: after resizeCanvas we set ctx transform to scale by dpr,
+    // so the drawing coordinate system should use CSS pixels (not device pixels).
+    const w = Number(ui.canvasCssPx || 0) || Math.floor(cv.getBoundingClientRect?.().width || 320) || 320;
+    const h = w;
     const cx = w / 2;
     const cy = h / 2;
     const r = Math.min(cx, cy) - 8;
@@ -543,23 +547,18 @@
     openModal();
   }
 
-  function renderMealSeg() {
-    const host = $("ewMealSlots");
-    if (!host) return;
-    host.innerHTML = "";
+  function renderMealSelect() {
+    const sel = $("ewMealSelect");
+    if (!sel) return;
+    sel.innerHTML = "";
     const cur = String(ui.state.selectedMealSlot || "lunch") || "lunch";
     for (const s of MEAL_SLOTS) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = `ew-seg-btn${s.key === cur ? " active" : ""}`;
-      btn.textContent = s.label;
-      btn.addEventListener("click", () => {
-        ui.state.selectedMealSlot = s.key;
-        scheduleSave();
-        renderAll();
-      });
-      host.appendChild(btn);
+      const opt = document.createElement("option");
+      opt.value = s.key;
+      opt.textContent = s.label;
+      sel.appendChild(opt);
     }
+    sel.value = cur;
   }
 
   function renderFoodSlotsChips() {
@@ -584,10 +583,11 @@
     }
   }
 
-  function setTab(tabKey) {
+  function setTab(tabKey, opts) {
     const k = String(tabKey || "wheel");
+    const prev = String(ui.state.viewTab || "");
     ui.state.viewTab = k;
-    scheduleSave();
+    if (opts && opts.persist && prev !== k) scheduleSave();
     const map = {
       people: "ewTabPeople",
       foods: "ewTabFoods",
@@ -633,11 +633,11 @@
     ui.state.selectedMealSlot = (MEAL_SLOTS.some((x) => x.key === mk)) ? mk : "lunch";
 
     // Tab visibility
-    setTab(ui.state.viewTab || "wheel");
+    setTab(ui.state.viewTab || "wheel", { persist: false });
 
     renderPeopleList();
     renderWheelPeopleChecklist();
-    renderMealSeg();
+    renderMealSelect();
     renderFoodSlotsChips();
     renderFoodsList();
     renderWheel();
@@ -656,11 +656,18 @@
     // Tab buttons
     document.querySelectorAll(".ew-tabbtn").forEach((b) => {
       b.addEventListener("click", () => {
-        setTab(String(b.getAttribute("data-ew-tab") || "wheel"));
+        setTab(String(b.getAttribute("data-ew-tab") || "wheel"), { persist: true });
       });
     });
 
     $("ewAddPersonBtn")?.addEventListener("click", openModalForAddPerson);
+    $("ewMealSelect")?.addEventListener("change", (e) => {
+      const v = String(e?.target?.value || "lunch") || "lunch";
+      ui.state.selectedMealSlot = v;
+      scheduleSave();
+      renderAll();
+    });
+
     $("ewModalCancel")?.addEventListener("click", closeModal);
     $("ewModalBackdrop")?.addEventListener("click", (e) => {
       if (e.target && e.target.id === "ewModalBackdrop") closeModal();
@@ -755,6 +762,8 @@
       cv.height = Math.floor(cssPx * dpr);
       const ctx = cv.getContext("2d");
       if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ui.canvasCssPx = cssPx;
+      ui.canvasDpr = dpr;
       renderWheel();
     }
     window.addEventListener("resize", resizeCanvas);
