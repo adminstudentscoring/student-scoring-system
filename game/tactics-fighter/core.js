@@ -380,6 +380,14 @@
     return await tfJson(resp);
   }
 
+  async function builderUpdatePuzzle(puzzleId, payload) {
+    const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/puzzles/${encodeURIComponent(String(puzzleId || ''))}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload || {})
+    });
+    return await tfJson(resp);
+  }
+
   async function builderFetchTree() {
     const resp = await apiRequest('/api/teachers/tactics-fighter/builder/tree', { method: 'GET' });
     return await tfJson(resp);
@@ -468,6 +476,7 @@
 
     return `
       <div class="tf-app">
+        <div id="tfToast" class="tf-toast" role="status" aria-live="polite" style="display:none;"></div>
         <aside class="tf-sidebar" aria-label="Tactics Fighter sidebar">
           <div class="tf-side-title">⚔️ Tactics Fighter</div>
           <div class="tf-side-sub">${escapeHtml(playerName)}${playerId ? ` (${escapeHtml(playerId)})` : ''}</div>
@@ -641,6 +650,7 @@
     builderCreatePuzzle,
     engineAnalyze,
     builderDeletePuzzle,
+    builderUpdatePuzzle,
     builderFetchTree,
     builderCreateCategory,
     builderRenameCategory,

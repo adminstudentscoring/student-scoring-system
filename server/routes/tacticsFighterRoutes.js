@@ -1030,6 +1030,57 @@ function registerTacticsFighterRoutes(app, deps) {
         }
       }
     );
+
+    // Update puzzle (e.g., re-run engine to change PV and save new solutions)
+    app.patch(
+      "/api/teachers/tactics-fighter/builder/puzzles/:puzzleId",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        if (!(await requireDbReady(res))) return;
+        try {
+          const orgId = await resolveOrgId(req);
+          const id = String(req.params.puzzleId || '').trim();
+          if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
+          if (!id) return res.status(400).json({ ok: false, error: "Missing puzzleId" });
+
+          const engineDepth = toRangeInt(req?.body?.engineDepth, 4, 22, 16);
+          const multipv = toRangeInt(req?.body?.multipv, 1, 10, 1);
+          const pvPlies = toRangeInt(req?.body?.pvPlies, 1, 32, 8);
+          const solutions = (req?.body?.solutions && typeof req.body.solutions === 'object') ? req.body.solutions : null;
+          if (!solutions) return res.status(400).json({ ok: false, error: "Missing solutions" });
+
+          const r = await pool.query(
+            `
+            UPDATE tactics_fighter_puzzles
+            SET engine_depth = $1, multipv = $2, pv_plies = $3, solutions = $4::jsonb, updated_at = NOW()
+            WHERE org_id = $5 AND id = $6
+            RETURNING id, fen, solutions, engine_depth, multipv, pv_plies, updated_at
+            `,
+            [engineDepth, multipv, pvPlies, JSON.stringify(solutions), orgId, id]
+          );
+          const row = r.rows?.[0];
+          if (!row) return res.status(404).json({ ok: false, error: "Not found" });
+          return res.json({
+            ok: true,
+            puzzle: {
+              id: String(row.id),
+              fen: String(row.fen || ''),
+              solutions: row.solutions || null,
+              engineDepth: Number(row.engine_depth || engineDepth),
+              multipv: Number(row.multipv || multipv),
+              pvPlies: Number(row.pv_plies || pvPlies),
+              updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : nowIso()
+            }
+          });
+        } catch (e) {
+          console.error('[tactics-fighter] update puzzle error:', e);
+          const msg = String(e?.message || e);
+          return res.status(500).json({ ok: false, error: "Update puzzle failed", details: msg });
+        }
+      }
+    );
   }
 
   // ----------------------------

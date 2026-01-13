@@ -42,6 +42,7 @@
     builderCreatePuzzle,
     engineAnalyze,
     builderDeletePuzzle,
+    builderUpdatePuzzle,
     builderFetchTree,
     builderCreateCategory,
     builderRenameCategory,
@@ -125,22 +126,52 @@
       }
     };
 
-    function showBuilderMsg(type, text) {
-      const el = document.getElementById('tfBuilderMsg');
+    function toastShow(type, text, opts = {}) {
+      const el = document.getElementById('tfToast');
       if (!el) return;
       el.style.display = 'block';
-      el.classList.remove('ok', 'err');
+      el.classList.remove('ok', 'err', 'is-loading');
       if (type === 'ok') el.classList.add('ok');
       if (type === 'err') el.classList.add('err');
+      if (type === 'loading') el.classList.add('is-loading');
       el.textContent = String(text || '');
+      const ms = Number(opts?.autoHideMs || 0);
+      if (ms > 0) {
+        const token = String(Date.now());
+        el.setAttribute('data-toast-token', token);
+        setTimeout(() => {
+          try {
+            const cur = el.getAttribute('data-toast-token');
+            if (cur === token) toastHide();
+          } catch {}
+        }, ms);
+      }
     }
 
-    function clearBuilderMsg() {
-      const el = document.getElementById('tfBuilderMsg');
+    function toastHide() {
+      const el = document.getElementById('tfToast');
       if (!el) return;
       el.style.display = 'none';
       el.textContent = '';
-      el.classList.remove('ok', 'err');
+      el.classList.remove('ok', 'err', 'is-loading');
+    }
+
+    function showBuilderMsg(type, text) {
+      const s = String(text || '');
+      if (/^loading/i.test(s)) return toastShow('loading', s);
+      if (type === 'err') return toastShow('err', s, { autoHideMs: 3500 });
+      return toastShow('ok', s, { autoHideMs: 2500 });
+    }
+
+    function clearBuilderMsg() {
+      toastHide();
+      const el = document.getElementById('tfBuilderMsg');
+      // Keep the inline element hidden (legacy).
+      if (el) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.classList.remove('ok', 'err');
+      }
     }
 
     function renderMiniBoardHtml(fen) {
@@ -1003,7 +1034,7 @@
     }
 
     async function studentShowCategories(bucket) {
-      setOut(`<div class="tf-muted">Loading...</div>`);
+      toastShow('loading', 'Loading...');
       try {
         const tree = await studentLoadTree(bucket);
         ui.student.view = 'categories';
@@ -1015,8 +1046,10 @@
           const bucketsEl = document.getElementById('tfPracticeBuckets');
           if (bucketsEl) bucketsEl.style.display = 'none';
         } catch {}
+        toastHide();
         setOut(renderStudentCategories(tree.categories || []));
       } catch (e) {
+        toastShow('err', e?.message || String(e));
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
       }
     }
@@ -1030,14 +1063,16 @@
       ui.student.puzzlePages = {};
       ui.student.verdictByPuzzleId = {};
       ui.student.puzzleSource = 'subtopic';
-      setOut(`<div class="tf-muted">Loading puzzles...</div>`);
+      toastShow('loading', 'Loading puzzles...');
       try {
         const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
         ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
         ui.student.total = Number(data.total || 0);
         ui.student.puzzlePages[String(ui.student.page)] = { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize };
+        toastHide();
         setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
       } catch (e) {
+        toastShow('err', e?.message || String(e));
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
       }
     }
@@ -1066,13 +1101,15 @@
       const next = dir === 'next' ? Math.min(totalPages, ui.student.page + 1) : Math.max(1, ui.student.page - 1);
       if (next === ui.student.page) return;
       ui.student.page = next;
-      setOut(`<div class="tf-muted">Loading puzzles...</div>`);
+      toastShow('loading', 'Loading puzzles...');
       try {
         const cached = await studentEnsurePuzzlePage(ui.student.page);
         ui.student.puzzles = Array.isArray(cached?.puzzles) ? cached.puzzles : [];
         ui.student.total = Number(cached?.total || ui.student.total || 0);
+        toastHide();
         setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
       } catch (e) {
+        toastShow('err', e?.message || String(e));
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
       }
     }
@@ -1095,12 +1132,15 @@
         (async () => {
           try {
             const main = document.getElementById('tfMain');
-            if (main) main.innerHTML = `<div class="tf-muted">Loading...</div>`;
+            toastShow('loading', 'Loading...');
+            if (main) main.innerHTML = `<div class="tf-muted"></div>`;
             const stats = await studentFetchStats(publicStudentId, null, publicStudentPassword);
             ui.student.stats = stats;
+            toastHide();
             if (main) main.innerHTML = renderHome(stats);
           } catch (e) {
             const main = document.getElementById('tfMain');
+            toastShow('err', e?.message || String(e));
             if (main) main.innerHTML = `<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`;
           }
         })();
@@ -1365,7 +1405,19 @@
                 <div>
                   <div class="tf-section-title">Answers</div>
                   <div id="tfPuzzleDetailAnswers" class="tf-lines"></div>
+                  <div id="tfPuzzleEditPanel" style="display:none; margin-top:12px; border:1px solid #e5e7eb; border-radius:14px; padding:12px; background:#f8fafc;">
+                    <div style="font-weight:950; color:#111827; margin-bottom:8px;">Edit puzzle</div>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                      <label class="tf-muted" style="font-weight:900;">PV plies</label>
+                      <input id="tfPuzzleEditPvPlies" class="tf-select" type="number" min="1" max="32" step="1" value="8" style="width:120px;">
+                      <button id="tfPuzzleEditRun" class="btn btn-primary" type="button">Run Engine</button>
+                      <button id="tfPuzzleEditSave" class="btn btn-success" type="button" disabled>Save</button>
+                      <button id="tfPuzzleEditCancel" class="btn btn-secondary" type="button">Cancel</button>
+                    </div>
+                    <div id="tfPuzzleEditMsg" class="tf-muted" style="margin-top:10px;"></div>
+                  </div>
                   <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                    <button id="tfPuzzleEditBtn" class="btn btn-secondary" type="button">Edit</button>
                     <button id="tfPuzzleDeleteBtn" class="btn btn-danger" type="button">Delete</button>
                     <button id="tfPuzzleCloseBtn" class="btn btn-secondary" type="button">Close</button>
                   </div>
@@ -1403,22 +1455,107 @@
         }
       } catch {}
 
-      // Render answers
-      const answersEl = host.querySelector('#tfPuzzleDetailAnswers');
-      const sol = puzzle?.solutions && typeof puzzle.solutions === 'object' ? puzzle.solutions : null;
-      const accepted = Array.isArray(sol?.acceptedLines) ? sol.acceptedLines : null;
-      const lines = accepted && accepted.length ? accepted : (Array.isArray(sol?.lines) ? sol.lines : []);
-      const html = lines.length ? lines.map((ln) => {
-        const mp = String(ln?.multiPv || 1);
-        const scoreObj = ln?.score || {};
-        const score = (scoreObj && Object.prototype.hasOwnProperty.call(scoreObj, 'mate'))
-          ? `mate ${Number(scoreObj.mate) || 0}`
-          : `cp ${Number(scoreObj.cp) || 0}`;
-        const pv = formatPvWithMoveNumbersHtml(fen, ln?.pvSan);
-        const fallback = Array.isArray(ln?.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
-        return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(mp)} · ${escapeHtml(score)}</div><div class="tf-line-meta">${pv || fallback}</div></div>`;
-      }).join('') : `<div class="tf-muted">No answers saved.</div>`;
-      if (answersEl) answersEl.innerHTML = html;
+      function renderAnswers() {
+        const answersEl = host.querySelector('#tfPuzzleDetailAnswers');
+        const sol = puzzle?.solutions && typeof puzzle.solutions === 'object' ? puzzle.solutions : null;
+        const accepted = Array.isArray(sol?.acceptedLines) ? sol.acceptedLines : null;
+        const lines = accepted && accepted.length ? accepted : (Array.isArray(sol?.lines) ? sol.lines : []);
+        const html = lines.length ? lines.map((ln) => {
+          const mp = String(ln?.multiPv || 1);
+          const scoreObj = ln?.score || {};
+          const score = (scoreObj && Object.prototype.hasOwnProperty.call(scoreObj, 'mate'))
+            ? `mate ${Number(scoreObj.mate) || 0}`
+            : `cp ${Number(scoreObj.cp) || 0}`;
+          const pv = formatPvWithMoveNumbersHtml(fen, ln?.pvSan);
+          const fallback = Array.isArray(ln?.pvUci) ? escapeHtml(ln.pvUci.join(' ')) : '';
+          return `<div class="tf-line"><div class="tf-line-title">#${escapeHtml(mp)} · ${escapeHtml(score)}</div><div class="tf-line-meta">${pv || fallback}</div></div>`;
+        }).join('') : `<div class="tf-muted">No answers saved.</div>`;
+        if (answersEl) answersEl.innerHTML = html;
+      }
+      renderAnswers();
+
+      // Edit puzzle: re-run engine to change PV plies and save solutions.
+      const editPanel = host.querySelector('#tfPuzzleEditPanel');
+      const editBtn = host.querySelector('#tfPuzzleEditBtn');
+      const pvPliesInput = host.querySelector('#tfPuzzleEditPvPlies');
+      const editRunBtn = host.querySelector('#tfPuzzleEditRun');
+      const editSaveBtn = host.querySelector('#tfPuzzleEditSave');
+      const editCancelBtn = host.querySelector('#tfPuzzleEditCancel');
+      const editMsg = host.querySelector('#tfPuzzleEditMsg');
+      let lastEditEngine = null;
+
+      const setEditMsg = (s) => { if (editMsg) editMsg.textContent = String(s || ''); };
+      const openEdit = () => {
+        if (editPanel) editPanel.style.display = 'block';
+        if (pvPliesInput) pvPliesInput.value = String(Number(puzzle?.pvPlies || puzzle?.pv_plies || 8) || 8);
+        if (editSaveBtn) editSaveBtn.disabled = true;
+        lastEditEngine = null;
+        setEditMsg('');
+      };
+      const closeEdit = () => {
+        if (editPanel) editPanel.style.display = 'none';
+        if (editSaveBtn) editSaveBtn.disabled = true;
+        lastEditEngine = null;
+        setEditMsg('');
+      };
+
+      editBtn?.addEventListener('click', openEdit);
+      editCancelBtn?.addEventListener('click', closeEdit);
+
+      editRunBtn?.addEventListener('click', async () => {
+        try {
+          const pvPlies = Math.max(1, Math.min(32, Number(pvPliesInput?.value || 8) || 8));
+          setEditMsg('Running engine…');
+          toastShow('loading', 'Running engine…');
+          const r = await engineAnalyze({ fen, depth: 16, multipv: 1, pvPlies });
+          const line0 = Array.isArray(r?.lines) ? r.lines[0] : null;
+          if (!line0) throw new Error('Engine returned empty line');
+          const solutions = {
+            bestMove: r?.bestMove || line0?.bestMove || null,
+            lines: [line0],
+            acceptedMultiPv: ['1'],
+            acceptedLines: [line0]
+          };
+          lastEditEngine = { pvPlies, solutions };
+          if (editSaveBtn) editSaveBtn.disabled = false;
+          toastHide();
+          setEditMsg('Ready to save.');
+        } catch (e) {
+          toastShow('err', e?.message || String(e));
+          setEditMsg(e?.message || String(e));
+        } finally {
+          // toastHide handled on success; keep error visible
+        }
+      });
+
+      editSaveBtn?.addEventListener('click', async () => {
+        try {
+          if (!lastEditEngine?.solutions) throw new Error('Please run engine first.');
+          toastShow('loading', 'Saving…');
+          const pvPlies = Number(lastEditEngine.pvPlies || 8) || 8;
+          const out = await builderUpdatePuzzle(puzzle?.id, {
+            engineDepth: 16,
+            multipv: 1,
+            pvPlies,
+            solutions: lastEditEngine.solutions
+          });
+          // update local puzzle object + rerender answers
+          puzzle.solutions = out?.puzzle?.solutions || lastEditEngine.solutions;
+          puzzle.pvPlies = pvPlies;
+          renderAnswers();
+          // refresh puzzles list cache
+          const data = await builderFetchPuzzles(subtopicId);
+          ui.puzzlesBySubtopic.set(subtopicId, Array.isArray(data.puzzles) ? data.puzzles : []);
+          ui.expanded.puzzlesLoaded.add(subtopicId);
+          ui.expanded.subtopic.add(subtopicId);
+          await builderRefresh();
+          toastHide();
+          closeEdit();
+        } catch (e) {
+          toastShow('err', e?.message || String(e));
+          setEditMsg(e?.message || String(e));
+        }
+      });
 
       host.querySelector('#tfPuzzleDeleteBtn')?.addEventListener('click', async () => {
         const ok = confirm('Delete this puzzle?');
