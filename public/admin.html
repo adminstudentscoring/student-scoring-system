@@ -263,6 +263,7 @@
             <button class="tab admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
             <button class="tab admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
             <button class="tab admin-tab" onclick="switchAdminTab('gameSetting', this)">🧩 Application</button>
+            <button class="tab admin-tab" onclick="switchAdminTab('myOwnApp', this)">🧪 My Own App</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -453,6 +454,28 @@
                                 </div>
                                 <div id="adminHopeMatePuzzleList" class="admin-game-setting-list" style="margin-top:10px;"></div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- My Own App Tab -->
+        <div id="myOwnAppTab" class="tab-content">
+            <section class="card">
+                <h2>🧪 My Own App</h2>
+                <p style="color:#6b7280; margin-top:6px;">Personal utilities (mobile-first).</p>
+
+                <div class="org-card" style="margin-top:12px;">
+                    <div class="org-card-header" style="margin-bottom:0;">
+                        <div>
+                            <h3 style="margin:0;">EatWhat</h3>
+                            <p style="margin:6px 0 0; color:#6b7280;">
+                                A simple wheel picker for meals. Add foods, add people (with exclusions), then spin.
+                            </p>
+                        </div>
+                        <div class="org-actions">
+                            <button class="btn btn-primary" type="button" onclick="openMyOwnAppEatWhat()">Open</button>
                         </div>
                     </div>
                 </div>
@@ -723,6 +746,11 @@
                 target.classList.add('active');
                 target.style.display = 'block';
             }
+        }
+
+        function openMyOwnAppEatWhat() {
+            // Absolute path so it works from any dashboard path / hosting setup.
+            window.open('/game/my-own-app/eatwhat.html', '_blank', 'noopener');
         }
 
         // Subscription Setting logic extracted to admin-subscription-setting.js

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>EatWhat</title>
+    <link rel="stylesheet" href="./eatwhat.css" />
+  </head>
+  <body>
+    <div class="ew-app">
+      <header class="ew-header">
+        <div class="ew-title">
+          <div class="ew-title-main">EatWhat</div>
+          <div class="ew-title-sub">Add foods, add people (with exclusions), then spin.</div>
+        </div>
+      </header>
+
+      <main class="ew-main">
+        <section class="ew-card">
+          <div class="ew-card-title">People</div>
+          <div class="ew-row">
+            <label class="ew-label" for="ewPersonSelect">Select</label>
+            <select id="ewPersonSelect" class="ew-input"></select>
+            <button id="ewAddPersonBtn" class="ew-btn ew-btn-secondary" type="button">Add</button>
+          </div>
+          <div id="ewPersonMeta" class="ew-muted"></div>
+        </section>
+
+        <section class="ew-card">
+          <div class="ew-card-title">Foods</div>
+          <div class="ew-row ew-row-stack">
+            <div class="ew-col">
+              <label class="ew-label" for="ewFoodName">Food</label>
+              <input id="ewFoodName" class="ew-input" type="text" inputmode="text" placeholder="e.g. Ramen" />
+            </div>
+            <div class="ew-col">
+              <label class="ew-label" for="ewFoodTags">Tags (optional)</label>
+              <input id="ewFoodTags" class="ew-input" type="text" inputmode="text" placeholder="e.g. Japanese, noodles, spicy" />
+            </div>
+            <button id="ewAddFoodBtn" class="ew-btn ew-btn-primary" type="button">Add Food</button>
+          </div>
+
+          <div class="ew-split">
+            <div class="ew-split-left">
+              <div class="ew-subtitle">List</div>
+              <div id="ewFoodsList" class="ew-list"></div>
+            </div>
+            <div class="ew-split-right">
+              <div class="ew-subtitle">Wheel</div>
+              <div class="ew-wheel-wrap">
+                <canvas id="ewWheel" width="320" height="320" aria-label="Wheel"></canvas>
+                <div class="ew-pointer" aria-hidden="true"></div>
+              </div>
+              <div class="ew-wheel-actions">
+                <button id="ewSpinBtn" class="ew-btn ew-btn-primary" type="button">Spin</button>
+                <button id="ewResetBtn" class="ew-btn ew-btn-danger" type="button">Reset</button>
+              </div>
+              <div id="ewResult" class="ew-result" aria-live="polite"></div>
+              <div id="ewHint" class="ew-muted"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Add Person Modal -->
+      <div id="ewModalBackdrop" class="ew-modal-backdrop" aria-hidden="true">
+        <div class="ew-modal" role="dialog" aria-modal="true" aria-label="Add person">
+          <div class="ew-modal-title">Add person</div>
+          <div class="ew-modal-body">
+            <div class="ew-field">
+              <label class="ew-label" for="ewPersonName">Name</label>
+              <input id="ewPersonName" class="ew-input" type="text" inputmode="text" placeholder="e.g. Vito" />
+            </div>
+            <div class="ew-field">
+              <label class="ew-label" for="ewPersonExclude">Exclude keywords (comma-separated)</label>
+              <input id="ewPersonExclude" class="ew-input" type="text" inputmode="text" placeholder="e.g. spicy, sushi, McDonald's" />
+              <div class="ew-muted" style="margin-top:6px;">
+                Exclusions match food name + tags (case-insensitive, substring).
+              </div>
+            </div>
+          </div>
+          <div class="ew-modal-actions">
+            <button id="ewModalCancel" class="ew-btn ew-btn-secondary" type="button">Cancel</button>
+            <button id="ewModalSave" class="ew-btn ew-btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="ewToast" class="ew-toast" aria-live="polite"></div>
+    </div>
+
+    <script src="./eatwhat.js"></script>
+  </body>
+</html>
+
+
