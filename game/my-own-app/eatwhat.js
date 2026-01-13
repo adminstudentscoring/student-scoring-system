@@ -77,7 +77,9 @@
     saving: false,
     pendingSave: false,
     editPersonId: null,
+    editFoodId: null,
     foodSlotDraft: new Set(),
+    foodSlotEditDraft: new Set(),
     canvasCssPx: 320,
     canvasDpr: 1
   };
@@ -337,6 +339,14 @@
 
       const right = document.createElement("div");
       right.className = "ew-item-actions";
+
+      const edit = document.createElement("button");
+      edit.className = "ew-mini-btn";
+      edit.type = "button";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", () => openFoodModalForEdit(String(f?.id || "")));
+      right.appendChild(edit);
+
       const del = document.createElement("button");
       del.className = "ew-mini-btn";
       del.type = "button";
@@ -508,11 +518,8 @@
     b.setAttribute("aria-hidden", "false");
     const name = $("ewPersonName");
     if (name) {
-      name.value = "";
       name.focus();
     }
-    const ex = $("ewPersonExclude");
-    if (ex) ex.value = "";
   }
 
   function closeModal() {
@@ -528,6 +535,10 @@
     if (title) title.textContent = "Add person";
     const del = $("ewModalDelete");
     if (del) del.style.display = "none";
+    const name = $("ewPersonName");
+    const ex = $("ewPersonExclude");
+    if (name) name.value = "";
+    if (ex) ex.value = "";
     openModal();
   }
 
@@ -581,6 +592,62 @@
       });
       host.appendChild(chip);
     }
+  }
+
+  function openFoodModal() {
+    const b = $("ewFoodModalBackdrop");
+    if (!b) return;
+    b.classList.add("active");
+    b.setAttribute("aria-hidden", "false");
+    const name = $("ewFoodEditName");
+    if (name) name.focus();
+  }
+
+  function closeFoodModal() {
+    const b = $("ewFoodModalBackdrop");
+    if (!b) return;
+    b.classList.remove("active");
+    b.setAttribute("aria-hidden", "true");
+    ui.editFoodId = null;
+  }
+
+  function renderFoodEditSlotsChips() {
+    const host = $("ewFoodEditSlots");
+    if (!host) return;
+    host.innerHTML = "";
+    if (!ui.foodSlotEditDraft || !(ui.foodSlotEditDraft instanceof Set) || ui.foodSlotEditDraft.size === 0) {
+      ui.foodSlotEditDraft = new Set(defaultFoodSlots());
+    }
+    for (const s of MEAL_SLOTS) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const active = ui.foodSlotEditDraft.has(s.key);
+      chip.className = `ew-chip${active ? " active" : ""}`;
+      chip.textContent = s.label;
+      chip.addEventListener("click", () => {
+        if (ui.foodSlotEditDraft.has(s.key)) ui.foodSlotEditDraft.delete(s.key);
+        else ui.foodSlotEditDraft.add(s.key);
+        renderFoodEditSlotsChips();
+      });
+      host.appendChild(chip);
+    }
+  }
+
+  function openFoodModalForEdit(foodId) {
+    const fid = String(foodId || "").trim();
+    const foods = Array.isArray(ui.state.foods) ? ui.state.foods : [];
+    const f = foods.find((x) => String(x?.id || "") === fid);
+    if (!f) return;
+    ui.editFoodId = fid;
+    const title = $("ewFoodModalTitle");
+    if (title) title.textContent = "Edit food";
+    const name = $("ewFoodEditName");
+    const tags = $("ewFoodEditTags");
+    if (name) name.value = String(f.name || "");
+    if (tags) tags.value = (Array.isArray(f.tags) ? f.tags : []).join(", ");
+    ui.foodSlotEditDraft = new Set(Array.isArray(f.slots) && f.slots.length ? f.slots : defaultFoodSlots());
+    renderFoodEditSlotsChips();
+    openFoodModal();
   }
 
   function setTab(tabKey, opts) {
@@ -702,6 +769,48 @@
       ui.editPersonId = null;
       scheduleSave();
       closeModal();
+      renderAll();
+      toast("Deleted.");
+    });
+
+    // Food editor modal
+    $("ewFoodModalCancel")?.addEventListener("click", closeFoodModal);
+    $("ewFoodModalBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "ewFoodModalBackdrop") closeFoodModal();
+    });
+    $("ewFoodModalSave")?.addEventListener("click", () => {
+      const fid = String(ui.editFoodId || "").trim();
+      if (!fid) return;
+      const name = String($("ewFoodEditName")?.value || "").trim();
+      if (!name) {
+        toast("Food name is required.", "err");
+        return;
+      }
+      const tags = normTokens($("ewFoodEditTags")?.value || "").map(lower);
+      const slots = Array.from(ui.foodSlotEditDraft && ui.foodSlotEditDraft.size ? ui.foodSlotEditDraft : new Set(defaultFoodSlots()));
+      if (!slots.length) {
+        toast("Select at least one meal slot.", "err");
+        return;
+      }
+      const foods = Array.isArray(ui.state.foods) ? ui.state.foods : [];
+      const idx = foods.findIndex((x) => String(x?.id || "") === fid);
+      if (idx >= 0) {
+        foods[idx] = { ...foods[idx], name, tags, slots };
+        ui.state.foods = foods;
+        scheduleSave();
+        closeFoodModal();
+        renderAll();
+        toast("Saved.");
+      }
+    });
+    $("ewFoodModalDelete")?.addEventListener("click", () => {
+      const fid = String(ui.editFoodId || "").trim();
+      if (!fid) return;
+      const ok = confirm("Delete this food?");
+      if (!ok) return;
+      ui.state.foods = (ui.state.foods || []).filter((x) => String(x?.id || "") !== fid);
+      scheduleSave();
+      closeFoodModal();
       renderAll();
       toast("Deleted.");
     });

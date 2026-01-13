@@ -114,6 +114,32 @@
         </div>
       </div>
 
+      <!-- Edit Food Modal -->
+      <div id="ewFoodModalBackdrop" class="ew-modal-backdrop" aria-hidden="true">
+        <div class="ew-modal" role="dialog" aria-modal="true" aria-label="Food editor">
+          <div id="ewFoodModalTitle" class="ew-modal-title">Edit food</div>
+          <div class="ew-modal-body">
+            <div class="ew-field">
+              <label class="ew-label" for="ewFoodEditName">Food</label>
+              <input id="ewFoodEditName" class="ew-input" type="text" inputmode="text" placeholder="e.g. Ramen" />
+            </div>
+            <div class="ew-field">
+              <label class="ew-label" for="ewFoodEditTags">Tags (optional, comma-separated)</label>
+              <input id="ewFoodEditTags" class="ew-input" type="text" inputmode="text" placeholder="e.g. japanese, noodles, spicy" />
+            </div>
+            <div class="ew-field">
+              <div class="ew-label">Meal slots</div>
+              <div id="ewFoodEditSlots" class="ew-chips" aria-label="Food meal slots (edit)"></div>
+            </div>
+          </div>
+          <div class="ew-modal-actions">
+            <button id="ewFoodModalDelete" class="ew-btn ew-btn-danger" type="button">Delete</button>
+            <button id="ewFoodModalCancel" class="ew-btn ew-btn-secondary" type="button">Cancel</button>
+            <button id="ewFoodModalSave" class="ew-btn ew-btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
       <div id="ewToast" class="ew-toast" aria-live="polite"></div>
     </div>
 
