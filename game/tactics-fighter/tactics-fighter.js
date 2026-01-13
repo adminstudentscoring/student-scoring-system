@@ -2049,6 +2049,18 @@
 
       async function clipboardPollOnce() {
         if (!clipRunning) return;
+        // Browser security: clipboard reads are often blocked when the tab/window is not focused.
+        // Instead of spamming errors, pause politely until focus returns.
+        try {
+          if (typeof document !== 'undefined') {
+            const unfocused = (document.hidden === true) || (typeof document.hasFocus === 'function' && !document.hasFocus());
+            if (unfocused) {
+              showMsg('ok', 'Auto paste paused (window not focused). Return to this window to resume.');
+              clipTimer = setTimeout(clipboardPollOnce, 900);
+              return;
+            }
+          }
+        } catch {}
         const hasClipboard = (typeof navigator !== 'undefined') && navigator.clipboard && typeof navigator.clipboard.readText === 'function';
         if (!hasClipboard) {
           showMsg('err', 'Clipboard API not available in this browser/context.');
@@ -2069,7 +2081,11 @@
           clipFailCount = 0;
         } catch (e) {
           clipFailCount++;
-          showMsg('err', 'Clipboard read blocked. Please allow clipboard permission, or paste manually.');
+          // Most common causes:
+          // - permission not granted
+          // - not focused / user gesture requirements
+          // - blocked by browser policy
+          showMsg('err', 'Clipboard read blocked. Keep this window focused, and allow clipboard permission (Site settings).');
         } finally {
           if (!clipRunning) return;
           // Fast but stable: ~0.8s, with backoff up to ~1.5s on repeated failures.
