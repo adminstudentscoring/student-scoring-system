@@ -1818,8 +1818,10 @@
                     <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
                       <button id="tfBulkValidate" class="btn btn-secondary" type="button">Validate</button>
                       <button id="tfBulkClear" class="btn btn-secondary" type="button">Clear</button>
-                  <button id="tfBulkPhotoBtn" class="btn btn-primary" type="button">Photo Recognize</button>
-                  <input id="tfBulkPhotoInput" name="tfBulkPhotoInput" type="file" accept="image/*,application/pdf" multiple style="display:none;">
+                      <button id="tfBulkClipStart" class="btn btn-secondary" type="button" title="Auto-read clipboard and absorb FEN lines">Start Auto Paste</button>
+                      <button id="tfBulkClipStop" class="btn btn-secondary" type="button" disabled>Stop Auto Paste</button>
+                      <button id="tfBulkPhotoBtn" class="btn btn-primary" type="button">Photo Recognize</button>
+                      <input id="tfBulkPhotoInput" name="tfBulkPhotoInput" type="file" accept="image/*,application/pdf" multiple style="display:none;">
                     </div>
                   </div>
                   <div id="tfBulkList" class="tf-bulk-list"></div>
@@ -1849,7 +1851,10 @@
       `;
       document.body.appendChild(host);
 
-      const close = () => { try { host.remove(); } catch {} };
+      const close = () => {
+        try { if (typeof host.__tfBulkCleanup === 'function') host.__tfBulkCleanup(); } catch {}
+        try { host.remove(); } catch {}
+      };
       host.querySelector('#tfBulkClose')?.addEventListener('click', close);
       host.querySelector('#tfBulkBackdrop')?.addEventListener('click', (e) => {
         if (e.target && e.target.id === 'tfBulkBackdrop') close();
@@ -1868,6 +1873,8 @@
       const msgEl = host.querySelector('#tfBulkMsg');
       const photoBtn = host.querySelector('#tfBulkPhotoBtn');
       const photoInput = host.querySelector('#tfBulkPhotoInput');
+      const clipStartBtn = host.querySelector('#tfBulkClipStart');
+      const clipStopBtn = host.querySelector('#tfBulkClipStop');
 
       const pvPlies = getBulkPvPlies();
       if (pvPliesEl) pvPliesEl.textContent = String(pvPlies);
@@ -1876,6 +1883,12 @@
       let selectedIdx = 0;
       let entries = []; // { fen, status, error, result }
       const absorbedStack = []; // array of counts appended (for undo)
+
+      // Clipboard watcher (Scheme A): click Start to poll clipboard and auto-absorb.
+      let clipRunning = false;
+      let clipTimer = null;
+      let clipFailCount = 0;
+      let lastClipboardText = '';
 
       const showMsg = (type, text) => {
         if (!msgEl) return;
@@ -2022,6 +2035,64 @@
       renderList();
       updateCounts();
       showSelected();
+
+      const stopClipboard = () => {
+        clipRunning = false;
+        clipFailCount = 0;
+        try { if (clipTimer) clearTimeout(clipTimer); } catch {}
+        clipTimer = null;
+        lastClipboardText = '';
+        try { if (clipStartBtn) clipStartBtn.disabled = false; } catch {}
+        try { if (clipStopBtn) clipStopBtn.disabled = true; } catch {}
+      };
+      host.__tfBulkCleanup = stopClipboard;
+
+      async function clipboardPollOnce() {
+        if (!clipRunning) return;
+        const hasClipboard = (typeof navigator !== 'undefined') && navigator.clipboard && typeof navigator.clipboard.readText === 'function';
+        if (!hasClipboard) {
+          showMsg('err', 'Clipboard API not available in this browser/context.');
+          return stopClipboard();
+        }
+        try {
+          const text = String(await navigator.clipboard.readText()).trim();
+          if (text && text !== lastClipboardText) {
+            lastClipboardText = text;
+            // Append to textarea so existing invalid lines remain; then absorb using existing Mode B.
+            if (input) {
+              const prev = String(input.value || '').trim();
+              input.value = prev ? `${prev}\n${text}` : text;
+            }
+            const r = absorbFromTextarea('clipboard');
+            if (r && r.absorbed) showMsg('ok', `Clipboard absorbed ${Number(r.absorbed || 0)}.`);
+          }
+          clipFailCount = 0;
+        } catch (e) {
+          clipFailCount++;
+          showMsg('err', 'Clipboard read blocked. Please allow clipboard permission, or paste manually.');
+        } finally {
+          if (!clipRunning) return;
+          // Fast but stable: ~0.8s, with backoff up to ~1.5s on repeated failures.
+          const delay = clipFailCount ? Math.min(1500, 800 + clipFailCount * 200) : 800;
+          clipTimer = setTimeout(clipboardPollOnce, delay);
+        }
+      }
+
+      clipStartBtn?.addEventListener('click', () => {
+        clearMsg();
+        clipRunning = true;
+        clipFailCount = 0;
+        lastClipboardText = '';
+        try { if (clipStartBtn) clipStartBtn.disabled = true; } catch {}
+        try { if (clipStopBtn) clipStopBtn.disabled = false; } catch {}
+        showMsg('ok', 'Auto paste started. Copy FEN lines and they will be absorbed.');
+        // This click is a user gesture; attempt immediately.
+        clipboardPollOnce();
+      });
+      clipStopBtn?.addEventListener('click', () => {
+        stopClipboard();
+        showMsg('ok', 'Auto paste stopped.');
+      });
 
       async function teacherPhotoRecognizeUpload(files) {
         if (!files || !files.length) return null;
