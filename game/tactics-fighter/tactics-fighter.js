@@ -102,6 +102,19 @@
       puzzlesBySubtopic: new Map()
       ,
       puzzlePageBySubtopic: new Map(),
+      teacher: {
+        bucket: (() => {
+          try { return normalizeBucketKey(localStorage.getItem('tacticsFighterPracticeBucket') || 'beginner'); } catch { return 'beginner'; }
+        })(),
+        tree: null, // { categories: [] }
+        view: 'bucket', // bucket | categories | topics | subtopics | puzzles
+        categoryId: null,
+        topicId: null,
+        subtopicId: null,
+        puzzlesAll: [],
+        page: 1,
+        pageSize: 10
+      },
       student: {
         bucket: (() => {
           try { return normalizeBucketKey(localStorage.getItem('tacticsFighterPracticeBucket') || 'beginner'); } catch { return 'beginner'; }
@@ -1024,6 +1037,380 @@
       return topics.find((t) => String(t.id) === String(tid)) || null;
     }
 
+    function teacherFindCategoryById(cid) {
+      const cats = Array.isArray(ui.teacher.tree?.categories) ? ui.teacher.tree.categories : [];
+      return cats.find((c) => String(c.id) === String(cid)) || null;
+    }
+
+    function teacherFindTopicById(category, tid) {
+      const topics = Array.isArray(category?.topics) ? category.topics : [];
+      return topics.find((t) => String(t.id) === String(tid)) || null;
+    }
+
+    function teacherFindSubtopicById(topic, sid) {
+      const subs = Array.isArray(topic?.subtopics) ? topic.subtopics : [];
+      return subs.find((s) => String(s.id) === String(sid)) || null;
+    }
+
+    async function teacherFetchTree(bucket) {
+      const b = normalizeBucketKey(bucket);
+      const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/tree?bucket=${encodeURIComponent(b)}`, { method: 'GET' });
+      return await tfJson(resp);
+    }
+
+    async function teacherShowCategories(bucket) {
+      toastShow('loading', 'Loading...');
+      try {
+        ui.teacher.bucket = normalizeBucketKey(bucket);
+        try { localStorage.setItem('tacticsFighterPracticeBucket', ui.teacher.bucket); } catch {}
+        const data = await teacherFetchTree(ui.teacher.bucket);
+        ui.teacher.tree = { categories: Array.isArray(data?.categories) ? data.categories : [] };
+        ui.teacher.view = 'categories';
+        ui.teacher.categoryId = null;
+        ui.teacher.topicId = null;
+        ui.teacher.subtopicId = null;
+        ui.teacher.puzzlesAll = [];
+        ui.teacher.page = 1;
+        // Hide bucket buttons once a bucket is chosen (match student UX)
+        try {
+          const bucketsEl = document.getElementById('tfPracticeBuckets');
+          if (bucketsEl) bucketsEl.style.display = 'none';
+        } catch {}
+        toastHide();
+        setOut(renderTeacherCategories(ui.teacher.tree.categories || []));
+      } catch (e) {
+        toastShow('err', e?.message || String(e));
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    function renderTeacherCategories(categories) {
+      const cats = Array.isArray(categories) ? categories : [];
+      if (!cats.length) return `<div class="tf-muted">No categories for this bucket yet.</div>`;
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Categories</div>
+            <div class="tf-muted" style="margin-bottom:10px;">Pick a category to see topics.</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-tea-back="buckets">Change bucket</button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${cats.map((c) => `
+            <button type="button" class="btn btn-secondary" data-tea-cat="${escapeHtml(String(c.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(c.name || ''))}</strong>
+            </button>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderTeacherTopics(category) {
+      const topics = Array.isArray(category?.topics) ? category.topics : [];
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Topics</div>
+            <div class="tf-muted">${escapeHtml(String(category?.name || ''))}</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-tea-back="categories">Back</button>
+        </div>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          ${topics.length ? topics.map((t) => `
+            <button type="button" class="btn btn-secondary" data-tea-topic="${escapeHtml(String(t.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(t.name || ''))}</strong>
+            </button>
+          `).join('') : `<div class="tf-muted">No topics yet.</div>`}
+        </div>
+      `;
+    }
+
+    function renderTeacherSubtopics(category, topic) {
+      const subs = Array.isArray(topic?.subtopics) ? topic.subtopics : [];
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Subtopics</div>
+            <div class="tf-muted">${escapeHtml(String(category?.name || ''))} → ${escapeHtml(String(topic?.name || ''))}</div>
+          </div>
+          <button type="button" class="btn btn-secondary" data-tea-back="topics">Back</button>
+        </div>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          ${subs.length ? subs.map((s) => `
+            <button type="button" class="btn btn-secondary" data-tea-subtopic="${escapeHtml(String(s.id))}" style="text-align:left;">
+              <strong>${escapeHtml(String(s.name || ''))}</strong>
+              <span class="tf-muted" style="margin-left:8px;">(${Number(s.puzzleCount || 0)} puzzles)</span>
+            </button>
+          `).join('') : `<div class="tf-muted">No subtopics yet.</div>`}
+        </div>
+      `;
+    }
+
+    function renderTeacherPuzzles(subtopicName, puzzlesAll, page, pageSize) {
+      const all = Array.isArray(puzzlesAll) ? puzzlesAll : [];
+      const ps = Math.max(1, Number(pageSize || 10));
+      const total = all.length;
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      const p = Math.max(1, Math.min(totalPages, Number(page || 1)));
+      const start = (p - 1) * ps;
+      const list = all.slice(start, start + ps);
+
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div class="tf-section-title">Puzzles</div>
+            <div class="tf-muted">${escapeHtml(String(subtopicName || ''))}</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary" data-tea-start="1">Start</button>
+            <button type="button" class="btn btn-secondary" data-tea-choose-students="1">Choose Student to start</button>
+            <button type="button" class="btn btn-secondary" data-tea-back="subtopics">Back</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div class="tf-muted">Page ${p} / ${totalPages} · ${total} puzzles</div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn btn-secondary" data-tea-page="prev" ${p <= 1 ? 'disabled' : ''}>Prev</button>
+            <button type="button" class="btn btn-secondary" data-tea-page="next" ${p >= totalPages ? 'disabled' : ''}>Next</button>
+          </div>
+        </div>
+
+        <div class="tf-puzzles-grid" style="margin-top:12px;">
+          ${list.length ? list.map((pz) => `
+            <button type="button" class="tf-puzzle-card" data-tea-open-puzzle="${escapeHtml(String(pz.id))}" aria-label="Open puzzle">
+              <div style="position:relative;">
+                ${renderMiniBoardHtml(pz.fen)}
+              </div>
+            </button>
+          `).join('') : `<div class="tf-muted">No puzzle is found.</div>`}
+        </div>
+      `;
+    }
+
+    async function teacherOpenSubtopic(subtopicId) {
+      ui.teacher.view = 'puzzles';
+      ui.teacher.subtopicId = String(subtopicId);
+      ui.teacher.page = 1;
+      ui.teacher.puzzlesAll = [];
+      toastShow('loading', 'Loading puzzles...');
+      try {
+        const data = await builderFetchPuzzles(ui.teacher.subtopicId);
+        ui.teacher.puzzlesAll = Array.isArray(data?.puzzles) ? data.puzzles : [];
+        toastHide();
+        const cat = teacherFindCategoryById(ui.teacher.categoryId);
+        const topic = teacherFindTopicById(cat, ui.teacher.topicId);
+        const sub = teacherFindSubtopicById(topic, ui.teacher.subtopicId);
+        setOut(renderTeacherPuzzles(sub?.name || 'Subtopic', ui.teacher.puzzlesAll, ui.teacher.page, ui.teacher.pageSize));
+      } catch (e) {
+        toastShow('err', e?.message || String(e));
+        setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    function teacherChangePuzzlePage(dir) {
+      const total = Array.isArray(ui.teacher.puzzlesAll) ? ui.teacher.puzzlesAll.length : 0;
+      const ps = Math.max(1, Number(ui.teacher.pageSize || 10));
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+      const next = dir === 'next' ? Math.min(totalPages, ui.teacher.page + 1) : Math.max(1, ui.teacher.page - 1);
+      if (next === ui.teacher.page) return;
+      ui.teacher.page = next;
+      const cat = teacherFindCategoryById(ui.teacher.categoryId);
+      const topic = teacherFindTopicById(cat, ui.teacher.topicId);
+      const sub = teacherFindSubtopicById(topic, ui.teacher.subtopicId);
+      setOut(renderTeacherPuzzles(sub?.name || 'Subtopic', ui.teacher.puzzlesAll, ui.teacher.page, ui.teacher.pageSize));
+    }
+
+    async function openTeacherChooseStudentsModal() {
+      const subtopicId = String(ui.teacher.subtopicId || '').trim();
+      const bucket = String(ui.teacher.bucket || '').trim();
+      if (!subtopicId || !bucket) {
+        toastShow('err', 'Please select a subtopic first.');
+        return;
+      }
+      toastShow('loading', 'Loading students...');
+      try {
+        const resp = await apiRequest('/api/teachers/class-view/students', { method: 'GET' });
+        const data = await tfJson(resp);
+        toastHide();
+
+        const all = Array.isArray(data?.allStudents) ? data.allStudents : [];
+        const classIds = new Set((Array.isArray(data?.selectedStudentIds) ? data.selectedStudentIds : []).map(String));
+        const selected = new Set(); // start empty
+
+        const host = document.createElement('div');
+        host.innerHTML = `
+          <div class="vcp-modal-backdrop" id="tfChooseStuBackdrop" role="presentation">
+            <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Choose students" style="width: calc(100vw - 40px); max-width: 980px;">
+              <div class="vcp-modal-header">
+                <div class="vcp-modal-title">Choose Student to start</div>
+                <button id="tfChooseStuClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              </div>
+              <div class="vcp-modal-body">
+                <div class="tf-muted">Select students, then confirm to generate links.</div>
+                <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                  <button id="tfChooseStuPickClass" class="btn btn-secondary" type="button">Select students in Class View now</button>
+                  <button id="tfChooseStuSelectAll" class="btn btn-secondary" type="button">Select all</button>
+                  <button id="tfChooseStuClear" class="btn btn-secondary" type="button">Clear</button>
+                  <div class="tf-muted" id="tfChooseStuCount" style="margin-left:auto;">0 selected</div>
+                </div>
+                <div id="tfChooseStuList" style="margin-top:12px; display:flex; flex-direction:column; gap:8px; max-height: min(60vh, 520px); overflow:auto; padding-right:6px;"></div>
+              </div>
+              <div class="vcp-modal-actions" style="display:flex; justify-content:flex-end; gap:10px; padding: 0 16px 16px;">
+                <button id="tfChooseStuCancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="tfChooseStuConfirm" class="btn btn-primary" type="button" disabled>Confirm</button>
+              </div>
+            </div>
+          </div>
+        `;
+        root.appendChild(host);
+
+        const close = () => { try { host.remove(); } catch {} };
+        host.querySelector('#tfChooseStuClose')?.addEventListener('click', close);
+        host.querySelector('#tfChooseStuCancel')?.addEventListener('click', close);
+        host.querySelector('#tfChooseStuBackdrop')?.addEventListener('click', (e) => {
+          if (e.target && e.target.id === 'tfChooseStuBackdrop') close();
+        });
+
+        const listEl = host.querySelector('#tfChooseStuList');
+        const countEl = host.querySelector('#tfChooseStuCount');
+        const confirmBtn = host.querySelector('#tfChooseStuConfirm');
+
+        const setCount = () => {
+          const n = selected.size;
+          if (countEl) countEl.textContent = `${n} selected`;
+          if (confirmBtn) confirmBtn.disabled = n <= 0;
+        };
+
+        const renderList = () => {
+          if (!listEl) return;
+          listEl.innerHTML = '';
+          if (!all.length) {
+            listEl.innerHTML = `<div class="tf-muted">No students found.</div>`;
+            return;
+          }
+          for (const s of all) {
+            const sid = String(s?.id || '').trim();
+            const name = String(s?.name || '').trim() || sid;
+            const inClass = classIds.has(sid);
+            const checked = selected.has(sid);
+            const row = document.createElement('label');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '10px';
+            row.style.padding = '10px 12px';
+            row.style.border = '1px solid #e5e7eb';
+            row.style.borderRadius = '12px';
+            row.style.background = '#ffffff';
+            row.style.cursor = 'pointer';
+            row.innerHTML = `
+              <input type="checkbox" style="width:18px; height:18px;" ${checked ? 'checked' : ''} data-sid="${escapeHtml(sid)}">
+              <div style="min-width:0;">
+                <div style="font-weight:950; color:#111827;">${escapeHtml(name)}</div>
+                <div class="tf-muted" style="margin-top:2px;">ID: ${escapeHtml(sid)}${inClass ? ' · In Class View' : ''}</div>
+              </div>
+            `;
+            row.addEventListener('click', (ev) => {
+              const cb = row.querySelector('input[type="checkbox"]');
+              if (!cb) return;
+              // Toggle when clicking the row (except when clicking checkbox directly, browser toggles already)
+              if (!(ev.target && ev.target.tagName === 'INPUT')) cb.checked = !cb.checked;
+              if (cb.checked) selected.add(sid);
+              else selected.delete(sid);
+              setCount();
+            });
+            listEl.appendChild(row);
+          }
+        };
+
+        renderList();
+        setCount();
+
+        host.querySelector('#tfChooseStuPickClass')?.addEventListener('click', () => {
+          for (const sid of classIds) selected.add(String(sid));
+          renderList();
+          setCount();
+        });
+        host.querySelector('#tfChooseStuSelectAll')?.addEventListener('click', () => {
+          for (const s of all) selected.add(String(s?.id || '').trim());
+          renderList();
+          setCount();
+        });
+        host.querySelector('#tfChooseStuClear')?.addEventListener('click', () => {
+          selected.clear();
+          renderList();
+          setCount();
+        });
+
+        host.querySelector('#tfChooseStuConfirm')?.addEventListener('click', () => {
+          const chosen = all.filter((s) => selected.has(String(s?.id || '').trim()));
+          close();
+          openTeacherLinksModal({ bucket, subtopicId, students: chosen });
+        });
+      } catch (e) {
+        toastShow('err', e?.message || String(e));
+      }
+    }
+
+    function openTeacherLinksModal({ bucket, subtopicId, students }) {
+      const list = Array.isArray(students) ? students : [];
+      const b = normalizeBucketKey(bucket);
+      const sid = String(subtopicId || '').trim();
+      const origin = window.location.origin;
+      const lines = list.map((s) => {
+        const id = String(s?.id || '').trim();
+        const name = String(s?.name || '').trim() || id;
+        const url = `${origin}/student.html?id=${encodeURIComponent(id)}&openTab=game&openGame=tacticsFighter&autoStart=1&tfBucket=${encodeURIComponent(b)}&tfSubtopicId=${encodeURIComponent(sid)}`;
+        return { name, url };
+      });
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfLinksBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Student links" style="width: calc(100vw - 40px); max-width: 980px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Student links</div>
+              <button id="tfLinksClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-muted">Students will open directly into the selected subtopic (Tactics Fighter).</div>
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <button id="tfLinksCopyAll" class="btn btn-primary" type="button">Copy all</button>
+              </div>
+              <div id="tfLinksList" style="margin-top:12px; display:flex; flex-direction:column; gap:10px; max-height: min(60vh, 520px); overflow:auto; padding-right:6px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfLinksClose')?.addEventListener('click', close);
+      host.querySelector('#tfLinksBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfLinksBackdrop') close();
+      });
+
+      const listEl = host.querySelector('#tfLinksList');
+      if (listEl) {
+        listEl.innerHTML = lines.length ? lines.map((x) => `
+          <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
+            <div style="font-weight:950; color:#111827;">${escapeHtml(x.name)}</div>
+            <div style="margin-top:6px; word-break:break-all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; color:#111827;">${escapeHtml(x.url)}</div>
+          </div>
+        `).join('') : `<div class="tf-muted">No students selected.</div>`;
+      }
+
+      host.querySelector('#tfLinksCopyAll')?.addEventListener('click', async () => {
+        const text = lines.map((x) => `${x.name}\n${x.url}\n`).join('\n');
+        try {
+          await navigator.clipboard.writeText(text);
+          toastShow('ok', 'Copied.', { autoHideMs: 2000 });
+        } catch {
+          try { window.prompt('Copy links:', text); } catch {}
+        }
+      });
+    }
+
     async function studentLoadTree(bucket) {
       ui.student.bucket = normalizeBucketKey(bucket);
       try { localStorage.setItem('tacticsFighterPracticeBucket', ui.student.bucket); } catch {}
@@ -1051,6 +1438,48 @@
       } catch (e) {
         toastShow('err', e?.message || String(e));
         setOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
+    }
+
+    async function studentApplyDeepLinkIfAny() {
+      if (isTeacher) return false;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const qBucket = String(params.get('bucket') || '').trim();
+        const qSub = String(params.get('subtopicId') || '').trim();
+        let dl = null;
+        try {
+          const raw = localStorage.getItem('tacticsFighterDeepLink');
+          if (raw) dl = JSON.parse(raw);
+        } catch {}
+        const bucket = normalizeBucketKey(qBucket || dl?.bucket || ui.student.bucket || 'beginner');
+        const subtopicId = String(qSub || dl?.subtopicId || '').trim();
+        if (!subtopicId) return false;
+        // Clear stored deep link (one-shot)
+        try { localStorage.removeItem('tacticsFighterDeepLink'); } catch {}
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('bucket');
+          url.searchParams.delete('subtopicId');
+          window.history.replaceState(null, '', url.toString());
+        } catch {}
+
+        // Ensure tree loaded for bucket, then jump directly to subtopic puzzles.
+        toastShow('loading', 'Loading...');
+        ui.student.view = 'puzzles';
+        await studentLoadTree(bucket);
+        // Hide bucket buttons once a bucket is chosen (as requested).
+        try {
+          const bucketsEl = document.getElementById('tfPracticeBuckets');
+          if (bucketsEl) bucketsEl.style.display = 'none';
+        } catch {}
+        ui.student.subtopicId = String(subtopicId);
+        await studentOpenSubtopic(subtopicId);
+        toastHide();
+        return true;
+      } catch (e) {
+        toastShow('err', e?.message || String(e));
+        return false;
       }
     }
 
@@ -1379,6 +1808,23 @@
 
         if (!ui.builderLoadedOnce) {
           builderRefresh();
+        }
+      }
+      if (nm === 'practice' && isTeacher && ui.teacher.tree && ui.teacher.view !== 'bucket') {
+        if (ui.teacher.view === 'categories') {
+          setOut(renderTeacherCategories(ui.teacher.tree.categories || []));
+        } else if (ui.teacher.view === 'topics') {
+          const cat = teacherFindCategoryById(ui.teacher.categoryId);
+          setOut(cat ? renderTeacherTopics(cat) : renderTeacherCategories(ui.teacher.tree.categories || []));
+        } else if (ui.teacher.view === 'subtopics') {
+          const cat = teacherFindCategoryById(ui.teacher.categoryId);
+          const topic = teacherFindTopicById(cat, ui.teacher.topicId);
+          setOut((cat && topic) ? renderTeacherSubtopics(cat, topic) : renderTeacherCategories(ui.teacher.tree.categories || []));
+        } else if (ui.teacher.view === 'puzzles') {
+          const cat = teacherFindCategoryById(ui.teacher.categoryId);
+          const topic = teacherFindTopicById(cat, ui.teacher.topicId);
+          const sub = teacherFindSubtopicById(topic, ui.teacher.subtopicId);
+          setOut(renderTeacherPuzzles(sub?.name || 'Subtopic', ui.teacher.puzzlesAll, ui.teacher.page, ui.teacher.pageSize));
         }
       }
     };
@@ -2535,10 +2981,14 @@
       });
     });
 
-    // Practice + Student navigation (event delegation)
+    // Student deep link: if opened from a shared link, jump directly into a subtopic.
+    // Do this after handlers are attached so rendering remains consistent.
+    studentApplyDeepLinkIfAny().catch(() => null);
+
+    // Practice navigation (event delegation)
     root.addEventListener('click', (e) => {
       const target = e.target && e.target.closest ? e.target.closest(
-        '[data-chal-mode],[data-chal-ghost-start],[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle]'
+        '[data-chal-mode],[data-chal-ghost-start],[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle],[data-tea-back],[data-tea-cat],[data-tea-topic],[data-tea-subtopic],[data-tea-page],[data-tea-start],[data-tea-choose-students]'
       ) : null;
       if (!target) return;
 
@@ -2605,14 +3055,114 @@
         const bucket = String(bucketBtn.getAttribute('data-practice') || '').trim();
         if (!bucket) return;
         if (isTeacher) {
-          try { localStorage.setItem('tacticsFighterPracticeBucket', bucket); } catch {}
-          setOut(`<div style="font-weight:900;">Selected:</div><div>${escapeHtml(bucket)}</div>`);
-          return;
+          return void teacherShowCategories(bucket);
         }
         return void studentShowCategories(bucket);
       }
 
-      if (isTeacher) return; // below is student-only
+      if (isTeacher) {
+        const backBtn = target.closest('[data-tea-back]');
+        if (backBtn) {
+          const dest = String(backBtn.getAttribute('data-tea-back') || '').trim();
+          if (dest === 'buckets') {
+            ui.teacher.view = 'bucket';
+            ui.teacher.tree = null;
+            ui.teacher.categoryId = null;
+            ui.teacher.topicId = null;
+            ui.teacher.subtopicId = null;
+            ui.teacher.puzzlesAll = [];
+            ui.teacher.page = 1;
+            try {
+              const bucketsEl = document.getElementById('tfPracticeBuckets');
+              if (bucketsEl) bucketsEl.style.display = '';
+            } catch {}
+            setOut('');
+            return;
+          }
+          if (dest === 'categories') {
+            ui.teacher.view = 'categories';
+            ui.teacher.categoryId = null;
+            ui.teacher.topicId = null;
+            ui.teacher.subtopicId = null;
+            return setOut(renderTeacherCategories(ui.teacher.tree?.categories || []));
+          }
+          if (dest === 'topics') {
+            const cat = teacherFindCategoryById(ui.teacher.categoryId);
+            if (!cat) return;
+            ui.teacher.view = 'topics';
+            ui.teacher.topicId = null;
+            ui.teacher.subtopicId = null;
+            return setOut(renderTeacherTopics(cat));
+          }
+          if (dest === 'subtopics') {
+            const cat = teacherFindCategoryById(ui.teacher.categoryId);
+            const topic = teacherFindTopicById(cat, ui.teacher.topicId);
+            if (!cat || !topic) return;
+            ui.teacher.view = 'subtopics';
+            ui.teacher.subtopicId = null;
+            return setOut(renderTeacherSubtopics(cat, topic));
+          }
+          return;
+        }
+
+        const catBtn = target.closest('[data-tea-cat]');
+        if (catBtn) {
+          const cid = String(catBtn.getAttribute('data-tea-cat') || '').trim();
+          const cat = teacherFindCategoryById(cid);
+          if (!cat) return;
+          ui.teacher.view = 'topics';
+          ui.teacher.categoryId = cid;
+          ui.teacher.topicId = null;
+          ui.teacher.subtopicId = null;
+          return setOut(renderTeacherTopics(cat));
+        }
+
+        const topicBtn = target.closest('[data-tea-topic]');
+        if (topicBtn) {
+          const tid = String(topicBtn.getAttribute('data-tea-topic') || '').trim();
+          const cat = teacherFindCategoryById(ui.teacher.categoryId);
+          const topic = teacherFindTopicById(cat, tid);
+          if (!cat || !topic) return;
+          ui.teacher.view = 'subtopics';
+          ui.teacher.topicId = tid;
+          ui.teacher.subtopicId = null;
+          return setOut(renderTeacherSubtopics(cat, topic));
+        }
+
+        const subBtn = target.closest('[data-tea-subtopic]');
+        if (subBtn) {
+          const sid = String(subBtn.getAttribute('data-tea-subtopic') || '').trim();
+          const cat = teacherFindCategoryById(ui.teacher.categoryId);
+          const topic = teacherFindTopicById(cat, ui.teacher.topicId);
+          const sub = teacherFindSubtopicById(topic, sid);
+          if (!cat || !topic || !sub) return;
+          ui.teacher.view = 'puzzles';
+          ui.teacher.subtopicId = sid;
+          return void teacherOpenSubtopic(sid);
+        }
+
+        const pageBtn = target.closest('[data-tea-page]');
+        if (pageBtn) {
+          const dir = String(pageBtn.getAttribute('data-tea-page') || '').trim();
+          if (dir === 'prev' || dir === 'next') return void teacherChangePuzzlePage(dir);
+          return;
+        }
+
+        const startBtn = target.closest('[data-tea-start]');
+        if (startBtn) {
+          // Teacher practice runner is not implemented; use Choose Student to start.
+          toastShow('ok', 'Use "Choose Student to start" to generate student links.', { autoHideMs: 2500 });
+          return;
+        }
+
+        const chooseBtn = target.closest('[data-tea-choose-students]');
+        if (chooseBtn) {
+          openTeacherChooseStudentsModal().catch((err) => toastShow('err', err?.message || String(err)));
+          return;
+        }
+
+        return;
+      }
 
       const backBtn = target.closest('[data-stu-back]');
       if (backBtn) {

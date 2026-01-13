@@ -47,6 +47,24 @@ async function loadData(password = '') {
             // ignore
         }
         renderDashboard();
+
+        // If we arrived via a deep link, clear it after the auto-open kicks in (avoid re-trigger on refresh).
+        // We clear after render to ensure applyDeepLinkFromUrl has already had a chance to read it.
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('openGame') || params.get('openTab')) {
+                // Keep student id in URL; just remove deep-link extras.
+                params.delete('openTab');
+                params.delete('openGame');
+                params.delete('autoStart');
+                params.delete('tfBucket');
+                params.delete('tfSubtopicId');
+                const base = `${window.location.pathname}?${params.toString()}`;
+                window.history.replaceState({}, '', base);
+            }
+        } catch (e) {
+            // ignore
+        }
         
     } catch (e) {
         console.error(e);
@@ -136,12 +154,25 @@ function applyDeepLinkFromUrl() {
         const openTab = params.get('openTab');
         const openGame = params.get('openGame');
         const autoStart = params.get('autoStart') === '1';
+        const tfBucket = params.get('tfBucket');
+        const tfSubtopicId = params.get('tfSubtopicId');
 
         if (openTab) {
             window.switchTab(openTab);
         }
 
         if (openGame) {
+            // Tactics Fighter deep link: store target so the game window can jump directly.
+            if (openGame === 'tacticsFighter' && (tfBucket || tfSubtopicId)) {
+                try {
+                    localStorage.setItem('tacticsFighterDeepLink', JSON.stringify({
+                        bucket: String(tfBucket || '').trim(),
+                        subtopicId: String(tfSubtopicId || '').trim()
+                    }));
+                } catch (e) {
+                    // ignore
+                }
+            }
             // Ensure we are on the Game tab before starting.
             window.switchTab('game');
             // Auto-start should avoid popup blockers on mobile by opening in the same tab.
@@ -254,7 +285,23 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             console.warn('Unable to persist tacticsFighterPlayers', e);
         }
-        const url = '/game/game-window.html?game=tacticsFighter&role=student';
+        // Deep link support (optional): bucket + subtopicId
+        let extra = '';
+        try {
+            const raw = localStorage.getItem('tacticsFighterDeepLink');
+            if (raw) {
+                const dl = JSON.parse(raw);
+                const bucket = String(dl?.bucket || '').trim();
+                const subtopicId = String(dl?.subtopicId || '').trim();
+                if (bucket) extra += `&bucket=${encodeURIComponent(bucket)}`;
+                if (subtopicId) extra += `&subtopicId=${encodeURIComponent(subtopicId)}`;
+                // Force practice mode when deep linking into a subtopic.
+                if (bucket || subtopicId) extra += `&mode=practice`;
+            }
+        } catch (e) {
+            // ignore
+        }
+        const url = `/game/game-window.html?game=tacticsFighter&role=student${extra}`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
