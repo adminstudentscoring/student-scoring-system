@@ -57,12 +57,14 @@
   function defaultState() {
     return {
       foods: [
-        { id: uid(), name: "Ramen", tags: ["japanese", "noodles"] },
-        { id: uid(), name: "Rice bowl", tags: ["rice"] },
-        { id: uid(), name: "Sandwich", tags: ["fast"] }
+        { id: uid(), name: "Ramen", tags: ["japanese", "noodles"], slots: ["breakfast", "brunch", "lunch", "tea", "dinner"] },
+        { id: uid(), name: "Rice bowl", tags: ["rice"], slots: ["breakfast", "brunch", "lunch", "tea", "dinner"] },
+        { id: uid(), name: "Sandwich", tags: ["fast"], slots: ["breakfast", "brunch", "lunch", "tea", "dinner"] }
       ],
       people: [{ id: uid(), name: "Me", exclude: [] }],
-      selectedPersonId: null,
+      wheelSelectedPersonIds: [],
+      selectedMealSlot: "lunch",
+      viewTab: "wheel",
       lastResult: null
     };
   }
@@ -73,21 +75,47 @@
     wheelAngle: 0,
     saveTimer: null,
     saving: false,
-    pendingSave: false
+    pendingSave: false,
+    editPersonId: null,
+    foodSlotDraft: new Set()
   };
+
+  const MEAL_SLOTS = [
+    { key: "breakfast", label: "Breakfast" },
+    { key: "brunch", label: "Brunch" },
+    { key: "lunch", label: "Lunch" },
+    { key: "tea", label: "Afternoon Tea" },
+    { key: "dinner", label: "Dinner" },
+    { key: "lateNight", label: "Late Night" }
+  ];
+
+  function mealLabel(key) {
+    const k = String(key || "");
+    return (MEAL_SLOTS.find((x) => x.key === k) || {}).label || k;
+  }
+
+  function defaultFoodSlots() {
+    // preset all except Late Night
+    return ["breakfast", "brunch", "lunch", "tea", "dinner"];
+  }
 
   function normalizeState(s) {
     const o = (s && typeof s === "object") ? s : {};
     const foods = Array.isArray(o.foods) ? o.foods : [];
     const people = Array.isArray(o.people) ? o.people : [];
-    const selectedPersonId = o.selectedPersonId ? String(o.selectedPersonId) : null;
+    const wheelSelectedPersonIds = Array.isArray(o.wheelSelectedPersonIds) ? o.wheelSelectedPersonIds.map((x) => String(x || "")).filter(Boolean) : [];
+    const selectedMealSlot = String(o.selectedMealSlot || "lunch") || "lunch";
+    const viewTab = String(o.viewTab || "wheel") || "wheel";
     const lastResult = (o.lastResult && typeof o.lastResult === "object") ? o.lastResult : null;
     // sanitize entries lightly
     const foods2 = foods
       .map((f) => ({
         id: String(f?.id || uid()),
         name: String(f?.name || "").trim(),
-        tags: Array.isArray(f?.tags) ? f.tags.map((t) => String(t || "").trim()).filter(Boolean) : []
+        tags: Array.isArray(f?.tags) ? f.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
+        slots: Array.isArray(f?.slots)
+          ? f.slots.map((t) => String(t || "").trim()).filter(Boolean)
+          : defaultFoodSlots()
       }))
       .filter((f) => !!f.name);
     const people2 = people
@@ -100,7 +128,9 @@
     return {
       foods: foods2,
       people: people2.length ? people2 : [{ id: uid(), name: "Me", exclude: [] }],
-      selectedPersonId,
+      wheelSelectedPersonIds,
+      selectedMealSlot,
+      viewTab,
       lastResult
     };
   }
@@ -134,54 +164,137 @@
     }, 300);
   }
 
-  function getSelectedPerson() {
-    const sid = String(ui.state.selectedPersonId || "");
-    return ui.state.people.find((p) => String(p.id) === sid) || ui.state.people[0] || null;
+  function selectedPeopleIds() {
+    const ids = Array.isArray(ui.state.wheelSelectedPersonIds) ? ui.state.wheelSelectedPersonIds : [];
+    return ids.map((x) => String(x || "")).filter(Boolean);
   }
 
-  function foodAllowedForPerson(food, person) {
-    if (!food || !person) return true;
-    const ex = Array.isArray(person.exclude) ? person.exclude : [];
+  function selectedPeople() {
+    const ids = new Set(selectedPeopleIds());
+    const all = Array.isArray(ui.state.people) ? ui.state.people : [];
+    if (!ids.size) return [];
+    return all.filter((p) => ids.has(String(p?.id || "")));
+  }
+
+  function mergedExclusionsForPeople(people) {
+    const out = [];
+    const seen = new Set();
+    for (const p of Array.isArray(people) ? people : []) {
+      const ex = Array.isArray(p?.exclude) ? p.exclude : [];
+      for (const t of ex) {
+        const k = lower(String(t || "").trim());
+        if (!k) continue;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(k);
+      }
+    }
+    return out;
+  }
+
+  function foodAllowedForExclusions(food, exclusions) {
+    if (!food) return true;
+    const ex = Array.isArray(exclusions) ? exclusions : [];
     if (!ex.length) return true;
     const hay = `${lower(food.name)} ${lower((food.tags || []).join(" "))}`;
     return !ex.some((t) => t && hay.includes(lower(t)));
   }
 
-  function getCandidates() {
-    const person = getSelectedPerson();
-    const foods = Array.isArray(ui.state.foods) ? ui.state.foods : [];
-    return foods.filter((f) => foodAllowedForPerson(f, person));
+  function foodAllowedForMeal(food, mealKey) {
+    const slots = Array.isArray(food?.slots) ? food.slots : defaultFoodSlots();
+    const mk = String(mealKey || "");
+    if (!mk) return true;
+    return slots.includes(mk);
   }
 
-  function renderPeople() {
-    const sel = $("ewPersonSelect");
-    if (!sel) return;
-    sel.innerHTML = "";
+  function getCandidates() {
+    const mk = String(ui.state.selectedMealSlot || "lunch") || "lunch";
+    const ppl = selectedPeople();
+    const ex = mergedExclusionsForPeople(ppl);
+    const foods = Array.isArray(ui.state.foods) ? ui.state.foods : [];
+    return foods
+      .filter((f) => foodAllowedForMeal(f, mk))
+      .filter((f) => foodAllowedForExclusions(f, ex));
+  }
+
+  function renderPeopleList() {
+    const host = $("ewPeopleList");
+    if (!host) return;
+    host.innerHTML = "";
     const people = Array.isArray(ui.state.people) ? ui.state.people : [];
     if (!people.length) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "No people yet";
-      sel.appendChild(opt);
-      sel.disabled = true;
+      const empty = document.createElement("div");
+      empty.className = "ew-muted";
+      empty.textContent = "No people yet. Add one.";
+      host.appendChild(empty);
       return;
     }
-    sel.disabled = false;
-    for (const p of people) {
-      const opt = document.createElement("option");
-      opt.value = String(p.id || "");
-      opt.textContent = String(p.name || "Unnamed");
-      sel.appendChild(opt);
-    }
-    const cur = ui.state.selectedPersonId ? String(ui.state.selectedPersonId) : String(people[0].id);
-    ui.state.selectedPersonId = cur;
-    sel.value = cur;
 
-    const person = getSelectedPerson();
-    const meta = $("ewPersonMeta");
-    if (meta) {
-      const ex = (person && Array.isArray(person.exclude) ? person.exclude : []).filter(Boolean);
-      meta.textContent = ex.length ? `Exclusions: ${ex.join(", ")}` : "Exclusions: (none)";
+    for (const p of people) {
+      const row = document.createElement("div");
+      row.className = "ew-item";
+
+      const left = document.createElement("div");
+      left.style.minWidth = "0";
+      const t = document.createElement("div");
+      t.className = "ew-item-title";
+      t.textContent = String(p?.name || "Unnamed");
+      const m = document.createElement("div");
+      m.className = "ew-item-meta";
+      const ex = Array.isArray(p?.exclude) ? p.exclude.filter(Boolean) : [];
+      m.textContent = ex.length ? `Exclude: ${ex.join(", ")}` : "Exclude: (none)";
+      left.appendChild(t);
+      left.appendChild(m);
+
+      const right = document.createElement("div");
+      right.className = "ew-item-actions";
+
+      const edit = document.createElement("button");
+      edit.className = "ew-mini-btn";
+      edit.type = "button";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", () => openModalForEditPerson(String(p?.id || "")));
+      right.appendChild(edit);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      host.appendChild(row);
+    }
+  }
+
+  function renderWheelPeopleChecklist() {
+    const host = $("ewWheelPeople");
+    if (!host) return;
+    host.innerHTML = "";
+    const people = Array.isArray(ui.state.people) ? ui.state.people : [];
+    if (!people.length) {
+      const empty = document.createElement("div");
+      empty.className = "ew-muted";
+      empty.textContent = "No people yet.";
+      host.appendChild(empty);
+      return;
+    }
+    const ids = new Set(selectedPeopleIds());
+    for (const p of people) {
+      const label = document.createElement("label");
+      label.className = "ew-check";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = ids.has(String(p?.id || ""));
+      input.addEventListener("change", (e) => {
+        const pid = String(p?.id || "");
+        const cur = new Set(selectedPeopleIds());
+        if (e.target.checked) cur.add(pid);
+        else cur.delete(pid);
+        ui.state.wheelSelectedPersonIds = Array.from(cur);
+        scheduleSave();
+        renderAll();
+      });
+      const span = document.createElement("span");
+      span.textContent = String(p?.name || "Unnamed");
+      label.appendChild(input);
+      label.appendChild(span);
+      host.appendChild(label);
     }
   }
 
@@ -198,12 +311,12 @@
       return;
     }
 
-    const person = getSelectedPerson();
     for (const f of foods) {
-      const allowed = foodAllowedForPerson(f, person);
+      const mk = String(ui.state.selectedMealSlot || "lunch") || "lunch";
+      const inMeal = foodAllowedForMeal(f, mk);
       const row = document.createElement("div");
       row.className = "ew-item";
-      row.style.opacity = allowed ? "1" : "0.5";
+      row.style.opacity = inMeal ? "1" : "0.6";
 
       const left = document.createElement("div");
       left.style.minWidth = "0";
@@ -213,7 +326,10 @@
       const m = document.createElement("div");
       m.className = "ew-item-meta";
       const tags = Array.isArray(f.tags) ? f.tags : [];
-      m.textContent = tags.length ? `Tags: ${tags.join(", ")}` : "Tags: (none)";
+      const slots = Array.isArray(f.slots) ? f.slots : defaultFoodSlots();
+      const slotBadges = slots.map((s) => `<span class="ew-badge">${mealLabel(s)}</span>`).join("");
+      const tagText = tags.length ? `Tags: ${tags.join(", ")}` : "Tags: (none)";
+      m.innerHTML = `${tagText}<div>${slotBadges}</div>`;
       left.appendChild(t);
       left.appendChild(m);
 
@@ -253,16 +369,16 @@
     // background ring
     ctx.beginPath();
     ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillStyle = "rgba(15,23,42,0.04)";
     ctx.fill();
 
     const items = Array.isArray(candidates) ? candidates : [];
     if (items.length === 0) {
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fillStyle = "rgba(15,23,42,0.03)";
       ctx.fill();
-      ctx.fillStyle = "rgba(229,231,235,0.85)";
+      ctx.fillStyle = "rgba(15,23,42,0.85)";
       ctx.font = "800 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -280,7 +396,7 @@
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, r, a0, a1);
       ctx.closePath();
-      ctx.fillStyle = isAlt ? "rgba(20,184,166,0.32)" : "rgba(99,102,241,0.28)";
+      ctx.fillStyle = isAlt ? "rgba(20,184,166,0.22)" : "rgba(99,102,241,0.18)";
       ctx.fill();
 
       // label
@@ -290,7 +406,7 @@
       ctx.save();
       ctx.translate(tx, ty);
       ctx.rotate(mid);
-      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillStyle = "rgba(15,23,42,0.92)";
       ctx.font = "900 13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -302,7 +418,7 @@
     // center cap
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.12, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.86)";
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
     ctx.fill();
   }
 
@@ -362,7 +478,8 @@
     const chosen = candidates[idx];
     ui.state.lastResult = {
       at: new Date().toISOString(),
-      personId: getSelectedPerson()?.id || null,
+      mealSlot: String(ui.state.selectedMealSlot || "lunch") || "lunch",
+      peopleIds: selectedPeopleIds(),
       foodId: chosen?.id || null,
       foodName: chosen?.name || null
     };
@@ -370,8 +487,10 @@
 
     if (res) res.textContent = chosen?.name ? `You should eat: ${chosen.name}` : "Result unavailable";
     if (hint) {
-      const person = getSelectedPerson();
-      hint.textContent = person ? `Person: ${person.name}` : "";
+      const meal = mealLabel(ui.state.selectedMealSlot);
+      const ppl = selectedPeople();
+      const pplLabel = ppl.length ? ppl.map((p) => p.name).join(", ") : "(none)";
+      hint.textContent = `Meal: ${meal} · People: ${pplLabel}`;
     }
 
     ui.spinning = false;
@@ -399,6 +518,91 @@
     b.setAttribute("aria-hidden", "true");
   }
 
+  function openModalForAddPerson() {
+    ui.editPersonId = null;
+    const title = $("ewModalTitle");
+    if (title) title.textContent = "Add person";
+    const del = $("ewModalDelete");
+    if (del) del.style.display = "none";
+    openModal();
+  }
+
+  function openModalForEditPerson(personId) {
+    const pid = String(personId || "").trim();
+    const p = (ui.state.people || []).find((x) => String(x?.id || "") === pid);
+    if (!p) return;
+    ui.editPersonId = pid;
+    const title = $("ewModalTitle");
+    if (title) title.textContent = "Edit person";
+    const del = $("ewModalDelete");
+    if (del) del.style.display = "inline-flex";
+    const name = $("ewPersonName");
+    const ex = $("ewPersonExclude");
+    if (name) name.value = String(p.name || "");
+    if (ex) ex.value = (Array.isArray(p.exclude) ? p.exclude : []).join(", ");
+    openModal();
+  }
+
+  function renderMealSeg() {
+    const host = $("ewMealSlots");
+    if (!host) return;
+    host.innerHTML = "";
+    const cur = String(ui.state.selectedMealSlot || "lunch") || "lunch";
+    for (const s of MEAL_SLOTS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `ew-seg-btn${s.key === cur ? " active" : ""}`;
+      btn.textContent = s.label;
+      btn.addEventListener("click", () => {
+        ui.state.selectedMealSlot = s.key;
+        scheduleSave();
+        renderAll();
+      });
+      host.appendChild(btn);
+    }
+  }
+
+  function renderFoodSlotsChips() {
+    const host = $("ewFoodSlots");
+    if (!host) return;
+    host.innerHTML = "";
+    if (!ui.foodSlotDraft || !(ui.foodSlotDraft instanceof Set) || ui.foodSlotDraft.size === 0) {
+      ui.foodSlotDraft = new Set(defaultFoodSlots());
+    }
+    for (const s of MEAL_SLOTS) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const active = ui.foodSlotDraft.has(s.key);
+      chip.className = `ew-chip${active ? " active" : ""}`;
+      chip.textContent = s.label;
+      chip.addEventListener("click", () => {
+        if (ui.foodSlotDraft.has(s.key)) ui.foodSlotDraft.delete(s.key);
+        else ui.foodSlotDraft.add(s.key);
+        renderFoodSlotsChips();
+      });
+      host.appendChild(chip);
+    }
+  }
+
+  function setTab(tabKey) {
+    const k = String(tabKey || "wheel");
+    ui.state.viewTab = k;
+    scheduleSave();
+    const map = {
+      people: "ewTabPeople",
+      foods: "ewTabFoods",
+      wheel: "ewTabWheel"
+    };
+    for (const [tk, id] of Object.entries(map)) {
+      const el = $(id);
+      if (el) el.style.display = (tk === k) ? "block" : "none";
+    }
+    document.querySelectorAll(".ew-tabbtn").forEach((b) => {
+      const is = String(b.getAttribute("data-ew-tab") || "") === k;
+      b.classList.toggle("active", is);
+    });
+  }
+
   function renderWheel() {
     const candidates = getCandidates();
     drawWheel(candidates, ui.wheelAngle || 0);
@@ -416,31 +620,47 @@
   }
 
   function renderAll() {
-    // Keep selected person id valid
     const people = Array.isArray(ui.state.people) ? ui.state.people : [];
     if (people.length === 0) {
       ui.state.people = [{ id: uid(), name: "Me", exclude: [] }];
     }
-    if (!ui.state.selectedPersonId || !people.some((p) => String(p.id) === String(ui.state.selectedPersonId))) {
-      ui.state.selectedPersonId = String(ui.state.people[0].id);
-    }
+    // Ensure wheelSelectedPersonIds are valid; if none, default to all people.
+    const allIds = new Set(ui.state.people.map((p) => String(p?.id || "")).filter(Boolean));
+    const curIds = selectedPeopleIds().filter((id) => allIds.has(id));
+    ui.state.wheelSelectedPersonIds = curIds.length ? curIds : Array.from(allIds);
+    // Ensure selectedMealSlot valid
+    const mk = String(ui.state.selectedMealSlot || "lunch") || "lunch";
+    ui.state.selectedMealSlot = (MEAL_SLOTS.some((x) => x.key === mk)) ? mk : "lunch";
 
-    renderPeople();
+    // Tab visibility
+    setTab(ui.state.viewTab || "wheel");
+
+    renderPeopleList();
+    renderWheelPeopleChecklist();
+    renderMealSeg();
+    renderFoodSlotsChips();
     renderFoodsList();
     renderWheel();
     renderResult();
 
     const hint = $("ewHint");
     if (hint) {
-      const p = getSelectedPerson();
       const foods = Array.isArray(ui.state.foods) ? ui.state.foods : [];
       const cands = getCandidates();
-      hint.textContent = p ? `Candidates for ${p.name}: ${cands.length} / ${foods.length}` : "";
+      const meal = mealLabel(ui.state.selectedMealSlot);
+      hint.textContent = `Meal: ${meal} · Candidates: ${cands.length} / ${foods.length}`;
     }
   }
 
   function bind() {
-    $("ewAddPersonBtn")?.addEventListener("click", openModal);
+    // Tab buttons
+    document.querySelectorAll(".ew-tabbtn").forEach((b) => {
+      b.addEventListener("click", () => {
+        setTab(String(b.getAttribute("data-ew-tab") || "wheel"));
+      });
+    });
+
+    $("ewAddPersonBtn")?.addEventListener("click", openModalForAddPerson);
     $("ewModalCancel")?.addEventListener("click", closeModal);
     $("ewModalBackdrop")?.addEventListener("click", (e) => {
       if (e.target && e.target.id === "ewModalBackdrop") closeModal();
@@ -454,18 +674,29 @@
       }
       const exclude = normTokens($("ewPersonExclude")?.value || "").map(lower);
       ui.state.people = ui.state.people || [];
-      ui.state.people.push({ id: uid(), name, exclude });
-      ui.state.selectedPersonId = ui.state.people[ui.state.people.length - 1].id;
+      if (ui.editPersonId) {
+        const idx = ui.state.people.findIndex((p) => String(p?.id || "") === String(ui.editPersonId));
+        if (idx >= 0) ui.state.people[idx] = { ...ui.state.people[idx], name, exclude };
+      } else {
+        ui.state.people.push({ id: uid(), name, exclude });
+      }
       scheduleSave();
       closeModal();
       renderAll();
-      toast("Person saved.");
+      toast("Saved.");
     });
 
-    $("ewPersonSelect")?.addEventListener("change", (e) => {
-      ui.state.selectedPersonId = String(e.target?.value || "");
+    $("ewModalDelete")?.addEventListener("click", () => {
+      const pid = String(ui.editPersonId || "").trim();
+      if (!pid) return;
+      const ok = confirm("Delete this person?");
+      if (!ok) return;
+      ui.state.people = (ui.state.people || []).filter((p) => String(p?.id || "") !== pid);
+      ui.editPersonId = null;
       scheduleSave();
+      closeModal();
       renderAll();
+      toast("Deleted.");
     });
 
     $("ewAddFoodBtn")?.addEventListener("click", () => {
@@ -475,10 +706,16 @@
         return;
       }
       const tags = normTokens($("ewFoodTags")?.value || "").map(lower);
+      const slots = Array.from(ui.foodSlotDraft && ui.foodSlotDraft.size ? ui.foodSlotDraft : new Set(defaultFoodSlots()));
+      if (!slots.length) {
+        toast("Select at least one meal slot.", "err");
+        return;
+      }
       ui.state.foods = ui.state.foods || [];
-      ui.state.foods.push({ id: uid(), name, tags });
+      ui.state.foods.push({ id: uid(), name, tags, slots });
       $("ewFoodName").value = "";
       $("ewFoodTags").value = "";
+      ui.foodSlotDraft = new Set(defaultFoodSlots());
       scheduleSave();
       renderAll();
       toast("Food added.");
@@ -497,7 +734,7 @@
     });
 
     $("ewResetBtn")?.addEventListener("click", () => {
-      const ok = confirm("Reset EatWhat data on this device?");
+      const ok = confirm("Reset EatWhat data for this admin account?");
       if (!ok) return;
       ui.state = defaultState();
       ui.wheelAngle = 0;

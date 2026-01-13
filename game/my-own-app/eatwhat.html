@@ -16,56 +16,85 @@
       </header>
 
       <main class="ew-main">
-        <section class="ew-card">
-          <div class="ew-card-title">People</div>
-          <div class="ew-row">
-            <label class="ew-label" for="ewPersonSelect">Select</label>
-            <select id="ewPersonSelect" class="ew-input"></select>
-            <button id="ewAddPersonBtn" class="ew-btn ew-btn-secondary" type="button">Add</button>
-          </div>
-          <div id="ewPersonMeta" class="ew-muted"></div>
+        <!-- Tabs -->
+        <section id="ewTabPeople" class="ew-tab-panel">
+          <section class="ew-card">
+            <div class="ew-card-title">People</div>
+            <div class="ew-row">
+              <button id="ewAddPersonBtn" class="ew-btn ew-btn-primary" type="button">Add Person</button>
+            </div>
+            <div id="ewPeopleList" class="ew-list" style="margin-top:12px;"></div>
+          </section>
         </section>
 
-        <section class="ew-card">
-          <div class="ew-card-title">Foods</div>
-          <div class="ew-row ew-row-stack">
-            <div class="ew-col">
-              <label class="ew-label" for="ewFoodName">Food</label>
-              <input id="ewFoodName" class="ew-input" type="text" inputmode="text" placeholder="e.g. Ramen" />
+        <section id="ewTabFoods" class="ew-tab-panel" style="display:none;">
+          <section class="ew-card">
+            <div class="ew-card-title">Foods</div>
+            <div class="ew-row ew-row-stack">
+              <div class="ew-col">
+                <label class="ew-label" for="ewFoodName">Food</label>
+                <input id="ewFoodName" class="ew-input" type="text" inputmode="text" placeholder="e.g. Ramen" />
+              </div>
+              <div class="ew-col">
+                <label class="ew-label" for="ewFoodTags">Tags (optional)</label>
+                <input id="ewFoodTags" class="ew-input" type="text" inputmode="text" placeholder="e.g. Japanese, noodles, spicy" />
+              </div>
+              <div class="ew-col">
+                <div class="ew-label">Meal slots</div>
+                <div id="ewFoodSlots" class="ew-chips" aria-label="Food meal slots"></div>
+                <div class="ew-muted" style="margin-top:6px;">Default: all except Late Night.</div>
+              </div>
+              <button id="ewAddFoodBtn" class="ew-btn ew-btn-primary" type="button">Add Food</button>
             </div>
-            <div class="ew-col">
-              <label class="ew-label" for="ewFoodTags">Tags (optional)</label>
-              <input id="ewFoodTags" class="ew-input" type="text" inputmode="text" placeholder="e.g. Japanese, noodles, spicy" />
-            </div>
-            <button id="ewAddFoodBtn" class="ew-btn ew-btn-primary" type="button">Add Food</button>
-          </div>
 
-          <div class="ew-split">
-            <div class="ew-split-left">
+            <div style="margin-top:12px;">
               <div class="ew-subtitle">List</div>
               <div id="ewFoodsList" class="ew-list"></div>
             </div>
-            <div class="ew-split-right">
-              <div class="ew-subtitle">Wheel</div>
-              <div class="ew-wheel-wrap">
-                <canvas id="ewWheel" width="320" height="320" aria-label="Wheel"></canvas>
-                <div class="ew-pointer" aria-hidden="true"></div>
+          </section>
+        </section>
+
+        <section id="ewTabWheel" class="ew-tab-panel" style="display:none;">
+          <section class="ew-card">
+            <div class="ew-card-title">Wheel</div>
+            <div class="ew-row">
+              <div class="ew-col" style="min-width:220px;">
+                <div class="ew-label">Meal</div>
+                <div id="ewMealSlots" class="ew-seg" aria-label="Meal slots"></div>
               </div>
-              <div class="ew-wheel-actions">
-                <button id="ewSpinBtn" class="ew-btn ew-btn-primary" type="button">Spin</button>
-                <button id="ewResetBtn" class="ew-btn ew-btn-danger" type="button">Reset</button>
-              </div>
-              <div id="ewResult" class="ew-result" aria-live="polite"></div>
-              <div id="ewHint" class="ew-muted"></div>
             </div>
-          </div>
+
+            <div style="margin-top:12px;">
+              <div class="ew-subtitle">People (optional)</div>
+              <div id="ewWheelPeople" class="ew-checklist"></div>
+              <div class="ew-muted">Selected people exclusions are merged automatically.</div>
+            </div>
+
+            <div class="ew-wheel-wrap" style="margin-top:10px;">
+              <canvas id="ewWheel" width="320" height="320" aria-label="Wheel"></canvas>
+              <div class="ew-pointer" aria-hidden="true"></div>
+            </div>
+            <div class="ew-wheel-actions">
+              <button id="ewSpinBtn" class="ew-btn ew-btn-primary" type="button">Spin</button>
+              <button id="ewResetBtn" class="ew-btn ew-btn-danger" type="button">Reset</button>
+            </div>
+            <div id="ewResult" class="ew-result" aria-live="polite"></div>
+            <div id="ewHint" class="ew-muted"></div>
+          </section>
         </section>
       </main>
 
+      <!-- Bottom tab bar (mobile-first) -->
+      <nav class="ew-tabbar" aria-label="EatWhat tabs">
+        <button class="ew-tabbtn active" type="button" data-ew-tab="people">People</button>
+        <button class="ew-tabbtn" type="button" data-ew-tab="foods">Foods</button>
+        <button class="ew-tabbtn" type="button" data-ew-tab="wheel">Wheel</button>
+      </nav>
+
       <!-- Add Person Modal -->
       <div id="ewModalBackdrop" class="ew-modal-backdrop" aria-hidden="true">
-        <div class="ew-modal" role="dialog" aria-modal="true" aria-label="Add person">
-          <div class="ew-modal-title">Add person</div>
+        <div class="ew-modal" role="dialog" aria-modal="true" aria-label="Person editor">
+          <div id="ewModalTitle" class="ew-modal-title">Add person</div>
           <div class="ew-modal-body">
             <div class="ew-field">
               <label class="ew-label" for="ewPersonName">Name</label>
@@ -74,12 +103,11 @@
             <div class="ew-field">
               <label class="ew-label" for="ewPersonExclude">Exclude keywords (comma-separated)</label>
               <input id="ewPersonExclude" class="ew-input" type="text" inputmode="text" placeholder="e.g. spicy, sushi, McDonald's" />
-              <div class="ew-muted" style="margin-top:6px;">
-                Exclusions match food name + tags (case-insensitive, substring).
-              </div>
+              <div class="ew-muted" style="margin-top:6px;">Exclusions match food name + tags (case-insensitive, substring).</div>
             </div>
           </div>
           <div class="ew-modal-actions">
+            <button id="ewModalDelete" class="ew-btn ew-btn-danger" type="button" style="display:none;">Delete</button>
             <button id="ewModalCancel" class="ew-btn ew-btn-secondary" type="button">Cancel</button>
             <button id="ewModalSave" class="ew-btn ew-btn-primary" type="button">Save</button>
           </div>
