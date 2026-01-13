@@ -41,6 +41,24 @@ function generateToken(user) {
 }
 
 /**
+ * Generate a JWT token for a user with a custom expiry (e.g. "30d", "7d", "12h")
+ * @param {object} user - User object (should contain id, email, role)
+ * @param {string} expiresIn - jsonwebtoken expiresIn value
+ * @returns {string} - JWT token
+ */
+function generateTokenWithExpiry(user, expiresIn) {
+  const payload = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    organizationId: user.organizationId || null
+  };
+  const exp = String(expiresIn || '').trim() || JWT_EXPIRES_IN;
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: exp });
+}
+
+/**
  * Verify a JWT token
  * @param {string} token - JWT token
  * @returns {object|null} - Decoded token payload or null if invalid
@@ -70,6 +88,7 @@ module.exports = {
   hashPassword,
   comparePassword,
   generateToken,
+  generateTokenWithExpiry,
   verifyToken,
   extractTokenFromHeader
 };

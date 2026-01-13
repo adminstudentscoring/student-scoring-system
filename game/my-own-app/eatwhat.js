@@ -771,30 +771,40 @@
   }
 
   window.addEventListener("DOMContentLoaded", () => {
-    try {
-      if (!window.authUtils || !window.authUtils.requireRole || !window.authUtils.verifyAuth) {
-        toast("auth.js not loaded.", "err");
-        return;
+    (async () => {
+      try {
+        if (!window.authUtils || !window.authUtils.verifyAuth) {
+          toast("auth.js not loaded.", "err");
+          return;
+        }
+
+        // Magic link support: /eatwhat.html?token=...
+        try {
+          const u = new URL(window.location.href);
+          const token = String(u.searchParams.get("token") || "").trim();
+          if (token) {
+            localStorage.setItem("authToken", token);
+            // Clean token from URL to avoid accidental leaks (copy/paste, screenshots, referrers).
+            u.searchParams.delete("token");
+            window.history.replaceState({}, "", u.toString());
+          }
+        } catch {}
+
+        const me = await window.authUtils.verifyAuth().catch(() => null);
+        if (!me || me.role !== "admin") {
+          alert("You do not have permission to access this page");
+          window.authUtils.logout?.();
+          return;
+        }
+
+        bind();
+        const s = await loadStateFromDb().catch(() => null);
+        ui.state = normalizeState(s || defaultState());
+        renderAll();
+      } catch (e) {
+        toast(e?.message || String(e), "err");
       }
-      if (!window.authUtils.requireRole("admin")) return;
-      // Refresh user info (keeps role/token consistent)
-      window.authUtils.verifyAuth().catch(() => null);
-      bind();
-      // Load initial state from Postgres
-      loadStateFromDb()
-        .then((s) => {
-          ui.state = normalizeState(s);
-          renderAll();
-          toast("Loaded.");
-        })
-        .catch((e) => {
-          ui.state = defaultState();
-          renderAll();
-          toast(e?.message || String(e), "err");
-        });
-    } catch (e) {
-      toast(e?.message || String(e), "err");
-    }
+    })();
   });
 })();
 

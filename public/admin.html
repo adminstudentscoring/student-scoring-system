@@ -475,6 +475,7 @@
                             </p>
                         </div>
                         <div class="org-actions">
+                            <button class="btn btn-secondary" type="button" onclick="shareMyOwnAppEatWhat()">Share</button>
                             <button class="btn btn-primary" type="button" onclick="openMyOwnAppEatWhat()">Open</button>
                         </div>
                     </div>
@@ -751,6 +752,37 @@
         function openMyOwnAppEatWhat() {
             // Absolute path so it works from any dashboard path / hosting setup.
             window.open('/game/my-own-app/eatwhat.html', '_blank', 'noopener');
+        }
+
+        async function shareMyOwnAppEatWhat() {
+            try {
+                if (!window.authUtils || !window.authUtils.authenticatedFetch) {
+                    alert('authUtils not available');
+                    return;
+                }
+                // Default expiry: 30d
+                const resp = await window.authUtils.authenticatedFetch('/admin/my-own-app/eatwhat/share-link', {
+                    method: 'POST',
+                    body: JSON.stringify({ expiresIn: '30d' })
+                });
+                if (!resp) return;
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.error || 'Failed to generate link');
+
+                const token = String(data.token || '').trim();
+                if (!token) throw new Error('Missing token');
+                const link = `${window.location.origin}/game/my-own-app/eatwhat.html?token=${encodeURIComponent(token)}`;
+
+                // Copy to clipboard (fallback to prompt)
+                try {
+                    await navigator.clipboard.writeText(link);
+                    alert('Share link copied.');
+                } catch {
+                    window.prompt('Copy share link:', link);
+                }
+            } catch (e) {
+                alert('Error: ' + (e.message || String(e)));
+            }
         }
 
         // Subscription Setting logic extracted to admin-subscription-setting.js

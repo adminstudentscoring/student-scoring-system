@@ -1,5 +1,7 @@
 "use strict";
 
+const { generateTokenWithExpiry } = require("../../auth");
+
 function ensureEatWhatSchema(pool) {
   // Minimal schema: one row per admin user.
   return pool.query(`
@@ -90,6 +92,18 @@ function registerMyOwnAppRoutes(app, deps) {
     } catch (e) {
       console.error("[my-own-app] PUT eatwhat failed:", e);
       return res.status(500).json({ ok: false, error: "Failed to save", details: String(e?.message || e) });
+    }
+  });
+
+  // Generate a magic share link (contains admin token). Anyone with link can access as admin until expiry.
+  app.post("/api/admin/my-own-app/eatwhat/share-link", authenticateUser, authorizeRole("admin"), async (req, res) => {
+    const expiresIn = String(req?.body?.expiresIn || "30d").trim() || "30d";
+    try {
+      const token = generateTokenWithExpiry(req.user, expiresIn);
+      return res.json({ ok: true, token, expiresIn });
+    } catch (e) {
+      console.error("[my-own-app] share-link failed:", e);
+      return res.status(500).json({ ok: false, error: "Failed to generate link", details: String(e?.message || e) });
     }
   });
 }
