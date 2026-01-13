@@ -3758,6 +3758,14 @@ registerOrganizationsBillingRoutes(app, {
   writeTimetable
 });
 
+// ===== My Own App routes (Admin utilities) =====
+const { registerMyOwnAppRoutes } = require('./server/routes/myOwnAppRoutes');
+registerMyOwnAppRoutes(app, {
+  appDb,
+  authenticateUser,
+  authorizeRole
+});
+
 // (moved to server/routes/organizationsBillingRoutes.js)
 
 // Read expenses data

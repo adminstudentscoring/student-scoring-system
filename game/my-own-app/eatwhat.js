@@ -1,7 +1,8 @@
 (function () {
   "use strict";
 
-  const LS_KEY = "eatwhat.v1";
+  const API_GET = "/admin/my-own-app/eatwhat";
+  const API_PUT = "/admin/my-own-app/eatwhat";
 
   function uid() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -42,20 +43,15 @@
     }, 2400);
   }
 
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (!raw) return null;
-      const j = JSON.parse(raw);
-      if (!j || typeof j !== "object") return null;
-      return j;
-    } catch {
-      return null;
+  async function apiFetchJson(url, options) {
+    if (!window.authUtils || !window.authUtils.authenticatedFetch) {
+      throw new Error("authUtils not available");
     }
-  }
-
-  function saveState(state) {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    const resp = await window.authUtils.authenticatedFetch(url, options || {});
+    if (!resp) throw new Error("Not authenticated");
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || "Request failed");
+    return data;
   }
 
   function defaultState() {
@@ -72,10 +68,71 @@
   }
 
   const ui = {
-    state: loadState() || defaultState(),
+    state: defaultState(),
     spinning: false,
-    wheelAngle: 0
+    wheelAngle: 0,
+    saveTimer: null,
+    saving: false,
+    pendingSave: false
   };
+
+  function normalizeState(s) {
+    const o = (s && typeof s === "object") ? s : {};
+    const foods = Array.isArray(o.foods) ? o.foods : [];
+    const people = Array.isArray(o.people) ? o.people : [];
+    const selectedPersonId = o.selectedPersonId ? String(o.selectedPersonId) : null;
+    const lastResult = (o.lastResult && typeof o.lastResult === "object") ? o.lastResult : null;
+    // sanitize entries lightly
+    const foods2 = foods
+      .map((f) => ({
+        id: String(f?.id || uid()),
+        name: String(f?.name || "").trim(),
+        tags: Array.isArray(f?.tags) ? f.tags.map((t) => String(t || "").trim()).filter(Boolean) : []
+      }))
+      .filter((f) => !!f.name);
+    const people2 = people
+      .map((p) => ({
+        id: String(p?.id || uid()),
+        name: String(p?.name || "").trim(),
+        exclude: Array.isArray(p?.exclude) ? p.exclude.map((t) => String(t || "").trim()).filter(Boolean) : []
+      }))
+      .filter((p) => !!p.name);
+    return {
+      foods: foods2,
+      people: people2.length ? people2 : [{ id: uid(), name: "Me", exclude: [] }],
+      selectedPersonId,
+      lastResult
+    };
+  }
+
+  async function loadStateFromDb() {
+    const data = await apiFetchJson(API_GET, { method: "GET" });
+    if (data && data.state) return normalizeState(data.state);
+    return defaultState();
+  }
+
+  async function saveStateToDb() {
+    ui.saving = true;
+    try {
+      await apiFetchJson(API_PUT, { method: "PUT", body: JSON.stringify({ state: ui.state }) });
+    } finally {
+      ui.saving = false;
+    }
+  }
+
+  function scheduleSave() {
+    ui.pendingSave = true;
+    clearTimeout(ui.saveTimer);
+    ui.saveTimer = setTimeout(async () => {
+      if (!ui.pendingSave) return;
+      ui.pendingSave = false;
+      try {
+        await saveStateToDb();
+      } catch (e) {
+        toast(e?.message || String(e), "err");
+      }
+    }, 300);
+  }
 
   function getSelectedPerson() {
     const sid = String(ui.state.selectedPersonId || "");
@@ -168,7 +225,7 @@
       del.textContent = "Delete";
       del.addEventListener("click", () => {
         ui.state.foods = (ui.state.foods || []).filter((x) => String(x.id) !== String(f.id));
-        saveState(ui.state);
+        scheduleSave();
         renderAll();
       });
       right.appendChild(del);
@@ -309,7 +366,7 @@
       foodId: chosen?.id || null,
       foodName: chosen?.name || null
     };
-    saveState(ui.state);
+    scheduleSave();
 
     if (res) res.textContent = chosen?.name ? `You should eat: ${chosen.name}` : "Result unavailable";
     if (hint) {
@@ -367,7 +424,6 @@
     if (!ui.state.selectedPersonId || !people.some((p) => String(p.id) === String(ui.state.selectedPersonId))) {
       ui.state.selectedPersonId = String(ui.state.people[0].id);
     }
-    saveState(ui.state);
 
     renderPeople();
     renderFoodsList();
@@ -400,7 +456,7 @@
       ui.state.people = ui.state.people || [];
       ui.state.people.push({ id: uid(), name, exclude });
       ui.state.selectedPersonId = ui.state.people[ui.state.people.length - 1].id;
-      saveState(ui.state);
+      scheduleSave();
       closeModal();
       renderAll();
       toast("Person saved.");
@@ -408,7 +464,7 @@
 
     $("ewPersonSelect")?.addEventListener("change", (e) => {
       ui.state.selectedPersonId = String(e.target?.value || "");
-      saveState(ui.state);
+      scheduleSave();
       renderAll();
     });
 
@@ -423,7 +479,7 @@
       ui.state.foods.push({ id: uid(), name, tags });
       $("ewFoodName").value = "";
       $("ewFoodTags").value = "";
-      saveState(ui.state);
+      scheduleSave();
       renderAll();
       toast("Food added.");
     });
@@ -445,7 +501,7 @@
       if (!ok) return;
       ui.state = defaultState();
       ui.wheelAngle = 0;
-      saveState(ui.state);
+      scheduleSave();
       renderAll();
       toast("Reset done.");
     });
@@ -470,8 +526,26 @@
 
   window.addEventListener("DOMContentLoaded", () => {
     try {
+      if (!window.authUtils || !window.authUtils.requireRole || !window.authUtils.verifyAuth) {
+        toast("auth.js not loaded.", "err");
+        return;
+      }
+      if (!window.authUtils.requireRole("admin")) return;
+      // Refresh user info (keeps role/token consistent)
+      window.authUtils.verifyAuth().catch(() => null);
       bind();
-      renderAll();
+      // Load initial state from Postgres
+      loadStateFromDb()
+        .then((s) => {
+          ui.state = normalizeState(s);
+          renderAll();
+          toast("Loaded.");
+        })
+        .catch((e) => {
+          ui.state = defaultState();
+          renderAll();
+          toast(e?.message || String(e), "err");
+        });
     } catch (e) {
       toast(e?.message || String(e), "err");
     }
