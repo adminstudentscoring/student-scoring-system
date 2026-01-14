@@ -350,6 +350,15 @@
     return await tfJson(resp);
   }
 
+  async function teacherApplyMove(fen, uci) {
+    const body = { fen: String(fen || ''), uci: String(uci || '') };
+    const resp = await apiRequest('/api/teachers/tactics-fighter/apply-move', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    return await tfJson(resp);
+  }
+
   async function builderFetchPuzzles(subtopicId) {
     const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(subtopicId)}/puzzles`, {
       method: 'GET'
@@ -644,6 +653,7 @@
     studentPostAttempt,
     studentEngineAnalyze,
     studentApplyMove,
+    teacherApplyMove,
 
     // builder APIs
     builderFetchPuzzles,
