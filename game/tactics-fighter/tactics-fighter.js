@@ -469,7 +469,8 @@
             const { r, c } = displayToBoardRc(dr, dc, ui.student.runner.orientation);
             const isDark = (dr + dc) % 2 === 1;
             const coord = rcToCoord(r, c);
-            const piece = b[r][c] || '';
+            // During drag, hide the original piece on the source square (it is represented by the ghost).
+            const piece = (drag?.active && drag?.from === coord) ? '' : (b[r][c] || '');
             const src = piece ? pieceImageSrc(piece) : '';
             const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
             const sel = ui.student.runner.selectedFrom === coord ? ' is-selected' : '';
@@ -829,9 +830,9 @@
 
         ev.preventDefault();
         ignoreClickUntil = Date.now() + 400;
+        startDrag(from, piece, ev.clientX, ev.clientY, ev.pointerId);
         ui.student.runner.selectedFrom = from;
         renderRunner();
-        startDrag(from, piece, ev.clientX, ev.clientY, ev.pointerId);
         try { modal.setPointerCapture(ev.pointerId); } catch {}
       }, { passive: false });
 
