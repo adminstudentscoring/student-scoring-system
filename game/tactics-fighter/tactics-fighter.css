@@ -581,6 +581,55 @@ body.game-is-tactics-fighter .game-area-content {
   object-fit: contain;
 }
 
+/* Practice feedback overlay (on-board) */
+.tf-stu-feedback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.tf-stu-feedback-box {
+  pointer-events: auto;
+  width: min(460px, calc(100% - 32px));
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 14px;
+  padding: 14px 16px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.12);
+  text-align: center;
+}
+
+.tf-stu-feedback-title {
+  font-weight: 950;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.tf-stu-feedback-sub {
+  color: #6b7280;
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.tf-stu-feedback.is-ok .tf-stu-feedback-title {
+  color: #16a34a;
+}
+
+.tf-stu-feedback.is-err .tf-stu-feedback-title {
+  color: #dc2626;
+}
+
+.tf-stu-feedback-actions {
+  display: flex;
+  justify-content: center;
+}
+
 /* Student runner: keep controls at bottom, make move list scrollable */
 .tf-stu-right {
   display: flex;
@@ -619,6 +668,7 @@ body.game-is-tactics-fighter .game-area-content {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .tf-practice-spacer {

@@ -415,6 +415,7 @@
             <div class="tf-practice-runner-grid">
               <div class="tf-practice-spacer" aria-hidden="true"></div>
               <div class="tf-practice-board-wrap">
+                <div id="tfStuRunnerFeedback" class="tf-stu-feedback" style="display:none;"></div>
                 <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
               </div>
               <div class="tf-stu-right">
@@ -564,6 +565,37 @@
           const side = ui.student.runner?.side;
           turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
         }
+
+        // Feedback overlay (on-board): show only when puzzle completed OR when the last verdict is incorrect.
+        const fb = modal.querySelector('#tfStuRunnerFeedback');
+        if (fb) {
+          const verdict = ui.student.runner.lastVerdict;
+          const showCompleted = !!pz.completed;
+          const showIncorrect = verdict === 'incorrect';
+          if (showCompleted || showIncorrect) {
+            const isOk = showCompleted;
+            const title = showCompleted ? 'Completed' : 'Incorrect';
+            const hint = showCompleted ? 'Great job.' : 'Try again.';
+            const btnHtml = showCompleted
+              ? `<button type="button" class="btn btn-primary" data-stu-feedback-next="1">Next</button>`
+              : `<button type="button" class="btn btn-secondary" data-stu-feedback-redo="1">Redo</button>`;
+            fb.classList.toggle('is-ok', isOk);
+            fb.classList.toggle('is-err', !isOk);
+            fb.innerHTML = `
+              <div class="tf-stu-feedback-box">
+                <div class="tf-stu-feedback-title">${escapeHtml(title)}</div>
+                <div class="tf-stu-feedback-sub">${escapeHtml(hint)}</div>
+                <div class="tf-stu-feedback-actions">${btnHtml}</div>
+              </div>
+            `;
+            fb.style.display = 'flex';
+          } else {
+            fb.style.display = 'none';
+            fb.innerHTML = '';
+            fb.classList.remove('is-ok', 'is-err');
+          }
+        }
+
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
         if (movesEl) {
           const html = formatMovesWithMoveNumbersHighlightedHtml(
@@ -875,6 +907,41 @@
         const t = ev.target;
         if (!(t instanceof Element)) return;
         if (t.closest('[data-stu-runner-close]')) return close();
+        if (t.closest('[data-stu-feedback-next]')) {
+          // same as right arrow (next puzzle)
+          (async () => {
+            const total = Math.max(0, Number(ui.student.total || 0));
+            if (!total) return;
+            const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+            const nextAbs = await findNextTargetAbsIndex(cur);
+            if (nextAbs == null) {
+              setMsg('ok', 'No more incomplete puzzles.');
+              return renderRunner();
+            }
+            const ok = await resetRunnerToAbsIndex(nextAbs);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
+        }
+        if (t.closest('[data-stu-feedback-redo]')) {
+          // same as Redo button (restart current puzzle)
+          (async () => {
+            try {
+              if (ui.student.runner.busy) return;
+              const total = Math.max(0, Number(ui.student.total || 0));
+              if (!total) return;
+              const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+              const ok = await resetRunnerToAbsIndex(cur);
+              if (!ok) return;
+              renderRunner();
+            } catch (e) {
+              setMsg('err', e?.message || String(e));
+              renderRunner();
+            }
+          })();
+          return;
+        }
         if (t.closest('[data-stu-prev]')) {
           (async () => {
             const total = Math.max(0, Number(ui.student.total || 0));
