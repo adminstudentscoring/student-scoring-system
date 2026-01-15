@@ -769,6 +769,20 @@
             movesSanLen: ui.student.runner.movesSan.length
           });
 
+          // Optimistic UI: immediately show the piece moved on the board to avoid a blank gap while waiting for backend validation.
+          // We do NOT change fen/side here; backend response remains the source of truth.
+          try {
+            const fr = coordToRc(f);
+            const tr = coordToRc(t);
+            const b = ui.student.runner.board;
+            if (fr && tr && b?.[fr.r]?.[fr.c]) {
+              const piece = b[fr.r][fr.c];
+              b[fr.r][fr.c] = '';
+              b[tr.r][tr.c] = piece;
+              renderRunner();
+            }
+          } catch {}
+
           const r = await studentApplyMove(publicStudentId, ui.student.runner.fen, uci, publicStudentPassword);
           if (!r || !r.ok || !r.fenAfter) throw new Error('Illegal move');
 
