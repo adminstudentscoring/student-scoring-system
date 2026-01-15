@@ -430,11 +430,11 @@
                 <div class="tf-stu-actions">
                   <div class="tf-stu-actions-left">
                     <button type="button" class="btn btn-secondary" data-stu-undo="1" aria-label="Redo">↺</button>
-                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit</button>
                     <div class="tf-stu-nav" aria-label="Puzzle navigation">
                       <button type="button" class="btn btn-secondary" data-stu-prev="1" title="Previous puzzle">←</button>
                       <button type="button" class="btn btn-secondary" data-stu-next="1" title="Next puzzle">→</button>
                     </div>
+                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit</button>
                   </div>
                 </div>
               </div>

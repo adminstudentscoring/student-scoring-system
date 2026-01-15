@@ -819,16 +819,7 @@ body.game-is-tactics-fighter .game-area-content {
   flex-wrap: wrap;
 }
 
-/* Practice: make actions 2-row layout (Redo+Submit on one row, arrows on one row) */
-.tf-practice-modal .tf-stu-actions-left {
-  display: grid;
-  grid-template-columns: auto auto;
-  align-items: center;
-  gap: 10px;
-}
-.tf-practice-modal .tf-stu-actions-left .tf-stu-nav {
-  grid-column: 1 / -1;
-}
+/* (removed) old 2-row practice actions layout; replaced by single-row flex above */
 
 .tf-stu-nav {
   display: inline-flex;
