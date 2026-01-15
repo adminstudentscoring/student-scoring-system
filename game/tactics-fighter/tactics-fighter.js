@@ -429,8 +429,8 @@
                 <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
                 <div class="tf-stu-actions">
                   <div class="tf-stu-actions-left">
-                    <button type="button" class="btn btn-secondary" data-stu-undo="1" aria-label="Redo">Redo</button>
-                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
+                    <button type="button" class="btn btn-secondary" data-stu-undo="1" aria-label="Redo">↺</button>
+                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit</button>
                     <div class="tf-stu-nav" aria-label="Puzzle navigation">
                       <button type="button" class="btn btn-secondary" data-stu-prev="1" title="Previous puzzle">←</button>
                       <button type="button" class="btn btn-secondary" data-stu-next="1" title="Next puzzle">→</button>
