@@ -403,7 +403,10 @@
             <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
               <div>
                 <div style="font-weight:900;">Practice</div>
-                <div class="tf-muted" id="tfStuRunnerMeta"></div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <div class="tf-muted" id="tfStuRunnerMeta"></div>
+                  <div id="tfStuRunnerMetaBadge" class="tf-stu-meta-badge" style="display:none;">Completed</div>
+                </div>
               </div>
               <button type="button" class="btn btn-secondary" data-stu-runner-close="1">Close</button>
             </div>
@@ -536,7 +539,9 @@
         const meta = modal.querySelector('#tfStuRunnerMeta');
         const total = Math.max(0, Number(ui.student.total || 0));
         const abs = Math.max(0, Math.min(Math.max(0, total - 1), Math.trunc(Number(ui.student.runner?.absIndex || 0))));
-        if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total || 0} · ${pz.completed ? 'Completed' : 'Not completed'}`;
+        if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total || 0}`;
+        const metaBadge = modal.querySelector('#tfStuRunnerMetaBadge');
+        if (metaBadge) metaBadge.style.display = pz.completed ? 'inline-flex' : 'none';
         const turnEl = modal.querySelector('#tfStuRunnerTurnLabel');
         if (turnEl) {
           const side = ui.student.runner?.side;
