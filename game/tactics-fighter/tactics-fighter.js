@@ -705,7 +705,172 @@
         }
       }
 
+      async function applyStudentMove(from, to) {
+        if (ui.student.runner.busy) return;
+        const f = String(from || '').trim();
+        const t = String(to || '').trim();
+        if (!f || !t) return;
+        if (f === t) return renderRunner();
+
+        const uci = `${f}${t}`;
+        ui.student.runner.busy = true;
+        try {
+          clearMsg();
+          // Save state for redo/rollback BEFORE applying.
+          ui.student.runner.history.push({
+            fen: ui.student.runner.fen,
+            board: cloneBoard(ui.student.runner.board),
+            side: ui.student.runner.side,
+            movesUciLen: ui.student.runner.movesUci.length,
+            movesSanLen: ui.student.runner.movesSan.length
+          });
+
+          const r = await studentApplyMove(publicStudentId, ui.student.runner.fen, uci, publicStudentPassword);
+          if (!r || !r.ok || !r.fenAfter) throw new Error('Illegal move');
+
+          ui.student.runner.fen = String(r.fenAfter);
+          ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
+          ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
+          ui.student.runner.movesUci.push(String(r.uci || uci));
+          ui.student.runner.movesSan.push(String(r.san || uci));
+          renderRunner();
+        } catch (err) {
+          // rollback history entry
+          const last = ui.student.runner.history.pop();
+          if (last) {
+            ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
+            ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
+            ui.student.runner.side = last.side || ui.student.runner.side;
+          }
+          setMsg('err', err?.message || String(err));
+          renderRunner();
+        } finally {
+          ui.student.runner.busy = false;
+        }
+      }
+
+      // Drag & drop support (pointer events; iPad/iOS friendly)
+      let ignoreClickUntil = 0;
+      const drag = {
+        active: false,
+        pointerId: null,
+        from: null,
+        hoverEl: null,
+        ghostEl: null
+      };
+
+      const clearDragHover = () => {
+        try { drag.hoverEl?.classList?.remove('is-drop-target'); } catch {}
+        drag.hoverEl = null;
+      };
+
+      const removeGhost = () => {
+        try { drag.ghostEl?.remove(); } catch {}
+        drag.ghostEl = null;
+      };
+
+      const setGhostPos = (x, y) => {
+        if (!drag.ghostEl) return;
+        const size = 56;
+        drag.ghostEl.style.transform = `translate(${Math.round(x - size / 2)}px, ${Math.round(y - size / 2)}px)`;
+      };
+
+      const coordFromPoint = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        const sq = el && el.closest ? el.closest('[data-stu-sq]') : null;
+        const coord = sq ? String(sq.getAttribute('data-stu-sq') || '').trim() : '';
+        return coord || null;
+      };
+
+      const squareElFromPoint = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        return el && el.closest ? el.closest('[data-stu-sq]') : null;
+      };
+
+      const startDrag = (from, piece, x, y, pointerId) => {
+        drag.active = true;
+        drag.pointerId = pointerId;
+        drag.from = from;
+        clearDragHover();
+        removeGhost();
+
+        const ghost = document.createElement('div');
+        ghost.className = 'tf-drag-ghost';
+        const src = piece ? pieceImageSrc(piece) : '';
+        ghost.innerHTML = src ? `<img alt="" src="${escapeHtml(src)}">` : '';
+        document.body.appendChild(ghost);
+        drag.ghostEl = ghost;
+        setGhostPos(x, y);
+
+        const boardHost = modal.querySelector('#tfStuRunnerBoard');
+        boardHost?.classList?.add('is-dragging');
+      };
+
+      const endDrag = () => {
+        drag.active = false;
+        drag.pointerId = null;
+        drag.from = null;
+        clearDragHover();
+        removeGhost();
+        const boardHost = modal.querySelector('#tfStuRunnerBoard');
+        boardHost?.classList?.remove('is-dragging');
+      };
+
+      modal.addEventListener('pointerdown', (ev) => {
+        if (!(ev.target instanceof Element)) return;
+        const sq = ev.target.closest('[data-stu-sq]');
+        if (!sq) return;
+        if (ui.student.runner.busy) return;
+        const from = String(sq.getAttribute('data-stu-sq') || '').trim();
+        if (!from) return;
+        const rc = coordToRc(from);
+        const piece = rc ? (ui.student.runner.board?.[rc.r]?.[rc.c] || '') : '';
+        if (!piece) return; // only drag if there's a piece
+
+        ev.preventDefault();
+        ignoreClickUntil = Date.now() + 400;
+        ui.student.runner.selectedFrom = from;
+        renderRunner();
+        startDrag(from, piece, ev.clientX, ev.clientY, ev.pointerId);
+        try { modal.setPointerCapture(ev.pointerId); } catch {}
+      }, { passive: false });
+
+      modal.addEventListener('pointermove', (ev) => {
+        if (!drag.active) return;
+        if (drag.pointerId !== ev.pointerId) return;
+        setGhostPos(ev.clientX, ev.clientY);
+
+        const el = squareElFromPoint(ev.clientX, ev.clientY);
+        if (el !== drag.hoverEl) {
+          clearDragHover();
+          if (el) {
+            el.classList.add('is-drop-target');
+            drag.hoverEl = el;
+          }
+        }
+      });
+
+      modal.addEventListener('pointerup', (ev) => {
+        if (!drag.active) return;
+        if (drag.pointerId !== ev.pointerId) return;
+        const from = drag.from;
+        const to = coordFromPoint(ev.clientX, ev.clientY);
+        endDrag();
+        ui.student.runner.selectedFrom = null;
+        if (!from || !to || from === to) return renderRunner();
+        applyStudentMove(from, to);
+      });
+
+      modal.addEventListener('pointercancel', (ev) => {
+        if (!drag.active) return;
+        if (drag.pointerId !== ev.pointerId) return;
+        endDrag();
+        ui.student.runner.selectedFrom = null;
+        renderRunner();
+      });
+
       modal.addEventListener('click', (ev) => {
+        if (Date.now() < ignoreClickUntil) return;
         const t = ev.target;
         if (!(t instanceof Element)) return;
         if (t.closest('[data-stu-runner-close]')) return close();
@@ -769,43 +934,7 @@
           const from = ui.student.runner.selectedFrom;
           const to = coord;
           ui.student.runner.selectedFrom = null;
-          if (from === to) return renderRunner();
-
-          const uci = `${from}${to}`;
-          (async () => {
-            try {
-              clearMsg();
-              // Save state for undo BEFORE applying.
-              ui.student.runner.history.push({
-                fen: ui.student.runner.fen,
-                board: cloneBoard(ui.student.runner.board),
-                side: ui.student.runner.side,
-                movesUciLen: ui.student.runner.movesUci.length,
-                movesSanLen: ui.student.runner.movesSan.length
-              });
-
-              const r = await studentApplyMove(publicStudentId, ui.student.runner.fen, uci, publicStudentPassword);
-              if (!r || !r.ok || !r.fenAfter) throw new Error('Illegal move');
-
-              ui.student.runner.fen = String(r.fenAfter);
-              ui.student.runner.board = parseFenToBoard(ui.student.runner.fen) || ui.student.runner.board;
-              ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
-              ui.student.runner.movesUci.push(String(r.uci || uci));
-              ui.student.runner.movesSan.push(String(r.san || uci));
-              renderRunner();
-            } catch (err) {
-              // rollback history entry
-              const last = ui.student.runner.history.pop();
-              if (last) {
-                ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
-                ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
-                ui.student.runner.side = last.side || ui.student.runner.side;
-              }
-              setMsg('err', err?.message || String(err));
-              renderRunner();
-            }
-          })();
-          return;
+          return applyStudentMove(from, to);
         }
       });
 
