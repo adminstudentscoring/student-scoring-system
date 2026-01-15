@@ -601,12 +601,27 @@ body.game-is-tactics-fighter .game-area-content {
    and center the board by adding a left spacer column. */
 @media (min-width: 900px) {
   .tf-practice-runner-grid {
-    /* keep left spacer and right panel same width, and narrower */
-    grid-template-columns: minmax(240px, 1fr) 420px minmax(240px, 1fr);
+    /* keep left spacer and right panel same width, and make the right panel ~half as wide */
+    grid-template-columns: 260px 420px 260px;
+    justify-content: center;
   }
   .tf-practice-spacer {
     display: block;
   }
+}
+
+/* Practice: narrower move list box */
+.tf-practice-modal .tf-stu-moves {
+  width: 100%;
+  max-width: 260px;
+}
+
+/* Practice: buttons follow the narrower right panel */
+.tf-practice-modal .tf-stu-actions-left {
+  grid-template-columns: 1fr 1fr;
+}
+.tf-practice-modal .tf-stu-actions-left > button.btn {
+  width: 100%;
 }
 
 .tf-stu-meta-badge {

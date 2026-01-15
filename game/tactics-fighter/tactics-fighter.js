@@ -551,8 +551,8 @@
         if (statusEl) {
           statusEl.classList.remove('is-ok', 'is-err');
           if (pz.completed) {
-            statusEl.textContent = 'Completed';
-            statusEl.classList.add('is-ok');
+            // Completed is shown in the header badge; avoid duplicate badge at bottom-right.
+            statusEl.textContent = '';
           } else if (ui.student.runner.lastVerdict === 'incorrect') {
             statusEl.textContent = 'Incorrect';
             statusEl.classList.add('is-err');
