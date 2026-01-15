@@ -432,7 +432,6 @@
                       <button type="button" class="btn btn-secondary" data-stu-next="1" title="Next puzzle">→</button>
                     </div>
                   </div>
-                  <div id="tfStuRunnerStatus" class="tf-stu-status"></div>
                 </div>
               </div>
             </div>
@@ -541,27 +540,28 @@
         const abs = Math.max(0, Math.min(Math.max(0, total - 1), Math.trunc(Number(ui.student.runner?.absIndex || 0))));
         if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total || 0}`;
         const metaBadge = modal.querySelector('#tfStuRunnerMetaBadge');
-        if (metaBadge) metaBadge.style.display = pz.completed ? 'inline-flex' : 'none';
+        if (metaBadge) {
+          metaBadge.classList.remove('is-ok', 'is-err');
+          if (pz.completed) {
+            metaBadge.textContent = 'Completed';
+            metaBadge.style.display = 'inline-flex';
+            // keep default green styling
+          } else if (ui.student.runner.lastVerdict === 'incorrect') {
+            metaBadge.textContent = 'Incorrect';
+            metaBadge.style.display = 'inline-flex';
+            metaBadge.classList.add('is-err');
+          } else if (ui.student.runner.lastVerdict === 'correct') {
+            metaBadge.textContent = 'Correct';
+            metaBadge.style.display = 'inline-flex';
+            metaBadge.classList.add('is-ok');
+          } else {
+            metaBadge.style.display = 'none';
+          }
+        }
         const turnEl = modal.querySelector('#tfStuRunnerTurnLabel');
         if (turnEl) {
           const side = ui.student.runner?.side;
           turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
-        }
-        const statusEl = modal.querySelector('#tfStuRunnerStatus');
-        if (statusEl) {
-          statusEl.classList.remove('is-ok', 'is-err');
-          if (pz.completed) {
-            // Completed is shown in the header badge; avoid duplicate badge at bottom-right.
-            statusEl.textContent = '';
-          } else if (ui.student.runner.lastVerdict === 'incorrect') {
-            statusEl.textContent = 'Incorrect';
-            statusEl.classList.add('is-err');
-          } else if (ui.student.runner.lastVerdict === 'correct') {
-            statusEl.textContent = 'Correct';
-            statusEl.classList.add('is-ok');
-          } else {
-            statusEl.textContent = '';
-          }
         }
         const movesEl = modal.querySelector('#tfStuRunnerMoves');
         if (movesEl) {

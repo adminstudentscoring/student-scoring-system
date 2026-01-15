@@ -638,6 +638,18 @@ body.game-is-tactics-fighter .game-area-content {
   white-space: nowrap;
 }
 
+.tf-stu-meta-badge.is-ok {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: rgba(22, 163, 74, 0.10);
+  color: #16a34a;
+}
+
+.tf-stu-meta-badge.is-err {
+  border-color: rgba(220, 38, 38, 0.40);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+}
+
 .tf-stu-toprow {
   display: flex;
   align-items: center;
