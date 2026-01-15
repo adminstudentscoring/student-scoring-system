@@ -421,7 +421,7 @@
                 <div id="tfStuRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
                 <div class="tf-stu-actions">
                   <div class="tf-stu-actions-left">
-                    <button type="button" class="btn btn-secondary" data-stu-undo="1">Undo</button>
+                    <button type="button" class="btn btn-secondary" data-stu-undo="1" aria-label="Redo">Redo</button>
                     <button type="button" class="btn btn-primary" data-stu-submit="1">Submit Move</button>
                     <div class="tf-stu-nav" aria-label="Puzzle navigation">
                       <button type="button" class="btn btn-secondary" data-stu-prev="1" title="Previous puzzle">←</button>
@@ -732,19 +732,22 @@
           return;
         }
         if (t.closest('[data-stu-undo]')) {
-          // Undo one ply (restores previous fen/board)
-          const last = ui.student.runner.history.pop();
-          if (last) {
-            ui.student.runner.fen = String(last.fen || ui.student.runner.fen);
-            ui.student.runner.board = cloneBoard(last.board) || ui.student.runner.board;
-            ui.student.runner.side = last.side || ui.student.runner.side;
-            ui.student.runner.movesUci = ui.student.runner.movesUci.slice(0, Math.max(0, Number(last.movesUciLen || 0)));
-            ui.student.runner.movesSan = ui.student.runner.movesSan.slice(0, Math.max(0, Number(last.movesSanLen || 0)));
-          } else {
-            // fallback: clear selection only
-          }
-          ui.student.runner.selectedFrom = null;
-          return renderRunner();
+          // Redo: restart this puzzle attempt (reset to start FEN, clear moves/history/verdict)
+          (async () => {
+            try {
+              if (ui.student.runner.busy) return;
+              const total = Math.max(0, Number(ui.student.total || 0));
+              if (!total) return;
+              const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+              const ok = await resetRunnerToAbsIndex(cur);
+              if (!ok) return;
+              renderRunner();
+            } catch (e) {
+              setMsg('err', e?.message || String(e));
+              renderRunner();
+            }
+          })();
+          return;
         }
         if (t.closest('[data-stu-submit]')) {
           return submitMoveAndReply();
