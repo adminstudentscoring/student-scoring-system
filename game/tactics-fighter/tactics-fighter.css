@@ -563,13 +563,26 @@ body.game-is-tactics-fighter .game-area-content {
 }
 
 /* Practice runner layout tweaks (iPad landscape friendly) */
+.tf-practice-modal {
+  display: flex;
+  flex-direction: column;
+}
+
+.tf-practice-modal > .vcp-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .tf-practice-modal .vcp-modal-body {
   /* ensure inner content can actually use the tall modal */
-  height: 100%;
   overflow: hidden;
 }
 
 .tf-practice-runner-grid {
+  display: grid;
+  gap: 14px;
+  align-items: stretch;
+  grid-template-columns: 1fr;
   height: 100%;
   min-height: 0;
 }
@@ -584,10 +597,11 @@ body.game-is-tactics-fighter .game-area-content {
   display: none;
 }
 
-/* On wider screens (e.g., iPad landscape), center the board by adding a left spacer */
+/* On wider screens (e.g., iPad landscape), keep the right panel to the board's right,
+   and center the board by adding a left spacer column. */
 @media (min-width: 900px) {
   .tf-practice-runner-grid {
-    grid-template-columns: 1fr 420px 1fr;
+    grid-template-columns: 1fr 420px minmax(360px, 1fr);
   }
   .tf-practice-spacer {
     display: block;

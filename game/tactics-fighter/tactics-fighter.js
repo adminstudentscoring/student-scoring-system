@@ -409,7 +409,7 @@
             </div>
           </div>
           <div class="vcp-modal-body">
-            <div class="tf-practice-runner-grid" style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:stretch;">
+            <div class="tf-practice-runner-grid">
               <div class="tf-practice-spacer" aria-hidden="true"></div>
               <div class="tf-practice-board-wrap">
                 <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
