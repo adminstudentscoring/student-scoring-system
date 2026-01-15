@@ -53,6 +53,7 @@
     builderDeleteTopic,
     builderCreateSubtopic,
     builderRenameSubtopic,
+    builderUpdateSubtopicMessage,
     builderDeleteSubtopic,
 
     renderShell,
@@ -413,7 +414,9 @@
           </div>
           <div class="vcp-modal-body">
             <div class="tf-practice-runner-grid">
-              <div class="tf-practice-spacer" aria-hidden="true"></div>
+              <div class="tf-practice-spacer">
+                <div id="tfStuSpacerMsg" class="tf-practice-spacer-msg"></div>
+              </div>
               <div class="tf-practice-board-wrap">
                 <div id="tfStuRunnerFeedback" class="tf-stu-feedback" style="display:none;"></div>
                 <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
@@ -564,6 +567,14 @@
         if (turnEl) {
           const side = ui.student.runner?.side;
           turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
+        }
+
+        // Spacer message (subtopic-level)
+        const spacerMsgEl = modal.querySelector('#tfStuSpacerMsg');
+        if (spacerMsgEl) {
+          const msg = String(ui.student.subtopicMessage || '').trim();
+          spacerMsgEl.innerHTML = msg ? escapeHtml(msg).replace(/\n/g, '<br>') : '';
+          spacerMsgEl.style.display = msg ? 'block' : 'none';
         }
 
         // Feedback overlay (on-board): show only when puzzle completed OR when the last verdict is incorrect.
@@ -1078,6 +1089,7 @@
                                       <input class="tf-bulk-pv-input" type="number" min="1" max="32" step="1" value="${escapeHtml(String(getBulkPvPlies()))}" data-tf-bulk-pv="1" aria-label="PV plies">
                                     </div>
                                     <button type="button" class="btn btn-secondary btn-small" data-tf-load-puzzles="${escapeHtml(sid)}">${puzzlesLoaded ? 'Reload' : 'Load'} puzzles</button>
+                                    <button type="button" class="btn btn-secondary btn-small" data-tf-message-subtopic="${escapeHtml(sid)}">Message</button>
                                     <button type="button" class="btn btn-secondary btn-small" data-tf-rename-subtopic="${escapeHtml(sid)}">Rename</button>
                                     <button type="button" class="btn btn-danger btn-small" data-tf-del-subtopic="${escapeHtml(sid)}">Delete</button>
                                   </div>
@@ -1220,7 +1232,8 @@
         const bucket = getBuilderBucket();
         const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/tree?bucket=${encodeURIComponent(bucket)}`, { method: 'GET' });
         const data = await tfJson(resp);
-        renderBuilderTree(data.categories || []);
+        ui.builderTree = Array.isArray(data.categories) ? data.categories : [];
+        renderBuilderTree(ui.builderTree);
         clearBuilderMsg();
         ui.builderLoadedOnce = true;
       } catch (e) {
@@ -1232,6 +1245,59 @@
       const v = prompt(String(title || ''), String(placeholder || ''));
       if (v == null) return null;
       return String(v).trim();
+    }
+
+    async function openSubtopicMessageModal(subtopicId) {
+      const sid = String(subtopicId || '').trim();
+      if (!sid) return;
+      const cur = builderFindSubtopicById(sid);
+      const initial = cur?.message == null ? '' : String(cur.message);
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfSubMsgBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Subtopic message" style="width: calc(100vw - 40px); max-width: 900px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Message</div>
+              <button id="tfSubMsgClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-field" style="margin-top:0;">
+                <label for="tfSubMsgInput">Message (shown in Practice spacer)</label>
+                <textarea id="tfSubMsgInput" class="tf-textarea" rows="6" placeholder="Type your message...">${escapeHtml(initial)}</textarea>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
+                <button id="tfSubMsgClear" class="btn btn-secondary" type="button">Clear</button>
+                <button id="tfSubMsgCancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="tfSubMsgSave" class="btn btn-primary" type="button">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfSubMsgClose')?.addEventListener('click', close);
+      host.querySelector('#tfSubMsgCancel')?.addEventListener('click', close);
+      host.querySelector('#tfSubMsgBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfSubMsgBackdrop') close();
+      });
+      host.querySelector('#tfSubMsgClear')?.addEventListener('click', () => {
+        const ta = host.querySelector('#tfSubMsgInput');
+        if (ta) ta.value = '';
+      });
+      host.querySelector('#tfSubMsgSave')?.addEventListener('click', async () => {
+        try {
+          const ta = host.querySelector('#tfSubMsgInput');
+          const msg = String(ta?.value ?? '');
+          await builderUpdateSubtopicMessage(sid, msg);
+          await builderRefresh();
+          close();
+        } catch (e) {
+          showBuilderMsg('err', e?.message || String(e));
+        }
+      });
     }
 
     function studentFindCategoryById(cid) {
@@ -1257,6 +1323,19 @@
     function teacherFindSubtopicById(topic, sid) {
       const subs = Array.isArray(topic?.subtopics) ? topic.subtopics : [];
       return subs.find((s) => String(s.id) === String(sid)) || null;
+    }
+
+    function builderFindSubtopicById(sid) {
+      const cats = Array.isArray(ui.builderTree) ? ui.builderTree : [];
+      for (const c of cats) {
+        const topics = Array.isArray(c?.topics) ? c.topics : [];
+        for (const t of topics) {
+          const subs = Array.isArray(t?.subtopics) ? t.subtopics : [];
+          const found = subs.find((s) => String(s.id) === String(sid));
+          if (found) return found;
+        }
+      }
+      return null;
     }
 
     async function teacherFetchTree(bucket) {
@@ -1698,13 +1777,15 @@
       ui.student.puzzles = [];
       ui.student.puzzlePages = {};
       ui.student.verdictByPuzzleId = {};
+      ui.student.subtopicMessage = '';
       ui.student.puzzleSource = 'subtopic';
       toastShow('loading', 'Loading puzzles...');
       try {
         const data = await studentFetchSubtopicPuzzles(publicStudentId, ui.student.subtopicId, ui.student.bucket, ui.student.page, ui.student.pageSize, publicStudentPassword);
         ui.student.puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
         ui.student.total = Number(data.total || 0);
-        ui.student.puzzlePages[String(ui.student.page)] = { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize };
+        ui.student.subtopicMessage = String(data.subtopicMessage || '');
+        ui.student.puzzlePages[String(ui.student.page)] = { puzzles: ui.student.puzzles, total: ui.student.total, pageSize: ui.student.pageSize, subtopicMessage: ui.student.subtopicMessage };
         toastHide();
         setOut(renderStudentPuzzles(ui.student.puzzles, ui.student.page, ui.student.pageSize, ui.student.total));
       } catch (e) {
@@ -1725,8 +1806,9 @@
       const puzzles = Array.isArray(data.puzzles) ? data.puzzles : [];
       const total = Number(data.total || 0);
       ui.student.total = total;
+      ui.student.subtopicMessage = String(data.subtopicMessage || ui.student.subtopicMessage || '');
       if (!ui.student.puzzlePages) ui.student.puzzlePages = {};
-      ui.student.puzzlePages[key] = { puzzles, total, pageSize: ui.student.pageSize };
+      ui.student.puzzlePages[key] = { puzzles, total, pageSize: ui.student.pageSize, subtopicMessage: ui.student.subtopicMessage };
       return ui.student.puzzlePages[key];
     }
 
@@ -1934,6 +2016,14 @@
             const name = await promptText('Rename subtopic', 'New name');
             if (!name) return;
             try { await builderRenameSubtopic(sid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const msgSubBtn = t?.closest?.('[data-tf-message-subtopic]');
+          if (msgSubBtn) {
+            const sid = String(msgSubBtn.getAttribute('data-tf-message-subtopic') || '');
+            if (!sid) return;
+            openSubtopicMessageModal(sid).catch((e) => showBuilderMsg('err', e?.message || String(e)));
             return;
           }
 

@@ -464,6 +464,14 @@
     return await tfJson(resp);
   }
 
+  async function builderUpdateSubtopicMessage(subtopicId, message) {
+    const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(subtopicId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ message: String(message ?? '') })
+    });
+    return await tfJson(resp);
+  }
+
   async function builderDeleteSubtopic(subtopicId) {
     const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/subtopics/${encodeURIComponent(subtopicId)}`, {
       method: 'DELETE'
@@ -670,6 +678,7 @@
     builderDeleteTopic,
     builderCreateSubtopic,
     builderRenameSubtopic,
+    builderUpdateSubtopicMessage,
     builderDeleteSubtopic,
 
     // renderers

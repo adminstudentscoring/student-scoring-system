@@ -675,6 +675,22 @@ body.game-is-tactics-fighter .game-area-content {
   display: none;
 }
 
+.tf-practice-spacer-msg {
+  width: 100%;
+  max-width: 220px;
+  margin: 0 auto;
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  background: rgba(255, 255, 255, 0.65);
+  color: #111827;
+  font-weight: 850;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.06);
+}
+
 /* On wider screens (e.g., iPad landscape), keep the right panel to the board's right,
    and center the board by adding a left spacer column. */
 @media (min-width: 900px) {

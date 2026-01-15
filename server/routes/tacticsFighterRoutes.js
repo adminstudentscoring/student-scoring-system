@@ -657,7 +657,7 @@ function registerTacticsFighterRoutes(app, deps) {
           );
           const topicIds = (topics.rows || []).map((t) => Number(t.id)).filter((n) => Number.isFinite(n));
           const subs = topicIds.length ? await pool.query(
-            `SELECT id, topic_id, name, created_at, updated_at
+            `SELECT id, topic_id, name, message, created_at, updated_at
              FROM tactics_fighter_subtopics
              WHERE org_id = $1 AND topic_id = ANY($2::bigint[])
              ORDER BY name ASC`,
@@ -683,6 +683,7 @@ function registerTacticsFighterRoutes(app, deps) {
             subsByTopic.get(tid).push({
               id: String(s.id),
               name: String(s.name || ''),
+              message: s.message == null ? '' : String(s.message),
               createdAt: s.created_at ? new Date(s.created_at).toISOString() : null,
               updatedAt: s.updated_at ? new Date(s.updated_at).toISOString() : null
             });
@@ -926,20 +927,48 @@ function registerTacticsFighterRoutes(app, deps) {
         try {
           const orgId = await resolveOrgId(req);
           const id = String(req.params.subtopicId || '').trim();
-          const name = toCleanString(req?.body?.name || '', 120);
           if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
           if (!id) return res.status(400).json({ ok: false, error: "Missing id" });
-          if (!name) return res.status(400).json({ ok: false, error: "Missing name" });
+          const hasName = Object.prototype.hasOwnProperty.call(req?.body || {}, 'name');
+          const hasMessage = Object.prototype.hasOwnProperty.call(req?.body || {}, 'message');
+          if (!hasName && !hasMessage) return res.status(400).json({ ok: false, error: "Missing update fields" });
+
+          const name = hasName ? toCleanString(req?.body?.name || '', 120) : null;
+          if (hasName && !name) return res.status(400).json({ ok: false, error: "Missing name" });
+
+          let message = null;
+          if (hasMessage) {
+            message = String(req?.body?.message ?? '');
+            if (message.length > 2000) message = message.slice(0, 2000);
+          }
+
+          const sets = [];
+          const vals = [];
+          let i = 1;
+          if (hasName) { sets.push(`name = $${i++}`); vals.push(name); }
+          if (hasMessage) { sets.push(`message = $${i++}`); vals.push(message); }
+          sets.push(`updated_at = NOW()`);
+          vals.push(orgId);
+          vals.push(id);
+
           const r = await pool.query(
             `UPDATE tactics_fighter_subtopics
-             SET name = $1, updated_at = NOW()
-             WHERE org_id = $2 AND id = $3
-             RETURNING id, topic_id, name, created_at, updated_at`,
-            [name, orgId, id]
+             SET ${sets.join(', ')}
+             WHERE org_id = $${i++} AND id = $${i++}
+             RETURNING id, topic_id, name, message, created_at, updated_at`,
+            vals
           );
           const row = r.rows?.[0];
           if (!row) return res.status(404).json({ ok: false, error: "Not found" });
-          return res.json({ ok: true, subtopic: { id: String(row.id), topicId: String(row.topic_id), name: String(row.name) } });
+          return res.json({
+            ok: true,
+            subtopic: {
+              id: String(row.id),
+              topicId: String(row.topic_id),
+              name: String(row.name || ''),
+              message: row.message == null ? '' : String(row.message)
+            }
+          });
         } catch (e) {
           const msg = String(e?.message || e);
           const isDup = msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('duplicate');
@@ -1208,7 +1237,7 @@ function registerTacticsFighterRoutes(app, deps) {
       // Ensure this subtopic belongs to this org + bucket
       const okRes = await pool.query(
         `
-        SELECT s.id AS subtopic_id
+        SELECT s.id AS subtopic_id, COALESCE(s.message, '') AS message
         FROM tactics_fighter_subtopics s
         JOIN tactics_fighter_topics t ON t.id = s.topic_id
         JOIN tactics_fighter_categories c ON c.id = t.category_id
@@ -1218,6 +1247,7 @@ function registerTacticsFighterRoutes(app, deps) {
         [orgId, subtopicId, bucket]
       );
       if (!okRes.rows.length) return res.status(404).json({ ok: false, error: 'Subtopic not found' });
+      const subtopicMessage = String(okRes.rows?.[0]?.message || '');
 
       const page = toRangeInt(req.query?.page, 1, 1000000, 1);
       const pageSize = toRangeInt(req.query?.pageSize, 1, 50, 10);
@@ -1263,6 +1293,7 @@ function registerTacticsFighterRoutes(app, deps) {
         ok: true,
         bucket,
         subtopicId: String(subtopicId),
+        subtopicMessage,
         page,
         pageSize,
         total,
