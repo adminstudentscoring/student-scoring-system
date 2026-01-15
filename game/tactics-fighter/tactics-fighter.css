@@ -562,6 +562,38 @@ body.game-is-tactics-fighter .game-area-content {
   height: 100%;
 }
 
+/* Practice runner layout tweaks (iPad landscape friendly) */
+.tf-practice-modal .vcp-modal-body {
+  /* ensure inner content can actually use the tall modal */
+  height: 100%;
+  overflow: hidden;
+}
+
+.tf-practice-runner-grid {
+  height: 100%;
+  min-height: 0;
+}
+
+.tf-practice-board-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tf-practice-spacer {
+  display: none;
+}
+
+/* On wider screens (e.g., iPad landscape), center the board by adding a left spacer */
+@media (min-width: 900px) {
+  .tf-practice-runner-grid {
+    grid-template-columns: 1fr 420px 1fr;
+  }
+  .tf-practice-spacer {
+    display: block;
+  }
+}
+
 .tf-stu-toprow {
   display: flex;
   align-items: center;

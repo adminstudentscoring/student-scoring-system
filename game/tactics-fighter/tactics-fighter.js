@@ -398,7 +398,7 @@
       const modal = document.createElement('div');
       modal.className = 'vcp-modal-backdrop';
       modal.innerHTML = `
-        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Practice" style="width: calc(100vw - 40px); max-width: 1100px;">
+        <div class="vcp-modal tf-practice-modal" role="dialog" aria-modal="true" aria-label="Practice" style="width: calc(100vw - 40px); max-width: 1100px; height: calc(100vh - 24px); max-height: 96vh;">
           <div class="vcp-modal-header">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
               <div>
@@ -409,8 +409,9 @@
             </div>
           </div>
           <div class="vcp-modal-body">
-            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:stretch;">
-              <div>
+            <div class="tf-practice-runner-grid" style="display:grid; grid-template-columns: 420px 1fr; gap:14px; align-items:stretch;">
+              <div class="tf-practice-spacer" aria-hidden="true"></div>
+              <div class="tf-practice-board-wrap">
                 <div id="tfStuRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
               </div>
               <div class="tf-stu-right">
