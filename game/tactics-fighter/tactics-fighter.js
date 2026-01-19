@@ -136,6 +136,8 @@
         puzzlePages: {}, // { [page:number]: { puzzles: [], total:number, pageSize:number } }
         // Local session verdicts (per puzzle id). Used for Start/Next skip logic.
         verdictByPuzzleId: {}, // { [puzzleId:string]: 'correct' | 'incorrect' }
+        // Allow practicing again on already-completed puzzles (UI only; server completion remains true).
+        tryAgainByPuzzleId: {}, // { [puzzleId:string]: true }
         challenge: { mode: null, ghostCount: 0, msg: '' },
         runner: null
       }
@@ -544,10 +546,11 @@
         const total = Math.max(0, Number(ui.student.total || 0));
         const abs = Math.max(0, Math.min(Math.max(0, total - 1), Math.trunc(Number(ui.student.runner?.absIndex || 0))));
         if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total || 0}`;
+        const isTryAgain = !!ui.student.tryAgainByPuzzleId?.[String(pz.id)];
         const metaBadge = modal.querySelector('#tfStuRunnerMetaBadge');
         if (metaBadge) {
           metaBadge.classList.remove('is-ok', 'is-err');
-          if (pz.completed) {
+          if (pz.completed && !isTryAgain) {
             metaBadge.textContent = 'Completed';
             metaBadge.style.display = 'inline-flex';
             // keep default green styling
@@ -581,14 +584,15 @@
         const fb = modal.querySelector('#tfStuRunnerFeedback');
         if (fb) {
           const verdict = ui.student.runner.lastVerdict;
-          const showCompleted = !!pz.completed;
+          const showCompleted = !!pz.completed && !isTryAgain;
           const showIncorrect = verdict === 'incorrect';
           if (showCompleted || showIncorrect) {
             const isOk = showCompleted;
             const title = showCompleted ? 'Completed' : 'Incorrect';
             const hint = showCompleted ? 'Great job.' : 'Try again.';
             const btnHtml = showCompleted
-              ? `<button type="button" class="btn btn-primary" data-stu-feedback-next="1">Next</button>`
+              ? `<button type="button" class="btn btn-primary" data-stu-feedback-next="1">Next</button>
+                 <button type="button" class="btn btn-secondary" data-stu-feedback-tryagain="1">Try again</button>`
               : `<button type="button" class="btn btn-secondary" data-stu-feedback-redo="1">Redo</button>`;
             fb.classList.toggle('is-ok', isOk);
             fb.classList.toggle('is-err', !isOk);
@@ -731,6 +735,7 @@
             pz.completed = true;
             ui.student.runner.lastVerdict = 'correct';
             try { ui.student.verdictByPuzzleId[String(pz.id)] = 'correct'; } catch {}
+            try { delete ui.student.tryAgainByPuzzleId[String(pz.id)]; } catch {}
             setMsg('ok', 'Correct. Puzzle completed.');
           } else if (out.correctPrefix) {
             ui.student.runner.lastVerdict = 'correct';
@@ -949,6 +954,27 @@
           })();
           return;
         }
+        if (t.closest('[data-stu-feedback-tryagain]')) {
+          // Allow practicing again on a completed puzzle: hide completed overlay/badge and restart attempt.
+          (async () => {
+            try {
+              if (ui.student.runner.busy) return;
+              const pz = currentPuzzle();
+              if (!pz) return;
+              ui.student.tryAgainByPuzzleId[String(pz.id)] = true;
+              const total = Math.max(0, Number(ui.student.total || 0));
+              if (!total) return;
+              const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
+              const ok = await resetRunnerToAbsIndex(cur);
+              if (!ok) return;
+              renderRunner();
+            } catch (e) {
+              setMsg('err', e?.message || String(e));
+              renderRunner();
+            }
+          })();
+          return;
+        }
         if (t.closest('[data-stu-feedback-redo]')) {
           // same as Redo button (restart current puzzle)
           (async () => {
@@ -1028,6 +1054,572 @@
           const to = coord;
           ui.student.runner.selectedFrom = null;
           return applyStudentMove(from, to);
+        }
+      });
+
+      renderRunner();
+    }
+
+    // Teacher Practice runner: solve puzzles locally (no completion tracking), powered by teacherApplyMove.
+    async function openTeacherRunnerModal(startAbsIndex = 0) {
+      const all = Array.isArray(ui.teacher.puzzlesAll) ? ui.teacher.puzzlesAll : [];
+      const total = all.length;
+      if (!total) return;
+
+      const clampAbs = (n) => Math.max(0, Math.min(total - 1, Math.trunc(Number(n || 0))));
+      const loadAbs = (abs) => {
+        const pz = all[abs];
+        if (!pz) return false;
+        const startFen = String(pz?.fen || '').trim();
+        const startBoard = parseFenToBoard(startFen);
+        const startSide = fenSideToMove(startFen);
+        ui.teacher.runner = {
+          absIndex: abs,
+          movesUci: [],
+          movesSan: [],
+          selectedFrom: null,
+          lastVerdict: null, // 'correct' | 'incorrect' | null
+          solved: false, // teacher-only (UI)
+          startFen,
+          fen: startFen,
+          board: startBoard || Array.from({ length: 8 }, () => Array(8).fill('')),
+          side: startSide,
+          history: [],
+          lineIdx: null,
+          lineUci: null,
+          lineSan: null,
+          busy: false
+        };
+        ui.teacher.runner.playerSide = startSide;
+        ui.teacher.runner.orientation = (startSide === 'b') ? 'black' : 'white';
+        return true;
+      };
+
+      const abs0 = clampAbs(startAbsIndex);
+      if (!loadAbs(abs0)) return;
+
+      const modal = document.createElement('div');
+      modal.className = 'vcp-modal-backdrop';
+      modal.innerHTML = `
+        <div class="vcp-modal tf-practice-modal" role="dialog" aria-modal="true" aria-label="Practice" style="width: calc(100vw - 40px); max-width: 1100px; height: calc(100vh - 24px); max-height: 96vh;">
+          <div class="vcp-modal-header">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
+              <div>
+                <div style="font-weight:900;">Practice</div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <div class="tf-muted" id="tfTeaRunnerMeta"></div>
+                  <div id="tfTeaRunnerMetaBadge" class="tf-stu-meta-badge" style="display:none;"></div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-secondary" data-tea-runner-close="1">Close</button>
+            </div>
+          </div>
+          <div class="vcp-modal-body">
+            <div class="tf-practice-runner-grid">
+              <div class="tf-practice-spacer">
+                <div class="tf-practice-spacer-msg" style="display:none;"></div>
+              </div>
+              <div class="tf-practice-board-wrap">
+                <div id="tfTeaRunnerFeedback" class="tf-stu-feedback" style="display:none;"></div>
+                <div id="tfTeaRunnerBoard" class="tf-board" style="width:100%; aspect-ratio:1/1;"></div>
+              </div>
+              <div class="tf-stu-right">
+                <div class="tf-stu-toprow">
+                  <div class="tf-section-title" id="tfTeaRunnerTurnLabel" style="margin:0;"></div>
+                </div>
+                <div id="tfTeaRunnerMoves" class="tf-stu-moves"></div>
+                <div id="tfTeaRunnerMsg" class="tf-builder-msg tf-stu-msg" style="display:none;"></div>
+                <div class="tf-stu-actions">
+                  <div class="tf-stu-actions-left">
+                    <button type="button" class="btn btn-secondary" data-tea-undo="1" aria-label="Redo">↺</button>
+                    <div class="tf-stu-nav" aria-label="Puzzle navigation">
+                      <button type="button" class="btn btn-secondary" data-tea-prev="1" title="Previous puzzle">←</button>
+                      <button type="button" class="btn btn-secondary" data-tea-next="1" title="Next puzzle">→</button>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-tea-submit="1">Submit</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const close = () => { try { document.body.removeChild(modal); } catch {} };
+      const setMsg = (type, text) => {
+        const el = modal.querySelector('#tfTeaRunnerMsg');
+        if (!el) return;
+        el.style.display = 'block';
+        el.classList.remove('ok', 'err');
+        if (type === 'ok') el.classList.add('ok');
+        if (type === 'err') el.classList.add('err');
+        el.textContent = String(text || '');
+      };
+      const clearMsg = () => {
+        const el = modal.querySelector('#tfTeaRunnerMsg');
+        if (!el) return;
+        el.style.display = 'none';
+        el.textContent = '';
+        el.classList.remove('ok', 'err');
+      };
+
+      function currentPuzzle() {
+        const abs = clampAbs(ui.teacher.runner?.absIndex);
+        return all[abs] || null;
+      }
+
+      function renderBoardInteractive() {
+        const host = modal.querySelector('#tfTeaRunnerBoard');
+        if (!host) return;
+        const b = ui.teacher.runner.board;
+        if (!b) { host.innerHTML = ''; return; }
+        const sqs = [];
+        for (let dr = 0; dr < 8; dr++) {
+          for (let dc = 0; dc < 8; dc++) {
+            const { r, c } = displayToBoardRc(dr, dc, ui.teacher.runner.orientation);
+            const isDark = (dr + dc) % 2 === 1;
+            const coord = rcToCoord(r, c);
+            const piece = (drag?.active && drag?.from === coord) ? '' : (b[r][c] || '');
+            const src = piece ? pieceImageSrc(piece) : '';
+            const img = src ? `<img class="tf-piece-img" alt="" src="${escapeHtml(src)}">` : '';
+            const sel = ui.teacher.runner.selectedFrom === coord ? ' is-selected' : '';
+            sqs.push(
+              `<button type="button" class="tf-sq tf-sq-btn ${isDark ? 'dark' : 'light'}${sel}" data-tea-sq="${escapeHtml(coord)}">${img}</button>`
+            );
+          }
+        }
+        host.innerHTML = sqs.join('');
+      }
+
+      function chooseAcceptedLineForFirstMove(pz, firstUci) {
+        const sol = pz?.solutions && typeof pz.solutions === 'object' ? pz.solutions : {};
+        const lines = Array.isArray(sol.acceptedLines) ? sol.acceptedLines : (Array.isArray(sol.lines) ? sol.lines : []);
+        const uci = String(firstUci || '').trim().toLowerCase();
+        for (let i = 0; i < lines.length; i++) {
+          const pvUci = Array.isArray(lines[i]?.pvUci) ? lines[i].pvUci : null;
+          if (!pvUci || !pvUci.length) continue;
+          if (String(pvUci[0] || '').trim().toLowerCase() === uci) return { idx: i, line: lines[i] };
+        }
+        return null;
+      }
+
+      function uciAtPlyMatches(uciList, plyIndex, uci) {
+        if (!Array.isArray(uciList)) return false;
+        const want = String(uciList[plyIndex] || '').trim().toLowerCase();
+        return want && want === String(uci || '').trim().toLowerCase();
+      }
+
+      function isSolvedNow() {
+        const pz = currentPuzzle();
+        if (!pz) return false;
+        const lineUci = ui.teacher.runner.lineUci;
+        if (!Array.isArray(lineUci) || !lineUci.length) return false;
+        return ui.teacher.runner.movesUci.length >= lineUci.length;
+      }
+
+      function renderRunner() {
+        clearMsg();
+        const pz = currentPuzzle();
+        if (!pz) return close();
+
+        const abs = clampAbs(ui.teacher.runner?.absIndex);
+        const meta = modal.querySelector('#tfTeaRunnerMeta');
+        if (meta) meta.textContent = `Puzzle ${abs + 1} / ${total}`;
+
+        const metaBadge = modal.querySelector('#tfTeaRunnerMetaBadge');
+        if (metaBadge) {
+          metaBadge.classList.remove('is-ok', 'is-err');
+          if (ui.teacher.runner.lastVerdict === 'incorrect') {
+            metaBadge.textContent = 'Incorrect';
+            metaBadge.style.display = 'inline-flex';
+            metaBadge.classList.add('is-err');
+          } else if (ui.teacher.runner.lastVerdict === 'correct') {
+            metaBadge.textContent = 'Correct';
+            metaBadge.style.display = 'inline-flex';
+            metaBadge.classList.add('is-ok');
+          } else {
+            metaBadge.style.display = 'none';
+          }
+        }
+
+        const turnEl = modal.querySelector('#tfTeaRunnerTurnLabel');
+        if (turnEl) {
+          const side = ui.teacher.runner?.side;
+          turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
+        }
+
+        const fb = modal.querySelector('#tfTeaRunnerFeedback');
+        if (fb) {
+          const verdict = ui.teacher.runner.lastVerdict;
+          const solved = !!ui.teacher.runner.solved;
+          const showCorrectDone = solved;
+          const showIncorrect = verdict === 'incorrect';
+          if (showCorrectDone || showIncorrect) {
+            const isOk = showCorrectDone;
+            const title = showCorrectDone ? 'Correct' : 'Incorrect';
+            const hint = showCorrectDone ? 'Great job.' : 'Try again.';
+            const btnHtml = showCorrectDone
+              ? `<button type="button" class="btn btn-primary" data-tea-feedback-next="1">Next</button>`
+              : `<button type="button" class="btn btn-secondary" data-tea-feedback-redo="1">Redo</button>`;
+            fb.classList.toggle('is-ok', isOk);
+            fb.classList.toggle('is-err', !isOk);
+            fb.innerHTML = `
+              <div class="tf-stu-feedback-box">
+                <div class="tf-stu-feedback-title">${escapeHtml(title)}</div>
+                <div class="tf-stu-feedback-sub">${escapeHtml(hint)}</div>
+                <div class="tf-stu-feedback-actions">${btnHtml}</div>
+              </div>
+            `;
+            fb.style.display = 'flex';
+          } else {
+            fb.style.display = 'none';
+            fb.innerHTML = '';
+            fb.classList.remove('is-ok', 'is-err');
+          }
+        }
+
+        const movesEl = modal.querySelector('#tfTeaRunnerMoves');
+        if (movesEl) {
+          const html = formatMovesWithMoveNumbersHighlightedHtml(
+            ui.teacher.runner.startFen || pz.fen,
+            ui.teacher.runner.movesSan,
+            ui.teacher.runner.movesSan.length ? (ui.teacher.runner.movesSan.length - 1) : -1
+          );
+          movesEl.innerHTML = html || escapeHtml(ui.teacher.runner.movesUci.join(' '));
+        }
+
+        renderBoardInteractive();
+      }
+
+      async function resetRunnerToAbsIndex(nextAbs) {
+        const abs = clampAbs(nextAbs);
+        return loadAbs(abs);
+      }
+
+      async function applyTeacherMove(from, to) {
+        if (ui.teacher.runner.busy) return;
+        const f = String(from || '').trim();
+        const t = String(to || '').trim();
+        if (!f || !t) return;
+        if (f === t) return renderRunner();
+
+        const uci = `${f}${t}`;
+        ui.teacher.runner.busy = true;
+        try {
+          clearMsg();
+          ui.teacher.runner.history.push({
+            fen: ui.teacher.runner.fen,
+            board: cloneBoard(ui.teacher.runner.board),
+            side: ui.teacher.runner.side,
+            movesUciLen: ui.teacher.runner.movesUci.length,
+            movesSanLen: ui.teacher.runner.movesSan.length
+          });
+
+          // Optimistic UI: immediately show the piece moved while backend validates.
+          try {
+            const fr = coordToRc(f);
+            const tr = coordToRc(t);
+            const b = ui.teacher.runner.board;
+            if (fr && tr && b?.[fr.r]?.[fr.c]) {
+              const piece = b[fr.r][fr.c];
+              b[fr.r][fr.c] = '';
+              b[tr.r][tr.c] = piece;
+              renderRunner();
+            }
+          } catch {}
+
+          const r = await teacherApplyMove(ui.teacher.runner.fen, uci);
+          if (!r || !r.ok || !r.fenAfter) throw new Error('Illegal move');
+
+          ui.teacher.runner.fen = String(r.fenAfter);
+          ui.teacher.runner.board = parseFenToBoard(ui.teacher.runner.fen) || ui.teacher.runner.board;
+          ui.teacher.runner.side = fenSideToMove(ui.teacher.runner.fen);
+          ui.teacher.runner.movesUci.push(String(r.uci || uci));
+          ui.teacher.runner.movesSan.push(String(r.san || uci));
+          renderRunner();
+        } catch (err) {
+          const last = ui.teacher.runner.history.pop();
+          if (last) {
+            ui.teacher.runner.fen = String(last.fen || ui.teacher.runner.fen);
+            ui.teacher.runner.board = cloneBoard(last.board) || ui.teacher.runner.board;
+            ui.teacher.runner.side = last.side || ui.teacher.runner.side;
+          }
+          setMsg('err', err?.message || String(err));
+          renderRunner();
+        } finally {
+          ui.teacher.runner.busy = false;
+        }
+      }
+
+      async function submitMoveAndReply() {
+        const pz = currentPuzzle();
+        if (!pz) return;
+        if (ui.teacher.runner.busy) return;
+        const moves = ui.teacher.runner.movesUci.slice();
+        if (!moves.length) return;
+
+        const plyIndex = moves.length - 1;
+        const teacherUci = moves[plyIndex];
+
+        // Determine correctness vs PV accepted line (choose on first move).
+        if (ui.teacher.runner.lineIdx == null) {
+          const chosen = chooseAcceptedLineForFirstMove(pz, teacherUci);
+          if (chosen) {
+            ui.teacher.runner.lineIdx = chosen.idx;
+            ui.teacher.runner.lineUci = Array.isArray(chosen.line?.pvUci) ? chosen.line.pvUci.map((x) => String(x || '').trim().toLowerCase()) : null;
+            ui.teacher.runner.lineSan = Array.isArray(chosen.line?.pvSan) ? chosen.line.pvSan.map((x) => String(x || '').trim()) : null;
+          }
+        }
+
+        const lineUci = ui.teacher.runner.lineUci;
+        const lineSan = ui.teacher.runner.lineSan;
+        const isCorrect = uciAtPlyMatches(lineUci, plyIndex, teacherUci);
+
+        if (Array.isArray(lineSan) && isCorrect) {
+          ui.teacher.runner.movesSan = lineSan.slice(0, moves.length);
+        }
+
+        ui.teacher.runner.busy = true;
+        try {
+          clearMsg();
+
+          if (isCorrect && Array.isArray(lineUci) && plyIndex + 1 < lineUci.length) {
+            // PV reply move (computer)
+            const replyUci = lineUci[plyIndex + 1];
+            const r0 = await teacherApplyMove(ui.teacher.runner.fen, replyUci);
+            if (r0 && r0.ok && r0.fenAfter) {
+              ui.teacher.runner.history.push({
+                fen: ui.teacher.runner.fen,
+                board: cloneBoard(ui.teacher.runner.board),
+                side: ui.teacher.runner.side,
+                movesUciLen: ui.teacher.runner.movesUci.length,
+                movesSanLen: ui.teacher.runner.movesSan.length
+              });
+              ui.teacher.runner.fen = String(r0.fenAfter);
+              ui.teacher.runner.board = parseFenToBoard(ui.teacher.runner.fen) || ui.teacher.runner.board;
+              ui.teacher.runner.side = fenSideToMove(ui.teacher.runner.fen);
+              ui.teacher.runner.movesUci.push(replyUci);
+              if (Array.isArray(lineSan)) ui.teacher.runner.movesSan = lineSan.slice(0, ui.teacher.runner.movesUci.length);
+              else ui.teacher.runner.movesSan.push(String(r0.san || replyUci));
+            }
+          } else if (!isCorrect) {
+            // Engine reply on wrong move
+            const fenNow = ui.teacher.runner.fen;
+            const eng = await engineAnalyze(fenNow, { depth: 12, pvPlies: 6, multipv: 1 });
+            const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
+            if (bestUci) {
+              const r1 = await teacherApplyMove(ui.teacher.runner.fen, bestUci);
+              if (r1 && r1.ok && r1.fenAfter) {
+                ui.teacher.runner.history.push({
+                  fen: ui.teacher.runner.fen,
+                  board: cloneBoard(ui.teacher.runner.board),
+                  side: ui.teacher.runner.side,
+                  movesUciLen: ui.teacher.runner.movesUci.length,
+                  movesSanLen: ui.teacher.runner.movesSan.length
+                });
+                ui.teacher.runner.fen = String(r1.fenAfter);
+                ui.teacher.runner.board = parseFenToBoard(ui.teacher.runner.fen) || ui.teacher.runner.board;
+                ui.teacher.runner.side = fenSideToMove(ui.teacher.runner.fen);
+                ui.teacher.runner.movesUci.push(bestUci);
+                const engSan0 = String(r1.san || (Array.isArray(eng?.lines?.[0]?.pvSan) ? (eng.lines[0].pvSan[0] || '') : '') || bestUci);
+                ui.teacher.runner.movesSan = ui.teacher.runner.movesSan.concat([engSan0]);
+              }
+            }
+          }
+
+          if (isCorrect) {
+            ui.teacher.runner.lastVerdict = 'correct';
+            ui.teacher.runner.solved = isSolvedNow();
+            setMsg('ok', ui.teacher.runner.solved ? 'Correct.' : 'Correct. Computer replied.');
+          } else {
+            ui.teacher.runner.lastVerdict = 'incorrect';
+            ui.teacher.runner.solved = false;
+            setMsg('err', 'Wrong. Engine replied.');
+          }
+
+          renderRunner();
+        } catch (e) {
+          setMsg('err', e?.message || String(e));
+        } finally {
+          ui.teacher.runner.busy = false;
+        }
+      }
+
+      // Drag & drop support (pointer events)
+      let ignoreClickUntil = 0;
+      const drag = { active: false, pointerId: null, from: null, hoverEl: null, ghostEl: null };
+      const clearDragHover = () => { try { drag.hoverEl?.classList?.remove('is-drop-target'); } catch {} drag.hoverEl = null; };
+      const removeGhost = () => { try { drag.ghostEl?.remove(); } catch {} drag.ghostEl = null; };
+      const setGhostPos = (x, y) => {
+        if (!drag.ghostEl) return;
+        const size = 56;
+        drag.ghostEl.style.transform = `translate(${Math.round(x - size / 2)}px, ${Math.round(y - size / 2)}px)`;
+      };
+      const coordFromPoint = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        const sq = el && el.closest ? el.closest('[data-tea-sq]') : null;
+        const coord = sq ? String(sq.getAttribute('data-tea-sq') || '').trim() : '';
+        return coord || null;
+      };
+      const squareElFromPoint = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        return el && el.closest ? el.closest('[data-tea-sq]') : null;
+      };
+      const startDrag = (from, piece, x, y, pointerId) => {
+        drag.active = true;
+        drag.pointerId = pointerId;
+        drag.from = from;
+        clearDragHover();
+        removeGhost();
+        const ghost = document.createElement('div');
+        ghost.className = 'tf-drag-ghost';
+        const src = piece ? pieceImageSrc(piece) : '';
+        ghost.innerHTML = src ? `<img alt="" src="${escapeHtml(src)}">` : '';
+        document.body.appendChild(ghost);
+        drag.ghostEl = ghost;
+        setGhostPos(x, y);
+        const boardHost = modal.querySelector('#tfTeaRunnerBoard');
+        boardHost?.classList?.add('is-dragging');
+      };
+      const endDrag = () => {
+        drag.active = false;
+        drag.pointerId = null;
+        drag.from = null;
+        clearDragHover();
+        removeGhost();
+        const boardHost = modal.querySelector('#tfTeaRunnerBoard');
+        boardHost?.classList?.remove('is-dragging');
+      };
+
+      modal.addEventListener('pointerdown', (ev) => {
+        if (!(ev.target instanceof Element)) return;
+        const sq = ev.target.closest('[data-tea-sq]');
+        if (!sq) return;
+        if (ui.teacher.runner.busy) return;
+        const from = String(sq.getAttribute('data-tea-sq') || '').trim();
+        if (!from) return;
+        const rc = coordToRc(from);
+        const piece = rc ? (ui.teacher.runner.board?.[rc.r]?.[rc.c] || '') : '';
+        if (!piece) return;
+        ev.preventDefault();
+        ignoreClickUntil = Date.now() + 400;
+        startDrag(from, piece, ev.clientX, ev.clientY, ev.pointerId);
+        ui.teacher.runner.selectedFrom = from;
+        renderRunner();
+        try { modal.setPointerCapture(ev.pointerId); } catch {}
+      }, { passive: false });
+
+      modal.addEventListener('pointermove', (ev) => {
+        if (!drag.active) return;
+        if (drag.pointerId !== ev.pointerId) return;
+        setGhostPos(ev.clientX, ev.clientY);
+        const el = squareElFromPoint(ev.clientX, ev.clientY);
+        if (el !== drag.hoverEl) {
+          clearDragHover();
+          if (el) {
+            el.classList.add('is-drop-target');
+            drag.hoverEl = el;
+          }
+        }
+      });
+
+      modal.addEventListener('pointerup', (ev) => {
+        if (!drag.active) return;
+        if (drag.pointerId !== ev.pointerId) return;
+        const from = drag.from;
+        const to = coordFromPoint(ev.clientX, ev.clientY);
+        endDrag();
+        ui.teacher.runner.selectedFrom = null;
+        if (!from || !to || from === to) return renderRunner();
+        applyTeacherMove(from, to);
+      });
+
+      modal.addEventListener('pointercancel', (ev) => {
+        if (!drag.active) return;
+        if (drag.pointerId !== ev.pointerId) return;
+        endDrag();
+        ui.teacher.runner.selectedFrom = null;
+        renderRunner();
+      });
+
+      modal.addEventListener('click', (ev) => {
+        if (Date.now() < ignoreClickUntil) return;
+        const t = ev.target;
+        if (!(t instanceof Element)) return;
+        if (t.closest('[data-tea-runner-close]')) return close();
+        if (t.closest('[data-tea-feedback-next]')) {
+          (async () => {
+            const cur = clampAbs(ui.teacher.runner?.absIndex);
+            const ok = await resetRunnerToAbsIndex(cur + 1);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
+        }
+        if (t.closest('[data-tea-feedback-redo]')) {
+          (async () => {
+            try {
+              if (ui.teacher.runner.busy) return;
+              const cur = clampAbs(ui.teacher.runner?.absIndex);
+              const ok = await resetRunnerToAbsIndex(cur);
+              if (!ok) return;
+              renderRunner();
+            } catch (e) {
+              setMsg('err', e?.message || String(e));
+              renderRunner();
+            }
+          })();
+          return;
+        }
+        if (t.closest('[data-tea-prev]')) {
+          (async () => {
+            const cur = clampAbs(ui.teacher.runner?.absIndex);
+            const ok = await resetRunnerToAbsIndex(cur - 1);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
+        }
+        if (t.closest('[data-tea-next]')) {
+          (async () => {
+            const cur = clampAbs(ui.teacher.runner?.absIndex);
+            const ok = await resetRunnerToAbsIndex(cur + 1);
+            if (!ok) return;
+            renderRunner();
+          })();
+          return;
+        }
+        if (t.closest('[data-tea-undo]')) {
+          (async () => {
+            try {
+              if (ui.teacher.runner.busy) return;
+              const cur = clampAbs(ui.teacher.runner?.absIndex);
+              const ok = await resetRunnerToAbsIndex(cur);
+              if (!ok) return;
+              renderRunner();
+            } catch (e) {
+              setMsg('err', e?.message || String(e));
+              renderRunner();
+            }
+          })();
+          return;
+        }
+        if (t.closest('[data-tea-submit]')) {
+          return submitMoveAndReply();
+        }
+        const sq = t.closest('[data-tea-sq]');
+        if (sq) {
+          const coord = String(sq.getAttribute('data-tea-sq') || '').trim();
+          if (!coord) return;
+          if (!ui.teacher.runner.selectedFrom) {
+            ui.teacher.runner.selectedFrom = coord;
+            return renderRunner();
+          }
+          const from = ui.teacher.runner.selectedFrom;
+          const to = coord;
+          ui.teacher.runner.selectedFrom = null;
+          return applyTeacherMove(from, to);
         }
       });
 
@@ -3511,7 +4103,7 @@
     // Practice navigation (event delegation)
     root.addEventListener('click', (e) => {
       const target = e.target && e.target.closest ? e.target.closest(
-        '[data-chal-mode],[data-chal-ghost-start],[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle],[data-tea-back],[data-tea-cat],[data-tea-topic],[data-tea-subtopic],[data-tea-page],[data-tea-start],[data-tea-choose-students]'
+        '[data-chal-mode],[data-chal-ghost-start],[data-practice],[data-stu-cat],[data-stu-topic],[data-stu-subtopic],[data-stu-back],[data-stu-page],[data-stu-start],[data-stu-open-puzzle],[data-tea-back],[data-tea-cat],[data-tea-topic],[data-tea-subtopic],[data-tea-page],[data-tea-start],[data-tea-choose-students],[data-tea-open-puzzle]'
       ) : null;
       if (!target) return;
 
@@ -3673,14 +4265,41 @@
 
         const startBtn = target.closest('[data-tea-start]');
         if (startBtn) {
-          // Teacher practice runner is not implemented; use Choose Student to start.
-          toastShow('ok', 'Use "Choose Student to start" to generate student links.', { autoHideMs: 2500 });
+          // Teacher can also solve puzzles directly (no completion tracking).
+          (async () => {
+            try {
+              if (!Array.isArray(ui.teacher.puzzlesAll) || !ui.teacher.puzzlesAll.length) {
+                toastShow('err', 'No puzzles found in this subtopic.');
+                return;
+              }
+              await openTeacherRunnerModal(0);
+            } catch (e) {
+              toastShow('err', e?.message || String(e));
+            }
+          })();
           return;
         }
 
         const chooseBtn = target.closest('[data-tea-choose-students]');
         if (chooseBtn) {
           openTeacherChooseStudentsModal().catch((err) => toastShow('err', err?.message || String(err)));
+          return;
+        }
+
+        const openPzBtn = target.closest('[data-tea-open-puzzle]');
+        if (openPzBtn) {
+          (async () => {
+            try {
+              const pid = String(openPzBtn.getAttribute('data-tea-open-puzzle') || '').trim();
+              if (!pid) return;
+              const all = Array.isArray(ui.teacher.puzzlesAll) ? ui.teacher.puzzlesAll : [];
+              const idx = all.findIndex((p) => String(p?.id) === pid);
+              if (idx < 0) return;
+              await openTeacherRunnerModal(idx);
+            } catch (e) {
+              toastShow('err', e?.message || String(e));
+            }
+          })();
           return;
         }
 
