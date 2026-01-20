@@ -2449,6 +2449,7 @@
         const all = Array.isArray(data?.allStudents) ? data.allStudents : [];
         const classIds = new Set((Array.isArray(data?.selectedStudentIds) ? data.selectedStudentIds : []).map(String));
         const selected = new Set(); // start empty
+        let q = '';
 
         const host = document.createElement('div');
         host.innerHTML = `
@@ -2461,6 +2462,7 @@
               <div class="vcp-modal-body">
                 <div class="tf-muted">Select students, then confirm to generate links.</div>
                 <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                  <input id="tfChooseStuSearch" class="tf-input" type="search" placeholder="Search name or ID" style="flex:1 1 240px; min-width:220px; max-width: 420px;">
                   <button id="tfChooseStuPickClass" class="btn btn-secondary" type="button">Select students in Class View now</button>
                   <button id="tfChooseStuSelectAll" class="btn btn-secondary" type="button">Select all</button>
                   <button id="tfChooseStuClear" class="btn btn-secondary" type="button">Clear</button>
@@ -2487,6 +2489,7 @@
         const listEl = host.querySelector('#tfChooseStuList');
         const countEl = host.querySelector('#tfChooseStuCount');
         const confirmBtn = host.querySelector('#tfChooseStuConfirm');
+        const searchEl = host.querySelector('#tfChooseStuSearch');
 
         const setCount = () => {
           const n = selected.size;
@@ -2494,14 +2497,29 @@
           if (confirmBtn) confirmBtn.disabled = n <= 0;
         };
 
+        const filteredStudents = () => {
+          const qq = String(q || '').trim().toLowerCase();
+          if (!qq) return all;
+          return all.filter((s) => {
+            const sid = String(s?.id || '').trim().toLowerCase();
+            const name = String(s?.name || '').trim().toLowerCase();
+            return (sid && sid.includes(qq)) || (name && name.includes(qq));
+          });
+        };
+
         const renderList = () => {
           if (!listEl) return;
           listEl.innerHTML = '';
+          const shown = filteredStudents();
           if (!all.length) {
             listEl.innerHTML = `<div class="tf-muted">No students found.</div>`;
             return;
           }
-          for (const s of all) {
+          if (!shown.length) {
+            listEl.innerHTML = `<div class="tf-muted">No matching students.</div>`;
+            return;
+          }
+          for (const s of shown) {
             const sid = String(s?.id || '').trim();
             const name = String(s?.name || '').trim() || sid;
             const inClass = classIds.has(sid);
@@ -2538,13 +2556,19 @@
         renderList();
         setCount();
 
+        searchEl?.addEventListener('input', () => {
+          q = String(searchEl.value || '');
+          renderList();
+        });
+
         host.querySelector('#tfChooseStuPickClass')?.addEventListener('click', () => {
           for (const sid of classIds) selected.add(String(sid));
           renderList();
           setCount();
         });
         host.querySelector('#tfChooseStuSelectAll')?.addEventListener('click', () => {
-          for (const s of all) selected.add(String(s?.id || '').trim());
+          const shown = filteredStudents();
+          for (const s of shown) selected.add(String(s?.id || '').trim());
           renderList();
           setCount();
         });
@@ -2687,6 +2711,11 @@
         } catch {}
         ui.student.subtopicId = String(subtopicId);
         await studentOpenSubtopic(subtopicId);
+        // Auto-open the first puzzle in this subtopic.
+        try {
+          ui.student.runner = { absIndex: 0 };
+          await openStudentRunnerModal();
+        } catch {}
         toastHide();
         return true;
       } catch (e) {
