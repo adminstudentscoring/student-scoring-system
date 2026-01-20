@@ -200,6 +200,90 @@
       return false;
     }
 
+    function isPseudoLegalMove(board, side, fromCoord, toCoord) {
+      const fr = coordToRc(String(fromCoord || '').trim());
+      const tr = coordToRc(String(toCoord || '').trim());
+      if (!fr || !tr) return false;
+      const b = board;
+      const piece = b?.[fr.r]?.[fr.c] || '';
+      if (!piece) return false;
+      const isWhite = piece === piece.toUpperCase();
+      const wantSide = (String(side || 'w') === 'b') ? 'b' : 'w';
+      if ((wantSide === 'w' && !isWhite) || (wantSide === 'b' && isWhite)) return false;
+      const dst = b?.[tr.r]?.[tr.c] || '';
+      if (dst) {
+        const dstIsWhite = dst === dst.toUpperCase();
+        if (dstIsWhite === isWhite) return false; // can't capture own piece
+      }
+
+      const dr = tr.r - fr.r;
+      const dc = tr.c - fr.c;
+      const absDr = Math.abs(dr);
+      const absDc = Math.abs(dc);
+      const t = piece.toLowerCase();
+
+      const clearPath = () => {
+        const stepR = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+        const stepC = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+        let r = fr.r + stepR;
+        let c = fr.c + stepC;
+        while (r !== tr.r || c !== tr.c) {
+          if (b?.[r]?.[c]) return false;
+          r += stepR;
+          c += stepC;
+        }
+        return true;
+      };
+
+      if (t === 'n') return (absDr === 2 && absDc === 1) || (absDr === 1 && absDc === 2);
+      if (t === 'b') return absDr === absDc && absDr > 0 && clearPath();
+      if (t === 'r') return ((dr === 0 && dc !== 0) || (dc === 0 && dr !== 0)) && clearPath();
+      if (t === 'q') {
+        const diag = absDr === absDc && absDr > 0;
+        const ortho = (dr === 0 && dc !== 0) || (dc === 0 && dr !== 0);
+        return (diag || ortho) && clearPath();
+      }
+      if (t === 'k') {
+        // Basic castling allowance (no check validation)
+        const fromSq = String(fromCoord || '').trim().toLowerCase();
+        const toSq = String(toCoord || '').trim().toLowerCase();
+        if (wantSide === 'w' && fromSq === 'e1' && (toSq === 'g1' || toSq === 'c1')) {
+          // squares between must be empty and rook must exist
+          if (toSq === 'g1') {
+            const f1 = coordToRc('f1'); const g1 = coordToRc('g1'); const h1 = coordToRc('h1');
+            if (!f1 || !g1 || !h1) return false;
+            return !b[f1.r][f1.c] && !b[g1.r][g1.c] && (b[h1.r][h1.c] === 'R');
+          } else {
+            const b1 = coordToRc('b1'); const c1 = coordToRc('c1'); const d1 = coordToRc('d1'); const a1 = coordToRc('a1');
+            if (!b1 || !c1 || !d1 || !a1) return false;
+            return !b[b1.r][b1.c] && !b[c1.r][c1.c] && !b[d1.r][d1.c] && (b[a1.r][a1.c] === 'R');
+          }
+        }
+        if (wantSide === 'b' && fromSq === 'e8' && (toSq === 'g8' || toSq === 'c8')) {
+          if (toSq === 'g8') {
+            const f8 = coordToRc('f8'); const g8 = coordToRc('g8'); const h8 = coordToRc('h8');
+            if (!f8 || !g8 || !h8) return false;
+            return !b[f8.r][f8.c] && !b[g8.r][g8.c] && (b[h8.r][h8.c] === 'r');
+          } else {
+            const b8 = coordToRc('b8'); const c8 = coordToRc('c8'); const d8 = coordToRc('d8'); const a8 = coordToRc('a8');
+            if (!b8 || !c8 || !d8 || !a8) return false;
+            return !b[b8.r][b8.c] && !b[c8.r][c8.c] && !b[d8.r][d8.c] && (b[a8.r][a8.c] === 'r');
+          }
+        }
+        return absDr <= 1 && absDc <= 1 && (absDr + absDc) > 0;
+      }
+      if (t === 'p') {
+        const forward = isWhite ? -1 : 1;
+        const startRow = isWhite ? 6 : 1;
+        const oneStepOk = (dc === 0 && dr === forward && !dst);
+        const twoStepOk = (dc === 0 && fr.r === startRow && dr === 2 * forward && !dst && !b?.[fr.r + forward]?.[fr.c]);
+        const captureOk = (absDc === 1 && dr === forward && !!dst);
+        return oneStepOk || twoStepOk || captureOk;
+      }
+
+      return false;
+    }
+
     async function openPromotionPicker(pawnChar) {
       const color = pieceColorFromChar(pawnChar) || 'w';
       const host = document.createElement('div');
@@ -842,6 +926,12 @@
         if (!f || !t) return;
         if (f === t) return renderRunner();
 
+        // Prevent "drop anywhere then rollback": do a pseudo-legal validation before optimistic placement.
+        if (!isPseudoLegalMove(ui.student.runner.board, ui.student.runner.side, f, t)) {
+          setMsg('err', 'Illegal move');
+          return renderRunner();
+        }
+
         ui.student.runner.busy = true;
         try {
           clearMsg();
@@ -1434,6 +1524,11 @@
         const t = String(to || '').trim();
         if (!f || !t) return;
         if (f === t) return renderRunner();
+
+        if (!isPseudoLegalMove(ui.teacher.runner.board, ui.teacher.runner.side, f, t)) {
+          setMsg('err', 'Illegal move');
+          return renderRunner();
+        }
 
         ui.teacher.runner.busy = true;
         try {
