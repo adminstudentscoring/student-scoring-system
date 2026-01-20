@@ -92,6 +92,9 @@
     const cfg = await loadConfigOnce();
 
     const ui = {
+      tfSettings: {
+        stockfishDepthCap: 14
+      },
       builderTree: null,
       builderMsg: null,
       builderLoadedOnce: false,
@@ -142,6 +145,53 @@
         runner: null
       }
     };
+
+    // Settings (org-level)
+    async function loadTfSettings() {
+      try {
+        if (isTeacher) {
+          const resp = await apiRequest('/api/teachers/tactics-fighter/settings', { method: 'GET' });
+          const data = await tfJson(resp);
+          ui.tfSettings.stockfishDepthCap = Number(data?.stockfishDepthCap || 14) || 14;
+          return ui.tfSettings;
+        }
+        if (publicStudentId) {
+          const qp = new URLSearchParams();
+          if (publicStudentPassword) qp.set('password', String(publicStudentPassword));
+          const resp = await apiRequest(`/api/public/students/${encodeURIComponent(publicStudentId)}/tactics-fighter/settings?${qp.toString()}`, { method: 'GET' });
+          const data = await tfJson(resp);
+          ui.tfSettings.stockfishDepthCap = Number(data?.stockfishDepthCap || 14) || 14;
+          return ui.tfSettings;
+        }
+      } catch {}
+      return ui.tfSettings;
+    }
+
+    async function saveTfSettings(nextCap) {
+      const cap = Math.max(4, Math.min(22, Number(nextCap || 14) || 14));
+      const resp = await apiRequest('/api/teachers/tactics-fighter/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ stockfishDepthCap: cap })
+      });
+      const data = await tfJson(resp);
+      ui.tfSettings.stockfishDepthCap = Number(data?.stockfishDepthCap || cap) || cap;
+      return ui.tfSettings;
+    }
+
+    function getDepthCap() {
+      const cap = Number(ui.tfSettings?.stockfishDepthCap || 14) || 14;
+      return Math.max(4, Math.min(22, cap));
+    }
+
+    function getPracticeDepth() {
+      // Keep existing default intent (12), but respect the cap.
+      return Math.min(12, getDepthCap());
+    }
+
+    function getBuilderDepthDefault() {
+      // Keep existing default intent (16), but respect the cap.
+      return Math.min(16, getDepthCap());
+    }
 
     function toastShow(type, text, opts = {}) {
       const el = document.getElementById('tfToast');
@@ -863,7 +913,7 @@
           } else if (!isCorrect) {
             // Engine reply on wrong move
             const fenNow = ui.student.runner.fen;
-            const eng = await studentEngineAnalyze(publicStudentId, fenNow, { depth: 12, pvPlies: 6 }, publicStudentPassword);
+            const eng = await studentEngineAnalyze(publicStudentId, fenNow, { depth: getPracticeDepth(), pvPlies: 6 }, publicStudentPassword);
             const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
             if (bestUci) {
               const r1 = await studentApplyMove(publicStudentId, ui.student.runner.fen, bestUci, publicStudentPassword);
@@ -1643,7 +1693,7 @@
           } else if (!isCorrect) {
             // Engine reply on wrong move
             const fenNow = ui.teacher.runner.fen;
-            const eng = await engineAnalyze(fenNow, { depth: 12, pvPlies: 6, multipv: 1 });
+            const eng = await engineAnalyze(fenNow, { depth: getPracticeDepth(), pvPlies: 6, multipv: 1 });
             const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
             if (bestUci) {
               const r1 = await teacherApplyMove(ui.teacher.runner.fen, bestUci);
@@ -2983,6 +3033,44 @@
           builderRefresh();
         }
       }
+
+      // Settings wire-up
+      if (nm === 'settings') {
+        (async () => {
+          const input = document.getElementById('tfSettingDepthCap');
+          const saveBtn = document.getElementById('tfSettingSaveBtn');
+          const hint = document.getElementById('tfSettingHint');
+
+          // Load latest settings from server (org-level)
+          toastShow('loading', 'Loading...');
+          await loadTfSettings();
+          toastHide();
+
+          if (input) input.value = String(getDepthCap());
+
+          if (!isTeacher) {
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (hint) hint.textContent = `Depth cap is managed by teachers. Current cap: ${getDepthCap()}.`;
+            return;
+          }
+
+          if (hint) hint.textContent = `Current cap: ${getDepthCap()} (applies to Practice + Builder).`;
+          saveBtn?.addEventListener('click', async () => {
+            try {
+              const next = Number(input?.value || getDepthCap()) || getDepthCap();
+              toastShow('loading', 'Saving...');
+              await saveTfSettings(next);
+              toastHide();
+              if (input) input.value = String(getDepthCap());
+              if (hint) hint.textContent = `Saved. Current cap: ${getDepthCap()} (applies to Practice + Builder).`;
+              toastShow('ok', 'Saved.', { autoHideMs: 1600 });
+            } catch (e) {
+              toastShow('err', e?.message || String(e));
+              if (hint) hint.textContent = e?.message || String(e);
+            }
+          });
+        })();
+      }
       if (nm === 'practice' && isTeacher && ui.teacher.tree && ui.teacher.view !== 'bucket') {
         if (ui.teacher.view === 'categories') {
           setOut(renderTeacherCategories(ui.teacher.tree.categories || []));
@@ -3126,7 +3214,7 @@
           const pvPlies = Math.max(1, Math.min(32, Number(pvPliesInput?.value || 8) || 8));
           setEditMsg('Running engine…');
           toastShow('loading', 'Running engine…');
-          const r = await engineAnalyze({ fen, depth: 16, multipv: 1, pvPlies });
+          const r = await engineAnalyze({ fen, depth: getBuilderDepthDefault(), multipv: 1, pvPlies });
           const line0 = Array.isArray(r?.lines) ? r.lines[0] : null;
           if (!line0) throw new Error('Engine returned empty line');
           const solutions = {
@@ -3153,7 +3241,7 @@
           toastShow('loading', 'Saving…');
           const pvPlies = Number(lastEditEngine.pvPlies || 8) || 8;
           const out = await builderUpdatePuzzle(puzzle?.id, {
-            engineDepth: 16,
+            engineDepth: getBuilderDepthDefault(),
             multipv: 1,
             pvPlies,
             solutions: lastEditEngine.solutions
@@ -4246,7 +4334,7 @@
         if (runBtn) runBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
 
-        const depth = 16;
+        const depth = getBuilderDepthDefault();
         const pvPliesNow = getBulkPvPlies();
         if (pvPliesEl) pvPliesEl.textContent = String(pvPliesNow);
 
@@ -4291,7 +4379,7 @@
         absorbFromTextarea('save');
         const bucket = getBuilderBucket();
         const pvPliesNow = getBulkPvPlies();
-        const depth = 16;
+        const depth = getBuilderDepthDefault();
         let saved = 0;
         for (let i = 0; i < entries.length; i++) {
           const ent = entries[i];

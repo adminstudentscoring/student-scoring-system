@@ -120,6 +120,17 @@ async function ensureTfSchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_puzzles_org_idx ON tactics_fighter_puzzles(org_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_puzzles_subtopic_idx ON tactics_fighter_puzzles(subtopic_id);`);
+
+  // Org-level settings (idempotent; prefer DB migration 010_tactics_fighter_settings.sql)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tactics_fighter_settings (
+      org_id TEXT PRIMARY KEY,
+      stockfish_depth_cap INT NOT NULL DEFAULT 14,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_by TEXT
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS tactics_fighter_settings_org_idx ON tactics_fighter_settings(org_id);`);
 }
 
 async function ensureTfStudentSchema(pool) {
@@ -213,6 +224,35 @@ function registerTacticsFighterRoutes(app, deps) {
 
   const pool = appDb?.getPool?.();
   const hasDb = !!pool;
+
+  async function getTfSettings(orgId) {
+    if (!orgId) return { stockfishDepthCap: 14 };
+    if (!hasDb) return { stockfishDepthCap: 14 };
+    // ensure schema is created before reading
+    try { await ensureTfSchema(pool); } catch {}
+    const r = await pool.query(
+      `SELECT stockfish_depth_cap FROM tactics_fighter_settings WHERE org_id = $1 LIMIT 1`,
+      [String(orgId)]
+    );
+    const cap = r.rows?.[0]?.stockfish_depth_cap;
+    return { stockfishDepthCap: toRangeInt(cap, 4, 22, 14) };
+  }
+
+  async function upsertTfSettings(orgId, patch, updatedBy) {
+    const cap = toRangeInt(patch?.stockfishDepthCap, 4, 22, 14);
+    await pool.query(
+      `
+      INSERT INTO tactics_fighter_settings (org_id, stockfish_depth_cap, updated_at, updated_by)
+      VALUES ($1, $2, NOW(), $3)
+      ON CONFLICT (org_id) DO UPDATE SET
+        stockfish_depth_cap = EXCLUDED.stockfish_depth_cap,
+        updated_at = NOW(),
+        updated_by = EXCLUDED.updated_by
+      `,
+      [String(orgId), cap, updatedBy ? String(updatedBy) : null]
+    );
+    return { stockfishDepthCap: cap };
+  }
 
   // ===== Teacher debug: verify deployed routes (helps diagnose 404 on Railway) =====
   if (authenticateUser && authorizeRole && requireOrganizationAccess) {
@@ -340,6 +380,9 @@ function registerTacticsFighterRoutes(app, deps) {
       app: "tactics-fighter",
       version: "v1",
       updatedAt: nowIso(),
+      defaults: {
+        stockfishDepthCap: 14
+      },
       endpoints: {
         logAttempt: "/api/tactics-fighter/attempts",
         teacherAttempts: "/api/teachers/tactics-fighter/attempts",
@@ -347,6 +390,61 @@ function registerTacticsFighterRoutes(app, deps) {
         engineAnalyze: "/api/teachers/tactics-fighter/engine/analyze"
       }
     });
+  });
+
+  // ===== Teacher: Settings (org-level) =====
+  if (authenticateUser && authorizeRole && requireOrganizationAccess && resolveOrgIdFromUser) {
+    app.get(
+      "/api/teachers/tactics-fighter/settings",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        try {
+          if (!(await requireDbReady(res))) return;
+          const orgId = await resolveOrgId(req);
+          if (!orgId) return res.status(403).json({ ok: false, error: "Missing orgId" });
+          const s = await getTfSettings(orgId);
+          return res.json({ ok: true, ...s });
+        } catch (e) {
+          console.error("[tactics-fighter] teacher settings get error:", e);
+          return res.status(500).json({ ok: false, error: "Failed to load settings" });
+        }
+      }
+    );
+
+    app.put(
+      "/api/teachers/tactics-fighter/settings",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        try {
+          if (!(await requireDbReady(res))) return;
+          const orgId = await resolveOrgId(req);
+          if (!orgId) return res.status(403).json({ ok: false, error: "Missing orgId" });
+          const out = await upsertTfSettings(orgId, { stockfishDepthCap: req?.body?.stockfishDepthCap }, req?.user?.id || req?.user?.email || null);
+          return res.json({ ok: true, ...out });
+        } catch (e) {
+          console.error("[tactics-fighter] teacher settings put error:", e);
+          return res.status(500).json({ ok: false, error: "Failed to save settings" });
+        }
+      }
+    );
+  }
+
+  // ===== Public Student: Settings (read-only) =====
+  app.get("/api/public/students/:id/tactics-fighter/settings", async (req, res) => {
+    try {
+      const ctx = await requirePublicStudent(req, res);
+      if (!ctx) return;
+      if (!(await requireDbReady(res))) return;
+      const s = await getTfSettings(ctx.orgId);
+      return res.json({ ok: true, ...s });
+    } catch (e) {
+      console.error("[tactics-fighter] public settings get error:", e);
+      return res.status(500).json({ ok: false, error: "Failed to load settings" });
+    }
   });
 
   // Public: minimal attempt logger (file-based analytics/debug)
@@ -444,7 +542,10 @@ function registerTacticsFighterRoutes(app, deps) {
           // Validate FEN quickly via chess.js
           try { new Chess(fen); } catch { return res.status(400).json({ ok: false, error: "Invalid FEN" }); }
 
-          const depth = toRangeInt(req?.body?.depth, 4, 22, 16);
+          const orgId = await resolveOrgId(req).catch(() => null);
+          const settings = await getTfSettings(orgId);
+          const cap = toRangeInt(settings.stockfishDepthCap, 4, 22, 14);
+          const depth = toRangeInt(req?.body?.depth, 4, cap, Math.min(16, cap));
           const multipv = toRangeInt(req?.body?.multipv, 1, 10, 1);
           const pvPlies = toRangeInt(req?.body?.pvPlies, 1, 32, 8);
 
@@ -497,6 +598,7 @@ function registerTacticsFighterRoutes(app, deps) {
       try {
         const ctx = await requirePublicStudent(req, res);
         if (!ctx) return;
+        if (!(await requireDbReady(res))) return;
 
         const fen = toCleanString(req?.body?.fen || '', 2000);
         if (!fen) return res.status(400).json({ ok: false, error: 'Missing fen' });
@@ -504,8 +606,10 @@ function registerTacticsFighterRoutes(app, deps) {
         // Validate FEN via chess.js
         try { new Chess(fen); } catch { return res.status(400).json({ ok: false, error: 'Invalid FEN' }); }
 
-        // Clamp aggressively for public endpoint
-        const depth = toRangeInt(req?.body?.depth, 4, 14, 12);
+        // Clamp by org settings (still hard-capped at 22 by toRangeInt above in getTfSettings)
+        const settings = await getTfSettings(ctx.orgId);
+        const cap = toRangeInt(settings.stockfishDepthCap, 4, 22, 14);
+        const depth = toRangeInt(req?.body?.depth, 4, cap, Math.min(12, cap));
         const pvPlies = toRangeInt(req?.body?.pvPlies, 1, 16, 6);
         const multipv = 1;
 
@@ -1379,6 +1483,8 @@ function registerTacticsFighterRoutes(app, deps) {
       let completed = false;
       let chosenLine = null;
       let matchCount = 0;
+      let engineAccepted = false;
+      let engineAcceptance = null;
 
       for (let i = 0; i < accepted.length; i++) {
         const line = accepted[i];
@@ -1390,6 +1496,84 @@ function registerTacticsFighterRoutes(app, deps) {
           completed = true;
           chosenLine = i;
           break;
+        }
+      }
+
+      // If PV doesn't match any accepted line, optionally accept "near-correct" based on Stockfish evaluation.
+      // This supports positions where more than one good continuation exists or the stored line is limited.
+      if (!correctPrefix && sfAnalyzeFen && Chess && movesUci.length) {
+        try {
+          const lastIdx = movesUci.length - 1;
+          const studentMoveIdx = (lastIdx % 2 === 0) ? lastIdx : (lastIdx - 1);
+          const studentMoveUci = movesUci[studentMoveIdx];
+          if (studentMoveIdx >= 0 && studentMoveUci) {
+            // Reconstruct the position before the student's move.
+            const ch = new Chess(String(puzzle.fen || ''));
+            for (let i = 0; i < studentMoveIdx; i++) {
+              const mv0 = parseUci(movesUci[i]);
+              if (!mv0) throw new Error('Invalid UCI in history');
+              const ok0 = ch.move({ from: mv0.from, to: mv0.to, promotion: mv0.promotion });
+              if (!ok0) throw new Error('Illegal UCI in history');
+            }
+            const fenBefore = String(ch.fen() || '');
+
+            // Apply the student's move to get the resulting position (for scoring the move).
+            const mvS = parseUci(studentMoveUci);
+            if (!mvS) throw new Error('Invalid UCI');
+            const okS = ch.move({ from: mvS.from, to: mvS.to, promotion: mvS.promotion });
+            if (!okS) throw new Error('Illegal move');
+            const fenAfterStudent = String(ch.fen() || '');
+
+            const settings = await getTfSettings(orgId);
+            const depth = toRangeInt(settings.stockfishDepthCap, 4, 22, 14);
+
+            const best = await sfAnalyzeFen(fenBefore, { depth, multiPv: 1, pvPlies: 6 });
+            const bestLine = Array.isArray(best?.lines) ? best.lines[0] : null;
+            const bestMove = String(best?.bestMove || bestLine?.bestMove || '').trim().toLowerCase();
+            const bestScore = normalizeScore(bestLine?.score);
+
+            const after = await sfAnalyzeFen(fenAfterStudent, { depth, multiPv: 1, pvPlies: 6 });
+            const afterLine = Array.isArray(after?.lines) ? after.lines[0] : null;
+            const afterScoreRaw = normalizeScore(afterLine?.score);
+            // Convert score to the original player's perspective by flipping sign (side to move changes after a move).
+            const userScore =
+              Object.prototype.hasOwnProperty.call(afterScoreRaw, 'mate')
+                ? { mate: -Number(afterScoreRaw.mate || 0) }
+                : { cp: -Number(afterScoreRaw.cp || 0) };
+
+            const sameBestMove = bestMove && (bestMove === String(studentMoveUci).trim().toLowerCase());
+
+            let acceptedByEval = false;
+            if (Object.prototype.hasOwnProperty.call(bestScore, 'mate')) {
+              // For mate conclusions: require same mate distance (e.g., mate in 4 stays mate in 4)
+              const bm = Number(bestScore.mate || 0);
+              const um = Object.prototype.hasOwnProperty.call(userScore, 'mate') ? Number(userScore.mate || 0) : null;
+              acceptedByEval = (um !== null) && (um === bm);
+            } else {
+              const bcp = Number(bestScore.cp || 0);
+              const ucp = Object.prototype.hasOwnProperty.call(userScore, 'cp') ? Number(userScore.cp || 0) : null;
+              if (ucp !== null) {
+                const tol = Math.abs(bcp) * 0.05;
+                acceptedByEval = ucp >= (bcp - tol);
+              }
+            }
+
+            // Accept if same best move OR within evaluation tolerance.
+            if (sameBestMove || acceptedByEval) {
+              correctPrefix = true;
+              engineAccepted = true;
+              engineAcceptance = {
+                depth,
+                sameBestMove,
+                bestMove: bestMove || null,
+                bestScore,
+                userScore
+              };
+            }
+          }
+        } catch (e) {
+          // Fallback: keep incorrect (do not fail the attempt API due to engine errors)
+          console.warn('[tactics-fighter] near-correct eval skipped:', e?.message || e);
         }
       }
 
@@ -1415,7 +1599,9 @@ function registerTacticsFighterRoutes(app, deps) {
           JSON.stringify({
             ua: toCleanString(req.get('user-agent') || '', 500),
             ip: toCleanString(req.ip || '', 200),
-            mode: mode || null
+            mode: mode || null,
+            engineAccepted: engineAccepted || false,
+            engineAcceptance: engineAcceptance || null
           })
         ]
       );
@@ -1470,7 +1656,8 @@ function registerTacticsFighterRoutes(app, deps) {
         correctPrefix,
         completed,
         matches: matchCount,
-        chosenLine
+        chosenLine,
+        engineAccepted
       });
     } catch (e) {
       console.error('[tactics-fighter] public attempt error:', e);

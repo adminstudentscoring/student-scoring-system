@@ -581,7 +581,20 @@
     return `
       <div>
         <div class="tf-section-title">Setting</div>
-        <div style="color:#6b7280;">Coming soon.</div>
+        <div class="tf-muted" style="margin-bottom:10px;">Engine settings (Stockfish)</div>
+        <div style="border:1px solid #e5e7eb; border-radius:14px; padding:12px; background:#ffffff;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:950; color:#111827;">Stockfish Depth Cap</div>
+              <div class="tf-muted" style="margin-top:4px;">Limits the maximum depth used by Practice and Builder.</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <input id="tfSettingDepthCap" class="tf-input" type="number" min="4" max="22" step="1" style="width:120px;" />
+              <button id="tfSettingSaveBtn" class="btn btn-primary" type="button">Save</button>
+            </div>
+          </div>
+          <div id="tfSettingHint" class="tf-muted" style="margin-top:10px;"></div>
+        </div>
       </div>
     `;
   }
