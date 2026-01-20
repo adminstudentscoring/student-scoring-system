@@ -818,6 +818,9 @@
         active: false,
         pointerId: null,
         from: null,
+        piece: '',
+        startX: 0,
+        startY: 0,
         hoverEl: null,
         ghostEl: null
       };
@@ -873,6 +876,9 @@
         drag.active = false;
         drag.pointerId = null;
         drag.from = null;
+        drag.piece = '';
+        drag.startX = 0;
+        drag.startY = 0;
         clearDragHover();
         removeGhost();
         const boardHost = modal.querySelector('#tfStuRunnerBoard');
@@ -890,17 +896,34 @@
         const piece = rc ? (ui.student.runner.board?.[rc.r]?.[rc.c] || '') : '';
         if (!piece) return; // only drag if there's a piece
 
-        ev.preventDefault();
-        ignoreClickUntil = Date.now() + 400;
-        startDrag(from, piece, ev.clientX, ev.clientY, ev.pointerId);
-        ui.student.runner.selectedFrom = from;
-        renderRunner();
-        try { modal.setPointerCapture(ev.pointerId); } catch {}
-      }, { passive: false });
+        // Don't immediately start drag. On iPad, immediate preventDefault/startDrag often breaks,
+        // and it also blocks tap-to-move. Instead, start dragging only after a small movement threshold.
+        drag.active = false;
+        drag.pointerId = ev.pointerId;
+        drag.from = from;
+        drag.piece = piece;
+        drag.startX = ev.clientX;
+        drag.startY = ev.clientY;
+        clearDragHover();
+        removeGhost();
+        try { sq.setPointerCapture?.(ev.pointerId); } catch {}
+      });
 
       modal.addEventListener('pointermove', (ev) => {
-        if (!drag.active) return;
         if (drag.pointerId !== ev.pointerId) return;
+        if (!drag.from) return;
+
+        // If not dragging yet, check threshold and start drag.
+        if (!drag.active) {
+          const dx = ev.clientX - drag.startX;
+          const dy = ev.clientY - drag.startY;
+          if ((dx * dx + dy * dy) < (9 * 9)) return; // ~9px threshold
+          ignoreClickUntil = Date.now() + 400;
+          startDrag(drag.from, drag.piece, ev.clientX, ev.clientY, ev.pointerId);
+          ui.student.runner.selectedFrom = drag.from;
+          renderRunner(); // hide source piece immediately
+        }
+
         setGhostPos(ev.clientX, ev.clientY);
 
         const el = squareElFromPoint(ev.clientX, ev.clientY);
@@ -914,8 +937,16 @@
       });
 
       modal.addEventListener('pointerup', (ev) => {
-        if (!drag.active) return;
         if (drag.pointerId !== ev.pointerId) return;
+        // If we never crossed the threshold, this was a tap; let the normal click handler handle tap-to-move.
+        if (!drag.active) {
+          drag.pointerId = null;
+          drag.from = null;
+          drag.piece = '';
+          drag.startX = 0;
+          drag.startY = 0;
+          return;
+        }
         const from = drag.from;
         const to = coordFromPoint(ev.clientX, ev.clientY);
         endDrag();
@@ -925,11 +956,19 @@
       });
 
       modal.addEventListener('pointercancel', (ev) => {
-        if (!drag.active) return;
         if (drag.pointerId !== ev.pointerId) return;
-        endDrag();
-        ui.student.runner.selectedFrom = null;
-        renderRunner();
+        if (drag.active) {
+          endDrag();
+          ui.student.runner.selectedFrom = null;
+          renderRunner();
+          return;
+        }
+        // pending tap - just clear pending state
+        drag.pointerId = null;
+        drag.from = null;
+        drag.piece = '';
+        drag.startX = 0;
+        drag.startY = 0;
       });
 
       modal.addEventListener('click', (ev) => {
@@ -1448,7 +1487,7 @@
 
       // Drag & drop support (pointer events)
       let ignoreClickUntil = 0;
-      const drag = { active: false, pointerId: null, from: null, hoverEl: null, ghostEl: null };
+      const drag = { active: false, pointerId: null, from: null, piece: '', startX: 0, startY: 0, hoverEl: null, ghostEl: null };
       const clearDragHover = () => { try { drag.hoverEl?.classList?.remove('is-drop-target'); } catch {} drag.hoverEl = null; };
       const removeGhost = () => { try { drag.ghostEl?.remove(); } catch {} drag.ghostEl = null; };
       const setGhostPos = (x, y) => {
@@ -1486,6 +1525,9 @@
         drag.active = false;
         drag.pointerId = null;
         drag.from = null;
+        drag.piece = '';
+        drag.startX = 0;
+        drag.startY = 0;
         clearDragHover();
         removeGhost();
         const boardHost = modal.querySelector('#tfTeaRunnerBoard');
@@ -1502,17 +1544,33 @@
         const rc = coordToRc(from);
         const piece = rc ? (ui.teacher.runner.board?.[rc.r]?.[rc.c] || '') : '';
         if (!piece) return;
-        ev.preventDefault();
-        ignoreClickUntil = Date.now() + 400;
-        startDrag(from, piece, ev.clientX, ev.clientY, ev.pointerId);
-        ui.teacher.runner.selectedFrom = from;
-        renderRunner();
-        try { modal.setPointerCapture(ev.pointerId); } catch {}
-      }, { passive: false });
+
+        // Start dragging only after a small movement threshold (better on iPad; keeps tap-to-move working).
+        drag.active = false;
+        drag.pointerId = ev.pointerId;
+        drag.from = from;
+        drag.piece = piece;
+        drag.startX = ev.clientX;
+        drag.startY = ev.clientY;
+        clearDragHover();
+        removeGhost();
+        try { sq.setPointerCapture?.(ev.pointerId); } catch {}
+      });
 
       modal.addEventListener('pointermove', (ev) => {
-        if (!drag.active) return;
         if (drag.pointerId !== ev.pointerId) return;
+        if (!drag.from) return;
+
+        if (!drag.active) {
+          const dx = ev.clientX - drag.startX;
+          const dy = ev.clientY - drag.startY;
+          if ((dx * dx + dy * dy) < (9 * 9)) return;
+          ignoreClickUntil = Date.now() + 400;
+          startDrag(drag.from, drag.piece, ev.clientX, ev.clientY, ev.pointerId);
+          ui.teacher.runner.selectedFrom = drag.from;
+          renderRunner();
+        }
+
         setGhostPos(ev.clientX, ev.clientY);
         const el = squareElFromPoint(ev.clientX, ev.clientY);
         if (el !== drag.hoverEl) {
@@ -1525,8 +1583,15 @@
       });
 
       modal.addEventListener('pointerup', (ev) => {
-        if (!drag.active) return;
         if (drag.pointerId !== ev.pointerId) return;
+        if (!drag.active) {
+          drag.pointerId = null;
+          drag.from = null;
+          drag.piece = '';
+          drag.startX = 0;
+          drag.startY = 0;
+          return;
+        }
         const from = drag.from;
         const to = coordFromPoint(ev.clientX, ev.clientY);
         endDrag();
@@ -1536,11 +1601,18 @@
       });
 
       modal.addEventListener('pointercancel', (ev) => {
-        if (!drag.active) return;
         if (drag.pointerId !== ev.pointerId) return;
-        endDrag();
-        ui.teacher.runner.selectedFrom = null;
-        renderRunner();
+        if (drag.active) {
+          endDrag();
+          ui.teacher.runner.selectedFrom = null;
+          renderRunner();
+          return;
+        }
+        drag.pointerId = null;
+        drag.from = null;
+        drag.piece = '';
+        drag.startX = 0;
+        drag.startY = 0;
       });
 
       modal.addEventListener('click', (ev) => {

@@ -524,6 +524,12 @@ body.game-is-tactics-fighter .game-area-content {
   background: #fff;
 }
 
+/* iPad/iOS: improve drag reliability by preventing scroll/zoom gestures on the board */
+.tf-practice-modal .tf-board,
+.tf-practice-modal .tf-sq-btn {
+  touch-action: none;
+}
+
 .tf-sq {
   display: flex;
   align-items: center;
