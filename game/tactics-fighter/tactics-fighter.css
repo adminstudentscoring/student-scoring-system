@@ -712,7 +712,7 @@ body.game-is-tactics-fighter .game-area-content {
 /* Practice: narrower move list box */
 .tf-practice-modal .tf-stu-moves {
   width: 100%;
-  max-width: 200px;
+  max-width: 250px;
 }
 
 /* Practice: buttons follow the narrower right panel */
@@ -721,8 +721,8 @@ body.game-is-tactics-fighter .game-area-content {
   align-items: center;
   flex-wrap: nowrap;
   gap: 8px;
-  width: 200px;
-  max-width: 200px;
+  width: 250px;
+  max-width: 250px;
 }
 
 .tf-practice-modal .tf-stu-actions-left > button.btn {
