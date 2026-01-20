@@ -173,6 +173,87 @@
       el.classList.remove('ok', 'err', 'is-loading');
     }
 
+    function pieceColorFromChar(p) {
+      const s = String(p || '');
+      if (!s) return null;
+      // Uppercase = white, lowercase = black (FEN convention)
+      return (s === s.toUpperCase()) ? 'w' : 'b';
+    }
+
+    function promotedPieceChar(pawnChar, promoLower) {
+      const color = pieceColorFromChar(pawnChar);
+      const l = String(promoLower || '').trim().toLowerCase();
+      const map = { q: 'q', r: 'r', b: 'b', n: 'n' };
+      const base = map[l] || 'q';
+      return (color === 'w') ? base.toUpperCase() : base;
+    }
+
+    function needsPawnPromotion(board, fromCoord, toCoord) {
+      const fr = coordToRc(String(fromCoord || '').trim());
+      const tr = coordToRc(String(toCoord || '').trim());
+      if (!fr || !tr) return false;
+      const piece = board?.[fr.r]?.[fr.c] || '';
+      if (piece !== 'P' && piece !== 'p') return false;
+      // board row 0 is rank 8, row 7 is rank 1
+      if (piece === 'P' && tr.r === 0) return true;
+      if (piece === 'p' && tr.r === 7) return true;
+      return false;
+    }
+
+    async function openPromotionPicker(pawnChar) {
+      const color = pieceColorFromChar(pawnChar) || 'w';
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfPromoBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Promotion" style="width: calc(100vw - 40px); max-width: 420px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Promote to</div>
+              <button id="tfPromoClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-muted">Choose a piece:</div>
+              <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary" data-tf-promo="q" aria-label="Queen" style="min-width:72px;">
+                  <img alt="" style="width:28px;height:28px;vertical-align:middle;" src="${escapeHtml(pieceImageSrc(color === 'w' ? 'Q' : 'q'))}">
+                  <span style="margin-left:8px;">Q</span>
+                </button>
+                <button type="button" class="btn btn-secondary" data-tf-promo="r" aria-label="Rook" style="min-width:72px;">
+                  <img alt="" style="width:28px;height:28px;vertical-align:middle;" src="${escapeHtml(pieceImageSrc(color === 'w' ? 'R' : 'r'))}">
+                  <span style="margin-left:8px;">R</span>
+                </button>
+                <button type="button" class="btn btn-secondary" data-tf-promo="b" aria-label="Bishop" style="min-width:72px;">
+                  <img alt="" style="width:28px;height:28px;vertical-align:middle;" src="${escapeHtml(pieceImageSrc(color === 'w' ? 'B' : 'b'))}">
+                  <span style="margin-left:8px;">B</span>
+                </button>
+                <button type="button" class="btn btn-secondary" data-tf-promo="n" aria-label="Knight" style="min-width:72px;">
+                  <img alt="" style="width:28px;height:28px;vertical-align:middle;" src="${escapeHtml(pieceImageSrc(color === 'w' ? 'N' : 'n'))}">
+                  <span style="margin-left:8px;">N</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(host);
+
+      return await new Promise((resolve) => {
+        const close = (val) => { try { host.remove(); } catch {} resolve(val); };
+        host.querySelector('#tfPromoClose')?.addEventListener('click', () => close(null));
+        host.querySelector('#tfPromoBackdrop')?.addEventListener('click', (e) => {
+          if (e.target && e.target.id === 'tfPromoBackdrop') close(null);
+        });
+        host.addEventListener('click', (e) => {
+          const t = e.target;
+          if (!(t instanceof Element)) return;
+          const b = t.closest('[data-tf-promo]');
+          if (!b) return;
+          const v = String(b.getAttribute('data-tf-promo') || '').trim().toLowerCase();
+          if (v === 'q' || v === 'r' || v === 'b' || v === 'n') return close(v);
+          return close('q');
+        });
+      });
+    }
+
     function showBuilderMsg(type, text) {
       const s = String(text || '');
       if (/^loading/i.test(s)) return toastShow('loading', s);
@@ -761,10 +842,21 @@
         if (!f || !t) return;
         if (f === t) return renderRunner();
 
-        const uci = `${f}${t}`;
         ui.student.runner.busy = true;
         try {
           clearMsg();
+
+          const fr0 = coordToRc(f);
+          const tr0 = coordToRc(t);
+          const beforePiece = (fr0 && ui.student.runner.board?.[fr0.r]?.[fr0.c]) ? ui.student.runner.board[fr0.r][fr0.c] : '';
+          let promo = '';
+          if (needsPawnPromotion(ui.student.runner.board, f, t)) {
+            const picked = await openPromotionPicker(beforePiece || 'P');
+            if (!picked) return; // cancelled
+            promo = picked;
+          }
+          const uci = `${f}${t}${promo}`;
+
           // Save state for redo/rollback BEFORE applying.
           ui.student.runner.history.push({
             fen: ui.student.runner.fen,
@@ -777,13 +869,13 @@
           // Optimistic UI: immediately show the piece moved on the board to avoid a blank gap while waiting for backend validation.
           // We do NOT change fen/side here; backend response remains the source of truth.
           try {
-            const fr = coordToRc(f);
-            const tr = coordToRc(t);
+            const fr = fr0 || coordToRc(f);
+            const tr = tr0 || coordToRc(t);
             const b = ui.student.runner.board;
             if (fr && tr && b?.[fr.r]?.[fr.c]) {
               const piece = b[fr.r][fr.c];
               b[fr.r][fr.c] = '';
-              b[tr.r][tr.c] = piece;
+              b[tr.r][tr.c] = promo ? promotedPieceChar(piece, promo) : piece;
               renderRunner();
             }
           } catch {}
@@ -1343,10 +1435,21 @@
         if (!f || !t) return;
         if (f === t) return renderRunner();
 
-        const uci = `${f}${t}`;
         ui.teacher.runner.busy = true;
         try {
           clearMsg();
+
+          const fr0 = coordToRc(f);
+          const tr0 = coordToRc(t);
+          const beforePiece = (fr0 && ui.teacher.runner.board?.[fr0.r]?.[fr0.c]) ? ui.teacher.runner.board[fr0.r][fr0.c] : '';
+          let promo = '';
+          if (needsPawnPromotion(ui.teacher.runner.board, f, t)) {
+            const picked = await openPromotionPicker(beforePiece || 'P');
+            if (!picked) return; // cancelled
+            promo = picked;
+          }
+          const uci = `${f}${t}${promo}`;
+
           ui.teacher.runner.history.push({
             fen: ui.teacher.runner.fen,
             board: cloneBoard(ui.teacher.runner.board),
@@ -1357,13 +1460,13 @@
 
           // Optimistic UI: immediately show the piece moved while backend validates.
           try {
-            const fr = coordToRc(f);
-            const tr = coordToRc(t);
+            const fr = fr0 || coordToRc(f);
+            const tr = tr0 || coordToRc(t);
             const b = ui.teacher.runner.board;
             if (fr && tr && b?.[fr.r]?.[fr.c]) {
               const piece = b[fr.r][fr.c];
               b[fr.r][fr.c] = '';
-              b[tr.r][tr.c] = piece;
+              b[tr.r][tr.c] = promo ? promotedPieceChar(piece, promo) : piece;
               renderRunner();
             }
           } catch {}
@@ -3308,16 +3411,12 @@
           if (confirmBtn2) confirmBtn2.disabled = hist.length === 0;
         };
 
-        const tryPromotion = (from, to) => {
-          // basic: if pawn reaches last rank, ask promotion
-          const fr = Number(from[1]);
-          const tr = Number(to[1]);
-          const isPromo = (tr === 8 || tr === 1);
-          if (!isPromo) return '';
-          const p = prompt('Promotion piece? (q/r/b/n)', 'q');
-          const out = String(p || 'q').trim().toLowerCase();
-          if (out === 'r' || out === 'b' || out === 'n' || out === 'q') return out;
-          return 'q';
+        const tryPromotion = async (board, from, to) => {
+          if (!needsPawnPromotion(board, from, to)) return '';
+          const fr = coordToRc(from);
+          const pawn = fr ? (board?.[fr.r]?.[fr.c] || '') : '';
+          const picked = await openPromotionPicker(pawn || 'P');
+          return picked || '';
         };
 
         renderBoard2();
@@ -3338,7 +3437,7 @@
           selected = '';
           renderBoard2();
 
-          const promo = tryPromotion(from, to);
+          const promo = await tryPromotion(curBoard, from, to);
           const uci = `${from.toLowerCase()}${to.toLowerCase()}${promo}`;
           try {
             const out = await teacherApplyMove(curFen, uci);
