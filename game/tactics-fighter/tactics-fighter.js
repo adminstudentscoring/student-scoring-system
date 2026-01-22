@@ -787,12 +787,17 @@
           turnEl.textContent = (side === 'b') ? 'Black to move' : 'White to move';
         }
 
-        // Spacer message (subtopic-level)
+        // Spacer messages (top stack): subtopic message first, then puzzle message.
         const spacerMsgEl = modal.querySelector('#tfStuSpacerMsg');
         if (spacerMsgEl) {
-          const msg = String(ui.student.subtopicMessage || '').trim();
-          spacerMsgEl.innerHTML = msg ? escapeHtml(msg).replace(/\n/g, '<br>') : '';
-          spacerMsgEl.style.display = msg ? 'block' : 'none';
+          const subMsg = String(ui.student.subtopicMessage || '').trim();
+          const pzMsg = String(pz?.message || '').trim();
+          const html = [
+            subMsg ? `<div class="tf-practice-spacer-msg-top">${escapeHtml(subMsg).replace(/\n/g, '<br>')}</div>` : '',
+            pzMsg ? `<div class="tf-practice-spacer-msg-bottom">${escapeHtml(pzMsg).replace(/\n/g, '<br>')}</div>` : ''
+          ].filter(Boolean).join('');
+          spacerMsgEl.innerHTML = html;
+          spacerMsgEl.style.display = html ? 'block' : 'none';
         }
 
         // Feedback overlay (on-board): show only when puzzle completed OR when the last verdict is incorrect.
@@ -3150,6 +3155,10 @@
                       <button id="tfPuzzleEditSave" class="btn btn-success" type="button" disabled>Save</button>
                       <button id="tfPuzzleEditCancel" class="btn btn-secondary" type="button">Cancel</button>
                     </div>
+                    <div class="tf-field" style="margin-top:10px;">
+                      <label for="tfPuzzleEditMessage">Puzzle message</label>
+                      <textarea id="tfPuzzleEditMessage" class="tf-textarea" rows="3" placeholder="Tell students what to do for this puzzle..."></textarea>
+                    </div>
                     <div id="tfPuzzleEditMsg" class="tf-muted" style="margin-top:10px;"></div>
                   </div>
                   <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
@@ -3218,12 +3227,15 @@
       const editSaveBtn = host.querySelector('#tfPuzzleEditSave');
       const editCancelBtn = host.querySelector('#tfPuzzleEditCancel');
       const editMsg = host.querySelector('#tfPuzzleEditMsg');
+      const editMessageInput = host.querySelector('#tfPuzzleEditMessage');
       let lastEditEngine = null;
+      const originalMessage = String(puzzle?.message || '').trim();
 
       const setEditMsg = (s) => { if (editMsg) editMsg.textContent = String(s || ''); };
       const openEdit = () => {
         if (editPanel) editPanel.style.display = 'block';
         if (pvPliesInput) pvPliesInput.value = String(Number(puzzle?.pvPlies || puzzle?.pv_plies || 8) || 8);
+        if (editMessageInput) editMessageInput.value = String(puzzle?.message || '');
         if (editSaveBtn) editSaveBtn.disabled = true;
         lastEditEngine = null;
         setEditMsg('');
@@ -3264,20 +3276,34 @@
         }
       });
 
+      const updateEditSaveEnabled = () => {
+        const msgNow = String(editMessageInput?.value || '').trim();
+        const msgChanged = msgNow !== originalMessage;
+        const canSave = msgChanged || !!lastEditEngine?.solutions;
+        if (editSaveBtn) editSaveBtn.disabled = !canSave;
+      };
+      editMessageInput?.addEventListener('input', updateEditSaveEnabled);
+
       editSaveBtn?.addEventListener('click', async () => {
         try {
-          if (!lastEditEngine?.solutions) throw new Error('Please run engine first.');
           toastShow('loading', 'Saving…');
-          const pvPlies = Number(lastEditEngine.pvPlies || 8) || 8;
-          const out = await builderUpdatePuzzle(puzzle?.id, {
-            engineDepth: getBuilderDepthDefault(),
-            multipv: 1,
-            pvPlies,
-            solutions: lastEditEngine.solutions
-          });
+          const msgNow = String(editMessageInput?.value || '').trim();
+          const payload = {};
+          if (msgNow !== originalMessage) payload.message = msgNow;
+          if (lastEditEngine?.solutions) {
+            const pvPlies = Number(lastEditEngine.pvPlies || 8) || 8;
+            payload.engineDepth = getBuilderDepthDefault();
+            payload.multipv = 1;
+            payload.pvPlies = pvPlies;
+            payload.solutions = lastEditEngine.solutions;
+          }
+          const out = await builderUpdatePuzzle(puzzle?.id, payload);
           // update local puzzle object + rerender answers
-          puzzle.solutions = out?.puzzle?.solutions || lastEditEngine.solutions;
-          puzzle.pvPlies = pvPlies;
+          if (out?.puzzle?.message != null) puzzle.message = String(out.puzzle.message || '');
+          if (out?.puzzle?.solutions) {
+            puzzle.solutions = out?.puzzle?.solutions || (lastEditEngine?.solutions || puzzle.solutions);
+            puzzle.pvPlies = Number(out?.puzzle?.pvPlies || puzzle.pvPlies || 8) || 8;
+          }
           renderAnswers();
           // refresh puzzles list cache
           const data = await builderFetchPuzzles(subtopicId);
@@ -3358,6 +3384,11 @@
                   </div>
 
                   <div class="tf-field">
+                    <label for="tfPuzzleMessageInput">Puzzle message</label>
+                    <textarea id="tfPuzzleMessageInput" class="tf-textarea" rows="3" placeholder="Tell students what to do for this puzzle..."></textarea>
+                  </div>
+
+                  <div class="tf-field">
                     <label>Engine Load</label>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;">
                       <div>
@@ -3416,6 +3447,7 @@
       const paletteEl = host.querySelector('#tfPalette');
       const engineOutEl = host.querySelector('#tfEngineOut');
       const saveBtn = host.querySelector('#tfSavePuzzleBtn');
+      const puzzleMsgInput = host.querySelector('#tfPuzzleMessageInput');
       const selectedAnswerMultiPv = new Set();
 
       function formatPvWithMoveNumbers(fen, pvSan) {
@@ -3825,6 +3857,7 @@
           const fen = String(fenInput?.value || '').trim();
           if (!fen) throw new Error('Missing FEN');
           const bucket = getBuilderBucket();
+          const message = String(puzzleMsgInput?.value || '').trim();
 
           const acceptedLines = [];
           const acceptedMultiPv = [];
@@ -3853,9 +3886,10 @@
 
           const payload = {
             fen,
-            engineDepth: 16,
+            engineDepth: getBuilderDepthDefault(),
             multipv: Number(multiPvEl?.value || 1) || 1,
             pvPlies: Number(pvPliesEl?.value || 8) || 8,
+            message,
             solutions,
             meta: { bucket }
           };

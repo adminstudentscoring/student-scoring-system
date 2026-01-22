@@ -698,6 +698,17 @@ body.game-is-tactics-fighter .game-area-content {
   box-shadow: 0 10px 22px rgba(0,0,0,0.06);
 }
 
+/* Spacer message: stacked (subtopic on top, puzzle below) */
+.tf-practice-spacer-msg-top {
+  font-weight: 950;
+}
+.tf-practice-spacer-msg-bottom {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(17, 24, 39, 0.20);
+  font-weight: 850;
+}
+
 /* On wider screens (e.g., iPad landscape), keep the right panel to the board's right,
    and center the board by adding a left spacer column. */
 @media (min-width: 900px) {
@@ -708,7 +719,7 @@ body.game-is-tactics-fighter .game-area-content {
   }
   .tf-practice-spacer {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     height: 100%;
     min-height: 0;
