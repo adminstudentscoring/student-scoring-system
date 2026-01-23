@@ -1499,13 +1499,21 @@ function registerTacticsFighterRoutes(app, deps) {
       const mode = String(req.body?.mode || '').trim().toLowerCase(); // 'practice' | 'ghost'
 
       const pRes = await pool.query(
-        `SELECT id, subtopic_id, fen, solutions FROM tactics_fighter_puzzles WHERE org_id = $1 AND id = $2 LIMIT 1`,
+        `SELECT id, subtopic_id, fen, pv_plies, solutions FROM tactics_fighter_puzzles WHERE org_id = $1 AND id = $2 LIMIT 1`,
         [orgId, puzzleId]
       );
       if (!pRes.rows.length) return res.status(404).json({ ok: false, error: 'Puzzle not found' });
 
       const puzzle = pRes.rows[0];
       const accepted = parseAcceptedLinesFromSolutions(puzzle.solutions);
+      const targetPlies = (() => {
+        const pv = Number(puzzle?.pv_plies || 0);
+        if (Number.isFinite(pv) && pv > 0) return Math.max(1, Math.min(64, Math.trunc(pv)));
+        // fallback: longest accepted line length
+        let maxLen = 0;
+        for (const ln of accepted) maxLen = Math.max(maxLen, Array.isArray(ln) ? ln.length : 0);
+        return Math.max(1, Math.min(64, maxLen || 8));
+      })();
 
       let correctPrefix = false;
       let completed = false;
@@ -1597,6 +1605,13 @@ function registerTacticsFighterRoutes(app, deps) {
                 bestScore,
                 userScore
               };
+
+              // Completion for near-correct path:
+              // If the student reached (or exceeded) the puzzle's configured PV plies, treat it as completed
+              // so UI can stop accepting more moves (unless Try again).
+              if (movesUci.length >= targetPlies) {
+                completed = true;
+              }
             }
           }
         } catch (e) {

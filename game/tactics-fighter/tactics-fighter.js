@@ -864,6 +864,8 @@
       async function submitMoveAndReply() {
         const pz = currentPuzzle();
         if (!pz) return;
+        const isTryAgain = !!ui.student.tryAgainByPuzzleId?.[String(pz.id)];
+        if (pz.completed && !isTryAgain) return;
         if (ui.student.runner.busy) return;
         const moves = ui.student.runner.movesUci.slice();
         if (!moves.length) return;
@@ -975,6 +977,9 @@
       }
 
       async function applyStudentMove(from, to) {
+        const pz0 = currentPuzzle();
+        const isTryAgain0 = pz0 ? !!ui.student.tryAgainByPuzzleId?.[String(pz0.id)] : false;
+        if (pz0?.completed && !isTryAgain0) return;
         if (ui.student.runner.busy) return;
         const f = String(from || '').trim();
         const t = String(to || '').trim();
@@ -3273,6 +3278,52 @@
           setEditMsg(e?.message || String(e));
         } finally {
           // toastHide handled on success; keep error visible
+        }
+      });
+
+      // Manual Input in Edit puzzle: same manual move-by-move interface as Add puzzles.
+      const editManualBtn = (() => {
+        try {
+          const row = editPanel?.querySelector?.('div[style*="display:flex"]');
+          if (!row) return null;
+          const btn = document.createElement('button');
+          btn.id = 'tfPuzzleEditManual';
+          btn.className = 'btn btn-secondary';
+          btn.type = 'button';
+          btn.textContent = 'Manual Input';
+          // Insert next to Run Engine (after PV plies input)
+          row.insertBefore(btn, editRunBtn || null);
+          return btn;
+        } catch {
+          return null;
+        }
+      })();
+
+      editManualBtn?.addEventListener('click', async () => {
+        try {
+          const out = await openManualAnswerModal(fen);
+          const pvUci = Array.isArray(out?.pvUci) ? out.pvUci : [];
+          const pvSan = Array.isArray(out?.pvSan) ? out.pvSan : [];
+          if (!pvUci.length) throw new Error('No moves');
+          const line0 = {
+            multiPv: 1,
+            score: { cp: 0 },
+            bestMove: pvUci[0],
+            pvUci,
+            pvSan
+          };
+          const solutions = {
+            bestMove: pvUci[0],
+            lines: [line0],
+            acceptedMultiPv: ['manual'],
+            acceptedLines: [line0]
+          };
+          lastEditEngine = { pvPlies: pvUci.length, solutions };
+          updateEditSaveEnabled();
+          setEditMsg('Manual answer is ready to save.');
+        } catch (e) {
+          toastShow('err', e?.message || String(e));
+          setEditMsg(e?.message || String(e));
         }
       });
 
