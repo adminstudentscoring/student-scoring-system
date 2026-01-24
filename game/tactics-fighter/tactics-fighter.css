@@ -734,43 +734,22 @@ body.game-is-tactics-fighter .game-area-content {
 
 /* Practice: buttons follow the narrower right panel */
 .tf-practice-modal .tf-stu-actions-left {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
   width: 250px;
   max-width: 250px;
 }
 
+/* Fill the full 250px row: 3 equal-width buttons */
 .tf-practice-modal .tf-stu-actions-left > button.btn {
-  width: auto;
-  min-width: 44px;
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-/* Make Redo + arrows square-ish, Submit takes remaining space */
-.tf-practice-modal .tf-stu-actions-left > button.btn[data-stu-undo],
-.tf-practice-modal .tf-stu-actions-left .tf-stu-nav > button.btn {
-  width: 44px;
-  min-width: 44px;
+  width: 100%;
+  min-width: 0;
   padding-left: 0;
   padding-right: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.tf-practice-modal .tf-stu-actions-left > button.btn[data-stu-submit] {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.tf-practice-modal .tf-stu-nav {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  flex: 0 0 auto;
 }
 
 .tf-stu-meta-badge {
