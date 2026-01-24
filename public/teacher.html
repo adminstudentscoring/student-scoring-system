@@ -64,7 +64,6 @@
             </div>
             <div class="dash-topbar-actions">
                 <span id="teacherName" style="font-weight: 900;">Loading...</span>
-                <button class="btn btn-secondary" onclick="logout()">Logout</button>
             </div>
         </div>
     </div>
@@ -77,6 +76,9 @@
             <button class="dash-nav-item" onclick="switchTeacherTab('courses', this)">📚 Course</button>
             <button class="dash-nav-item" onclick="switchTeacherTab('statistics', this)">📊 Statistics</button>
             <button class="dash-nav-item" id="teacherApplicationsTabBtn" onclick="switchTeacherTab('applications', this)">🧩 App</button>
+            <div class="dash-sidebar-bottom">
+                <button class="btn btn-secondary" type="button" onclick="logout()">Logout</button>
+            </div>
         </div>
     </aside>
 

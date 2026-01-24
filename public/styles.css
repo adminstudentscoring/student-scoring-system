@@ -24,7 +24,7 @@ body {
    ========================= */
 :root {
     --dash-topbar-h: 47px; /* 78px - 40% ≈ 46.8px */
-    --dash-sidebar-w: 135px; /* 270px / 2 */
+    --dash-sidebar-w: 160px;
     --dash-gap: 16px; /* used for main content padding */
 }
 
@@ -100,6 +100,16 @@ body.dash-body {
     flex-direction: column;
     gap: 10px;
     overflow: auto;
+}
+
+.dash-sidebar-bottom {
+    margin-top: auto;
+    padding-top: 10px;
+}
+
+.dash-sidebar-bottom .btn {
+    width: 100%;
+    border-radius: 12px;
 }
 
 .dash-nav-item {
