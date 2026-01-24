@@ -713,8 +713,8 @@ body.game-is-tactics-fighter .game-area-content {
    and center the board by adding a left spacer column. */
 @media (min-width: 900px) {
   .tf-practice-runner-grid {
-    /* Option B: narrower sides (min 180px), prioritize center column */
-    grid-template-columns: minmax(180px, 1fr) 520px minmax(180px, 1fr);
+    /* Fixed side widths to keep UI consistent (spacer == right panel) */
+    grid-template-columns: 250px 520px 250px;
     justify-content: center;
   }
   .tf-practice-spacer {

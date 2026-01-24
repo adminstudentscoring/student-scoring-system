@@ -919,6 +919,7 @@
           } else if (!isCorrect) {
             // Engine reply on wrong move
             const fenNow = ui.student.runner.fen;
+            toastShow('loading', 'Engine thinking...');
             const eng = await studentEngineAnalyze(publicStudentId, fenNow, { depth: getPracticeDepth(), pvPlies: 6 }, publicStudentPassword);
             const bestUci = String(eng?.bestMove || eng?.lines?.[0]?.bestMove || eng?.lines?.[0]?.pvUci?.[0] || '').trim().toLowerCase();
             if (bestUci) {
@@ -939,6 +940,7 @@
                 ui.student.runner.movesSan = ui.student.runner.movesSan.concat([engSan0]);
               }
             }
+            toastHide();
           }
 
           // Log attempt once per student submission (send the full sequence including reply move, if any)
@@ -971,6 +973,7 @@
         } catch (e) {
           setMsg('err', e?.message || String(e));
         } finally {
+          try { toastHide(); } catch {}
           ui.student.runner.busy = false;
         }
       }

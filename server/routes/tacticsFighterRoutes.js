@@ -1393,7 +1393,7 @@ function registerTacticsFighterRoutes(app, deps) {
         SELECT id, fen, message, solutions, created_at
         FROM tactics_fighter_puzzles
         WHERE org_id = $1 AND subtopic_id = $2
-        ORDER BY created_at DESC, id DESC
+        ORDER BY created_at ASC, id ASC
         LIMIT $3 OFFSET $4
         `,
         [orgId, subtopicId, pageSize, offset]
