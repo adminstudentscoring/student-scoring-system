@@ -149,6 +149,53 @@ body.dash-body {
     padding-bottom: var(--dash-gap);
 }
 
+/* =========================
+   Course Management: remove "white container" feel and make its sidebar edge-aligned
+   (Dashboard pages only)
+   ========================= */
+body.dash-body #courseManagementContainer,
+body.dash-body #teacherCourseManagementContainer {
+    width: 100%;
+    max-width: none;
+}
+
+/* Full-bleed inside the dashboard container (remove the container's 20px side padding) */
+body.dash-body #coursesTab #courseManagementContainer,
+body.dash-body #coursesTab #teacherCourseManagementContainer {
+    width: calc(100% + 40px);
+    margin-left: -20px;
+    margin-right: -20px;
+}
+
+body.dash-body .course-management {
+    width: 100%;
+    min-height: calc(100vh - var(--dash-topbar-h) - (var(--dash-gap) * 2));
+    gap: 0 !important;
+    background: #ffffff;
+    border-radius: 0 !important;
+}
+
+body.dash-body .course-management-content {
+    background: #ffffff !important;
+}
+
+body.dash-body .course-sub-tab-content {
+    background: transparent !important;
+    /* keep some breathing room while removing the "card" container look */
+    padding: 16px 18px !important;
+}
+
+body.dash-body .course-sub-tabs {
+    border-radius: 0 !important;
+    padding: 0 !important;
+    border-right: 1px solid #e5e7eb !important;
+    background: #f8f9fa !important;
+}
+
+body.dash-body .course-sub-tab {
+    border-radius: 0 !important;
+}
+
 @media (max-width: 900px) {
     :root {
         --dash-sidebar-w: 210px;
