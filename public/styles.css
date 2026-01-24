@@ -25,7 +25,7 @@ body {
 :root {
     --dash-topbar-h: 78px;
     --dash-sidebar-w: 270px;
-    --dash-gap: 16px;
+    --dash-gap: 16px; /* used for main content padding */
 }
 
 body.dash-body {
@@ -38,18 +38,18 @@ body.dash-body {
     left: 0;
     right: 0;
     height: var(--dash-topbar-h);
-    padding: 14px var(--dash-gap);
+    padding: 0;
     z-index: 1100;
 }
 
 .dash-topbar-inner {
     height: 100%;
-    max-width: 2400px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     background: #ffffff;
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    padding: 10px 18px;
+    border-radius: 0;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
+    padding: 10px calc(var(--dash-gap) + 6px);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -84,17 +84,17 @@ body.dash-body {
     left: 0;
     bottom: 0;
     width: var(--dash-sidebar-w);
-    padding: var(--dash-gap);
+    padding: 0;
     z-index: 1050;
 }
 
 .dash-sidebar-inner {
     height: 100%;
-    border-radius: 16px;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+    border-radius: 0;
+    padding: 12px 10px;
+    background: rgba(17, 24, 39, 0.22);
+    border: none;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.10);
     backdrop-filter: blur(10px);
     display: flex;
     flex-direction: column;
