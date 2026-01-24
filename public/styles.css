@@ -207,10 +207,9 @@ header h1 {
     transition: margin-right 0.3s ease;
 }
 
-/* Student Management tab (Option B): keep card height stable and set list viewport to show ~2.5 rows.
-   This avoids squashing cards (unlike Option A) and avoids large blank space. */
+/* Student Management tab (Option B): keep card height stable and set list viewport to show ~3 rows. */
 :root {
-    --teacher-students-list-h: 470px; /* ~2.5 rows with current card sizing + gap */
+    --teacher-students-list-h: 700px; /* ~3+ rows with current card sizing + gap */
 }
 
 #studentsTab #studentsList {

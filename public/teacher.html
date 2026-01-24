@@ -142,7 +142,7 @@
                         <div style="color: rgba(255,255,255,0.92); font-weight: 900;">Student Management</div>
                         <div style="color: rgba(255,255,255,0.80); font-size: 13px;">Manage students and create new profiles.</div>
                     </div>
-                    <button class="btn btn-primary" type="button" onclick="openCreateStudentModal()">➕ Create Student</button>
+                    <button class="btn btn-primary" type="button" onclick="focusCreateStudentInline()">➕ Create Student</button>
                 </div>
 
                 <!-- Students List -->
@@ -157,6 +157,26 @@
                     <!-- Spacer to align list viewport height with the right column (which has class-actions footer) -->
                     <div class="students-list-footer-spacer" aria-hidden="true"></div>
             </section>
+
+                <!-- Create Student (inline) -->
+                <section class="card" id="teacherCreateStudentInlineCard" style="margin-top: 20px;">
+                    <h2>➕ Create New Student</h2>
+                    <form id="teacherCreateStudentInlineForm" onsubmit="submitCreateStudentInline(event)" style="max-width: 520px;">
+                        <div class="form-group">
+                            <label>Student Name:</label>
+                            <input type="text" id="teacherCreateStudentNameInline" required class="form-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Student ID:</label>
+                            <input type="text" id="teacherCreateStudentIdInline" required class="form-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
+                        </div>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top: 10px;">
+                            <button type="submit" class="btn btn-primary">Create & Assign</button>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('teacherCreateStudentInlineForm')?.reset()">Clear</button>
+                            <span id="teacherCreateStudentInlineMsg" style="color:#666; font-size:0.95rem;"></span>
+                        </div>
+                    </form>
+                </section>
             </div>
         </div>
 

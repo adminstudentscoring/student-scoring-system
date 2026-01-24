@@ -3195,6 +3195,56 @@ window.openCreateStudentModal = openCreateStudentModal;
 window.closeCreateStudentModal = closeCreateStudentModal;
 window.submitCreateStudent = submitCreateStudent;
 
+// Inline Create Student (below Students List)
+function focusCreateStudentInline() {
+    try {
+        const card = document.getElementById('teacherCreateStudentInlineCard');
+        const nameEl = document.getElementById('teacherCreateStudentNameInline');
+        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (nameEl && nameEl.focus) nameEl.focus({ preventScroll: true });
+    } catch (e) {}
+}
+
+async function submitCreateStudentInline(event) {
+    event.preventDefault();
+
+    const name = document.getElementById('teacherCreateStudentNameInline')?.value?.trim?.() || '';
+    const studentId = document.getElementById('teacherCreateStudentIdInline')?.value?.trim?.() || '';
+    const msgEl = document.getElementById('teacherCreateStudentInlineMsg');
+    if (msgEl) msgEl.textContent = '';
+
+    if (!name || !studentId) {
+        showNotification('Please fill in all fields', 'error');
+        return;
+    }
+
+    try {
+        const response = await apiFetch('/organizations/students', {
+            method: 'POST',
+            body: JSON.stringify({ name, studentId })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to create student');
+        }
+
+        const newStudent = await response.json();
+        showNotification('Student ' + newStudent.name + ' created and assigned!', 'success');
+        if (msgEl) msgEl.textContent = 'Created.';
+
+        document.getElementById('teacherCreateStudentInlineForm')?.reset();
+        loadStudents();
+    } catch (error) {
+        console.error('Create student error:', error);
+        showNotification(error.message, 'error');
+        if (msgEl) msgEl.textContent = error.message || 'Error';
+    }
+}
+
+window.focusCreateStudentInline = focusCreateStudentInline;
+window.submitCreateStudentInline = submitCreateStudentInline;
+
 
 
 // ==================== Edit Student Profile Functions ====================
