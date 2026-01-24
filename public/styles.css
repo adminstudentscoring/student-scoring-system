@@ -23,8 +23,8 @@ body {
    Only applies when body has .dash-body
    ========================= */
 :root {
-    --dash-topbar-h: 78px;
-    --dash-sidebar-w: 270px;
+    --dash-topbar-h: 47px; /* 78px - 40% ≈ 46.8px */
+    --dash-sidebar-w: 135px; /* 270px / 2 */
     --dash-gap: 16px; /* used for main content padding */
 }
 
@@ -49,7 +49,7 @@ body.dash-body {
     background: #ffffff;
     border-radius: 0;
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
-    padding: 10px calc(var(--dash-gap) + 6px);
+    padding: 6px calc(var(--dash-gap) + 6px);
     display: flex;
     align-items: center;
     justify-content: space-between;
