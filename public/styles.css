@@ -196,6 +196,41 @@ body.dash-body .course-sub-tab {
     border-radius: 0 !important;
 }
 
+/* Timetable: fill the remaining height ("stick to bottom") inside Course Management panel */
+body.dash-body #timetableSubTabContent.course-sub-tab-content.active {
+    display: flex !important;
+    flex-direction: column;
+    min-height: 0;
+}
+
+body.dash-body #timetableSubTabContent .timetable-container {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+body.dash-body #timetableSubTabContent #timetableContent {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+body.dash-body #timetableSubTabContent .timetable-week-view,
+body.dash-body #timetableSubTabContent .timetable-day-view,
+body.dash-body #timetableSubTabContent .timetable-month-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+}
+
+body.dash-body #timetableSubTabContent .timetable-week-body-scrollable,
+body.dash-body #timetableSubTabContent .timetable-day-body,
+body.dash-body #timetableSubTabContent .timetable-month-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+}
+
 @media (max-width: 900px) {
     :root {
         --dash-sidebar-w: 210px;
