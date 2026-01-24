@@ -245,28 +245,39 @@
 
         /* Admin - Subscription Setting styles extracted to admin-subscription-setting.css */
     </style>
+        /* Remove old header spacing; using fixed dash topbar instead */
+        header { display: none !important; }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <div class="admin-header">
+<body class="dash-body">
+    <!-- Fixed Top Bar -->
+    <div class="dash-topbar">
+        <div class="dash-topbar-inner">
+            <div class="dash-topbar-title">
                 <h1>👑 Admin Dashboard</h1>
-                <div>
-                    <span id="adminName">Loading...</span>
-                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
-                </div>
             </div>
-        </header>
-
-        <div class="tabs admin-tabs">
-            <button class="tab admin-tab active" onclick="switchAdminTab('dashboard', this)">🏠 Dashboard</button>
-            <button class="tab admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
-            <button class="tab admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
-            <button class="tab admin-tab" onclick="switchAdminTab('gameSetting', this)">🧩 Application</button>
-            <button class="tab admin-tab" onclick="switchAdminTab('myOwnApp', this)">🧪 My Own App</button>
+            <div class="dash-topbar-actions">
+                <span id="adminName" style="font-weight: 900;">Loading...</span>
+                <button class="btn btn-secondary" onclick="logout()">Logout</button>
+            </div>
         </div>
+    </div>
 
-        <!-- Dashboard Tab -->
+    <!-- Fixed Left Sidebar -->
+    <aside class="dash-sidebar" aria-label="Dashboard navigation">
+        <div class="dash-sidebar-inner">
+            <button class="dash-nav-item admin-tab active" onclick="switchAdminTab('dashboard', this)">🏠 Home Page</button>
+            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
+            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
+            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('gameSetting', this)">🧩 Application</button>
+            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('myOwnApp', this)">🧪 My Own App</button>
+        </div>
+    </aside>
+
+    <main class="dash-main">
+    <div class="container">
+
+        <!-- Dashboard Tab (Home Page) -->
         <div id="dashboardTab" class="tab-content active" style="display:block;">
         <div class="stats-grid">
             <div class="stat-card">
@@ -1047,6 +1058,9 @@
             loadOrganizations();
         });
     </script>
+
+    </div>
+    </main>
 </body>
 </html>
 

@@ -18,6 +18,156 @@ body {
     padding: 0 20px;
 }
 
+/* =========================
+   Dashboard (Admin/Org/Teacher) fixed layout
+   Only applies when body has .dash-body
+   ========================= */
+:root {
+    --dash-topbar-h: 78px;
+    --dash-sidebar-w: 270px;
+    --dash-gap: 16px;
+}
+
+body.dash-body {
+    padding: 0;
+}
+
+.dash-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--dash-topbar-h);
+    padding: 14px var(--dash-gap);
+    z-index: 1100;
+}
+
+.dash-topbar-inner {
+    height: 100%;
+    max-width: 2400px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.dash-topbar-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.dash-topbar-title h1 {
+    color: #667eea;
+    font-size: 1.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-topbar-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+}
+
+.dash-sidebar {
+    position: fixed;
+    top: var(--dash-topbar-h);
+    left: 0;
+    bottom: 0;
+    width: var(--dash-sidebar-w);
+    padding: var(--dash-gap);
+    z-index: 1050;
+}
+
+.dash-sidebar-inner {
+    height: 100%;
+    border-radius: 16px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: auto;
+}
+
+.dash-nav-item {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.92);
+    border-radius: 12px;
+    padding: 12px 12px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dash-nav-item:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+}
+
+.dash-nav-item.active {
+    background: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: 0 14px 28px rgba(102, 126, 234, 0.25);
+}
+
+.dash-main {
+    padding-top: calc(var(--dash-topbar-h) + var(--dash-gap));
+    padding-left: calc(var(--dash-sidebar-w) + var(--dash-gap));
+    padding-right: var(--dash-gap);
+    padding-bottom: var(--dash-gap);
+}
+
+@media (max-width: 900px) {
+    :root {
+        --dash-sidebar-w: 210px;
+    }
+}
+
+@media (max-width: 760px) {
+    .dash-topbar {
+        position: static;
+        height: auto;
+    }
+    .dash-sidebar {
+        position: static;
+        width: auto;
+        top: auto;
+    }
+    .dash-main {
+        padding-left: var(--dash-gap);
+        padding-top: var(--dash-gap);
+    }
+    .dash-sidebar-inner {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    .dash-nav-item {
+        width: auto;
+    }
+}
+
 .content-wrapper {
     display: flex;
     gap: 20px;
