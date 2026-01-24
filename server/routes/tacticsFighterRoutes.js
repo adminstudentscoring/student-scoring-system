@@ -1116,10 +1116,14 @@ function registerTacticsFighterRoutes(app, deps) {
           if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
           const r = await pool.query(
             `SELECT id, fen, message, solutions, created_at, updated_at
-             FROM tactics_fighter_puzzles
-             WHERE org_id = $1 AND subtopic_id = $2
-             ORDER BY created_at DESC
-             LIMIT 200`,
+             FROM (
+               SELECT id, fen, message, solutions, created_at, updated_at
+               FROM tactics_fighter_puzzles
+               WHERE org_id = $1 AND subtopic_id = $2
+               ORDER BY created_at DESC, id DESC
+               LIMIT 200
+             ) x
+             ORDER BY x.created_at ASC, x.id ASC`,
             [orgId, subtopicId]
           );
           const puzzles = (r.rows || []).map((p) => ({

@@ -651,7 +651,6 @@
                       <button type="button" class="btn btn-secondary" data-stu-prev="1" title="Previous puzzle">←</button>
                       <button type="button" class="btn btn-secondary" data-stu-next="1" title="Next puzzle">→</button>
                     </div>
-                    <button type="button" class="btn btn-primary" data-stu-submit="1">Submit</button>
                   </div>
                 </div>
               </div>
@@ -992,6 +991,7 @@
           return renderRunner();
         }
 
+        let didApply = false;
         ui.student.runner.busy = true;
         try {
           clearMsg();
@@ -1038,6 +1038,7 @@
           ui.student.runner.side = fenSideToMove(ui.student.runner.fen);
           ui.student.runner.movesUci.push(String(r.uci || uci));
           ui.student.runner.movesSan.push(String(r.san || uci));
+          didApply = true;
           renderRunner();
         } catch (err) {
           // rollback history entry
@@ -1051,6 +1052,10 @@
           renderRunner();
         } finally {
           ui.student.runner.busy = false;
+          // Auto-submit: once the user successfully makes a move, immediately treat it as "Submit".
+          if (didApply) {
+            try { await submitMoveAndReply(); } catch {}
+          }
         }
       }
 
@@ -1319,9 +1324,6 @@
             }
           })();
           return;
-        }
-        if (t.closest('[data-stu-submit]')) {
-          return submitMoveAndReply();
         }
         const sq = t.closest('[data-stu-sq]');
         if (sq) {
