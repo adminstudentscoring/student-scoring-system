@@ -28,6 +28,71 @@ function registerOrganizationsRoutes(app, deps) {
     generateToken
   } = deps;
 
+  // ==================== Timetable helpers ====================
+  function isYmd(s) {
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  }
+
+  function parseYmdToUtcMs(ymd) {
+    if (!isYmd(ymd)) return null;
+    const ms = Date.parse(`${ymd}T00:00:00.000Z`);
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  function utcMsToYmd(ms) {
+    const d = new Date(ms);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  }
+
+  function computeNextAvailableDateSameEntry({ entry, fromDate, holidaySet, enrollments, studentId }) {
+    // Only supports recurring entries (weekly schedule).
+    if (!entry || !entry.isRecurring) return null;
+    if (!isYmd(fromDate)) return null;
+
+    const dayMap = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+    const dowSet = new Set((Array.isArray(entry?.dayOfWeek) ? entry.dayOfWeek : []).map(d => dayMap[d]).filter(v => v !== undefined));
+    const startBoundary = entry.startDate ? String(entry.startDate).split('T')[0] : null;
+    const endBoundary = entry.endDate ? String(entry.endDate).split('T')[0] : null;
+
+    const exceptions = Array.isArray(entry?.exceptions) ? entry.exceptions : [];
+    const exceptionSet = new Set(exceptions.filter(isYmd));
+
+    const allStudentDates = new Set((Array.isArray(enrollments) ? enrollments : [])
+      .filter(e =>
+        String(e?.studentId) === String(studentId) &&
+        String(e?.timetableEntryId) === String(entry.id) &&
+        isYmd(e?.date)
+      )
+      .map(e => e.date)
+    );
+
+    const baseMs = parseYmdToUtcMs(fromDate);
+    if (baseMs == null) return null;
+
+    for (let i = 1; i <= 365; i++) {
+      const ms = baseMs + i * 86400000;
+      const ds = utcMsToYmd(ms);
+
+      if (startBoundary && ds < startBoundary) continue;
+      if (endBoundary && ds > endBoundary) break;
+
+      if (dowSet.size > 0) {
+        const dow = new Date(ms).getUTCDay();
+        if (!dowSet.has(dow)) continue;
+      }
+      if (exceptionSet.has(ds)) continue;
+      if (holidaySet && holidaySet.has(ds)) continue;
+      if (allStudentDates.has(ds)) continue;
+
+      return ds;
+    }
+
+    return null;
+  }
+
   // Initialize teacher fields (ensure contactPhone and remark exist)
   function initializeTeacherFields(teacher) {
     if (!teacher || teacher.role !== 'teacher') return teacher;
@@ -991,6 +1056,98 @@ function registerOrganizationsRoutes(app, deps) {
         return res.status(404).json({ error: 'Organization not found' });
       }
 
+      // Option A: when newly-added holiday dates are saved, auto-postpone enrollments on those dates.
+      let holidayAutoPostpone = null;
+      try {
+        const oldHolidays = Array.isArray(organization?.settings?.scheduleSettings?.holidays)
+          ? organization.settings.scheduleSettings.holidays
+          : [];
+        const newHolidays = Array.isArray(settings?.scheduleSettings?.holidays)
+          ? settings.scheduleSettings.holidays
+          : [];
+
+        const oldSet = new Set(oldHolidays.filter(isYmd));
+        const newSet = new Set(newHolidays.filter(isYmd));
+        const added = Array.from(newSet).filter(d => !oldSet.has(d));
+
+        // Apply to ALL holiday dates currently configured (so existing holidays also take effect immediately),
+        // while still reporting newly-added dates for debugging.
+        if (newSet.size > 0) {
+          const holidaySet = newSet;
+
+          const timetableData = await readTimetable();
+          const entryById = new Map(
+            (timetableData?.entries || [])
+              .filter(e => String(e?.organizationId) === String(orgUser.organizationId))
+              .map(e => [String(e.id), e])
+          );
+
+          const enrollments = await readEnrollments();
+          let moved = 0;
+          let skipped = 0;
+
+          for (let i = enrollments.length - 1; i >= 0; i--) {
+            const enr = enrollments[i];
+            if (!enr) continue;
+            if (String(enr.organizationId) !== String(orgUser.organizationId)) continue;
+            if (!holidaySet.has(enr.date)) continue;
+
+            const entry = entryById.get(String(enr.timetableEntryId));
+            if (!entry || !entry.isRecurring) {
+              skipped++;
+              continue;
+            }
+
+            const targetDate = computeNextAvailableDateSameEntry({
+              entry,
+              fromDate: enr.date,
+              holidaySet,
+              enrollments,
+              studentId: enr.studentId
+            });
+
+            if (!targetDate) {
+              skipped++;
+              continue;
+            }
+
+            // Remove original holiday enrollment, create the moved enrollment
+            enrollments.splice(i, 1);
+
+            const nowIso = new Date().toISOString();
+            const baseNote = `Holiday postponed from ${enr.date} (${enr.timetableEntryId})`;
+            const nextNotes = typeof enr.notes === 'string' && enr.notes.trim()
+              ? `${enr.notes}\n${baseNote}`
+              : baseNote;
+
+            enrollments.push({
+              ...enr,
+              id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              date: targetDate,
+              type: 'single',
+              notes: nextNotes,
+              createdAt: nowIso,
+              postponedFrom: {
+                entryId: enr.timetableEntryId,
+                date: enr.date,
+                reason: 'holiday_auto_postpone',
+                holidayDate: enr.date
+              }
+            });
+            moved++;
+          }
+
+          if (moved > 0) {
+            await writeEnrollments(enrollments);
+          }
+
+          holidayAutoPostpone = { holidayDates: Array.from(holidaySet).sort(), addedHolidayDates: added, moved, skipped };
+        }
+      } catch (e) {
+        console.error('[holiday] auto-postpone failed:', e);
+        holidayAutoPostpone = { error: 'auto-postpone failed' };
+      }
+
       // Update settings
       organization.settings = settings;
       organization.updatedAt = new Date().toISOString();
@@ -1001,7 +1158,8 @@ function registerOrganizationsRoutes(app, deps) {
 
       res.json({
         message: 'Settings saved successfully',
-        settings: organization.settings
+        settings: organization.settings,
+        holidayAutoPostpone
       });
     } catch (error) {
       console.error('Error updating organization settings:', error);
