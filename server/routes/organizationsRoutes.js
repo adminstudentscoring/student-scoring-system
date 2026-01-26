@@ -894,7 +894,8 @@ function registerOrganizationsRoutes(app, deps) {
           classTimes: [],
           autoSaveEnabled: true,
           autoSaveInterval: 30,
-          holidays: [] // ['YYYY-MM-DD'] dates to skip in timetable + auto-renew
+          holidays: [], // ['YYYY-MM-DD'] dates to skip in timetable + auto-renew
+          holidayRules: [] // [{ id, from: 'YYYY-MM-DD', to: 'YYYY-MM-DD', reason }]
         },
         scoringRules: {
           correctAnswerPoints: 10,
