@@ -1645,7 +1645,8 @@ window.openMakeupPopup = function(studentId, entryId, dateStr) {
         </div>
         <div class="makeup-popup-actions">
           <button class="makeup-popup-btn primary" onclick="startMakeupFlow()">Make Up Class</button>
-          <button class="makeup-popup-btn" onclick="handlePostponeSelection()">Postpone (+7 days)</button>
+          <button class="makeup-popup-btn" onclick="handlePostponeSelection()">Postpone (next available)</button>
+          <button class="makeup-popup-btn danger" onclick="handleCancelLessonSelection()">Cancel lesson (refund credit)</button>
         </div>
       </div>
     `;
@@ -1668,6 +1669,8 @@ window.openMakeupPopup = function(studentId, entryId, dateStr) {
         .makeup-popup-btn { padding: 10px 12px; border-radius: 10px; border:1px solid #e2e8f0; background:#f8fafc; cursor:pointer; font-weight:600; text-align:left; }
         .makeup-popup-btn.primary { background:#2563eb; color:#fff; border-color:#2563eb; }
         .makeup-popup-btn.primary:hover { background:#1d4ed8; }
+        .makeup-popup-btn.danger { background:#fee2e2; border-color:#fecaca; color:#991b1b; }
+        .makeup-popup-btn.danger:hover { background:#fecaca; }
         .makeup-popup-btn:hover { background:#e2e8f0; }
         body.makeup-mode-active .timetable-entry { outline: 2px dashed #2563eb; cursor: pointer; }
         .makeup-mode-banner { position: fixed; bottom: 15px; right: 15px; background:#1d4ed8; color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 6px 16px rgba(0,0,0,0.2); z-index:2101; display:none; align-items:center; gap:10px; }
@@ -1784,25 +1787,67 @@ window.handlePostponeSelection = async function() {
   await postponeEnrollment(makeupContext);
 };
 
+window.handleCancelLessonSelection = async function() {
+  if (!makeupContext.studentId) {
+    closeMakeupPopup();
+    return;
+  }
+  if (!confirm('Cancel this lesson? If it was paid, the fee will be returned as credit.')) return;
+  closeMakeupPopup();
+  await cancelEnrollmentWithRefund(makeupContext);
+};
+
+async function cancelEnrollmentWithRefund(ctx) {
+  try {
+    const response = await window.authUtils.authenticatedFetch('/organizations/enrollments/drop', {
+      method: 'POST',
+      body: JSON.stringify({
+        studentId: ctx.studentId,
+        mode: 'single',
+        timetableEntryId: ctx.entryId,
+        date: ctx.dateStr
+      })
+    });
+    if (response && response.ok) {
+      const r = await response.json().catch(() => ({}));
+      const amt = Number(r.refundAmount || 0) || 0;
+      if (window.showToast) {
+        window.showToast(amt > 0 ? `Cancelled. Refunded $${amt.toFixed(2)} credit.` : 'Cancelled.', 'success');
+      } else {
+        alert(amt > 0 ? `Cancelled. Refunded $${amt.toFixed(2)} credit.` : 'Cancelled.');
+      }
+      await loadTimetableData();
+      return;
+    }
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to cancel');
+  } catch (e) {
+    console.error('Cancel lesson error', e);
+    if (window.showToast) window.showToast('Failed to cancel lesson', 'error');
+    else alert('Failed to cancel lesson');
+  }
+}
+
 async function postponeEnrollment(ctx) {
-  const newDate = addDays(ctx.dateStr, 7);
   try {
     const response = await window.authUtils.authenticatedFetch('/organizations/timetable/postpone', {
       method: 'POST',
       body: JSON.stringify({
         timetableEntryId: ctx.entryId,
         date: ctx.dateStr,
-        studentId: ctx.studentId,
-        newDate
+        studentId: ctx.studentId
       })
     });
     if (response && response.ok) {
-      if (window.showToast) window.showToast(`Postponed to ${newDate}`, 'success');
-      else alert(`Postponed to ${newDate}`);
+      const r = await response.json().catch(() => ({}));
+      const newDate = r?.data?.enrolledToDate || null;
+      if (window.showToast) window.showToast(newDate ? `Postponed to ${newDate}` : 'Postponed', 'success');
+      else alert(newDate ? `Postponed to ${newDate}` : 'Postponed');
       await loadTimetableData();
       return;
     }
-    throw new Error('Failed to postpone');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to postpone');
   } catch (e) {
     console.error('Postpone error', e);
     if (window.showToast) window.showToast('Failed to postpone class', 'error');

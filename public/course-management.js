@@ -50,6 +50,7 @@ function renderCourseManagement() {
         <button class="course-sub-tab" data-subtab="package">📦 Course Package</button>
         <button class="course-sub-tab" data-subtab="accounting">💰 Accounting</button>
         <button class="course-sub-tab" data-subtab="sales">📊 Sales</button>
+        <button class="course-sub-tab" data-subtab="setting">⚙️ Setting</button>
       </div>
       
       <!-- Content Area -->
@@ -195,6 +196,24 @@ function renderCourseManagement() {
           </div>
         </div>
       </div>
+      <div id="settingSubTabContent" class="course-sub-tab-content">
+        <div style="padding: 18px;">
+          <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:10px;">Course Management Settings</div>
+          <div style="color:#64748b; margin-bottom:16px;">These settings affect timetable scheduling and enrollments.</div>
+
+          <div style="display:grid; grid-template-columns: 1fr; gap:14px; max-width: 720px;">
+            <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
+              <div style="font-weight:800; color:#0f172a; margin-bottom:6px;">Holidays / Closed Days</div>
+              <div style="color:#64748b; margin-bottom:10px;">Dates listed here will be skipped during class enrollment generation and auto-renew calculations.</div>
+              <textarea id="cmHolidayTextarea" placeholder="YYYY-MM-DD&#10;2026-02-10&#10;2026-02-11" style="width:100%; height:160px; padding:10px; border:2px solid #e0e0e0; border-radius:10px;"></textarea>
+              <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn btn-primary" onclick="saveCourseManagementHolidays()">Save</button>
+                <button class="btn btn-secondary" onclick="reloadCourseManagementHolidays()">Reload</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   `;
@@ -255,7 +274,73 @@ function switchSubTab(subTab) {
       window.loadAccountingModule();
     }
   }
+
+  // Settings
+  if (subTab === 'setting') {
+    reloadCourseManagementHolidays();
+  }
 }
+
+// ==================== Course Management Settings (Holidays) ====================
+let courseManagementSettingsCache = null;
+
+window.reloadCourseManagementHolidays = async function() {
+  try {
+    const ta = document.getElementById('cmHolidayTextarea');
+    if (ta) ta.value = 'Loading...';
+
+    const response = await window.authUtils.authenticatedFetch('/organizations/settings');
+    if (!response || !response.ok) throw new Error('Failed to load settings');
+    const settings = await response.json();
+    courseManagementSettingsCache = settings || {};
+
+    const holidays = Array.isArray(settings?.scheduleSettings?.holidays) ? settings.scheduleSettings.holidays : [];
+    if (ta) ta.value = holidays.join('\n');
+
+    // keep global in sync for timetable/sales
+    window.timetableSettings = settings.scheduleSettings || {};
+  } catch (e) {
+    console.error('Failed to load course management settings', e);
+    const ta = document.getElementById('cmHolidayTextarea');
+    if (ta) ta.value = '';
+    if (window.showToast) window.showToast('Failed to load holidays', 'error');
+  }
+};
+
+window.saveCourseManagementHolidays = async function() {
+  try {
+    const ta = document.getElementById('cmHolidayTextarea');
+    const raw = ta ? String(ta.value || '') : '';
+    const lines = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const uniq = Array.from(new Set(lines)).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s)).sort();
+
+    // Load settings if missing
+    if (!courseManagementSettingsCache) {
+      await reloadCourseManagementHolidays();
+    }
+    const settings = courseManagementSettingsCache || {};
+    if (!settings.scheduleSettings) settings.scheduleSettings = {};
+    settings.scheduleSettings.holidays = uniq;
+
+    const response = await window.authUtils.authenticatedFetch('/organizations/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings)
+    });
+    if (!response || !response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to save settings');
+    }
+
+    // Refresh cache + globals
+    courseManagementSettingsCache = settings;
+    window.timetableSettings = settings.scheduleSettings || {};
+    if (window.showToast) window.showToast('Holidays saved', 'success');
+  } catch (e) {
+    console.error('Failed to save holidays', e);
+    if (window.showToast) window.showToast('Failed to save holidays', 'error');
+    else alert('Failed to save holidays');
+  }
+};
 
 // Load courses from API
 async function loadCourses() {

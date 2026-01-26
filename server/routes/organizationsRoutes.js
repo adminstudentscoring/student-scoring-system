@@ -2237,6 +2237,7 @@ function registerOrganizationsRoutes(app, deps) {
 
       const enrollments = await readEnrollments();
       const timetableData = await readTimetable();
+      const organizations = await readOrganizations();
       log(`Loaded ${enrollments.length} enrollments, ${timetableData.entries.length} timetable entries`);
 
       // Find the timetable entry
@@ -2254,6 +2255,7 @@ function registerOrganizationsRoutes(app, deps) {
       log('Step 1: Dropping student from current class');
 
       let studentRemoved = false;
+      let originalOrderId = null;
       const originalEnrollmentIndex = enrollments.findIndex(e =>
         String(e.studentId) === String(studentId) &&
         e.timetableEntryId === timetableEntryId &&
@@ -2263,6 +2265,7 @@ function registerOrganizationsRoutes(app, deps) {
       if (originalEnrollmentIndex !== -1) {
         const originalEnrollment = enrollments[originalEnrollmentIndex];
         log(`Found and removing enrollment: ${originalEnrollment.id}`);
+        originalOrderId = originalEnrollment.orderId || null;
         enrollments.splice(originalEnrollmentIndex, 1);
         studentRemoved = true;
       } else {
@@ -2279,36 +2282,69 @@ function registerOrganizationsRoutes(app, deps) {
         log('Warning: Student was not found in current class, proceeding with new enrollment');
       }
 
-      // Step 2: Find student's last enrollment (excluding the current one we just dropped)
-      log('Step 2: Finding student\'s last enrollment');
+      // Step 2: Compute next available class date (same class), skipping exceptions + holidays
+      log('Step 2: Computing next available class date (same class)');
 
-      const studentEnrollments = enrollments.filter(e =>
-        String(e.studentId) === String(studentId) &&
-        e.date !== date // Exclude the one we just dropped
-      ).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
+      const org = organizations.find(o => String(o.id) === String(req.user.organizationId));
+      const holidays = Array.isArray(org?.settings?.scheduleSettings?.holidays) ? org.settings.scheduleSettings.holidays : [];
+      const holidaySet = new Set(holidays.filter(d => typeof d === 'string'));
+      const exceptions = Array.isArray(entry?.exceptions) ? entry.exceptions : [];
+      const exceptionSet = new Set(exceptions.filter(d => typeof d === 'string'));
 
-      log(`Student has ${studentEnrollments.length} historical enrollments`);
+      const dayMap = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+      const dowSet = new Set((Array.isArray(entry?.dayOfWeek) ? entry.dayOfWeek : []).map(d => dayMap[d]).filter(v => v !== undefined));
 
-      let targetEntryId = timetableEntryId; // Default to same class
+      const startBoundary = entry.startDate ? String(entry.startDate).split('T')[0] : null;
+      const endBoundary = entry.endDate ? String(entry.endDate).split('T')[0] : null;
+
+      const allStudentDates = new Set(enrollments
+        .filter(e => String(e.studentId) === String(studentId) && String(e.timetableEntryId) === String(timetableEntryId) && typeof e.date === 'string')
+        .map(e => e.date)
+      );
+
+      const parseYmd = (s) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s || ''))) return null;
+        const ms = Date.parse(`${s}T00:00:00.000Z`);
+        return Number.isFinite(ms) ? ms : null;
+      };
+      const toYmd = (ms) => {
+        const d = new Date(ms);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      };
+
+      const baseMs = parseYmd(date);
+      if (baseMs == null) return res.status(400).json({ error: 'Invalid date format', logs });
+
       let targetDate = null;
+      // Search up to 365 days ahead
+      for (let i = 1; i <= 365; i++) {
+        const ms = baseMs + i * 86400000;
+        const ds = toYmd(ms);
 
-      if (studentEnrollments.length > 0) {
-        // Use the last enrollment's entry and calculate next week
-        const lastEnrollment = studentEnrollments[0];
-        targetEntryId = lastEnrollment.timetableEntryId;
-        const lastDate = new Date(lastEnrollment.date);
-        lastDate.setDate(lastDate.getDate() + 7); // Add one week
-        targetDate = lastDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-
-        log(`Using last enrollment: ${lastEnrollment.id} from ${lastEnrollment.date}, target date: ${targetDate}`);
-      } else {
-        // No historical enrollments, just postpone current class by one week
-        const currentDate = new Date(date);
-        currentDate.setDate(currentDate.getDate() + 7);
-        targetDate = currentDate.toISOString().split('T')[0];
-
-        log(`No historical enrollments found, postponing current class to: ${targetDate}`);
+        if (startBoundary && ds < startBoundary) continue;
+        if (endBoundary && ds > endBoundary) break;
+        if (entry.isRecurring) {
+          if (dowSet.size > 0) {
+            const dow = new Date(ms).getUTCDay();
+            if (!dowSet.has(dow)) continue;
+          }
+        }
+        if (exceptionSet.has(ds)) continue;
+        if (holidaySet.has(ds)) continue;
+        if (allStudentDates.has(ds)) continue;
+        targetDate = ds;
+        break;
       }
+
+      if (!targetDate) {
+        return res.status(400).json({ error: 'No available date found to postpone (check endDate/holidays/exceptions)', logs });
+      }
+
+      const targetEntryId = timetableEntryId;
+      log(`Target postpone date computed: ${targetDate}`);
 
       // Step 3: Create new enrollment for next week
       log('Step 3: Creating new enrollment for next week');
@@ -2334,6 +2370,7 @@ function registerOrganizationsRoutes(app, deps) {
           timetableEntryId: targetEntryId,
           date: targetDate,
           type: 'single',
+          orderId: originalOrderId,
           notes: `Postponed from ${date} (${timetableEntryId})`,
           createdAt: new Date().toISOString(),
           postponedFrom: {

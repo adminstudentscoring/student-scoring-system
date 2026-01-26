@@ -22,6 +22,16 @@ let salesState = {
 window.loadSalesModule = async function() {
   loadSalesProducts();
   loadSalesTeachers();
+  // Load schedule settings (holidays) used for enrollment generation
+  try {
+    const resp = await window.authUtils.authenticatedFetch('/organizations/settings');
+    if (resp && resp.ok) {
+      const settings = await resp.json();
+      window.timetableSettings = settings.scheduleSettings || {};
+    }
+  } catch (e) {
+    // ignore
+  }
   
   // Preload Timetable Data for Enrollments History
   try {
@@ -416,6 +426,10 @@ function generateFutureClasses(entries, weeks = 8) {
   
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + (weeks * 7));
+
+  const holidaySet = new Set(
+    Array.isArray(window.timetableSettings?.holidays) ? window.timetableSettings.holidays : []
+  );
   
   entries.forEach(entry => {
     if (entry.isRecurring && entry.dayOfWeek && Array.isArray(entry.dayOfWeek)) {
@@ -475,6 +489,11 @@ function generateFutureClasses(entries, weeks = 8) {
             const dd = String(current.getDate()).padStart(2, '0');
             const dateString = `${yyyy}-${mm}-${dd}`;
 
+            if (holidaySet.has(dateString)) {
+              current.setDate(current.getDate() + 7);
+              continue;
+            }
+
             classes.push({
               date: new Date(current),
               dateString: dateString,
@@ -497,12 +516,14 @@ function generateFutureClasses(entries, weeks = 8) {
          const dd = String(entryDate.getDate()).padStart(2, '0');
          const dateString = `${yyyy}-${mm}-${dd}`;
 
-         classes.push({
-           date: entryDate,
-           dateString: dateString,
-           entry: entry,
-           id: entry.id
-         });
+         if (!holidaySet.has(dateString)) {
+           classes.push({
+             date: entryDate,
+             dateString: dateString,
+             entry: entry,
+             id: entry.id
+           });
+         }
       }
     }
   });
