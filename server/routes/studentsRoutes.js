@@ -445,7 +445,9 @@ function registerStudentsRoutes(app, deps) {
         emergencyContactName: 100,
         emergencyContactNumber: 20,
         remark: 1000,
-        membership: 50
+        membership: 50,
+        autoRenewTimetableEntryId: 80,
+        autoRenewPackageId: 80
       };
 
       for (const [field, maxLength] of Object.entries(fieldLengths)) {
@@ -487,7 +489,9 @@ function registerStudentsRoutes(app, deps) {
         'name', 'studentId', 'dateOfBirth', 'gender', 'contactPhone', 'contactEmail',
         'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber',
         'remark', 'membership', 'membershipStartDate', 'membershipEndDate', 'score',
-        'accessPassword'
+        'accessPassword',
+        // Auto-renew (optional)
+        'autoRenewEnabled', 'autoRenewTimetableEntryId', 'autoRenewPackageId'
       ];
 
       const cleanUpdates = {};
@@ -496,6 +500,21 @@ function registerStudentsRoutes(app, deps) {
           cleanUpdates[field] = updates[field] === '' ? null : updates[field];
         }
       });
+
+      // Normalize auto-renew fields (optional)
+      if (updates.autoRenewEnabled !== undefined) {
+        cleanUpdates.autoRenewEnabled = !!updates.autoRenewEnabled;
+      }
+      if (updates.autoRenewTimetableEntryId !== undefined) {
+        cleanUpdates.autoRenewTimetableEntryId = (updates.autoRenewTimetableEntryId === '' || updates.autoRenewTimetableEntryId == null)
+          ? null
+          : String(updates.autoRenewTimetableEntryId).trim();
+      }
+      if (updates.autoRenewPackageId !== undefined) {
+        cleanUpdates.autoRenewPackageId = (updates.autoRenewPackageId === '' || updates.autoRenewPackageId == null)
+          ? null
+          : String(updates.autoRenewPackageId).trim();
+      }
 
       data.students[studentIndex] = { ...data.students[studentIndex], ...cleanUpdates };
       data.students[studentIndex].updatedAt = new Date().toISOString();

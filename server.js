@@ -616,6 +616,10 @@ let blundersDailySyncMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0,
 let computeNextBlundersDailyRunIso = () => new Date().toISOString();
 let maybeRunBlundersDailySyncAllStudents = async () => ({ ok: true, skipped: true });
 
+// ===== Course Management: Auto-renew (unpaid reserve) =====
+let AUTO_RENEW_LEAD_DAYS = Number(process.env.AUTO_RENEW_LEAD_DAYS || 30);
+let autoRenewMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
+
 let chessComGetGamesForHkDay = async () => [];
 let chessComGetTodayGames = async () => [];
 let chessComGetRecentGames = async () => [];
@@ -628,6 +632,324 @@ function parseUciMove(uci) {
   const to = s.slice(2, 4);
   const promotion = s.length === 5 ? s[4] : undefined;
   return { from, to, promotion, uci: s };
+}
+
+function dateStrFromYmd(y, m, d) {
+  const mm = String(m).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
+}
+
+function hkTodayDateStr() {
+  const t = hkNow();
+  return dateStrFromYmd(t.y, t.m, t.d);
+}
+
+function parseDateStrToUtcMidnightMs(dateStr) {
+  const s = String(dateStr || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const ms = Date.parse(`${s}T00:00:00.000Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function addDays(dateStr, days) {
+  const ms = parseDateStrToUtcMidnightMs(dateStr);
+  if (ms == null) return null;
+  const next = new Date(ms + (Number(days) || 0) * 86400000);
+  return dateStrFromYmd(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
+}
+
+function addMonths(dateStr, months) {
+  const ms = parseDateStrToUtcMidnightMs(dateStr);
+  if (ms == null) return null;
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  const day = d.getUTCDate();
+  const target = new Date(Date.UTC(y, m + (Number(months) || 0), 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  const safeDay = Math.min(day, lastDay);
+  target.setUTCDate(safeDay);
+  return dateStrFromYmd(target.getUTCFullYear(), target.getUTCMonth() + 1, target.getUTCDate());
+}
+
+const DOW_NAME_TO_NUM = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6
+};
+
+function buildSkipDateSet(entry, orgSettings) {
+  const s = new Set();
+  const ex = Array.isArray(entry?.exceptions) ? entry.exceptions : [];
+  for (const d of ex) if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) s.add(d);
+  const hol = orgSettings?.scheduleSettings?.holidays;
+  if (Array.isArray(hol)) {
+    for (const d of hol) if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) s.add(d);
+  }
+  return s;
+}
+
+function nextOccurrencesForEntry({ entry, startAfterDateStr, count, endDateStrInclusive, orgSettings }) {
+  const skip = buildSkipDateSet(entry, orgSettings);
+  const days = Array.isArray(entry?.dayOfWeek) ? entry.dayOfWeek : [];
+  const dowSet = new Set(days.map(d => DOW_NAME_TO_NUM[d]).filter(v => v !== undefined));
+  if (!entry?.isRecurring) return [];
+  if (dowSet.size <= 0) return [];
+
+  const startMs = parseDateStrToUtcMidnightMs(startAfterDateStr);
+  if (startMs == null) return [];
+
+  const entryStartMs = entry.startDate ? parseDateStrToUtcMidnightMs(entry.startDate) : null;
+  const entryEndMs = entry.endDate ? parseDateStrToUtcMidnightMs(entry.endDate) : null;
+  const hardStopMs = entryEndMs ?? (startMs + 370 * 86400000); // safety guard ~1 year
+  const endMs = endDateStrInclusive ? parseDateStrToUtcMidnightMs(endDateStrInclusive) : null;
+  const limitMs = endMs != null ? Math.min(endMs, hardStopMs) : hardStopMs;
+
+  const out = [];
+  // start checking from the next day
+  let curMs = startMs + 86400000;
+  while (curMs <= limitMs) {
+    const d = new Date(curMs);
+    const ds = dateStrFromYmd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    if (entryStartMs != null && curMs < entryStartMs) { curMs += 86400000; continue; }
+    if (entryEndMs != null && curMs > entryEndMs) break;
+    if (!dowSet.has(d.getUTCDay())) { curMs += 86400000; continue; }
+    if (skip.has(ds)) { curMs += 86400000; continue; }
+    out.push(ds);
+    if (count && out.length >= count) break;
+    curMs += 86400000;
+  }
+  return out;
+}
+
+function packageLessonCount(pkg) {
+  const courses = Array.isArray(pkg?.courses) ? pkg.courses : [];
+  return courses.reduce((sum, c) => sum + (Number(c?.quantity) || 0), 0);
+}
+
+function computePackagePrice({ pkg, coursesById, classCount }) {
+  const strategy = String(pkg?.priceStrategy || '');
+  if (strategy === 'fixed') return Number(pkg?.fixedPrice) || 0;
+  if (strategy === 'custom') return Number(pkg?.customPrice) || 0;
+  if (strategy === 'monthly') return (Number(pkg?.monthlyLessonPrice) || 0) * (Number(classCount) || 0);
+  if (strategy === 'discount') {
+    const disc = Number(pkg?.discountPercentage) || 0;
+    const base = (Array.isArray(pkg?.courses) ? pkg.courses : []).reduce((sum, c) => {
+      const course = coursesById.get(String(c.courseId || ''));
+      const qty = Number(c?.quantity) || 0;
+      const p = Number(course?.price) || 0;
+      return sum + qty * p;
+    }, 0);
+    const price = base * (1 - Math.max(0, Math.min(100, disc)) / 100);
+    return Math.round(price * 100) / 100;
+  }
+  return 0;
+}
+
+async function maybeRunAutoRenewAllOrgs() {
+  try {
+    const hkDay = todayHkKey();
+    if (autoRenewMeta.lastRunHkDay && autoRenewMeta.lastRunHkDay === hkDay) return { ok: true, skipped: true };
+
+    // Run once per HK day (lightweight; dedupe via order meta anyway)
+    const today = hkTodayDateStr();
+    const [organizations, data, orders, enrollments, timetable, packages, courses] = await Promise.all([
+      readOrganizations(),
+      readData(),
+      readOrders(),
+      readEnrollments(),
+      readTimetable(),
+      readPackages(),
+      readCourses()
+    ]);
+
+    const orgById = new Map(organizations.map(o => [String(o.id), o]));
+    const ordersById = new Map(orders.map(o => [String(o.id), o]));
+    const coursesById = new Map(courses.map(c => [String(c.id), c]));
+    const packagesById = new Map(packages.map(p => [String(p.id), p]));
+    const entryById = new Map((timetable?.entries || []).map(e => [String(e.id), e]));
+
+    let createdOrders = 0;
+    let createdEnrollments = 0;
+    let skipped = 0;
+
+    const students = Array.isArray(data?.students) ? data.students : [];
+    for (const stu of students) {
+      if (!stu || !stu.autoRenewEnabled) continue;
+      const orgId = String(stu.organizationId || '');
+      const timetableEntryId = String(stu.autoRenewTimetableEntryId || '');
+      const packageId = String(stu.autoRenewPackageId || '');
+      if (!orgId || !timetableEntryId || !packageId) { skipped++; continue; }
+
+      const org = orgById.get(orgId);
+      const entry = entryById.get(timetableEntryId);
+      const pkg = packagesById.get(packageId);
+      if (!org || !entry || !pkg) { skipped++; continue; }
+
+      // Find the latest PAID order cycle for this student+entry+package by enrollments max date
+      const paidEnrolls = enrollments.filter(e =>
+        String(e.organizationId) === orgId &&
+        String(e.studentId) === String(stu.id) &&
+        String(e.timetableEntryId) === timetableEntryId &&
+        e.orderId &&
+        ordersById.get(String(e.orderId)) &&
+        String(ordersById.get(String(e.orderId)).status) === 'paid'
+      );
+      if (paidEnrolls.length === 0) { skipped++; continue; }
+
+      // Filter to cycles where the order includes the packageId
+      const paidEnrollsWithPkg = paidEnrolls.filter(e => {
+        const o = ordersById.get(String(e.orderId));
+        const items = Array.isArray(o?.items) ? o.items : [];
+        return items.some(it => String(it?.productData?.id || '') === packageId);
+      });
+      if (paidEnrollsWithPkg.length === 0) { skipped++; continue; }
+
+      let last = null;
+      for (const e of paidEnrollsWithPkg) {
+        if (!e.date) continue;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(e.date))) continue;
+        if (!last || String(e.date) > String(last.date)) last = e;
+      }
+      if (!last) { skipped++; continue; }
+
+      const sourceOrderId = String(last.orderId);
+      const sourceOrder = ordersById.get(sourceOrderId);
+      if (!sourceOrder) { skipped++; continue; }
+
+      // Compute last class date for this order+entry
+      const sourceEnrolls = enrollments.filter(e =>
+        String(e.organizationId) === orgId &&
+        String(e.studentId) === String(stu.id) &&
+        String(e.timetableEntryId) === timetableEntryId &&
+        String(e.orderId) === sourceOrderId &&
+        typeof e.date === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(e.date)
+      );
+      if (sourceEnrolls.length === 0) { skipped++; continue; }
+      const lastClassDate = sourceEnrolls.reduce((mx, e) => (!mx || e.date > mx ? e.date : mx), null);
+      const generateOn = addDays(lastClassDate, -AUTO_RENEW_LEAD_DAYS);
+      if (generateOn !== today) continue; // not due today
+
+      // Dedupe: if we already created a renewal order from this source order, skip
+      const already = orders.some(o =>
+        String(o.organizationId) === orgId &&
+        String(o.studentId) === String(stu.id) &&
+        o?.meta?.autoRenew &&
+        String(o.meta.autoRenew.sourceOrderId || '') === sourceOrderId
+      );
+      if (already) { skipped++; continue; }
+
+      // Determine renewal class dates based on package rules
+      let nextDates = [];
+      if (String(pkg.priceStrategy) === 'monthly') {
+        const periodMonths = Number(pkg.monthlyPeriod) || 1;
+        const end = addMonths(lastClassDate, periodMonths);
+        nextDates = nextOccurrencesForEntry({
+          entry,
+          startAfterDateStr: lastClassDate,
+          endDateStrInclusive: end,
+          orgSettings: org.settings || {}
+        });
+      } else {
+        const n = packageLessonCount(pkg);
+        if (n <= 0) { skipped++; continue; }
+        nextDates = nextOccurrencesForEntry({
+          entry,
+          startAfterDateStr: lastClassDate,
+          count: n,
+          orgSettings: org.settings || {}
+        });
+      }
+      if (!Array.isArray(nextDates) || nextDates.length === 0) { skipped++; continue; }
+
+      // Avoid duplicating enrollments if already reserved manually
+      const existingDateSet = new Set(enrollments
+        .filter(e =>
+          String(e.organizationId) === orgId &&
+          String(e.studentId) === String(stu.id) &&
+          String(e.timetableEntryId) === timetableEntryId &&
+          typeof e.date === 'string')
+        .map(e => e.date)
+      );
+      nextDates = nextDates.filter(d => !existingDateSet.has(d));
+      if (nextDates.length === 0) { skipped++; continue; }
+
+      // Build order item (package) similar to Sales UI
+      const classCount = nextDates.length;
+      const price = computePackagePrice({ pkg, coursesById, classCount });
+      const orderItem = {
+        id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        productType: 'package',
+        productData: pkg,
+        enrolledClasses: nextDates.map(ds => ({
+          id: `${entry.id}_${Date.parse(`${ds}T00:00:00Z`)}`,
+          dateString: ds,
+          date: `${ds}T00:00:00.000Z`,
+          entry: {
+            id: entry.id,
+            className: entry.className,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+            classroom: entry.classroom || null
+          }
+        })),
+        price
+      };
+
+      const newOrder = {
+        id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        organizationId: orgId,
+        studentId: String(stu.id),
+        date: new Date().toISOString(),
+        status: 'unpaid',
+        paymentDetails: null,
+        items: [orderItem],
+        totalAmount: price,
+        createdBy: 'system:autoRenew',
+        meta: {
+          autoRenew: {
+            sourceOrderId,
+            packageId,
+            timetableEntryId,
+            leadDays: AUTO_RENEW_LEAD_DAYS,
+            generatedOnHk: today
+          }
+        }
+      };
+
+      orders.push(newOrder);
+      ordersById.set(String(newOrder.id), newOrder);
+      createdOrders++;
+
+      // Write enrollments for reserved classes
+      for (const ds of nextDates) {
+        enrollments.push({
+          id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          organizationId: orgId,
+          studentId: String(stu.id),
+          timetableEntryId: entry.id,
+          date: ds,
+          type: 'single',
+          orderId: newOrder.id
+        });
+        createdEnrollments++;
+      }
+    }
+
+    if (createdOrders > 0) await writeOrders(orders);
+    if (createdEnrollments > 0) await writeEnrollments(enrollments);
+
+    autoRenewMeta.lastRunAt = nowIso();
+    autoRenewMeta.lastRunHkDay = hkDay;
+    autoRenewMeta.lastRunOk = createdOrders;
+    autoRenewMeta.lastRunErr = 0;
+    return { ok: true, createdOrders, createdEnrollments, skipped };
+  } catch (e) {
+    autoRenewMeta.lastRunAt = nowIso();
+    autoRenewMeta.lastRunErr = 1;
+    console.error('Auto-renew tick error:', e);
+    return { ok: false, error: String(e?.message || e) };
+  }
 }
 
 // ===== Blunders: eval/verdict helpers (moved to server/blunders/eval.js) =====
@@ -5514,6 +5836,7 @@ async function startServer() {
     setInterval(() => {
       maybeRunChessComRatingsRefreshAllOrgs().catch(() => {});
       maybeRunBlundersDailySyncAllStudents().catch(() => {});
+      maybeRunAutoRenewAllOrgs().catch(() => {});
     }, 5 * 60 * 1000);
   } catch {}
 

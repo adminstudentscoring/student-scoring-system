@@ -56,7 +56,8 @@ function getDefaultSettings() {
         scheduleSettings: {
             classTimes: [],
             autoSaveEnabled: true,
-            autoSaveInterval: 30 // minutes
+            autoSaveInterval: 30, // minutes
+            holidays: [] // ['YYYY-MM-DD']
         },
         scoringRules: {
             correctAnswerPoints: 10,
@@ -1162,6 +1163,7 @@ window.handleLevelImageUpload = function(index, input) {
 };
 
 function renderTimetableSettings(settings) {
+    const holidays = Array.isArray(settings.holidays) ? settings.holidays : [];
     return `
         <div class="settings-category">
             <h3>📅 Timetable View Settings</h3>
@@ -1186,6 +1188,16 @@ function renderTimetableSettings(settings) {
                     <option value="30" ${settings.slotInterval === 30 ? 'selected' : ''}>30 Minutes</option>
                     <option value="60" ${settings.slotInterval === 60 ? 'selected' : ''}>1 Hour</option>
                 </select>
+            </div>
+
+            <div class="settings-group">
+                <label>Holidays / Closed Days (YYYY-MM-DD, one per line)</label>
+                <textarea
+                  style="width:100%; height:140px; padding:8px; border:2px solid #e0e0e0; border-radius:8px; background:#fff; color:#333;"
+                  placeholder="2026-02-10&#10;2026-02-11"
+                  onchange="updateSetting('scheduleSettings', 'holidays', this.value.split(/\n+/).map(s=>s.trim()).filter(Boolean))"
+                >${(holidays || []).join('\n')}</textarea>
+                <div class="help-text">These dates will be skipped by timetable scheduling and auto-renew calculations.</div>
             </div>
         </div>
     `;
