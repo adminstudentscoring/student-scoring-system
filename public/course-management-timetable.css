@@ -242,6 +242,45 @@
   border-right: none;
 }
 
+/* Holidays: grey-out the day column and entries */
+.timetable-week-header-cell.is-holiday {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.timetable-week-day-cell.is-holiday {
+  background: repeating-linear-gradient(
+    135deg,
+    #f8fafc,
+    #f8fafc 10px,
+    #f1f5f9 10px,
+    #f1f5f9 20px
+  );
+}
+.timetable-day-view.is-holiday .timetable-day-schedule-cell,
+.timetable-day-header.is-holiday {
+  background: repeating-linear-gradient(
+    135deg,
+    #f8fafc,
+    #f8fafc 10px,
+    #f1f5f9 10px,
+    #f1f5f9 20px
+  );
+}
+.timetable-month-day-cell.is-holiday {
+  background: repeating-linear-gradient(
+    135deg,
+    #f8fafc,
+    #f8fafc 10px,
+    #f1f5f9 10px,
+    #f1f5f9 20px
+  );
+}
+.timetable-entry.is-holiday,
+.timetable-month-entry.is-holiday {
+  filter: grayscale(0.85) saturate(0.7);
+  opacity: 0.78;
+}
+
 .timetable-entry {
   position: absolute;
   left: 2px;

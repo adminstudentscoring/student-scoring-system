@@ -18,6 +18,18 @@ let isReadOnly = false; // For teacher view
 let makeupFlowState = { active: false, studentId: null, fromEntryId: null, fromDate: null, studentName: '' };
 let makeupContext = { studentId: null, studentName: '', entryId: null, dateStr: null };
 
+// Holidays helpers
+function getHolidaySet() {
+  const hol = window.timetableSettings?.holidays;
+  const list = Array.isArray(hol) ? hol : [];
+  const out = new Set();
+  for (const d of list) {
+    const s = String(d || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) out.add(s);
+  }
+  return out;
+}
+
 // Initialize timetable management
 window.loadTimetableManagement = function(userRole = 'organization') {
   isReadOnly = userRole === 'teacher';
@@ -371,6 +383,8 @@ function renderWeekView() {
   
   // Get current week dates
   const weekDates = getWeekDates(currentDate);
+  const holidaySet = getHolidaySet();
+  const isHolidayByIndex = weekDates.map(d => holidaySet.has(formatDateISO(d)));
   
   let html = '<div class="timetable-week-view">';
   
@@ -379,7 +393,8 @@ function renderWeekView() {
   html += '<div class="timetable-week-header-cell timetable-week-time-col">Time</div>';
   days.forEach((day, index) => {
     const date = weekDates[index];
-    html += `<div class="timetable-week-header-cell">${day}<br><small>${formatDate(date)}</small></div>`;
+    const holidayCls = isHolidayByIndex[index] ? ' is-holiday' : '';
+    html += `<div class="timetable-week-header-cell${holidayCls}">${day}<br><small>${formatDate(date)}</small></div>`;
   });
   html += '</div>';
   
@@ -394,7 +409,8 @@ function renderWeekView() {
     // Day columns
     days.forEach((day, dayIndex) => {
       const date = weekDates[dayIndex];
-      html += `<div class="timetable-week-day-cell" data-time="${timeSlot}" data-day="${day}" data-date="${formatDateISO(date)}"></div>`;
+      const holidayCls = isHolidayByIndex[dayIndex] ? ' is-holiday' : '';
+      html += `<div class="timetable-week-day-cell${holidayCls}" data-time="${timeSlot}" data-day="${day}" data-date="${formatDateISO(date)}"></div>`;
     });
   });
   
@@ -552,6 +568,7 @@ function renderEntryInCell(entry, day, date) {
   // Calculate student count
   const baseStudents = entry.studentIds ? entry.studentIds.length : 0;
   const dateStr = formatDateISO(date);
+  const isHoliday = getHolidaySet().has(dateStr);
   
   // Filter extra students (single enrollments)
   const extraStudentIds = (timetableEnrollments || []).filter(e => 
@@ -579,7 +596,7 @@ function renderEntryInCell(entry, day, date) {
   const totalStudents = allStudentIds.length;
   
   const entryEl = document.createElement('div');
-  entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
+  entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}${isHoliday ? ' is-holiday' : ''}`;
   entryEl.style.cssText = `
     top: ${top}px;
     height: ${height}px;
@@ -733,11 +750,13 @@ function renderDayView() {
   const timeSlots = generateTimeSlots();
   const date = currentDate;
   const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+  const dateISO = formatDateISO(date);
+  const isHoliday = getHolidaySet().has(dateISO);
   
-  let html = '<div class="timetable-day-view">';
+  let html = `<div class="timetable-day-view${isHoliday ? ' is-holiday' : ''}">`;
   
   // Header
-  html += `<div class="timetable-day-header">${dayName} - ${formatDate(date)}</div>`;
+  html += `<div class="timetable-day-header${isHoliday ? ' is-holiday' : ''}">${dayName} - ${formatDate(date)}</div>`;
   
   // Body
   html += '<div class="timetable-day-body">';
@@ -844,6 +863,7 @@ function renderEntryInDayCell(entry, date) {
   // Calculate student count
   const baseStudents = entry.studentIds ? entry.studentIds.length : 0;
   const dateStr = formatDateISO(date);
+  const isHoliday = getHolidaySet().has(dateStr);
   const extraStudents = (timetableEnrollments || []).filter(e => 
     e.timetableEntryId === entry.id && 
     e.date === dateStr && 
@@ -852,7 +872,7 @@ function renderEntryInDayCell(entry, date) {
   const totalStudents = baseStudents + extraStudents;
   
   const entryEl = document.createElement('div');
-  entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}`;
+  entryEl.className = `timetable-entry ${duration <= 15 ? 'timetable-entry-small' : ''}${isHoliday ? ' is-holiday' : ''}`;
   entryEl.style.cssText = `
     top: ${top}px;
     height: ${height}px;
@@ -945,6 +965,7 @@ function renderMonthView() {
   
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const holidaySet = getHolidaySet();
   
   let html = '<div class="timetable-month-view">';
   
@@ -968,8 +989,10 @@ function renderMonthView() {
     const date = new Date(year, month, day);
     const dayOfWeek = (date.getDay() + 6) % 7; // Monday = 0
     const dayName = days[dayOfWeek];
+    const dateISO = formatDateISO(date);
+    const isHoliday = holidaySet.has(dateISO);
     
-    html += `<div class="timetable-month-day-cell" data-date="${formatDateISO(date)}" onclick="switchToDayView('${formatDateISO(date)}')">`;
+    html += `<div class="timetable-month-day-cell${isHoliday ? ' is-holiday' : ''}" data-date="${dateISO}" onclick="switchToDayView('${dateISO}')">`;
     html += `<div class="timetable-month-day-number">${day}</div>`;
     html += '<div class="timetable-month-day-entries">';
     
@@ -977,7 +1000,7 @@ function renderMonthView() {
     const dayEntries = getEntriesForDate(date);
     dayEntries.forEach(entry => {
       const courseColor = entry.courseIds.length > 0 ? getCourseColor(entry.courseIds[0]) : '#667eea';
-      html += `<div class="timetable-month-entry" style="background: ${courseColor};" data-entry-id="${entry.id}" onclick="event.stopPropagation(); ${!isReadOnly ? `window.openEditClassModal(${JSON.stringify(entry).replace(/"/g, '&quot;')}, '${formatDateISO(date)}')` : ''}">${escapeHtml(entry.className)}</div>`;
+      html += `<div class="timetable-month-entry${isHoliday ? ' is-holiday' : ''}" style="background: ${courseColor};" data-entry-id="${entry.id}" onclick="event.stopPropagation(); ${!isReadOnly ? `window.openEditClassModal(${JSON.stringify(entry).replace(/"/g, '&quot;')}, '${dateISO}')` : ''}">${escapeHtml(entry.className)}</div>`;
     });
     
     html += '</div>';
