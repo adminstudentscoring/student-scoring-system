@@ -1710,11 +1710,15 @@
                     </div>
                     <div class="edit-student-modal-body">
                         <form id="editStudentForm" onsubmit="saveStudentEdit(event, '${student.id}')">
-                            <div class="form-row">
+                            <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
                                 <div class="edit-student-form-group">
                                     <label for="editStudentName">Student Name <span style="color: #ef4444;">*</span></label>
                                     <input type="text" id="editStudentName" value="${escapeHtml(student.name || '')}" required>
                                     <div class="error-message" id="errorStudentName"></div>
+                                </div>
+                                <div class="edit-student-form-group">
+                                    <label>Student ID</label>
+                                    <input type="text" id="editStudentSystemId" value="${escapeHtml(String(student.id || ''))}" disabled>
                                 </div>
                                 <div class="edit-student-form-group">
                                     <label for="editStudentId">chess.com ID <span style="color: #ef4444;">*</span></label>
@@ -1722,7 +1726,12 @@
                                     <div class="error-message" id="errorStudentId"></div>
                                 </div>
                             </div>
-                            <div class="form-row">
+                            <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                                <div class="edit-student-form-group">
+                                    <label for="editStudentLocalName">Local name</label>
+                                    <input type="text" id="editStudentLocalName" value="${escapeHtml(student.localName || '')}">
+                                    <div class="error-message" id="errorStudentLocalName"></div>
+                                </div>
                                 <div class="edit-student-form-group">
                                     <label for="editStudentGender">Gender</label>
                                     <select id="editStudentGender">
@@ -1873,6 +1882,7 @@
             const updateData = {
                 name,
                 chessComId: studentIdValue,
+                localName: document.getElementById('editStudentLocalName')?.value?.trim?.() || '',
                 gender,
                 dateOfBirth,
                 contactPhone,

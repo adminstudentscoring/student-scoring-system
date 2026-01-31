@@ -1339,7 +1339,13 @@ window.openStudentDetailsOverlay = function(event) {
   const avatarEl = overlay.querySelector('.overlay-avatar');
 
   if (nameEl) nameEl.textContent = student.name || 'Student';
-  if (idEl) idEl.textContent = student.chessComId || '—';
+  // Show system Student ID + chess.com ID (and local name if any)
+  if (idEl) {
+    const sysId = String(student.id || '');
+    const chessId = String(student.chessComId || '');
+    const localName = String(student.localName || '');
+    idEl.textContent = `${sysId ? `ID: ${sysId}` : 'ID: —'}${chessId ? ` · chess.com: ${chessId}` : ''}${localName ? ` · Local: ${localName}` : ''}`;
+  }
   if (balanceEl) balanceEl.textContent = `Balance: $${balance.toFixed(2)}`;
   if (avatarEl) avatarEl.textContent = student.name ? student.name.charAt(0).toUpperCase() : '?';
 

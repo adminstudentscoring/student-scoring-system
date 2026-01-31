@@ -3270,8 +3270,12 @@ async function openEditStudentProfile(student) {
     if (!modal) return;
 
     document.getElementById('editStudentId_Hidden').value = student.id;
+    const sysIdEl = document.getElementById('editStudentSystemId');
+    if (sysIdEl) sysIdEl.value = String(student.id || '');
     document.getElementById('editStudentName').value = student.name || '';
     document.getElementById('editStudentStudentId').value = student.chessComId || '';
+    const localNameEl = document.getElementById('editStudentLocalName');
+    if (localNameEl) localNameEl.value = student.localName || '';
     document.getElementById('editStudentGender').value = student.gender || '';
     
     let dob = student.dateOfBirth || '';
@@ -3311,6 +3315,7 @@ async function saveStudentProfile(event) {
     const updateData = {
         name: document.getElementById('editStudentName').value.trim(),
         chessComId: document.getElementById('editStudentStudentId').value.trim(),
+        localName: document.getElementById('editStudentLocalName')?.value?.trim?.() || '',
         gender: document.getElementById('editStudentGender').value,
         dateOfBirth: document.getElementById('editStudentDOB').value.trim(),
         contactPhone: document.getElementById('editStudentPhone').value.trim(),

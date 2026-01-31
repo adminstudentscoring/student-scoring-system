@@ -1557,6 +1557,8 @@ function initializeStudentFields(student) {
   }
 
   const newFields = {
+    // Local name (e.g., Chinese name)
+    localName: '',
     dateOfBirth: null,
     gender: null,
     chessComId: '',

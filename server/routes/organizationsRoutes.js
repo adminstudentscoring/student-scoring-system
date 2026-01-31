@@ -193,7 +193,7 @@ function registerOrganizationsRoutes(app, deps) {
   // Organization creates a student (requires organization authentication or teacher permission)
   app.post('/api/organizations/students', authenticateUser, authorizeRole('organization', 'teacher'), async (req, res) => {
     try {
-      const { name, chessComId, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
+      const { name, localName, chessComId, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
       // Backward compatibility: `studentId` historically stored Chess.com ID
       const chessId = (chessComId ?? studentId ?? '');
 
@@ -240,6 +240,7 @@ function registerOrganizationsRoutes(app, deps) {
       const newStudent = {
         id: Date.now().toString(),
         name,
+        localName: localName || '',
         chessComId: chessId || '', // Allow empty
         gender: gender || '',
         dateOfBirth: dateOfBirth || '',
