@@ -256,7 +256,10 @@ function registerOrganizationsRoutes(app, deps) {
         name,
         localName: localName || '',
         chessComId: chessId || '', // Allow empty
-        gender: gender || '',
+        gender: (() => {
+          const g = String(gender || '').trim().toLowerCase();
+          return (g === 'male' || g === 'female') ? g : '';
+        })(),
         dateOfBirth: dateOfBirth || '',
         contactPhone: contactPhone || '',
         contactPhoneCountry: contactPhoneCountry || 'HK',

@@ -483,9 +483,13 @@ function registerStudentsRoutes(app, deps) {
 
       // Validate gender
       if (updates.gender !== undefined && updates.gender !== null && updates.gender !== '') {
-        if (!['Male', 'Female'].includes(updates.gender)) {
-          return res.status(400).json({ error: 'Gender must be Male or Female' });
+        const gRaw = String(updates.gender || '').trim();
+        const g = gRaw.toLowerCase();
+        if (g !== 'male' && g !== 'female') {
+          return res.status(400).json({ error: 'Gender must be male or female' });
         }
+        // Store normalized value to match UI (<option value="male|female">)
+        updates.gender = g;
       }
 
       // Validate emergency contact relation
