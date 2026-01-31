@@ -103,6 +103,15 @@ function getDefaultSettings() {
                 remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.',
                 paymentMethod: '',
                 qrCode: ''
+            },
+            whatsapp: {
+                enabled: false,
+                provider: 'meta_cloud', // future-proof
+                accessToken: '',
+                phoneNumberId: '',
+                wabaId: '',
+                // For future: template name for payment reminder / renewal
+                templateName: ''
             }
         }
     };
@@ -1332,9 +1341,18 @@ function renderSalesSettings(settings) {
         paymentMethod: '', 
         qrCode: '' 
     };
+    if (!settings.whatsapp) settings.whatsapp = {
+        enabled: false,
+        provider: 'meta_cloud',
+        accessToken: '',
+        phoneNumberId: '',
+        wabaId: '',
+        templateName: ''
+    };
     
     const receipt = settings.receipt;
     const reminder = settings.paymentReminder;
+    const wa = settings.whatsapp;
     
     return `
         <div class="settings-category">
@@ -1412,6 +1430,46 @@ function renderSalesSettings(settings) {
                     <div class="settings-group">
                         <label>Remark (Footer Text)</label>
                         <textarea style="width:100%; height:120px; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;" onchange="updateSetting('salesSettings', 'paymentReminder.remark', this.value)">${reminder.remark || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WhatsApp Business API (Collapsible) -->
+            <div class="settings-group" style="border:1px solid #e0e0e0; border-radius:8px; overflow:hidden; margin-top:20px;">
+                <div onclick="toggleSettingsSection('whatsappSettingsContent')" style="padding:15px; background:#f8f9fa; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:bold;">
+                    <span>💬 WhatsApp Business API</span>
+                    <span>▼</span>
+                </div>
+                <div id="whatsappSettingsContent" style="padding:15px; display:none;">
+                    <div class="settings-group">
+                        <label style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" ${wa.enabled ? 'checked' : ''} onchange="updateSetting('salesSettings', 'whatsapp.enabled', this.checked)">
+                            Enable WhatsApp notifications
+                        </label>
+                        <div class="help-text">This is used for automation (payment reminders / renewals). Requires Meta WhatsApp Business Cloud API setup.</div>
+                    </div>
+
+                    <div class="settings-group">
+                        <label>Access Token</label>
+                        <input type="password" value="${escapeHtml(wa.accessToken || '')}" placeholder="EAAG... (Meta token)" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;" onchange="updateSetting('salesSettings', 'whatsapp.accessToken', this.value)">
+                        <div class="help-text">Store securely. Anyone with this token can send messages from your WhatsApp Business number.</div>
+                    </div>
+
+                    <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="settings-group">
+                            <label>Phone Number ID</label>
+                            <input type="text" value="${escapeHtml(wa.phoneNumberId || '')}" placeholder="e.g. 123456789012345" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;" onchange="updateSetting('salesSettings', 'whatsapp.phoneNumberId', this.value)">
+                        </div>
+                        <div class="settings-group">
+                            <label>WABA ID</label>
+                            <input type="text" value="${escapeHtml(wa.wabaId || '')}" placeholder="WhatsApp Business Account ID" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;" onchange="updateSetting('salesSettings', 'whatsapp.wabaId', this.value)">
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <label>Template Name (optional)</label>
+                        <input type="text" value="${escapeHtml(wa.templateName || '')}" placeholder="e.g. payment_reminder_v1" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;" onchange="updateSetting('salesSettings', 'whatsapp.templateName', this.value)">
+                        <div class="help-text">Cloud API production sending usually requires approved message templates.</div>
                     </div>
                 </div>
             </div>

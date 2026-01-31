@@ -1750,7 +1750,18 @@
                             <div class="form-row">
                                 <div class="edit-student-form-group">
                                     <label for="editStudentContactPhone">Contact No.</label>
-                                    <input type="text" id="editStudentContactPhone" value="${escapeHtml(student.contactPhone || '')}">
+                                    <div style="display:flex; gap:8px; align-items:center;">
+                                        <select id="editStudentContactPhoneCountryCode" style="width:160px; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                                            <option value="+852" data-country="HK" ${(String(student.contactPhoneCountryCode || '+852') === '+852') ? 'selected' : ''}>Hong Kong (+852)</option>
+                                            <option value="+853" data-country="MO" ${(String(student.contactPhoneCountryCode || '') === '+853') ? 'selected' : ''}>Macau (+853)</option>
+                                            <option value="+86" data-country="CN" ${(String(student.contactPhoneCountryCode || '') === '+86') ? 'selected' : ''}>China (+86)</option>
+                                            <option value="+886" data-country="TW" ${(String(student.contactPhoneCountryCode || '') === '+886') ? 'selected' : ''}>Taiwan (+886)</option>
+                                            <option value="+65" data-country="SG" ${(String(student.contactPhoneCountryCode || '') === '+65') ? 'selected' : ''}>Singapore (+65)</option>
+                                            <option value="+44" data-country="GB" ${(String(student.contactPhoneCountryCode || '') === '+44') ? 'selected' : ''}>United Kingdom (+44)</option>
+                                            <option value="+1" data-country="US" ${(String(student.contactPhoneCountryCode || '') === '+1') ? 'selected' : ''}>United States (+1)</option>
+                                        </select>
+                                        <input type="text" id="editStudentContactPhone" value="${escapeHtml(String(student.contactPhone || ''))}" placeholder="Phone number" inputmode="numeric" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                                    </div>
                                     <div class="error-message" id="errorStudentContactPhone"></div>
                                 </div>
                                 <div class="edit-student-form-group">
@@ -1885,7 +1896,9 @@
                 localName: document.getElementById('editStudentLocalName')?.value?.trim?.() || '',
                 gender,
                 dateOfBirth,
-                contactPhone,
+                contactPhone: String(document.getElementById('editStudentContactPhone')?.value || '').replace(/[^\d]/g, '').trim(),
+                contactPhoneCountryCode: String(document.getElementById('editStudentContactPhoneCountryCode')?.value || '+852').trim(),
+                contactPhoneCountry: String(document.getElementById('editStudentContactPhoneCountryCode')?.selectedOptions?.[0]?.dataset?.country || 'HK'),
                 contactEmail,
                 emergencyContactName,
                 emergencyContactRelation,

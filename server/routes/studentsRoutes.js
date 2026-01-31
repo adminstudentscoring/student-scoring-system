@@ -359,7 +359,24 @@ function registerStudentsRoutes(app, deps) {
 
         // If updating profile fields (name, chessComId, etc.), check editStudentProfile
         // We define "profile fields" as anything NOT score/password for now, or specific list
-        const profileFields = ['name', 'localName', 'chessComId', 'gender', 'dateOfBirth', 'contactPhone', 'contactEmail', 'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber', 'remark', 'membership', 'membershipStartDate', 'membershipEndDate'];
+        const profileFields = [
+          'name',
+          'localName',
+          'chessComId',
+          'gender',
+          'dateOfBirth',
+          'contactPhone',
+          'contactPhoneCountry',
+          'contactPhoneCountryCode',
+          'contactEmail',
+          'emergencyContactName',
+          'emergencyContactRelation',
+          'emergencyContactNumber',
+          'remark',
+          'membership',
+          'membershipStartDate',
+          'membershipEndDate'
+        ];
         const isUpdatingProfile = Object.keys(updates).some(key => profileFields.includes(key));
 
         if (isUpdatingProfile && (!teacher.teacherPermissions || !teacher.teacherPermissions.editStudentProfile)) {
@@ -445,6 +462,8 @@ function registerStudentsRoutes(app, deps) {
       const fieldLengths = {
         localName: 100,
         contactPhone: 20,
+        contactPhoneCountry: 4,
+        contactPhoneCountryCode: 6,
         contactEmail: 100,
         emergencyContactName: 100,
         emergencyContactNumber: 20,
@@ -490,7 +509,9 @@ function registerStudentsRoutes(app, deps) {
       // Merge updates with existing student data
       // Only update fields that are provided (not undefined)
       const allowedFields = [
-        'name', 'localName', 'chessComId', 'dateOfBirth', 'gender', 'contactPhone', 'contactEmail',
+        'name', 'localName', 'chessComId', 'dateOfBirth', 'gender',
+        'contactPhone', 'contactPhoneCountry', 'contactPhoneCountryCode',
+        'contactEmail',
         'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber',
         'remark', 'membership', 'membershipStartDate', 'membershipEndDate', 'score',
         'accessPassword',

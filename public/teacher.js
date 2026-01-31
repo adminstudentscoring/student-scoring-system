@@ -3292,7 +3292,11 @@ async function openEditStudentProfile(student) {
     }
     document.getElementById('editStudentDOB').value = dob;
 
-    document.getElementById('editStudentPhone').value = student.contactPhone || '';
+    // Phone: store digits in contactPhone; countryCode in contactPhoneCountryCode
+    const ccEl = document.getElementById('editStudentPhoneCountryCode');
+    const phoneEl = document.getElementById('editStudentPhone');
+    if (ccEl) ccEl.value = String(student.contactPhoneCountryCode || '+852');
+    if (phoneEl) phoneEl.value = String(student.contactPhone || '');
     document.getElementById('editStudentEmail').value = student.contactEmail || '';
     document.getElementById('editStudentEmergName').value = student.emergencyContactName || '';
     document.getElementById('editStudentEmergRel').value = student.emergencyContactRelation || '';
@@ -3318,7 +3322,9 @@ async function saveStudentProfile(event) {
         localName: document.getElementById('editStudentLocalName')?.value?.trim?.() || '',
         gender: document.getElementById('editStudentGender').value,
         dateOfBirth: document.getElementById('editStudentDOB').value.trim(),
-        contactPhone: document.getElementById('editStudentPhone').value.trim(),
+        contactPhone: String(document.getElementById('editStudentPhone')?.value || '').replace(/[^\d]/g, '').trim(),
+        contactPhoneCountryCode: String(document.getElementById('editStudentPhoneCountryCode')?.value || '+852').trim(),
+        contactPhoneCountry: String(document.getElementById('editStudentPhoneCountryCode')?.selectedOptions?.[0]?.dataset?.country || 'HK'),
         contactEmail: document.getElementById('editStudentEmail').value.trim(),
         emergencyContactName: document.getElementById('editStudentEmergName').value.trim(),
         emergencyContactRelation: document.getElementById('editStudentEmergRel').value,

@@ -1559,6 +1559,10 @@ function initializeStudentFields(student) {
   const newFields = {
     // Local name (e.g., Chinese name)
     localName: '',
+    // Phone country settings (for WhatsApp / international support)
+    // Store `contactPhone` as national number digits (no + prefix).
+    contactPhoneCountry: 'HK',
+    contactPhoneCountryCode: '+852',
     dateOfBirth: null,
     gender: null,
     chessComId: '',

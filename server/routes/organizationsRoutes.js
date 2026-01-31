@@ -193,7 +193,21 @@ function registerOrganizationsRoutes(app, deps) {
   // Organization creates a student (requires organization authentication or teacher permission)
   app.post('/api/organizations/students', authenticateUser, authorizeRole('organization', 'teacher'), async (req, res) => {
     try {
-      const { name, localName, chessComId, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
+      const {
+        name,
+        localName,
+        chessComId,
+        studentId,
+        gender,
+        dateOfBirth,
+        contactPhone,
+        contactPhoneCountry,
+        contactPhoneCountryCode,
+        contactEmail,
+        emergencyContactName,
+        emergencyContactRelation,
+        emergencyContactNumber
+      } = req.body;
       // Backward compatibility: `studentId` historically stored Chess.com ID
       const chessId = (chessComId ?? studentId ?? '');
 
@@ -245,6 +259,8 @@ function registerOrganizationsRoutes(app, deps) {
         gender: gender || '',
         dateOfBirth: dateOfBirth || '',
         contactPhone: contactPhone || '',
+        contactPhoneCountry: contactPhoneCountry || 'HK',
+        contactPhoneCountryCode: contactPhoneCountryCode || '+852',
         contactEmail: contactEmail || '',
         emergencyContactName: emergencyContactName || '',
         emergencyContactRelation: emergencyContactRelation || '',
@@ -1006,6 +1022,26 @@ function registerOrganizationsRoutes(app, deps) {
           passwordMinLength: 6,
           maxLoginAttempts: 5,
           sessionTimeout: 3600000
+        },
+        salesSettings: {
+          receipt: {
+            logo: '',
+            remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.'
+          },
+          paymentReminder: {
+            logo: '',
+            remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.',
+            paymentMethod: '',
+            qrCode: ''
+          },
+          whatsapp: {
+            enabled: false,
+            provider: 'meta_cloud',
+            accessToken: '',
+            phoneNumberId: '',
+            wabaId: '',
+            templateName: ''
+          }
         }
       };
 
@@ -1029,7 +1065,14 @@ function registerOrganizationsRoutes(app, deps) {
         backupSettings: { ...defaultSettings.backupSettings, ...(savedSettings.backupSettings || {}) },
         notificationSettings: { ...defaultSettings.notificationSettings, ...(savedSettings.notificationSettings || {}) },
         organizationInfo: { ...defaultSettings.organizationInfo, ...(savedSettings.organizationInfo || {}) },
-        securitySettings: { ...defaultSettings.securitySettings, ...(savedSettings.securitySettings || {}) }
+        securitySettings: { ...defaultSettings.securitySettings, ...(savedSettings.securitySettings || {}) },
+        salesSettings: {
+          ...defaultSettings.salesSettings,
+          ...(savedSettings.salesSettings || {}),
+          receipt: { ...defaultSettings.salesSettings.receipt, ...(savedSettings.salesSettings?.receipt || {}) },
+          paymentReminder: { ...defaultSettings.salesSettings.paymentReminder, ...(savedSettings.salesSettings?.paymentReminder || {}) },
+          whatsapp: { ...defaultSettings.salesSettings.whatsapp, ...(savedSettings.salesSettings?.whatsapp || {}) }
+        }
       };
 
       res.json(mergedSettings);
