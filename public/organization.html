@@ -678,7 +678,7 @@
                             <input type="text" id="createStudentName" required>
                         </div>
                         <div class="form-group">
-                            <label>Student ID:</label>
+                            <label>chess.com ID:</label>
                             <input type="text" id="createStudentId" required>
                         </div>
                     </div>
@@ -1345,12 +1345,12 @@
         async function createStudent(event) {
             event.preventDefault();
             const name = document.getElementById('createStudentName').value;
-            const studentId = document.getElementById('createStudentId').value;
+            const chessComId = document.getElementById('createStudentId').value;
 
             try {
                 const response = await window.authUtils.authenticatedFetch('/organizations/students', {
                     method: 'POST',
-                    body: JSON.stringify({ name, studentId })
+                    body: JSON.stringify({ name, chessComId })
                 });
 
                 if (!response) return;
@@ -1436,7 +1436,7 @@
 
             const filteredStudents = allStudents.filter(student =>
                 (student.name && student.name.toLowerCase().includes(searchTerm)) ||
-                (student.studentId && student.studentId.toLowerCase().includes(searchTerm))
+                (student.chessComId && student.chessComId.toLowerCase().includes(searchTerm))
             );
 
             if (allStudents.length === 0) {
@@ -1465,7 +1465,7 @@
                         <div class="student-card" style="cursor: pointer; position: relative;" data-student-id="${student.id}">
                             ${isIncomplete ? '<div style="position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: red; border-radius: 50%; border: 2px solid white;" title="Incomplete Data"></div>' : ''}
                             <h3>${escapeHtml(student.name)}</h3>
-                            <p>ID: ${escapeHtml(student.studentId || '')}</p>
+                            <p>chess.com ID: ${escapeHtml(student.chessComId || '')}</p>
                             <p>Score: <span id="score-${student.id}">${student.score || 0}</span></p>
                             <p>Level: ${student.level || 1}</p>
                             <div class="student-card-actions" onclick="event.stopPropagation();">
@@ -1609,7 +1609,7 @@
                                 ${allStudents.map(student => `
                                     <label style="display: block; padding: 8px; border-bottom: 1px solid #eee;">
                                         <input type="checkbox" value="${student.id}" ${assignedIds.has(student.id) ? 'checked' : ''} style="margin-right: 10px;">
-                                        ${student.name} (ID: ${student.studentId})
+                                        ${student.name} (chess.com ID: ${student.chessComId || ''})
                                     </label>
                                 `).join('')}
                             </div>
@@ -1717,8 +1717,8 @@
                                     <div class="error-message" id="errorStudentName"></div>
                                 </div>
                                 <div class="edit-student-form-group">
-                                    <label for="editStudentId">Student ID <span style="color: #ef4444;">*</span></label>
-                                    <input type="text" id="editStudentId" value="${escapeHtml(student.studentId || '')}" required>
+                                    <label for="editStudentId">chess.com ID <span style="color: #ef4444;">*</span></label>
+                                    <input type="text" id="editStudentId" value="${escapeHtml(student.chessComId || '')}" required>
                                     <div class="error-message" id="errorStudentId"></div>
                                 </div>
                             </div>
@@ -1832,7 +1832,7 @@
             }
 
             if (!studentIdValue) {
-                showFieldError('editStudentId', 'Student ID is required');
+                showFieldError('editStudentId', 'chess.com ID is required');
                 hasError = true;
             }
 
@@ -1872,7 +1872,7 @@
             // Prepare update data
             const updateData = {
                 name,
-                studentId: studentIdValue,
+                chessComId: studentIdValue,
                 gender,
                 dateOfBirth,
                 contactPhone,
@@ -1893,7 +1893,7 @@
                 if (!response.ok) {
                     const errorData = await response.json();
                     
-                    // Handle Student ID uniqueness error
+                    // Handle chess.com ID uniqueness error
                     if (errorData.error && errorData.error.includes('already exists')) {
                         showFieldError('editStudentId', errorData.error);
                         showToast(errorData.error, 'error');
@@ -2505,7 +2505,7 @@
 
         // CSV Functions
         function downloadTemplate() {
-            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             const csvContent = "data:text/csv;charset=utf-8," + headers.join(",");
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
@@ -2517,10 +2517,10 @@
         }
 
         function downloadCSV() {
-            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             const rows = allStudents.map(s => [
                 s.name,
-                s.studentId || '',
+                s.chessComId || '',
                 s.gender || '',
                 s.dateOfBirth || '',
                 s.contactPhone || '',
@@ -2581,7 +2581,7 @@
                     
                     students.push({
                         name: name,
-                        studentId: clean(row[1]),
+                        chessComId: clean(row[1]),
                         gender: clean(row[2]),
                         dateOfBirth: clean(row[3]),
                         contactPhone: clean(row[4]),
@@ -2627,7 +2627,7 @@
 
         // CSV Functions
         function downloadTemplate() {
-            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             const csvContent = '\uFEFF' + headers.join(',') + '\n' + 'John Doe,S12345,M,2010-01-01,12345678,john@example.com,Jane Doe,Parent,87654321';
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -2637,13 +2637,13 @@
         }
 
         function downloadCSV() {
-            const headers = ['Student Name', 'Student ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             let csvContent = '\uFEFF' + headers.join(',') + '\n';
             
             allStudents.forEach(s => {
                 const row = [
                     s.name || '',
-                    s.studentId || '',
+                    s.chessComId || '',
                     s.gender || '',
                     s.dateOfBirth || '',
                     s.contactPhone || '',

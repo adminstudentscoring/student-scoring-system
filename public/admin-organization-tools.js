@@ -156,7 +156,7 @@ function renderOrgManagementTools() {
     const teachers = orgManagementData.teachers || [];
     const students = orgManagementData.students || [];
     const studentsOptions = students.length > 0
-        ? students.map(student => `<option value="${student.id}">${student.name} (${student.studentId}) - Score: ${student.score || 0}</option>`).join('')
+        ? students.map(student => `<option value="${student.id}">${student.name} (${student.chessComId || ''}) - Score: ${student.score || 0}</option>`).join('')
         : '';
 
     const html = `
@@ -206,7 +206,7 @@ function renderOrgManagementTools() {
                         <input type="text" name="name" required>
                     </div>
                     <div class="settings-group">
-                        <label>Student ID</label>
+                        <label>chess.com ID</label>
                         <input type="text" name="studentId" required>
                     </div>
                     <div class="settings-group">
@@ -243,7 +243,7 @@ function renderOrgManagementTools() {
                         ${students.map(student => `
                             <div class="student-card" style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" data-student-id="${student.id}">
                                 <h4 style="margin: 0 0 8px 0; color: #333;">${escapeHtml(student.name || 'Unknown')}</h4>
-                                <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">ID: ${escapeHtml(student.studentId || 'N/A')}</p>
+                                <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">chess.com ID: ${escapeHtml(student.chessComId || 'N/A')}</p>
                                 <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">Score: ${student.score || 0}</p>
                                 <p style="margin: 4px 0; color: #666; font-size: 0.9rem;">Level: ${student.level || 1}</p>
                             </div>
@@ -318,12 +318,12 @@ async function handleAdminAddStudent(event) {
     const orgId = form.dataset.orgId;
     const payload = {
         name: form.name.value.trim(),
-        studentId: form.studentId.value.trim(),
+        chessComId: form.studentId.value.trim(),
         score: form.score.value ? Number(form.score.value) : undefined
     };
 
-    if (!payload.name || !payload.studentId) {
-        alert('Name and student ID are required');
+    if (!payload.name || !payload.chessComId) {
+        alert('Name and chess.com ID are required');
         return;
     }
 

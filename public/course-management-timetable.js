@@ -1333,7 +1333,7 @@ window.openEditClassModal = async function(entry, dateStr) {
                 ${allStudentIds.map(studentId => {
                   const student = (window.students || []).find(s => s.id === studentId);
                   const name = student ? escapeHtml(student.name) : 'Unknown Student';
-                  const dispId = student ? escapeHtml(student.studentId) : studentId;
+                  const dispId = student ? escapeHtml(student.chessComId || '') : studentId;
                   const isSeries = seriesStudentIds.includes(studentId);
                   
                   let attHtml = '';

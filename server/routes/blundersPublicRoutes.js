@@ -187,7 +187,7 @@ function registerBlundersPublicRoutes(app, deps) {
 
         return res.json({
           ok: true,
-          student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.studentId || '') },
+          student: { id: String(student.id), name: String(student.name || 'Student'), studentId: String(student.chessComId || '') },
           stats: { analyzedGamesTotal, rolling3m: rolling3m || undefined },
           ai: { monthComment: aiCommentMonth || undefined, monthCommentUpdatedAt: aiCommentUpdatedAt || undefined, monthCommentStatus: aiCommentStatus, monthCommentError: aiCommentError || undefined },
           pending,
@@ -474,7 +474,7 @@ function registerBlundersPublicRoutes(app, deps) {
           orgId,
           studentId: String(student.id),
           studentName: String(student.name || 'Student'),
-          studentStudentId: String(student.studentId || ''),
+          studentStudentId: String(student.chessComId || ''),
           difficulty: cfg.key,
           pointsAward: cfg.points,
           rating: (rating === null || rating === undefined) ? null : Number(rating),
@@ -608,7 +608,7 @@ function registerBlundersPublicRoutes(app, deps) {
               const cur = orgLb[sid] && typeof orgLb[sid] === 'object' ? orgLb[sid] : { totalPoints: 0 };
               const total = (Number(cur.totalPoints || 0) || 0) + awardedPoints;
               orgLb[sid] = {
-                studentId: String(student.studentId || ''),
+                studentId: String(student.chessComId || ''),
                 name: String(student.name || 'Student'),
                 totalPoints: total,
                 updatedAt: new Date().toISOString()
@@ -677,7 +677,7 @@ function registerBlundersPublicRoutes(app, deps) {
         const lb = await readBlundersChallengeLeaderboard();
         const orgLb = (lb && lb[orgId] && typeof lb[orgId] === 'object') ? lb[orgId] : {};
         const orgStudents = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
-        const map = new Map(orgStudents.map(s => [String(s.id), { name: String(s.name || 'Student'), studentId: String(s.studentId || '') }]));
+        const map = new Map(orgStudents.map(s => [String(s.id), { name: String(s.name || 'Student'), studentId: String(s.chessComId || '') }]));
 
         const entries = Object.entries(orgLb).map(([sid, v]) => {
           const info = map.get(String(sid)) || { name: String(v?.name || 'Student'), studentId: String(v?.studentId || '') };

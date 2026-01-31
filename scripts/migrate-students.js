@@ -93,7 +93,7 @@ async function createStudent(token, studentData) {
       },
       body: JSON.stringify({
         name: studentData.name,
-        studentId: studentData.studentId
+        chessComId: studentData.chessComId ?? studentData.studentId ?? ''
       })
     });
 
@@ -147,7 +147,7 @@ async function checkStudentExists(token, studentId) {
 
     const students = await response.json();
     const studentArray = Array.isArray(students) ? students : (students.students || []);
-    return studentArray.find(s => s.studentId === studentId);
+    return studentArray.find(s => (s.chessComId || s.studentId) === studentId);
   } catch (error) {
     return null;
   }
@@ -186,7 +186,7 @@ async function migrateStudents(orgEmail, password) {
       log(`✅ Found ${existingStudents.length} existing students`, 'green');
     }
 
-    const existingStudentIds = new Set(existingStudents.map(s => s.studentId));
+    const existingStudentIds = new Set(existingStudents.map(s => (s.chessComId || s.studentId)));
     
     // Statistics
     let created = 0;
@@ -203,7 +203,8 @@ async function migrateStudents(orgEmail, password) {
       
       try {
         // Check if student already exists
-        const existingStudent = existingStudents.find(s => s.studentId === localStudent.studentId);
+        const localChess = localStudent.chessComId ?? localStudent.studentId ?? '';
+        const existingStudent = existingStudents.find(s => (s.chessComId || s.studentId) === localChess);
         
         let studentId;
         let isNew = false;
@@ -211,10 +212,10 @@ async function migrateStudents(orgEmail, password) {
         if (existingStudent) {
           // Student exists, use existing ID
           studentId = existingStudent.id;
-          log(`${progress} ⚠️  Student "${localStudent.name}" (${localStudent.studentId}) already exists, updating...`, 'yellow');
+          log(`${progress} ⚠️  Student "${localStudent.name}" (${localChess}) already exists, updating...`, 'yellow');
         } else {
           // Create new student
-          log(`${progress} ➕ Creating student "${localStudent.name}" (${localStudent.studentId})...`, 'cyan');
+          log(`${progress} ➕ Creating student "${localStudent.name}" (${localChess})...`, 'cyan');
           const newStudent = await createStudent(token, localStudent);
           studentId = newStudent.id;
           isNew = true;
@@ -255,7 +256,7 @@ async function migrateStudents(orgEmail, password) {
         log(`${progress} ❌ Error processing "${localStudent.name}": ${error.message}`, 'red');
         errors.push({
           student: localStudent.name,
-          studentId: localStudent.studentId,
+          chessComId: localStudent.chessComId ?? localStudent.studentId ?? '',
           error: error.message
         });
       }
@@ -273,7 +274,7 @@ async function migrateStudents(orgEmail, password) {
     if (errors.length > 0) {
       log('\n❌ Errors Details:', 'red');
       errors.forEach(err => {
-        log(`   - ${err.student} (${err.studentId}): ${err.error}`, 'red');
+        log(`   - ${err.student} (${err.chessComId || ''}): ${err.error}`, 'red');
       });
     }
     

@@ -180,7 +180,7 @@ function registerBlundersTeacherRoutes(app, deps) {
           return {
             id: sid,
             name: String(s.name || ''),
-            studentId: String(s.studentId || ''),
+            studentId: String(s.chessComId || ''),
             chessComUsername: chessId || null,
             chessComRating: null,
             chessComRatingSource: null,
@@ -261,7 +261,7 @@ function registerBlundersTeacherRoutes(app, deps) {
         const studentsAll = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
         const students = assignedIds ? studentsAll.filter(s => assignedIds.has(s.id)) : studentsAll;
         const allowedStudentIds = new Set(students.map(s => String(s.id || '')));
-        const studentMap = new Map(students.map(s => [String(s.id || ''), { name: String(s.name || 'Student'), studentId: String(s.studentId || '') }]));
+        const studentMap = new Map(students.map(s => [String(s.id || ''), { name: String(s.name || 'Student'), studentId: String(s.chessComId || '') }]));
 
         // Ratings cache (best-effort)
         const ratingMap = new Map();
@@ -1124,7 +1124,7 @@ function registerBlundersTeacherRoutes(app, deps) {
         const studentsAll = Array.isArray(data?.students) ? data.students.filter(s => String(s.organizationId || '') === orgId) : [];
         const students = assignedIds ? studentsAll.filter(s => assignedIds.has(s.id)) : studentsAll;
         const allowedStudentIds = new Set(students.map(s => String(s.id || '')));
-        const studentMap = new Map(students.map(s => [String(s.id || ''), { name: String(s.name || 'Student'), studentId: String(s.studentId || '') }]));
+        const studentMap = new Map(students.map(s => [String(s.id || ''), { name: String(s.name || 'Student'), studentId: String(s.chessComId || '') }]));
 
         const puzzles = await readBlundersPuzzles();
         const mine = puzzles

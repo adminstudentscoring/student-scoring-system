@@ -221,8 +221,8 @@ function renderStudents() {
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
     const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchTerm) ||
-        student.studentId.toLowerCase().includes(searchTerm)
+        String(student.name || '').toLowerCase().includes(searchTerm) ||
+        String(student.chessComId || '').toLowerCase().includes(searchTerm)
     );
 
     if (filteredStudents.length === 0) {
@@ -250,7 +250,7 @@ function renderStudents() {
         <div class="student-card" data-rank="${currentRankIndex}" data-student-id="${student.id}" onclick='openEditStudentProfile(${safeStudent})'>
             <div class="student-score-pill" aria-label="Score">${escapeHtml(String(scoreVal))}</div>
             <h3>${escapeHtml(student.name)}</h3>
-            <div class="student-id">ID: ${escapeHtml(student.studentId)}</div>
+            <div class="student-id">chess.com ID: ${escapeHtml(student.chessComId || '')}</div>
             <div class="rank-progress">
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: ${rankInfo.progress}%"></div>
@@ -285,8 +285,8 @@ function renderClassStudentsList() {
     const searchTerm = document.getElementById('classSearchInput')?.value.toLowerCase() || '';
     
     const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchTerm) ||
-        student.studentId.toLowerCase().includes(searchTerm)
+        String(student.name || '').toLowerCase().includes(searchTerm) ||
+        String(student.chessComId || '').toLowerCase().includes(searchTerm)
     );
 
     if (filteredStudents.length === 0) {
@@ -303,7 +303,7 @@ function renderClassStudentsList() {
                        value="${student.id}" 
                        ${isChecked ? 'checked' : ''} 
                        onchange="toggleStudentSelection('${student.id}')">
-                <span>${escapeHtml(student.name)} (${escapeHtml(student.studentId)})</span>
+                <span>${escapeHtml(student.name)} (${escapeHtml(student.chessComId || '')})</span>
             </label>
         `;
     }).join('');
@@ -1278,7 +1278,9 @@ async function confirmApplicationStudentPicker() {
     // Persist players for game-window based games
     const playerDetails = selectedGameStudents.map(id => {
         const student = students.find(s => s.id === id) || {};
-        return { id, name: student.name || 'Unknown', studentId: student.studentId || '' };
+        // Keep property name `studentId` for backward compatibility with game windows,
+        // but its value is the chess.com ID.
+        return { id, name: student.name || 'Unknown', studentId: student.chessComId || '' };
     });
 
     try {
@@ -1513,7 +1515,7 @@ async function startRunningQueen() {
         return {
             id,
             name: student.name || 'Unknown',
-            studentId: student.studentId || ''
+            studentId: student.chessComId || ''
         };
     });
 
@@ -1575,7 +1577,7 @@ async function startRoyalExchange() {
         return {
             id,
             name: student.name || 'Unknown',
-            studentId: student.studentId || ''
+            studentId: student.chessComId || ''
         };
     });
 
@@ -1637,7 +1639,7 @@ async function startNoBlunder() {
         return {
             id,
             name: student.name || 'Unknown',
-            studentId: student.studentId || ''
+            studentId: student.chessComId || ''
         };
     });
 
@@ -1708,7 +1710,7 @@ async function startBlunders() {
         return {
             id,
             name: student.name || 'Unknown',
-            studentId: student.studentId || ''
+            studentId: student.chessComId || ''
         };
     });
 
@@ -1792,7 +1794,7 @@ async function startHopeMate() {
         return {
             id,
             name: student.name || 'Unknown',
-            studentId: student.studentId || ''
+            studentId: student.chessComId || ''
         };
     });
 
@@ -1925,7 +1927,7 @@ async function startPuzzleMonsterFight() {
         return {
             id,
             name: student.name || 'Unknown',
-            studentId: student.studentId || ''
+            studentId: student.chessComId || ''
         };
     });
 
@@ -1970,8 +1972,8 @@ function loadGameStudents() {
     
     const searchTerm = (document.getElementById('gameStudentSearch')?.value || '').toLowerCase();
     const filteredStudents = students.filter(student => 
-        student.name.toLowerCase().includes(searchTerm) ||
-        student.studentId.toLowerCase().includes(searchTerm)
+        String(student.name || '').toLowerCase().includes(searchTerm) ||
+        String(student.chessComId || '').toLowerCase().includes(searchTerm)
     );
     
     container.innerHTML = filteredStudents.map(student => {
@@ -1980,7 +1982,7 @@ function loadGameStudents() {
             <div class="student-selector-item ${isSelected ? 'selected' : ''}" data-student-id="${student.id}">
                 <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleGameStudent('${student.id}')">
                 <span>${escapeHtml(student.name)}</span>
-                <span style="margin-left: auto; color: #999; font-size: 0.9rem;">${escapeHtml(student.studentId)}</span>
+                <span style="margin-left: auto; color: #999; font-size: 0.9rem;">${escapeHtml(student.chessComId || '')}</span>
             </div>
         `;
     }).join('');
@@ -2163,8 +2165,8 @@ function saveChessComSettings(data) {
 }
 
 function getDefaultChessComId(student) {
-    // "學生的ID"：優先 student.studentId（顯示用 ID），否則 fallback to internal id
-    return (student && (student.studentId || student.id)) ? String(student.studentId || student.id) : '';
+    // Default: use the student's chess.com ID; fallback to internal system id for safety.
+    return (student && (student.chessComId || student.id)) ? String(student.chessComId || student.id) : '';
 }
 
 async function openChessComSettingsModal() {
@@ -2208,7 +2210,7 @@ function renderChessComSettingsList() {
     const filtered = (students || []).filter(s => {
         if (!searchTerm) return true;
         const name = String(s.name || '').toLowerCase();
-        const sid = String(s.studentId || '').toLowerCase();
+        const sid = String(s.chessComId || '').toLowerCase();
         const existing = settings[s.id] || {};
         const chessId = String(existing.chessId || '').toLowerCase();
         return name.includes(searchTerm) || sid.includes(searchTerm) || chessId.includes(searchTerm);
@@ -2230,7 +2232,7 @@ function renderChessComSettingsList() {
                 <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
                     <div>
                         <div style="font-weight:800; color:#111827;">${escapeHtml(s.name || 'Unknown')}</div>
-                        <div style="color:#6b7280; font-size:0.9rem;">Student ID: ${escapeHtml(s.studentId || '')}</div>
+                        <div style="color:#6b7280; font-size:0.9rem;">chess.com ID: ${escapeHtml(s.chessComId || '')}</div>
                     </div>
                 </div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
@@ -3159,9 +3161,9 @@ async function submitCreateStudent(event) {
     event.preventDefault();
     
     const name = document.getElementById('teacherCreateStudentName').value.trim();
-    const studentId = document.getElementById('teacherCreateStudentId').value.trim();
+    const chessComId = document.getElementById('teacherCreateStudentId').value.trim();
     
-    if (!name || !studentId) {
+    if (!name || !chessComId) {
         showNotification('Please fill in all fields', 'error');
         return;
     }
@@ -3169,7 +3171,7 @@ async function submitCreateStudent(event) {
     try {
         const response = await apiFetch('/organizations/students', {
             method: 'POST',
-            body: JSON.stringify({ name, studentId })
+            body: JSON.stringify({ name, chessComId })
         });
         
         if (!response.ok) {
@@ -3209,11 +3211,11 @@ async function submitCreateStudentInline(event) {
     event.preventDefault();
 
     const name = document.getElementById('teacherCreateStudentNameInline')?.value?.trim?.() || '';
-    const studentId = document.getElementById('teacherCreateStudentIdInline')?.value?.trim?.() || '';
+    const chessComId = document.getElementById('teacherCreateStudentIdInline')?.value?.trim?.() || '';
     const msgEl = document.getElementById('teacherCreateStudentInlineMsg');
     if (msgEl) msgEl.textContent = '';
 
-    if (!name || !studentId) {
+    if (!name || !chessComId) {
         showNotification('Please fill in all fields', 'error');
         return;
     }
@@ -3221,7 +3223,7 @@ async function submitCreateStudentInline(event) {
     try {
         const response = await apiFetch('/organizations/students', {
             method: 'POST',
-            body: JSON.stringify({ name, studentId })
+            body: JSON.stringify({ name, chessComId })
         });
 
         if (!response.ok) {
@@ -3269,7 +3271,7 @@ async function openEditStudentProfile(student) {
 
     document.getElementById('editStudentId_Hidden').value = student.id;
     document.getElementById('editStudentName').value = student.name || '';
-    document.getElementById('editStudentStudentId').value = student.studentId || '';
+    document.getElementById('editStudentStudentId').value = student.chessComId || '';
     document.getElementById('editStudentGender').value = student.gender || '';
     
     let dob = student.dateOfBirth || '';
@@ -3308,7 +3310,7 @@ async function saveStudentProfile(event) {
 
     const updateData = {
         name: document.getElementById('editStudentName').value.trim(),
-        studentId: document.getElementById('editStudentStudentId').value.trim(),
+        chessComId: document.getElementById('editStudentStudentId').value.trim(),
         gender: document.getElementById('editStudentGender').value,
         dateOfBirth: document.getElementById('editStudentDOB').value.trim(),
         contactPhone: document.getElementById('editStudentPhone').value.trim(),
@@ -3383,8 +3385,8 @@ function renderQuickClassViewList() {
     const searchTerm = document.getElementById('quickClassViewSearch')?.value.toLowerCase() || '';
     
     const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchTerm) ||
-        student.studentId.toLowerCase().includes(searchTerm)
+        String(student.name || '').toLowerCase().includes(searchTerm) ||
+        String(student.chessComId || '').toLowerCase().includes(searchTerm)
     );
     
     if (filteredStudents.length === 0) {
@@ -3396,7 +3398,7 @@ function renderQuickClassViewList() {
         const isChecked = tempClassViewSelection.has(student.id);
         // Escape function needs to be safe for inline HTML
         const safeName = escapeHtml(student.name);
-        const safeId = escapeHtml(student.studentId);
+        const safeId = escapeHtml(student.chessComId || '');
         
         return `
             <label style="display:flex; align-items:center; padding:8px; border-bottom:1px solid #eee; cursor:pointer;">
@@ -3423,8 +3425,8 @@ function toggleQuickClassViewSelection(studentId) {
 function quickClassViewSelectAll() {
     const searchTerm = document.getElementById('quickClassViewSearch')?.value.toLowerCase() || '';
     const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchTerm) ||
-        student.studentId.toLowerCase().includes(searchTerm)
+        String(student.name || '').toLowerCase().includes(searchTerm) ||
+        String(student.chessComId || '').toLowerCase().includes(searchTerm)
     );
     
     filteredStudents.forEach(s => tempClassViewSelection.add(s.id));
@@ -3438,8 +3440,8 @@ function quickClassViewDeselectAll() {
     // If search is active, only deselect visible ones
     if (searchTerm) {
         const filteredStudents = students.filter(student =>
-            student.name.toLowerCase().includes(searchTerm) ||
-            student.studentId.toLowerCase().includes(searchTerm)
+            String(student.name || '').toLowerCase().includes(searchTerm) ||
+            String(student.chessComId || '').toLowerCase().includes(searchTerm)
         );
         filteredStudents.forEach(s => tempClassViewSelection.delete(s.id));
     } else {

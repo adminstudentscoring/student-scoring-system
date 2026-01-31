@@ -464,7 +464,7 @@
     const s = STATE.students.find((x) => String(x.id) === String(id));
     if (!s) return String(id || '');
     const nm = String(s.name || 'Unknown');
-    const sid = String(s.studentId || '');
+    const sid = String(s.chessComId || s.studentId || '');
     return sid ? `${nm} (${sid})` : nm;
   }
 
@@ -825,7 +825,8 @@
       return {
         id: String(STATE.me?.id || ''),
         name: String(STATE.me?.name || 'Unknown'),
-        studentId: STATE.role === 'student' ? String(STATE.me?.studentId || '') : '',
+        // chess.com ID (for student role only)
+        studentId: STATE.role === 'student' ? String(STATE.me?.chessComId || STATE.me?.studentId || '') : '',
         role: String(STATE.role || ''),
         status: STATE.role === 'student' ? String(STATE.status || 'online') : 'online'
       };
@@ -835,7 +836,8 @@
     return {
       id: String(s.id || ''),
       name: String(s.name || 'Unknown'),
-      studentId: String(s.studentId || ''),
+      // chess.com ID (legacy key name kept as `studentId` in UI model)
+      studentId: String(s.chessComId || s.studentId || ''),
       role: 'student',
       status: String(s.status || 'online')
     };
@@ -918,7 +920,7 @@
     const isMe = String(target.id || '') === String(STATE.me?.id || '');
     const idLine = target.role === 'teacher'
       ? `Teacher ID: ${target.id || ''}`
-      : (target.studentId ? `Student ID: ${target.studentId}` : (target.id ? `ID: ${target.id}` : ''));
+      : (target.studentId ? `chess.com ID: ${target.studentId}` : (target.id ? `ID: ${target.id}` : ''));
 
     const hist = STATE.profileHistory || { loading: false, error: null, page: 1, totalPages: 1, totalItems: 0, games: [] };
     const games = Array.isArray(hist.games) ? hist.games : [];
@@ -1015,7 +1017,7 @@
   function renderOnlineListItem(s, { selectable }) {
     const safeId = escapeHtml(String(s?.id || ''));
     const safeName = escapeHtml(String(s?.name || 'Unknown'));
-    const safeStudentId = escapeHtml(String(s?.studentId || ''));
+    const safeStudentId = escapeHtml(String(s?.chessComId || s?.studentId || ''));
     const rawStatus = String(s?.status || 'online');
     const safeStatus = escapeHtml(rawStatus);
     const dotCls = rawStatus === 'in-game' ? 'in-game' : (rawStatus === 'idle' ? 'idle' : 'online');

@@ -1022,7 +1022,7 @@ window.handleSalesStudentSearch = async function() {
   
   const filtered = studentsList.filter(s => 
     (s.name && s.name.toLowerCase().includes(term)) || 
-    (s.studentId && s.studentId.toLowerCase().includes(term))
+    (s.chessComId && s.chessComId.toLowerCase().includes(term))
   );
   
   if (filtered.length === 0) {
@@ -1035,7 +1035,7 @@ window.handleSalesStudentSearch = async function() {
       <div class="student-avatar-small">${s.name.charAt(0).toUpperCase()}</div>
       <div class="student-info">
         <div class="student-name">${escapeHtml(s.name)}</div>
-        <div class="student-id">${escapeHtml(s.studentId)}</div>
+        <div class="student-id">${escapeHtml(s.chessComId || '')}</div>
       </div>
     </div>
   `).join('');
@@ -1065,7 +1065,7 @@ window.selectSalesStudent = function(studentId) {
         <button class="btn btn-sm btn-secondary" style="margin-left:8px; padding:6px 10px;" onclick="openSalesEditStudent(event, '${student.id}')">Edit</button>
       </h3>
       <div style="margin-top:6px;">
-        <span class="student-id-badge">${escapeHtml(student.studentId)}</span>
+        <span class="student-id-badge">${escapeHtml(student.chessComId || '')}</span>
       </div>
       <div class="student-balance">Balance: $${balance.toFixed(2)}</div>
     </div>
@@ -1143,7 +1143,7 @@ window.openSalesCreateStudentModal = function() {
               <div class="error-message"></div>
             </div>
             <div class="edit-student-form-group">
-              <label for="salesCreateStudentId">Student ID <span style="color: #ef4444;">*</span></label>
+              <label for="salesCreateStudentId">chess.com ID <span style="color: #ef4444;">*</span></label>
               <input type="text" id="salesCreateStudentId" value="" required>
               <div class="error-message"></div>
             </div>
@@ -1190,15 +1190,15 @@ async function createStudentFromSalesModal() {
   document.querySelectorAll('#salesCreateStudentModal .error-message').forEach(e => (e.textContent = ''));
 
   const name = String(document.getElementById('salesCreateStudentName')?.value || '').trim();
-  const studentId = String(document.getElementById('salesCreateStudentId')?.value || '').trim();
+  const chessComId = String(document.getElementById('salesCreateStudentId')?.value || '').trim();
 
   let hasError = false;
   if (!name) {
     if (typeof showFieldError === 'function') showFieldError('salesCreateStudentName', 'Student name is required');
     hasError = true;
   }
-  if (!studentId) {
-    if (typeof showFieldError === 'function') showFieldError('salesCreateStudentId', 'Student ID is required');
+  if (!chessComId) {
+    if (typeof showFieldError === 'function') showFieldError('salesCreateStudentId', 'chess.com ID is required');
     hasError = true;
   }
   if (hasError) {
@@ -1209,14 +1209,15 @@ async function createStudentFromSalesModal() {
   try {
     const response = await window.authUtils.authenticatedFetch('/organizations/students', {
       method: 'POST',
-      body: JSON.stringify({ name, studentId })
+      body: JSON.stringify({ name, chessComId })
     });
 
     if (!response) return;
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const msg = data?.error || 'Failed to create student';
-      if (typeof showFieldError === 'function' && String(msg).toLowerCase().includes('student id')) {
+      const low = String(msg).toLowerCase();
+      if (typeof showFieldError === 'function' && (low.includes('student id') || low.includes('chess.com'))) {
         showFieldError('salesCreateStudentId', msg);
       }
       if (typeof showToast === 'function') showToast(msg, 'error');
@@ -1338,7 +1339,7 @@ window.openStudentDetailsOverlay = function(event) {
   const avatarEl = overlay.querySelector('.overlay-avatar');
 
   if (nameEl) nameEl.textContent = student.name || 'Student';
-  if (idEl) idEl.textContent = student.studentId || '—';
+  if (idEl) idEl.textContent = student.chessComId || '—';
   if (balanceEl) balanceEl.textContent = `Balance: $${balance.toFixed(2)}`;
   if (avatarEl) avatarEl.textContent = student.name ? student.name.charAt(0).toUpperCase() : '?';
 
@@ -2730,7 +2731,7 @@ window.printReceipt = async function(orderOrOrders) {
     
     const student = salesState.selectedStudent;
     const studentName = student ? student.name : 'Unknown';
-    const studentId = student ? student.studentId : '';
+    const studentId = student ? (student.chessComId || '') : '';
     
     const dateStr = new Date().toLocaleString('en-GB');
     
@@ -3011,7 +3012,7 @@ window.printReceipt = async function(orderOrOrders) {
     
     const student = salesState.selectedStudent;
     const studentName = student ? student.name : 'Unknown';
-    const studentId = student ? student.studentId : '';
+    const studentId = student ? (student.chessComId || '') : '';
     
     const dateStr = new Date().toLocaleString('en-GB');
     

@@ -271,7 +271,7 @@ function registerHopeMateRoutes(app, deps) {
         student: {
           id: String(student.id),
           name: String(student.name || 'Unknown'),
-          studentId: String(student.studentId || '')
+          studentId: String(student.chessComId || '')
         },
         totalScore
       });
@@ -349,7 +349,7 @@ function registerHopeMateRoutes(app, deps) {
         student: {
           id: String(student.id),
           name: String(student.name || 'Unknown'),
-          studentId: String(student.studentId || '')
+          studentId: String(student.chessComId || '')
         },
         totalSolved,
         bestLevel,

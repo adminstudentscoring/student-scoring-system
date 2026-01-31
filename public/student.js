@@ -83,7 +83,7 @@ function renderDashboard() {
     
     const s = studentData;
     document.getElementById('sName').textContent = s.name;
-    document.getElementById('sId').textContent = `ID: ${s.studentId}`;
+    document.getElementById('sId').textContent = `chess.com ID: ${s.chessComId || s.studentId || ''}`;
     document.getElementById('sAvatar').textContent = s.name.charAt(0).toUpperCase();
     
     document.getElementById('sScore').textContent = s.score || 0;
@@ -225,9 +225,12 @@ window.switchTab = function(tab) {
 window.openStudentGame = function(gameKey, options = {}) {
     if (!studentData) return;
     const player = {
-        id: studentData.id || studentData._id || studentId || studentData.studentId || '',
+        id: studentData.id || studentData._id || studentId || '',
         name: studentData.name || 'Student',
-        studentId: studentData.studentId || ''
+        // Keep property name `studentId` for backward compatibility with game windows,
+        // but its value is the chess.com ID.
+        studentId: studentData.chessComId || studentData.studentId || '',
+        chessComId: studentData.chessComId || studentData.studentId || ''
     };
 
     const openMode = options && options.openMode ? options.openMode : 'popup';
@@ -395,12 +398,13 @@ window.openStudentGame = function(gameKey, options = {}) {
 const STUDENT_CHESS_COM_LOGIN_URL = 'https://www.chess.com/login_and_go?returnUrl=https://www.chess.com/';
 
 function getStudentInternalId() {
-    return String(studentData?.id || studentData?._id || studentId || studentData?.studentId || '');
+    // Internal system id
+    return String(studentData?.id || studentData?._id || studentId || '');
 }
 
 function getDefaultChessComUsername() {
-    // Default to student's "Student ID" as requested
-    return String(studentData?.studentId || studentId || '');
+    // Default to student's chess.com ID (new field name)
+    return String(studentData?.chessComId || studentData?.studentId || '');
 }
 
 function getChessComUsernameFromServerData() {

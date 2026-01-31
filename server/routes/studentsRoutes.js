@@ -95,9 +95,11 @@ function registerStudentsRoutes(app, deps) {
   // Kept for backward compatibility, but requires organization authentication
   app.post('/api/students', authenticateUser, requireOrganizationAccess, async (req, res) => {
     try {
-      const { name, studentId } = req.body;
-      if (!name || !studentId) {
-        return res.status(400).json({ error: 'Name and Student ID are required' });
+      const name = (req.body?.name || '').toString();
+      // `studentId` historically stored Chess.com ID. New field name: `chessComId`.
+      const chessComId = (req.body?.chessComId ?? req.body?.studentId ?? '').toString();
+      if (!name || !chessComId) {
+        return res.status(400).json({ error: 'Name and chess.com ID are required' });
       }
 
       // Get user's organization
@@ -127,18 +129,18 @@ function registerStudentsRoutes(app, deps) {
 
       // Check if student already exists in this organization
       const exists = data.students.find(s =>
-        s.studentId === studentId &&
+        String(s.chessComId || '') === String(chessComId || '') &&
         (organizationId ? s.organizationId === organizationId : true)
       );
       if (exists) {
-        return res.status(400).json({ error: 'Student ID already exists' });
+        return res.status(400).json({ error: 'chess.com ID already exists' });
       }
 
       const initialRankInfo = getRankInfo(0);
       const newStudent = {
         id: Date.now().toString(),
         name,
-        studentId,
+        chessComId,
         organizationId: organizationId,
         answerCount: 0,
         totalAnswers: 0,
@@ -355,9 +357,9 @@ function registerStudentsRoutes(app, deps) {
           return res.status(403).json({ error: 'Insufficient permissions: You are not allowed to edit scores.' });
         }
 
-        // If updating profile fields (name, studentId, etc.), check editStudentProfile
+        // If updating profile fields (name, chessComId, etc.), check editStudentProfile
         // We define "profile fields" as anything NOT score/password for now, or specific list
-        const profileFields = ['name', 'studentId', 'gender', 'dateOfBirth', 'contactPhone', 'contactEmail', 'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber', 'remark', 'membership', 'membershipStartDate', 'membershipEndDate'];
+        const profileFields = ['name', 'chessComId', 'gender', 'dateOfBirth', 'contactPhone', 'contactEmail', 'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber', 'remark', 'membership', 'membershipStartDate', 'membershipEndDate'];
         const isUpdatingProfile = Object.keys(updates).some(key => profileFields.includes(key));
 
         if (isUpdatingProfile && (!teacher.teacherPermissions || !teacher.teacherPermissions.editStudentProfile)) {
@@ -380,21 +382,22 @@ function registerStudentsRoutes(app, deps) {
         }
       }
 
-      // Validate student ID uniqueness (if being updated)
-      if (updates.studentId !== undefined && updates.studentId !== student.studentId) {
-        if (updates.studentId && updates.studentId.trim() !== '') {
-          if (updates.studentId.length > 50) {
-            return res.status(400).json({ error: 'Student ID must be 50 characters or less' });
+      // Validate chess.com ID uniqueness (if being updated)
+      const nextChessComId = updates.chessComId ?? updates.studentId;
+      if (nextChessComId !== undefined && String(nextChessComId || '') !== String(student.chessComId || '')) {
+        if (nextChessComId && String(nextChessComId).trim() !== '') {
+          if (String(nextChessComId).length > 50) {
+            return res.status(400).json({ error: 'chess.com ID must be 50 characters or less' });
           }
 
           const existingStudent = data.students.find(s =>
             s.organizationId === student.organizationId &&
-            s.studentId === updates.studentId &&
+            String(s.chessComId || '') === String(nextChessComId || '') &&
             s.id !== id
           );
 
           if (existingStudent) {
-            return res.status(400).json({ error: 'Student ID already exists in this organization' });
+            return res.status(400).json({ error: 'chess.com ID already exists in this organization' });
           }
         }
       }
@@ -486,7 +489,7 @@ function registerStudentsRoutes(app, deps) {
       // Merge updates with existing student data
       // Only update fields that are provided (not undefined)
       const allowedFields = [
-        'name', 'studentId', 'dateOfBirth', 'gender', 'contactPhone', 'contactEmail',
+        'name', 'chessComId', 'dateOfBirth', 'gender', 'contactPhone', 'contactEmail',
         'emergencyContactName', 'emergencyContactRelation', 'emergencyContactNumber',
         'remark', 'membership', 'membershipStartDate', 'membershipEndDate', 'score',
         'accessPassword',
@@ -500,6 +503,11 @@ function registerStudentsRoutes(app, deps) {
           cleanUpdates[field] = updates[field] === '' ? null : updates[field];
         }
       });
+
+      // Backward compatibility: if client still sends `studentId`, treat it as chessComId.
+      if (updates.studentId !== undefined && updates.chessComId === undefined) {
+        cleanUpdates.chessComId = updates.studentId === '' ? null : String(updates.studentId);
+      }
 
       // Normalize auto-renew fields (optional)
       if (updates.autoRenewEnabled !== undefined) {
@@ -656,7 +664,9 @@ function registerStudentsRoutes(app, deps) {
       const publicData = {
         id: student.id,
         name: student.name,
-        studentId: student.studentId,
+        chessComId: student.chessComId,
+        // Backward compatibility
+        studentId: student.chessComId,
         score: student.score,
         level: rankInfo.rankIndex + 1,
         rank: rankInfo.rank,
@@ -724,7 +734,9 @@ function registerStudentsRoutes(app, deps) {
         student: {
           id: String(student.id),
           name: String(student.name || 'Student'),
-          studentId: String(student.studentId || '')
+          chessComId: String(student.chessComId || ''),
+          // Backward compatibility
+          studentId: String(student.chessComId || '')
         }
       });
     } catch (error) {

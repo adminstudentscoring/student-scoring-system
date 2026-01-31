@@ -420,7 +420,7 @@ function renderLeaderboardTable(container, students) {
           <tr>
             <th width="80">Rank</th>
             <th>Student Name</th>
-            <th>Student ID</th>
+            <th>chess.com ID</th>
             <th>Score</th>
           </tr>
         </thead>
@@ -438,7 +438,7 @@ function renderLeaderboardTable(container, students) {
           <tr>
             <td><span class="rank-badge ${rankClass}">${rank}</span></td>
             <td>${escapeHtml(s.name)}</td>
-            <td>${escapeHtml(s.studentId)}</td>
+            <td>${escapeHtml(s.chessComId || '')}</td>
             <td><span class="score-value">${s.displayScore}</span></td>
           </tr>
         `;

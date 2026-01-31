@@ -193,7 +193,9 @@ function registerOrganizationsRoutes(app, deps) {
   // Organization creates a student (requires organization authentication or teacher permission)
   app.post('/api/organizations/students', authenticateUser, authorizeRole('organization', 'teacher'), async (req, res) => {
     try {
-      const { name, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
+      const { name, chessComId, studentId, gender, dateOfBirth, contactPhone, contactEmail, emergencyContactName, emergencyContactRelation, emergencyContactNumber } = req.body;
+      // Backward compatibility: `studentId` historically stored Chess.com ID
+      const chessId = (chessComId ?? studentId ?? '');
 
       // Validation
       if (!name) {
@@ -221,15 +223,15 @@ function registerOrganizationsRoutes(app, deps) {
         return res.status(404).json({ error: 'Organization not found' });
       }
 
-      // Check if student already exists in this organization (only if studentId provided)
+      // Check if chess.com ID already exists in this organization (only if provided)
       const data = await readData();
-      if (studentId) {
+      if (chessId) {
         const existingStudent = data.students.find(s =>
           s.organizationId === currentUser.organizationId &&
-          s.studentId === studentId
+          String(s.chessComId || '') === String(chessId || '')
         );
         if (existingStudent) {
-          return res.status(400).json({ error: 'Student ID already exists in this organization' });
+          return res.status(400).json({ error: 'chess.com ID already exists in this organization' });
         }
       }
 
@@ -238,7 +240,7 @@ function registerOrganizationsRoutes(app, deps) {
       const newStudent = {
         id: Date.now().toString(),
         name,
-        studentId: studentId || '', // Allow empty
+        chessComId: chessId || '', // Allow empty
         gender: gender || '',
         dateOfBirth: dateOfBirth || '',
         contactPhone: contactPhone || '',
@@ -321,10 +323,11 @@ function registerOrganizationsRoutes(app, deps) {
           continue;
         }
 
-        if (s.studentId && s.studentId.trim() !== '') {
-          const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && ex.studentId === s.studentId);
+        const chessId = (s.chessComId ?? s.studentId ?? '');
+        if (chessId && String(chessId).trim() !== '') {
+          const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && String(ex.chessComId || '') === String(chessId));
           if (exists) {
-            errors.push({ student: s, error: `ID ${s.studentId} already exists` });
+            errors.push({ student: s, error: `chess.com ID ${chessId} already exists` });
             continue;
           }
         }
@@ -332,7 +335,7 @@ function registerOrganizationsRoutes(app, deps) {
         const newStudent = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
           name: s.name,
-          studentId: s.studentId || '',
+          chessComId: (s.chessComId ?? s.studentId ?? '') || '',
           gender: s.gender || '',
           dateOfBirth: s.dateOfBirth || '',
           contactPhone: s.contactPhone || '',
@@ -399,10 +402,11 @@ function registerOrganizationsRoutes(app, deps) {
         }
 
         // Check ID uniqueness (if provided)
-        if (s.studentId) {
-          const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && ex.studentId === s.studentId);
+        const chessId = (s.chessComId ?? s.studentId ?? '');
+        if (chessId) {
+          const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && String(ex.chessComId || '') === String(chessId));
           if (exists) {
-            errors.push({ student: s, error: `ID ${s.studentId} already exists` });
+            errors.push({ student: s, error: `chess.com ID ${chessId} already exists` });
             continue;
           }
         }
@@ -411,7 +415,7 @@ function registerOrganizationsRoutes(app, deps) {
         const newStudent = {
           id: `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           name: s.name,
-          studentId: s.studentId || '',
+          chessComId: (s.chessComId ?? s.studentId ?? '') || '',
           gender: s.gender || '',
           dateOfBirth: s.dateOfBirth || '',
           contactPhone: s.contactPhone || '',
@@ -452,6 +456,7 @@ function registerOrganizationsRoutes(app, deps) {
   });
 
   // Check if student ID is available in an organization
+  // Backward compatibility: endpoint name keeps `check-id`, but it now checks chess.com ID uniqueness.
   app.get('/api/organizations/:orgId/students/check-id/:studentId', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
     try {
       const { orgId, studentId } = req.params;
@@ -471,7 +476,7 @@ function registerOrganizationsRoutes(app, deps) {
       const data = await readData();
       const existingStudent = data.students.find(s =>
         s.organizationId === orgId &&
-        s.studentId === studentId &&
+        String(s.chessComId || '') === String(studentId || '') &&
         s.id !== excludeId // Exclude current student when editing
       );
 

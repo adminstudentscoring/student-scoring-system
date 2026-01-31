@@ -1539,9 +1539,27 @@ async function initializeDataFile() {
 
 // Initialize student fields (add new fields if missing)
 function initializeStudentFields(student) {
+  // ===== One-time schema migration: studentId -> chessComId =====
+  // Historically, `student.studentId` stored the Chess.com ID.
+  // We now store it as `student.chessComId` and keep `student.id` as the system-generated unique ID.
+  if (student && typeof student === 'object') {
+    const hasChess = Object.prototype.hasOwnProperty.call(student, 'chessComId');
+    const hasLegacy = Object.prototype.hasOwnProperty.call(student, 'studentId');
+    if (!hasChess && hasLegacy) {
+      const legacy = student.studentId;
+      // Preserve empty string/null as-is; normalize to string otherwise.
+      student.chessComId = legacy == null ? '' : String(legacy);
+    }
+    // Remove legacy field to avoid confusion going forward (all code should use chessComId).
+    if (hasLegacy) {
+      delete student.studentId;
+    }
+  }
+
   const newFields = {
     dateOfBirth: null,
     gender: null,
+    chessComId: '',
     contactPhone: null,
     contactEmail: null,
     emergencyContactName: null,
@@ -1600,11 +1618,28 @@ async function readData() {
       return { students: [], battles: [], lastUpdate: new Date().toISOString() };
     }
     
-    // Initialize new fields for all students
+    // One-time migration detection (before initializeStudentFields deletes legacy keys)
+    const needsStudentIdMigration = !!(
+      data.students &&
+      Array.isArray(data.students) &&
+      data.students.some(s => s && typeof s === 'object' && Object.prototype.hasOwnProperty.call(s, 'studentId'))
+    );
+
+    // Initialize new fields for all students (also performs studentId -> chessComId migration)
     if (data.students && Array.isArray(data.students)) {
       data.students.forEach(student => {
         initializeStudentFields(student);
       });
+    }
+
+    // Persist schema migration once so the data file is updated on disk.
+    // This avoids having `studentId` reappear on process restart.
+    if (needsStudentIdMigration) {
+      try {
+        await writeData(data);
+      } catch (e) {
+        console.warn('Unable to persist studentId->chessComId migration:', e?.message || e);
+      }
     }
     
     return data;

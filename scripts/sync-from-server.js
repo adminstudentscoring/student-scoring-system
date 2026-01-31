@@ -153,25 +153,25 @@ async function mergeStudents(localData, serverStudents) {
     const localStudents = localData.students || [];
     const serverStudentsMap = new Map();
     
-    // Create a map of server students by studentId for quick lookup
+    // Create a map of server students by chessComId for quick lookup
     serverStudents.forEach(s => {
-      if (s.studentId) {
-        serverStudentsMap.set(s.studentId, s);
-      }
+      const chessComId = (s.chessComId || s.studentId || '').toString();
+      if (chessComId) serverStudentsMap.set(chessComId, s);
     });
 
     // Merge strategy:
     // 1. Keep all local students with their full data
-    // 2. Add server students that don't exist locally (by studentId)
+    // 2. Add server students that don't exist locally (by chessComId)
     const mergedStudents = [...localStudents];
     const addedFromServer = [];
 
     serverStudents.forEach(serverStudent => {
-      if (serverStudent.studentId) {
-        const exists = localStudents.some(local => local.studentId === serverStudent.studentId);
+      const chessComId = (serverStudent.chessComId || serverStudent.studentId || '').toString();
+      if (chessComId) {
+        const exists = localStudents.some(local => (local.chessComId || local.studentId || '').toString() === chessComId);
         if (!exists) {
           mergedStudents.push(serverStudent);
-          addedFromServer.push(serverStudent.studentId);
+          addedFromServer.push(chessComId);
         }
       }
     });

@@ -227,7 +227,7 @@ function renderAccountsTab(container) {
                 <thead>
                     <tr>
                         <th>Student Name</th>
-                        <th>Student ID</th>
+                        <th>chess.com ID</th>
                         <th>Current Balance</th>
                         <th>Action</th>
                     </tr>
@@ -244,7 +244,7 @@ window.renderAccountsRows = function() {
     const search = document.getElementById('accountSearch').value.toLowerCase();
     const students = (window.students || []).filter(s => 
         s.name.toLowerCase().includes(search) || 
-        s.studentId.toLowerCase().includes(search)
+        String(s.chessComId || '').toLowerCase().includes(search)
     );
     document.getElementById('accountsTableBody').innerHTML = getAccountsRows(students);
 };
@@ -255,7 +255,7 @@ function getAccountsRows(students) {
     return students.map(s => `
         <tr>
             <td>${escapeHtml(s.name)}</td>
-            <td>${escapeHtml(s.studentId)}</td>
+            <td>${escapeHtml(s.chessComId || '')}</td>
             <td style="font-weight:bold; color:${(s.balance || 0) >= 0 ? '#10b981' : '#ef4444'}">$${formatNumber(s.balance || 0)}</td>
             <td>
                 <button class="btn btn-sm btn-primary" onclick="openBalanceModal('${s.id}')">Adjust Balance</button>
