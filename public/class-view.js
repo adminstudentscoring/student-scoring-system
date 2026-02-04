@@ -1131,25 +1131,21 @@ document.getElementById('batchAddPointsBtn')?.addEventListener('click', async ()
     if (targets.length === 0) return;
     
     let successCount = 0;
-    
-    // Process in parallel chunks to avoid overwhelming server if many students
-    const chunks = [];
-    const chunkSize = 5;
-    for (let i = 0; i < targets.length; i += chunkSize) {
-        chunks.push(targets.slice(i, i + chunkSize));
-    }
-    
-    for (const chunk of chunks) {
-        await Promise.all(chunk.map(async (student) => {
-            try {
-                const response = await fetch('/api/students/' + student.id + '/answer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ points: points })
-                });
-                if (response.ok) successCount++;
-            } catch(e) { console.error(e); }
-        }));
+
+    // IMPORTANT:
+    // Do this sequentially to avoid server-side read/write races on challenge HP.
+    // Parallel requests can overwrite each other's challenge updates, resulting in under-counted monster damage.
+    for (const student of targets) {
+        try {
+            const response = await fetch('/api/students/' + student.id + '/answer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ points: points })
+            });
+            if (response.ok) successCount++;
+        } catch (e) {
+            console.error(e);
+        }
     }
     
     // Refresh (WebSocket will trigger reload anyway, but just in case)
