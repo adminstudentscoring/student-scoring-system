@@ -418,6 +418,14 @@
     return await tfJson(resp);
   }
 
+  async function builderMoveCategory(categoryId, bucket) {
+    const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/categories/${encodeURIComponent(categoryId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ bucket })
+    });
+    return await tfJson(resp);
+  }
+
   async function builderDeleteCategory(categoryId) {
     const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/categories/${encodeURIComponent(categoryId)}`, {
       method: 'DELETE'
@@ -685,6 +693,7 @@
     builderFetchTree,
     builderCreateCategory,
     builderRenameCategory,
+    builderMoveCategory,
     builderDeleteCategory,
     builderCreateTopic,
     builderRenameTopic,

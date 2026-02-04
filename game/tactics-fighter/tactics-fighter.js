@@ -47,6 +47,7 @@
     builderFetchTree,
     builderCreateCategory,
     builderRenameCategory,
+      builderMoveCategory,
     builderDeleteCategory,
     builderCreateTopic,
     builderRenameTopic,
@@ -1980,6 +1981,7 @@
               <div class="tf-tree-title">${escapeHtml(String(c.name || ''))}</div>
               <div class="tf-tree-actions">
                 <button type="button" class="btn btn-secondary btn-small" data-tf-add-topic="${escapeHtml(catId)}">+ Topic</button>
+                <button type="button" class="btn btn-secondary btn-small" data-tf-move-cat="${escapeHtml(catId)}">Move</button>
                 <button type="button" class="btn btn-secondary btn-small" data-tf-rename-cat="${escapeHtml(catId)}">Rename</button>
                 <button type="button" class="btn btn-danger btn-small" data-tf-del-cat="${escapeHtml(catId)}">Delete</button>
               </div>
@@ -2184,6 +2186,105 @@
       const v = prompt(String(title || ''), String(placeholder || ''));
       if (v == null) return null;
       return String(v).trim();
+    }
+
+    function builderFindCategoryById(cid) {
+      const cats = Array.isArray(ui.builderTree) ? ui.builderTree : [];
+      return cats.find((c) => String(c?.id) === String(cid)) || null;
+    }
+
+    function bucketLabelOf(key) {
+      const k = normalizeBucketKey(key);
+      const map = {
+        beginner: 'Beginner',
+        '400up': '400 up',
+        '700up': '700 up',
+        '1000up': '1000 up',
+        '1500up': '1500 up',
+        '2000up': '2000 up',
+        '2500up': '2500 up',
+        '2800up': '2800 up'
+      };
+      return map[k] || k;
+    }
+
+    function allBucketOptions() {
+      return [
+        { key: 'beginner', label: 'Beginner' },
+        { key: '400up', label: '400 up' },
+        { key: '700up', label: '700 up' },
+        { key: '1000up', label: '1000 up' },
+        { key: '1500up', label: '1500 up' },
+        { key: '2000up', label: '2000 up' },
+        { key: '2500up', label: '2500 up' },
+        { key: '2800up', label: '2800 up' }
+      ];
+    }
+
+    async function openMoveCategoryModal(categoryId) {
+      const cid = String(categoryId || '').trim();
+      if (!cid) return;
+      const cat = builderFindCategoryById(cid);
+      const curBucket = normalizeBucketKey(cat?.bucket || getBuilderBucket() || 'beginner');
+      const curName = String(cat?.name || '').trim() || 'Category';
+
+      const host = document.createElement('div');
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="tfMoveCatBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Move category" style="width: calc(100vw - 40px); max-width: 720px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Move</div>
+              <button id="tfMoveCatClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div class="tf-muted" style="margin-top:-4px;">Move <strong>${escapeHtml(curName)}</strong> to another bucket.</div>
+              <div class="tf-field">
+                <label for="tfMoveCatBucket">Destination bucket</label>
+                <select id="tfMoveCatBucket" class="tf-select">
+                  ${allBucketOptions().map(o => `<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('')}
+                </select>
+                <div class="tf-muted" style="margin-top:6px;">Current: <strong>${escapeHtml(bucketLabelOf(curBucket))}</strong></div>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
+                <button id="tfMoveCatCancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="tfMoveCatSave" class="btn btn-primary" type="button">Move</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+
+      const sel = host.querySelector('#tfMoveCatBucket');
+      if (sel) sel.value = curBucket;
+
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector('#tfMoveCatClose')?.addEventListener('click', close);
+      host.querySelector('#tfMoveCatCancel')?.addEventListener('click', close);
+      host.querySelector('#tfMoveCatBackdrop')?.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'tfMoveCatBackdrop') close();
+      });
+
+      host.querySelector('#tfMoveCatSave')?.addEventListener('click', async () => {
+        try {
+          const nextBucket = normalizeBucketKey(String(sel?.value || '').trim() || '');
+          if (!nextBucket) return;
+          if (nextBucket === curBucket) return close();
+
+          await builderMoveCategory(cid, nextBucket);
+          // Switch builder bucket so user can see the moved category immediately.
+          setBuilderBucket(nextBucket);
+          try {
+            const bucketSel = document.getElementById('tfBuilderBucketSelect');
+            if (bucketSel) bucketSel.value = nextBucket;
+          } catch {}
+          showBuilderMsg('ok', `Moved to ${bucketLabelOf(nextBucket)}.`);
+          await builderRefresh();
+          close();
+        } catch (e) {
+          showBuilderMsg('err', e?.message || String(e));
+        }
+      });
     }
 
     async function openSubtopicMessageModal(subtopicId) {
@@ -2948,6 +3049,13 @@
             const name = await promptText('Rename category', 'New name');
             if (!name) return;
             try { await builderRenameCategory(cid, name); await builderRefresh(); } catch (e) { showBuilderMsg('err', e?.message || String(e)); }
+            return;
+          }
+
+          const moveCatBtn = t?.closest?.('[data-tf-move-cat]');
+          if (moveCatBtn) {
+            const cid = String(moveCatBtn.getAttribute('data-tf-move-cat') || '');
+            openMoveCategoryModal(cid).catch((e) => showBuilderMsg('err', e?.message || String(e)));
             return;
           }
 
