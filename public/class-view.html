@@ -724,16 +724,20 @@
                 <span class="modal-close" id="loadModalClose">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="search-group">
-                    <input type="text" id="saveSearchInput" placeholder="🔍 Search saves by day or time...">
+                <!-- Bucket UI: pick a day first, then pick a saved time -->
+                <div id="loadBucketDays" class="cv-save-bucket-grid">
+                    <!-- Filled by JS -->
                 </div>
-                <div id="recentSaves" class="saves-section">
-                    <h3>Recent Saves</h3>
-                    <div id="recentSavesList" class="saves-list"></div>
-                </div>
-                <div id="allSaves" class="saves-section">
-                    <h3>All Saves</h3>
-                    <div id="allSavesList" class="saves-list"></div>
+
+                <div id="loadBucketTimesWrap" style="display:none;">
+                    <div class="cv-save-bucket-head">
+                        <button type="button" id="loadBucketBackBtn" class="cv-save-bucket-back">← Back</button>
+                        <div id="loadBucketDayTitle" class="cv-save-bucket-title"></div>
+                    </div>
+                    <div class="search-group" id="loadBucketSearchGroup">
+                        <input type="text" id="saveSearchInput" placeholder="🔍 Search times...">
+                    </div>
+                    <div id="loadBucketTimesList" class="saves-list"></div>
                 </div>
             </div>
         </div>

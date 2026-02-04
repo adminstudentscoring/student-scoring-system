@@ -752,6 +752,157 @@ function showNotification(message, type = 'success') {
 }
 
 // Save/Load Logic
+// Load modal bucket state (day -> times)
+let classViewLoadSavesCache = [];
+let classViewLoadSelectedDay = '';
+let classViewLoadRestoreDayAfterReload = '';
+let classViewLoadUiBound = false;
+
+const CLASS_VIEW_DAYS = [
+    { key: 'Monday', abbr: 'Mon' },
+    { key: 'Tuesday', abbr: 'Tue' },
+    { key: 'Wednesday', abbr: 'Wed' },
+    { key: 'Thursday', abbr: 'Thu' },
+    { key: 'Friday', abbr: 'Fri' },
+    { key: 'Saturday', abbr: 'Sat' },
+    { key: 'Sunday', abbr: 'Sun' }
+];
+
+function normalizeSaveDay(day) {
+    const d = String(day || '').trim().toLowerCase();
+    const found = CLASS_VIEW_DAYS.find(x => x.key.toLowerCase() === d || x.abbr.toLowerCase() === d);
+    return found ? found.key : String(day || '').trim();
+}
+
+function bindClassViewLoadBucketUi() {
+    if (classViewLoadUiBound) return;
+    classViewLoadUiBound = true;
+
+    const daysRoot = document.getElementById('loadBucketDays');
+    const backBtn = document.getElementById('loadBucketBackBtn');
+    const searchInput = document.getElementById('saveSearchInput');
+
+    daysRoot?.addEventListener('click', (e) => {
+        const btn = e.target?.closest?.('[data-load-day]');
+        if (!btn) return;
+        const day = btn.getAttribute('data-load-day') || '';
+        if (!day) return;
+        if (btn.hasAttribute('disabled')) return;
+        classViewOpenLoadDay(day);
+    });
+
+    backBtn?.addEventListener('click', () => {
+        classViewRenderLoadDayBuckets();
+    });
+
+    searchInput?.addEventListener('input', () => {
+        if (!classViewLoadSelectedDay) return;
+        classViewRenderLoadTimesForDay(classViewLoadSelectedDay);
+    });
+}
+
+function classViewSetLoadView(mode) {
+    const daysRoot = document.getElementById('loadBucketDays');
+    const timesWrap = document.getElementById('loadBucketTimesWrap');
+    const searchGroup = document.getElementById('loadBucketSearchGroup');
+    const searchInput = document.getElementById('saveSearchInput');
+
+    if (mode === 'days') {
+        if (daysRoot) daysRoot.style.display = '';
+        if (timesWrap) timesWrap.style.display = 'none';
+        if (searchGroup) searchGroup.style.display = 'none';
+        if (searchInput) searchInput.value = '';
+    } else {
+        if (daysRoot) daysRoot.style.display = 'none';
+        if (timesWrap) timesWrap.style.display = '';
+        if (searchGroup) searchGroup.style.display = '';
+    }
+}
+
+function classViewRenderLoadDayBuckets() {
+    classViewLoadSelectedDay = '';
+    classViewSetLoadView('days');
+
+    const daysRoot = document.getElementById('loadBucketDays');
+    if (!daysRoot) return;
+
+    const counts = new Map();
+    for (const s of classViewLoadSavesCache) {
+        const key = normalizeSaveDay(s.day);
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    daysRoot.innerHTML = CLASS_VIEW_DAYS.map(({ key, abbr }) => {
+        const count = counts.get(key) || 0;
+        const disabledAttr = count === 0 ? 'disabled' : '';
+        return `
+            <button type="button" class="cv-save-bucket-btn" data-load-day="${escapeHtml(key)}" ${disabledAttr}>
+                <div class="cv-save-bucket-day">${escapeHtml(abbr)}</div>
+                <div class="cv-save-bucket-count">${count} save${count === 1 ? '' : 's'}</div>
+            </button>
+        `;
+    }).join('');
+}
+
+function classViewOpenLoadDay(day) {
+    classViewLoadSelectedDay = normalizeSaveDay(day);
+    classViewRenderLoadTimesForDay(classViewLoadSelectedDay);
+}
+
+function parseTimeToMinutes(timeStr) {
+    const m = String(timeStr || '').match(/^(\d{2}):(\d{2})$/);
+    if (!m) return Number.POSITIVE_INFINITY;
+    return (parseInt(m[1], 10) * 60) + parseInt(m[2], 10);
+}
+
+function classViewCreateSaveTimeItemHTML(save) {
+    const savedDate = new Date(save.savedAt);
+    const dateStr = savedDate.toLocaleDateString() + ' ' + savedDate.toLocaleTimeString();
+    const levelName = `Level ${save.challenge.currentLevel}`;
+    return `
+        <div class="save-item">
+            <div class="save-item-info">
+                <div class="save-item-header">
+                    <span class="save-item-time">${escapeHtml(save.time)}</span>
+                    <span class="save-item-level">${levelName}</span>
+                </div>
+                <div class="save-item-details">HP: ${save.challenge.currentHP} | Saved: ${dateStr}</div>
+            </div>
+            <div class="save-item-actions">
+                <button class="save-item-btn load" onclick="loadProgress('${escapeHtml(save.filename)}')">Load</button>
+                <button class="save-item-btn delete" onclick="deleteSave('${escapeHtml(save.filename)}')">Delete</button>
+            </div>
+        </div>
+    `;
+}
+
+function classViewRenderLoadTimesForDay(day) {
+    classViewSetLoadView('times');
+
+    const titleEl = document.getElementById('loadBucketDayTitle');
+    const listEl = document.getElementById('loadBucketTimesList');
+    const searchInput = document.getElementById('saveSearchInput');
+    if (!listEl) return;
+
+    if (titleEl) titleEl.textContent = day;
+
+    const term = String(searchInput?.value || '').trim().toLowerCase();
+    const items = classViewLoadSavesCache
+        .filter(s => normalizeSaveDay(s.day) === day)
+        .filter(s => !term || String(s.time || '').toLowerCase().includes(term))
+        .slice()
+        .sort((a, b) => {
+            const ta = parseTimeToMinutes(a.time);
+            const tb = parseTimeToMinutes(b.time);
+            if (ta !== tb) return ta - tb;
+            return new Date(b.modifiedAt || b.savedAt || 0) - new Date(a.modifiedAt || a.savedAt || 0);
+        });
+
+    listEl.innerHTML = items.length
+        ? items.map(s => classViewCreateSaveTimeItemHTML(s)).join('')
+        : '<div class="no-saves">No saves found for this day</div>';
+}
+
 function generateTimeOptions() {
     const timeSelect = document.getElementById('saveTime');
     if (!timeSelect) return;
@@ -787,6 +938,7 @@ function openLoadModal() {
     const modal = document.getElementById('loadModal');
     if (modal) {
         modal.classList.add('show');
+        bindClassViewLoadBucketUi();
         loadSavesList();
     }
 }
@@ -795,7 +947,10 @@ function closeLoadModal() {
     const modal = document.getElementById('loadModal');
     if (modal) {
         modal.classList.remove('show');
-        document.getElementById('saveSearchInput').value = '';
+        const input = document.getElementById('saveSearchInput');
+        if (input) input.value = '';
+        classViewLoadSelectedDay = '';
+        classViewSetLoadView('days');
     }
 }
 
@@ -844,14 +999,19 @@ async function loadSavesList() {
 }
 
 function renderSavesList(saves) {
-    const recentSavesList = document.getElementById('recentSavesList');
-    const allSavesList = document.getElementById('allSavesList');
-    if (!recentSavesList || !allSavesList) return;
-    
-    const recentSaves = saves.slice(0, 5);
-    
-    recentSavesList.innerHTML = recentSaves.length ? recentSaves.map(s => createSaveItemHTML(s)).join('') : '<div class="no-saves">No recent saves</div>';
-    allSavesList.innerHTML = saves.length ? saves.map(s => createSaveItemHTML(s)).join('') : '<div class="no-saves">No saves found</div>';
+    classViewLoadSavesCache = Array.isArray(saves) ? saves : [];
+
+    if (classViewLoadRestoreDayAfterReload) {
+        const restoreDay = classViewLoadRestoreDayAfterReload;
+        classViewLoadRestoreDayAfterReload = '';
+        const hasDay = classViewLoadSavesCache.some(s => normalizeSaveDay(s.day) === restoreDay);
+        if (hasDay) {
+            classViewOpenLoadDay(restoreDay);
+            return;
+        }
+    }
+
+    classViewRenderLoadDayBuckets();
 }
 
 function createSaveItemHTML(save) {
@@ -909,6 +1069,9 @@ async function deleteSave(filename) {
         if (!response.ok) throw new Error('Failed to delete');
         
         showNotification('Save deleted', 'success');
+        if (classViewLoadSelectedDay) {
+            classViewLoadRestoreDayAfterReload = classViewLoadSelectedDay;
+        }
         loadSavesList();
     } catch (error) {
         showNotification('Failed to delete save', 'error');

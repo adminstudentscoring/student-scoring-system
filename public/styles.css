@@ -1666,6 +1666,89 @@ body.electron .floating-indicator {
     font-style: italic;
 }
 
+/* =========================
+   Class View Load Modal - bucket UI
+   ========================= */
+.cv-save-bucket-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.cv-save-bucket-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 10px;
+    border-radius: 10px;
+    border: 2px solid #e0e0e0;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.cv-save-bucket-btn:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+    transform: translateY(-1px);
+}
+
+.cv-save-bucket-btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.cv-save-bucket-day {
+    font-weight: 900;
+    color: #667eea;
+    letter-spacing: 0.5px;
+}
+
+.cv-save-bucket-count {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.cv-save-bucket-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.cv-save-bucket-back {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    background: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 800;
+    color: #333;
+}
+
+.cv-save-bucket-back:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.cv-save-bucket-title {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #667eea;
+}
+
+@media (max-width: 520px) {
+    .cv-save-bucket-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 /* Statistics Modal Styles */
 .period-selector {
     display: flex;
