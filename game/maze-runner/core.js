@@ -39,25 +39,27 @@
     return "";
   }
 
-  async function apiRequest(path, opts = {}) {
-    const url = String(path || "");
-    const method = String(opts.method || "GET").toUpperCase();
-    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
-    const resp = await fetch(url, {
-      method,
-      headers,
-      body: opts.body,
-      credentials: "include"
-    });
-    return resp;
+  function apiRequest(path, options = {}) {
+    // Teacher endpoints require Bearer auth; public student endpoints generally don't.
+    const headers = { ...(options.headers || {}) };
+    // IMPORTANT:
+    // - For JSON bodies, set Content-Type.
+    // - For FormData (multipart), NEVER set Content-Type manually (browser must set boundary).
+    const isFormData = (typeof FormData !== "undefined") && (options.body instanceof FormData);
+    if (options.body && !headers["Content-Type"] && !isFormData) headers["Content-Type"] = "application/json";
+    const token = localStorage.getItem("authToken");
+    if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
+    return fetch(String(path || ""), { ...options, headers });
   }
 
   async function mrJson(resp) {
     if (!resp) return {};
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
-      const msg = data?.error || data?.message || `Request failed (${resp.status})`;
-      throw new Error(String(msg));
+      const base = String(data?.error || data?.message || `Request failed (${resp.status})`);
+      const details = data && Object.prototype.hasOwnProperty.call(data, "details") ? String(data.details || "").trim() : "";
+      const suffix = details ? ` · ${details}` : "";
+      throw new Error(`${base} [${resp.status}]${suffix}`);
     }
     return data;
   }

@@ -805,42 +805,50 @@
 
     async function loadStageList() {
       setMain(`<div class="mr-muted">Loading...</div>`);
-      const data = await fetchStages({ isTeacher, difficulty: ui.stage.difficulty });
-      ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
-      ui.stage.view = "list";
-      ui.stage.stageId = "";
-      ui.stage.stageDetail = null;
-      setUrlParam("difficulty", ui.stage.difficulty);
-      setUrlParam("stageId", "");
-      setMain(renderStageList({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
-      bindStageHandlers();
+      try {
+        const data = await fetchStages({ isTeacher, difficulty: ui.stage.difficulty });
+        ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
+        ui.stage.view = "list";
+        ui.stage.stageId = "";
+        ui.stage.stageDetail = null;
+        setUrlParam("difficulty", ui.stage.difficulty);
+        setUrlParam("stageId", "");
+        setMain(renderStageList({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
+        bindStageHandlers();
+      } catch (e) {
+        setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
     }
 
     async function openStage(stageId) {
       ui.stage.stageId = String(stageId || "").trim();
       setUrlParam("stageId", ui.stage.stageId);
       setMain(`<div class="mr-muted">Loading stage...</div>`);
-      const data = await fetchStageDetail({ isTeacher, stageId: ui.stage.stageId });
-      ui.stage.stageDetail = data?.stage || null;
-      ui.stage.view = "play";
-      setMain(renderStagePlayShell({ stage: ui.stage.stageDetail }));
-      bindStageHandlers();
+      try {
+        const data = await fetchStageDetail({ isTeacher, stageId: ui.stage.stageId });
+        ui.stage.stageDetail = data?.stage || null;
+        ui.stage.view = "play";
+        setMain(renderStagePlayShell({ stage: ui.stage.stageDetail }));
+        bindStageHandlers();
 
-      const cfg = normalizeStageConfig(ui.stage.stageDetail?.config || {});
-      const initial = {
-        pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
-        stepsUsed: 0,
-        selected: null,
-        rocks: cfg.rocks.slice(),
-        blacks: cfg.blacks.slice(),
-        won: false,
-        msg: "",
-        msgType: "info"
-      };
-      ui.stage.playState = initial;
-      const host = document.getElementById("mrStagePlayHost");
-      if (host) host.innerHTML = renderPlayView({ stage: ui.stage.stageDetail, state: ui.stage.playState });
-      bindPlayHandlers();
+        const cfg = normalizeStageConfig(ui.stage.stageDetail?.config || {});
+        const initial = {
+          pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
+          stepsUsed: 0,
+          selected: null,
+          rocks: cfg.rocks.slice(),
+          blacks: cfg.blacks.slice(),
+          won: false,
+          msg: "",
+          msgType: "info"
+        };
+        ui.stage.playState = initial;
+        const host = document.getElementById("mrStagePlayHost");
+        if (host) host.innerHTML = renderPlayView({ stage: ui.stage.stageDetail, state: ui.stage.playState });
+        bindPlayHandlers();
+      } catch (e) {
+        setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
+      }
     }
 
     async function rerenderMain() {
@@ -855,11 +863,16 @@
       // Builder (teacher only)
       if (!isTeacher) return setMain(`<div class="mr-muted">Builder is for teachers only.</div>`);
       setMain(`<div class="mr-muted">Loading...</div>`);
-      const data = await fetchStages({ isTeacher: true, difficulty: ui.stage.difficulty });
-      ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
-      setMain(renderBuilder({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
-      bindBuilderHandlers();
-      return;
+      try {
+        const data = await fetchStages({ isTeacher: true, difficulty: ui.stage.difficulty });
+        ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
+        setMain(renderBuilder({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
+        bindBuilderHandlers();
+        return;
+      } catch (e) {
+        setMain(`<div class="mr-section-title">Builder</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
+        return;
+      }
     }
 
     const bindNav = () => {
