@@ -748,7 +748,7 @@
     return moves;
   }
 
-  function renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal, pos, selected }) {
+  function renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal, pos, selected, pieceType }) {
     const colsCss = `repeat(${cols}, var(--mr-cell, 36px))`;
     const cells = [];
     for (let r = 0; r < rows; r++) {
@@ -758,6 +758,7 @@
         const blk = blackAt(blacksMap, r, c);
         const isGoal = posEq(goal, { r, c });
         const isSel = selected && Number(selected.r) === r && Number(selected.c) === c;
+        const isPos = posEq(pos, { r, c });
         const classes = [
           "mr-cell",
           dark ? "is-dark" : "",
@@ -772,6 +773,9 @@
         } else if (blk) {
           const src = mrPieceImgSrc("b", blk.type);
           inner = src ? `<img src="${escapeHtml(src)}" alt="Black ${escapeHtml(String(blk.type || ''))}">` : escapeHtml(iconBlack(blk.type));
+        } else if (isPos) {
+          const src = mrPieceImgSrc("w", pieceType);
+          inner = src ? `<img src="${escapeHtml(src)}" alt="White ${escapeHtml(String(pieceType || ''))}">` : escapeHtml(iconWhite(pieceType));
         }
         cells.push(`<button type="button" class="${classes}" data-mr-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
       }
@@ -807,14 +811,7 @@
         </div>
       </div>
       <div class="mr-board-wrap-520" style="--mr-cell:${escapeHtml(String(cellPx))}px; --mr-gap:2px; --mr-pad:2px;">
-        <div id="mrBoardWrap" style="position:relative;">
-          ${renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal: cfg.goal, pos: state.pos, selected: state.selected })}
-          <div style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; display:grid; grid-template-columns: repeat(${cols}, var(--mr-cell, 36px)); gap: var(--mr-gap, 2px); padding: var(--mr-pad, 2px);">
-            <div style="grid-column:${state.pos.c + 1}; grid-row:${state.pos.r + 1}; width:var(--mr-cell, 36px); height:var(--mr-cell, 36px); display:flex; align-items:center; justify-content:center;">
-              ${pieceImg ? `<img src="${escapeHtml(pieceImg)}" alt="Piece">` : `<span style="font-size:18px; font-weight:950;">${escapeHtml(pieceIcon)}</span>`}
-            </div>
-          </div>
-        </div>
+        ${renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal: cfg.goal, pos: state.pos, selected: state.selected, pieceType: cfg.piece.type })}
       </div>
       ${state.msg ? `<div class="mr-card" style="margin-top:12px; background:${state.msgType === "ok" ? "#ecfdf5" : state.msgType === "err" ? "#fef2f2" : "#f8fafc"}; border-color:${state.msgType === "ok" ? "#10b98133" : state.msgType === "err" ? "#ef444433" : "#e5e7eb"};">
         <div style="font-weight:950; color:#111827;">${escapeHtml(state.msg)}</div>
