@@ -211,9 +211,9 @@
 
 .mr-board {
   display: grid;
-  gap: 2px;
+  gap: var(--mr-gap, 2px);
   background: #e5e7eb;
-  padding: 2px;
+  padding: var(--mr-pad, 2px);
   border-radius: 14px;
   width: fit-content;
   max-width: 100%;
@@ -221,8 +221,8 @@
 }
 
 .mr-cell {
-  width: 36px;
-  height: 36px;
+  width: var(--mr-cell, 36px);
+  height: var(--mr-cell, 36px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -259,11 +259,21 @@
 }
 
 .mr-cell img {
-  width: 26px;
-  height: 26px;
+  width: calc(var(--mr-cell, 36px) * 0.72);
+  height: calc(var(--mr-cell, 36px) * 0.72);
   object-fit: contain;
   display: block;
   pointer-events: none;
+}
+
+.mr-board-wrap-520 {
+  width: 520px;
+  height: 520px;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .mr-tool-row {

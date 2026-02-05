@@ -89,6 +89,9 @@
               )
               .join("")}
           </div>
+          <div class="mr-nav" style="margin-top:4px;">
+            <button type="button" class="mr-nav-btn" data-mr-open-rules="1">Rules</button>
+          </div>
           <div class="mr-sidebar-bottom">Template ready. Content coming soon.</div>
         </aside>
         <main class="mr-main">

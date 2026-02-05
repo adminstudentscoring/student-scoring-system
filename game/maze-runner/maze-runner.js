@@ -194,8 +194,8 @@
       const map = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn" };
       const nm = map[t] || "";
       if (!nm) return "";
-      // NOTE: We reuse existing shared pieces under /game/pieces for now.
-      return `/game/pieces/${c}_${nm}.png`;
+      // Use Maze Runner local assets
+      return `/game/maze-runner/images/pieces/${c}_${nm}.png`;
     };
 
     const renderCellContent = (r, c) => {
@@ -209,7 +209,7 @@
         return src ? `<img src="${escapeHtml(src)}" alt="Black ${escapeHtml(blk.type)}">` : escapeHtml(iconBlack(blk.type));
       }
       const isRock = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
-      if (isRock) return "⬛";
+      if (isRock) return `<img src="/game/maze-runner/images/pieces/rock_1.png" alt="Rock">`;
       return "";
     };
 
@@ -558,6 +558,29 @@
     return map[t] || t || "♟";
   }
 
+  function mrPieceImgSrc(color, type) {
+    const t = String(type || "").toUpperCase();
+    const c = String(color || "").toLowerCase() === "b" ? "black" : "white";
+    const map = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn" };
+    const nm = map[t] || "";
+    if (!nm) return "";
+    return `/game/maze-runner/images/pieces/${c}_${nm}.png`;
+  }
+
+  function mrRockImgSrc() {
+    return "/game/maze-runner/images/pieces/rock_1.png";
+  }
+
+  function computeCellPx({ rows, cols, targetPx = 520, gapPx = 2, padPx = 2 }) {
+    const r = Math.max(1, Number(rows) || 1);
+    const c = Math.max(1, Number(cols) || 1);
+    const availW = targetPx - (padPx * 2) - (gapPx * Math.max(0, c - 1));
+    const availH = targetPx - (padPx * 2) - (gapPx * Math.max(0, r - 1));
+    const cellW = Math.floor(availW / c);
+    const cellH = Math.floor(availH / r);
+    return Math.max(12, Math.min(cellW, cellH));
+  }
+
   function normalizeStageConfig(raw) {
     const cfg = raw && typeof raw === "object" ? raw : {};
     const rows = Math.max(2, Number(cfg?.board?.rows || 6) || 6);
@@ -697,7 +720,7 @@
   }
 
   function renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal, pos, selected }) {
-    const colsCss = `repeat(${cols}, 36px)`;
+    const colsCss = `repeat(${cols}, var(--mr-cell, 36px))`;
     const cells = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -706,7 +729,6 @@
         const blk = blackAt(blacksMap, r, c);
         const isGoal = posEq(goal, { r, c });
         const isSel = selected && Number(selected.r) === r && Number(selected.c) === c;
-        const isPos = posEq(pos, { r, c });
         const classes = [
           "mr-cell",
           dark ? "is-dark" : "",
@@ -715,11 +737,14 @@
           isGoal ? "is-goal" : "",
           isSel ? "is-selected" : ""
         ].filter(Boolean).join(" ");
-        let txt = "";
-        if (isRock) txt = "⬛";
-        else if (blk) txt = iconBlack(blk.type);
-        else if (isPos) txt = "♙"; // replaced by caller overlay (we keep simple)
-        cells.push(`<button type="button" class="${classes}" data-mr-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${escapeHtml(txt)}</button>`);
+        let inner = "";
+        if (isRock) {
+          inner = `<img src="${escapeHtml(mrRockImgSrc())}" alt="Rock">`;
+        } else if (blk) {
+          const src = mrPieceImgSrc("b", blk.type);
+          inner = src ? `<img src="${escapeHtml(src)}" alt="Black ${escapeHtml(String(blk.type || ''))}">` : escapeHtml(iconBlack(blk.type));
+        }
+        cells.push(`<button type="button" class="${classes}" data-mr-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
       }
     }
     return `<div class="mr-board" style="grid-template-columns:${colsCss};">${cells.join("")}</div>`;
@@ -732,9 +757,11 @@
     const rocksSet = buildRocksSet(state.rocks);
     const blacksMap = buildBlacksMap(state.blacks);
     const pieceIcon = iconWhite(cfg.piece.type);
+    const pieceImg = mrPieceImgSrc("w", cfg.piece.type);
     const maxStepsLabel = cfg.maxSteps == null ? "∞" : String(cfg.maxSteps);
     const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
     const unsafeNow = attacked.has(`${state.pos.r}:${state.pos.c}`) ? " (unsafe)" : "";
+    const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
 
     return `
       <div class="mr-hud">
@@ -750,26 +777,54 @@
           <button type="button" class="mr-btn primary" data-mr-next="1" style="display:${state.won ? "inline-flex" : "none"};">Next</button>
         </div>
       </div>
-      <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+      <div class="mr-board-wrap-520" style="--mr-cell:${escapeHtml(String(cellPx))}px; --mr-gap:2px; --mr-pad:2px;">
         <div id="mrBoardWrap" style="position:relative;">
           ${renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal: cfg.goal, pos: state.pos, selected: state.selected })}
-          <div style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; display:grid; grid-template-columns: repeat(${cols}, 36px); gap:2px; padding:2px;">
-            <div style="grid-column:${state.pos.c + 1}; grid-row:${state.pos.r + 1}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:950;">${escapeHtml(pieceIcon)}</div>
+          <div style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; display:grid; grid-template-columns: repeat(${cols}, var(--mr-cell, 36px)); gap: var(--mr-gap, 2px); padding: var(--mr-pad, 2px);">
+            <div style="grid-column:${state.pos.c + 1}; grid-row:${state.pos.r + 1}; width:var(--mr-cell, 36px); height:var(--mr-cell, 36px); display:flex; align-items:center; justify-content:center;">
+              ${pieceImg ? `<img src="${escapeHtml(pieceImg)}" alt="Piece">` : `<span style="font-size:18px; font-weight:950;">${escapeHtml(pieceIcon)}</span>`}
+            </div>
           </div>
         </div>
-        <div style="min-width:220px; flex:1 1 260px;">
-          <div style="font-weight:950; color:#111827;">Rules (current)</div>
-          <div class="mr-muted" style="margin-top:6px;">
-            - Rocks block movement (knight can jump).<br>
-            - You cannot move onto a square attacked by black pieces (unless capturing a black piece on that square).<br>
-            - Step limit: fail resets the stage.
+      </div>
+      ${state.msg ? `<div class="mr-card" style="margin-top:12px; background:${state.msgType === "ok" ? "#ecfdf5" : state.msgType === "err" ? "#fef2f2" : "#f8fafc"}; border-color:${state.msgType === "ok" ? "#10b98133" : state.msgType === "err" ? "#ef444433" : "#e5e7eb"};">
+        <div style="font-weight:950; color:#111827;">${escapeHtml(state.msg)}</div>
+      </div>` : ""}
+    `;
+  }
+
+  function openRulesModal(root) {
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="mrRulesBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Rules" style="width: calc(100vw - 40px); max-width: 980px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">Rules</div>
+            <button id="mrRulesClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
           </div>
-          ${state.msg ? `<div class="mr-card" style="margin-top:12px; background:${state.msgType === "ok" ? "#ecfdf5" : state.msgType === "err" ? "#fef2f2" : "#f8fafc"}; border-color:${state.msgType === "ok" ? "#10b98133" : state.msgType === "err" ? "#ef444433" : "#e5e7eb"};">
-            <div style="font-weight:950; color:#111827;">${escapeHtml(state.msg)}</div>
-          </div>` : ""}
+          <div class="vcp-modal-body">
+            <div style="font-weight:950; color:#111827;">Maze Runner</div>
+            <div class="mr-muted" style="margin-top:8px; line-height:1.55;">
+              - You control only <strong>one</strong> white piece (K/Q/R/B/N/P).<br>
+              - Reach the goal within the step limit.<br>
+              - Rocks cannot be captured and cannot be passed through (Knight can jump).<br>
+              - You cannot move onto squares attacked by black pieces, <strong>except</strong> you may move to capture the black piece on that square.<br>
+              - If you exceed the step limit, the stage restarts.
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+              <button id="mrRulesOk" type="button" class="mr-btn primary">OK</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
+    root.appendChild(host);
+    const close = () => { try { host.remove(); } catch {} };
+    host.querySelector("#mrRulesClose")?.addEventListener("click", close);
+    host.querySelector("#mrRulesOk")?.addEventListener("click", close);
+    host.querySelector("#mrRulesBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "mrRulesBackdrop") close();
+    });
   }
 
   window.initMazeRunner = async function initMazeRunner() {
@@ -887,6 +942,12 @@
           rerenderMain();
         });
       });
+
+      const rulesBtn = root.querySelector("[data-mr-open-rules]");
+      if (rulesBtn && rulesBtn.dataset.bound !== "1") {
+        rulesBtn.dataset.bound = "1";
+        rulesBtn.addEventListener("click", () => openRulesModal(root));
+      }
     };
 
     function bindStageHandlers() {
