@@ -26,6 +26,14 @@
     { key: "master", label: "Master" }
   ];
 
+  const HOME_STORY = [
+    "You step into a maze that *moves*.\nNot walls—rocks.\nNot floors—a chessboard.\nThey say only one white piece can slip through the shadow’s trap.",
+    "In your palm sits your guide: a single white piece (K / Q / R / B / N / P).\nIt’s not a soldier. It’s *you*.\nEach move spends steps, and the maze never waits.",
+    "Rocks block the way—no pushing, no breaking.\nBut a Knight can jump.\nYou learn fast: sometimes the best path isn’t forward… it’s a different kind of move.",
+    "Then come the black pieces.\nThey don’t chase you—they *control squares*.\nStep onto a guarded tile and you’re in danger… unless you land there by capturing the black piece.",
+    "A goal glows ahead like a quiet beacon.\nYou breathe in, steady your hands, and set the piece down.\nAlright.\nLet’s begin."
+  ];
+
   function diffLabel(key) {
     const k = String(key || "").toLowerCase();
     return DIFFICULTIES.find((d) => d.key === k)?.label || k || "Easy";
@@ -93,27 +101,37 @@
     return await mrJson(resp);
   }
 
-  function renderHome() {
+  function renderHome({ storyIndex = 0 } = {}) {
+    const idx = Math.max(0, Math.min(4, Number(storyIndex) || 0));
+    const total = HOME_STORY.length;
+    const raw = HOME_STORY[idx] || "";
+    const lines = String(raw)
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const storyHtml = lines.map((ln) => `<div style="margin-top:8px;">${escapeHtml(ln)}</div>`).join("");
+    const isLast = idx >= total - 1;
+
     return `
       <div class="mr-section-title">Maze Runner</div>
-      <div class="mr-muted" style="margin-top:8px; line-height:1.6;">
-        Guide a single white chess piece through a maze to reach the goal within the step limit.
-        Rocks block your path, and black pieces control dangerous squares.
-      </div>
-
       <div class="mr-card" style="margin-top:12px;">
-        <div style="font-weight:1000; color:#111827;">How to play</div>
-        <div class="mr-muted" style="margin-top:10px; line-height:1.7;">
-          - You control <strong>one</strong> white piece (K/Q/R/B/N/P).<br>
-          - Reach the <strong>goal</strong> square within the step limit.<br>
-          - Rocks cannot be captured (Knight can jump).<br>
-          - You cannot move onto squares attacked by black pieces, <strong>except</strong> when capturing the black piece on that square.<br>
-          - Clear the stage to unlock the next one.
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="font-weight:1000; color:#111827;">Story</div>
+          <div class="mr-muted">${escapeHtml(String(idx + 1))} / ${escapeHtml(String(total))}</div>
         </div>
-        <div style="display:flex; align-items:center; justify-content:center; min-height:140px; margin-top:10px;">
-          <button type="button" class="mr-btn primary" data-mr-start-game="1" style="min-width:220px;">
-            Start the Game
-          </button>
+        <div class="mr-muted" style="margin-top:12px; line-height:1.7;">
+          ${storyHtml}
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:center; min-height:150px; margin-top:12px;">
+          ${isLast ? `
+            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+              <button type="button" class="mr-btn" data-mr-home-rules="1" style="min-width:160px;">Rules</button>
+              <button type="button" class="mr-btn primary" data-mr-start-game="1" style="min-width:220px;">Start the Game</button>
+            </div>
+          ` : `
+            <button type="button" class="mr-btn primary" data-mr-story-next="1" style="min-width:200px;">Next</button>
+          `}
         </div>
       </div>
     `;
@@ -574,7 +592,7 @@
       ${list.length ? `
         <div class="mr-stage-grid">
           ${list.map((s) => `
-            <button type="button" class="mr-stage-card" data-mr-stage="${escapeHtml(String(s.id || ""))}" aria-label="Stage ${escapeHtml(String(s.stageNo ?? ""))}">
+            <button type="button" class="mr-stage-card ${s.__isComplete ? "is-complete" : ""}" data-mr-stage="${escapeHtml(String(s.id || ""))}" aria-label="Stage ${escapeHtml(String(s.stageNo ?? ""))}">
               ${escapeHtml(String(s.stageNo ?? ""))}
             </button>
           `).join("")}
@@ -968,12 +986,19 @@
 
     const ui = {
       mode: normalizeMode(getUrlMode() || "home", isTeacher),
+      home: {
+        storyIndex: 0
+      },
       stage: {
         difficulty: normalizeDiff(getUrlParam("difficulty") || "easy"),
         view: "list", // list | play
         stages: [],
         stageId: "",
         stageDetail: null
+      },
+      progress: {
+        completed: new Set(),
+        storageKey: ""
       },
       theme: {
         light: "#ffffff",
@@ -982,6 +1007,40 @@
     };
 
     root.innerHTML = renderShell({ role, mode: ui.mode });
+
+    // ---- progress: completed stages (local only) ----
+    const progressKey = () => {
+      if (isTeacher) return "mazeRunnerCompletedStages:teacher";
+      const sid = getPublicStudentIdFromPlayers();
+      return `mazeRunnerCompletedStages:student:${sid || "unknown"}`;
+    };
+    ui.progress.storageKey = progressKey();
+
+    const loadCompleted = () => {
+      try {
+        const raw = localStorage.getItem(ui.progress.storageKey);
+        const arr = raw ? JSON.parse(raw) : [];
+        ui.progress.completed = new Set(Array.isArray(arr) ? arr.map((x) => String(x)) : []);
+      } catch {
+        ui.progress.completed = new Set();
+      }
+    };
+    const saveCompleted = () => {
+      try {
+        localStorage.setItem(ui.progress.storageKey, JSON.stringify(Array.from(ui.progress.completed)));
+      } catch {}
+    };
+    const isStageComplete = (stageId) => ui.progress.completed.has(String(stageId || "").trim());
+    const markStageComplete = (stageId) => {
+      const id = String(stageId || "").trim();
+      if (!id) return;
+      ui.progress.completed.add(id);
+      // keep in-memory stage list in sync
+      const st = Array.isArray(ui.stage.stages) ? ui.stage.stages.find((s) => String(s?.id || "") === id) : null;
+      if (st) st.__isComplete = true;
+      saveCompleted();
+    };
+    loadCompleted();
 
     function isHexColor(s) {
       return /^#[0-9a-fA-F]{6}$/.test(String(s || "").trim());
@@ -1054,6 +1113,9 @@
       try {
         const data = await fetchStages({ isTeacher, difficulty: ui.stage.difficulty });
         ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
+        ui.stage.stages.forEach((s) => {
+          try { s.__isComplete = isStageComplete(s?.id); } catch {}
+        });
         ui.stage.view = "list";
         ui.stage.stageId = "";
         ui.stage.stageDetail = null;
@@ -1100,7 +1162,7 @@
 
     async function rerenderMain() {
       if (ui.mode === "home") {
-        await setMain(renderHome());
+        await setMain(renderHome({ storyIndex: ui.home.storyIndex }));
         bindHomeHandlers();
         return;
       }
@@ -1131,20 +1193,38 @@
     }
 
     function bindHomeHandlers() {
+      const nextBtn = root.querySelector("[data-mr-story-next]");
+      if (nextBtn && nextBtn.dataset.bound !== "1") {
+        nextBtn.dataset.bound = "1";
+        nextBtn.addEventListener("click", async () => {
+          ui.home.storyIndex = Math.min(4, Number(ui.home.storyIndex || 0) + 1);
+          await setMain(renderHome({ storyIndex: ui.home.storyIndex }));
+          bindHomeHandlers();
+        });
+      }
+
+      const homeRulesBtn = root.querySelector("[data-mr-home-rules]");
+      if (homeRulesBtn && homeRulesBtn.dataset.bound !== "1") {
+        homeRulesBtn.dataset.bound = "1";
+        homeRulesBtn.addEventListener("click", () => openRulesModal(root));
+      }
+
       const btn = root.querySelector("[data-mr-start-game]");
-      if (!btn || btn.dataset.bound === "1") return;
-      btn.dataset.bound = "1";
-      btn.addEventListener("click", async () => {
-        ui.mode = "stage";
-        ui.stage.difficulty = "easy";
-        ui.stage.diffPickedOnce = true;
-        setUrlMode(ui.mode);
-        setUrlParam("difficulty", ui.stage.difficulty);
-        setUrlParam("stageId", "");
-        rerenderShell();
-        // go to Stage page only (do not auto-enter a stage)
-        void rerenderMain();
-      });
+      if (btn && btn.dataset.bound !== "1") {
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", async () => {
+          ui.mode = "stage";
+          ui.stage.difficulty = "easy";
+          ui.stage.diffPickedOnce = true;
+          ui.home.storyIndex = 0;
+          setUrlMode(ui.mode);
+          setUrlParam("difficulty", ui.stage.difficulty);
+          setUrlParam("stageId", "");
+          rerenderShell();
+          // go to Stage page only (do not auto-enter a stage)
+          void rerenderMain();
+        });
+      }
     }
 
     const bindNav = () => {
@@ -1310,6 +1390,7 @@
           // Win?
           if (posEq(state.pos, cfg.goal)) {
             state.won = true;
+            markStageComplete(String(stage?.id || ui.stage.stageId || ""));
             // Success: modal with Next button
             openSuccessModal(root, {
               onNext: async () => {

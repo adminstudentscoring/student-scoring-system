@@ -227,6 +227,12 @@
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
+.mr-stage-card.is-complete {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
 .mr-stage-card:hover {
   transform: translateY(-2px);
   border-color: rgba(102, 126, 234, 0.55);
