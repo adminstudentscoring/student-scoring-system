@@ -24,6 +24,19 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
+
+        /* Full-bleed layout for fixed-sidebar apps */
+        body.game-is-maze-runner {
+            padding: 0;
+        }
+        body.game-is-maze-runner .game-window-container {
+            border-radius: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        body.game-is-maze-runner .game-area-content {
+            padding: 0;
+        }
         .game-window-container {
             background: white;
             border-radius: 15px;
