@@ -95,8 +95,25 @@
 
   function renderHome() {
     return `
-      <div class="mr-section-title">Welcome</div>
-      <div class="mr-muted" style="margin-top:8px;">Maze Runner template is ready.</div>
+      <div class="mr-section-title">Maze Runner</div>
+      <div class="mr-muted" style="margin-top:8px; line-height:1.6;">
+        Guide a single white chess piece through a maze to reach the goal within the step limit.
+        Rocks block your path, and black pieces control dangerous squares.
+      </div>
+
+      <div class="mr-card" style="margin-top:12px;">
+        <div style="font-weight:1000; color:#111827;">How to play</div>
+        <div class="mr-muted" style="margin-top:10px; line-height:1.7;">
+          - You control <strong>one</strong> white piece (K/Q/R/B/N/P).<br>
+          - Reach the <strong>goal</strong> square within the step limit.<br>
+          - Rocks cannot be captured (Knight can jump).<br>
+          - You cannot move onto squares attacked by black pieces, <strong>except</strong> when capturing the black piece on that square.<br>
+          - Clear the stage to unlock the next one.
+        </div>
+        <div style="display:flex; justify-content:flex-end; margin-top:14px; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="mr-btn primary" data-mr-start-game="1">Start the Game</button>
+        </div>
+      </div>
     `;
   }
 
@@ -1080,7 +1097,11 @@
     }
 
     async function rerenderMain() {
-      if (ui.mode === "home") return await setMain(renderHome());
+      if (ui.mode === "home") {
+        await setMain(renderHome());
+        bindHomeHandlers();
+        return;
+      }
       if (ui.mode === "challenge") return await setMain(renderChallenge());
       if (ui.mode === "settings") {
         await setMain(renderSettings());
@@ -1105,6 +1126,44 @@
         await setMain(`<div class="mr-section-title">Builder</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
         return;
       }
+    }
+
+    function bindHomeHandlers() {
+      const btn = root.querySelector("[data-mr-start-game]");
+      if (!btn || btn.dataset.bound === "1") return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", async () => {
+        ui.mode = "stage";
+        ui.stage.difficulty = "easy";
+        ui.stage.diffPickedOnce = true;
+        setUrlMode(ui.mode);
+        setUrlParam("difficulty", ui.stage.difficulty);
+        setUrlParam("stageId", "");
+        rerenderShell();
+
+        await setMain(`<div class="mr-muted">Loading stage 1...</div>`);
+        try {
+          const data = await fetchStages({ isTeacher, difficulty: "easy" });
+          const stages = Array.isArray(data?.stages) ? data.stages : [];
+          const stage1 = stages.find((s) => Number(s?.stageNo) === 1) || null;
+          if (stage1?.id) {
+            await openStage(String(stage1.id));
+            return;
+          }
+          // fallback: open the smallest stageNo if stage 1 not found
+          const sorted = stages
+            .slice()
+            .filter((s) => s && s.id != null)
+            .sort((a, b) => Number(a.stageNo ?? 0) - Number(b.stageNo ?? 0));
+          if (sorted[0]?.id) {
+            await openStage(String(sorted[0].id));
+            return;
+          }
+          await setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">No stages found in Easy yet.</div>`);
+        } catch (e) {
+          await setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      });
     }
 
     const bindNav = () => {
