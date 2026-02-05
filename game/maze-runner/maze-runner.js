@@ -109,7 +109,7 @@
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
-    const storyHtml = lines.map((ln) => `<div style="margin-top:8px;">${escapeHtml(ln)}</div>`).join("");
+    const storyHtml = lines.map((ln) => `<div style="margin-top:10px;">${escapeHtml(ln)}</div>`).join("");
     const isLast = idx >= total - 1;
 
     return `
@@ -119,18 +119,18 @@
           <div style="font-weight:1000; color:#111827;">Story</div>
           <div class="mr-muted">${escapeHtml(String(idx + 1))} / ${escapeHtml(String(total))}</div>
         </div>
-        <div class="mr-muted" style="margin-top:12px; line-height:1.7;">
+        <div class="mr-muted" style="margin-top:14px; line-height:1.75; text-align:center; font-size:200%; max-width:920px; margin-left:auto; margin-right:auto;">
           ${storyHtml}
         </div>
 
         <div style="display:flex; align-items:center; justify-content:center; min-height:150px; margin-top:12px;">
           ${isLast ? `
-            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
-              <button type="button" class="mr-btn" data-mr-home-rules="1" style="min-width:160px;">Rules</button>
-              <button type="button" class="mr-btn primary" data-mr-start-game="1" style="min-width:220px;">Start the Game</button>
+            <div style="display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; width:100%;">
+              <button type="button" class="mr-btn" data-mr-home-rules="1" style="width:280px; max-width:80vw;">Rules</button>
+              <button type="button" class="mr-btn primary" data-mr-start-game="1" style="width:280px; max-width:80vw;">Start the Game</button>
             </div>
           ` : `
-            <button type="button" class="mr-btn primary" data-mr-story-next="1" style="min-width:200px;">Next</button>
+            <button type="button" class="mr-btn primary" data-mr-story-next="1" style="width:280px; max-width:80vw;">Next</button>
           `}
         </div>
       </div>
