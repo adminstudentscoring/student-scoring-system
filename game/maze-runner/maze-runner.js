@@ -536,18 +536,21 @@
   function renderStageList({ difficulty, stages }) {
     const diff = normalizeDiff(difficulty);
     const list = Array.isArray(stages) ? stages : [];
+    const pickerHidden = !!stages?.__hideDiffPicker; // internal flag
     return `
       <div class="mr-toolbar">
-        <div>
-          <div class="mr-section-title">Stage</div>
-          <div class="mr-muted" style="margin-top:6px;">Choose a difficulty, then pick a stage.</div>
+        <div></div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div class="mr-badge">${escapeHtml(diffLabel(diff))}</div>
+          <button type="button" class="mr-btn" data-mr-change-diff="1" style="display:${pickerHidden ? "inline-flex" : "none"};">Change</button>
         </div>
-        <div class="mr-badge">${escapeHtml(diffLabel(diff))}</div>
       </div>
-      <div class="mr-diff-row" role="tablist" aria-label="Difficulty">
-        ${DIFFICULTIES.map((d) => `
-          <button type="button" class="mr-pill ${d.key === diff ? "is-active" : ""}" data-mr-diff="${escapeHtml(d.key)}">${escapeHtml(d.label)}</button>
-        `).join("")}
+      <div class="mr-diff-picker ${pickerHidden ? "is-hidden" : ""}">
+        <div class="mr-diff-grid" role="tablist" aria-label="Difficulty">
+          ${DIFFICULTIES.map((d) => `
+            <button type="button" class="mr-diff-square ${d.key === diff ? "is-active" : ""}" data-mr-diff="${escapeHtml(d.key)}">${escapeHtml(d.label)}</button>
+          `).join("")}
+        </div>
       </div>
       ${list.length ? `
         <div class="mr-stage-grid">
@@ -1003,7 +1006,15 @@
 
     const setMain = (html) => {
       const el = document.getElementById("mrMain");
-      if (el) el.innerHTML = html;
+      if (!el) return;
+      el.classList.add("mr-fade", "is-out");
+      // Fade out -> replace -> fade in
+      setTimeout(() => {
+        try { el.innerHTML = html; } catch {}
+        requestAnimationFrame(() => {
+          try { el.classList.remove("is-out"); } catch {}
+        });
+      }, 140);
     };
 
     const rerenderShell = () => {
@@ -1021,7 +1032,10 @@
         ui.stage.stageDetail = null;
         setUrlParam("difficulty", ui.stage.difficulty);
         setUrlParam("stageId", "");
-        setMain(renderStageList({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
+        // internal flag to control difficulty picker visibility
+        const list = ui.stage.stages.slice();
+        list.__hideDiffPicker = !!ui.stage.diffPickedOnce;
+        setMain(renderStageList({ difficulty: ui.stage.difficulty, stages: list }));
         bindStageHandlers();
       } catch (e) {
         setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
@@ -1147,6 +1161,13 @@
           const next = normalizeDiff(btn.getAttribute("data-mr-diff"));
           if (next === ui.stage.difficulty) return;
           ui.stage.difficulty = next;
+          ui.stage.diffPickedOnce = true;
+          loadStageList();
+        });
+      });
+      root.querySelectorAll("[data-mr-change-diff]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          ui.stage.diffPickedOnce = false;
           loadStageList();
         });
       });

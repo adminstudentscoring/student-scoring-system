@@ -75,7 +75,7 @@
     if (isTeacher) nav.splice(3, 0, { key: "builder", label: "Builder" });
 
     return `
-      <div class="mr-app">
+      <div class="mr-app" data-mr-mode="${escapeHtml(String(mode || ""))}">
         <aside class="mr-sidebar" aria-label="Maze Runner sidebar">
           <div class="mr-side-title">🧩 Maze Runner</div>
           <div class="mr-side-sub">${escapeHtml(isTeacher ? "teacher" : "student")}</div>
