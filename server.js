@@ -5875,8 +5875,11 @@ async function startServer() {
     });
   });
 
-  server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  // IMPORTANT for containers/PaaS (Railway, Render, Fly, etc.):
+  // - bind to 0.0.0.0 so the platform can route traffic into the container
+  // - still respect PORT provided by the platform
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
     console.log(`Environment: ${NODE_ENV}`);
     console.log(`Data file: ${DATA_FILE}`);
   });
