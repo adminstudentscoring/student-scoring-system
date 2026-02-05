@@ -805,33 +805,23 @@
     const cols = cfg.board.cols;
     const rocksSet = buildRocksSet(state.rocks);
     const blacksMap = buildBlacksMap(state.blacks);
-    const pieceIcon = iconWhite(cfg.piece.type);
-    const pieceImg = mrPieceImgSrc("w", cfg.piece.type);
     const maxStepsLabel = cfg.maxSteps == null ? "∞" : String(cfg.maxSteps);
     const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
-    const unsafeNow = attacked.has(`${state.pos.r}:${state.pos.c}`) ? " (unsafe)" : "";
     const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
 
     return `
       <div class="mr-hud">
-        <div class="mr-badge">Piece: ${escapeHtml(cfg.piece.type)} ${escapeHtml(pieceIcon)}</div>
         <div class="mr-badge">Steps: ${escapeHtml(String(state.stepsUsed))} / ${escapeHtml(maxStepsLabel)}</div>
-        <div class="mr-badge">Goal: (${escapeHtml(String(cfg.goal.r + 1))}, ${escapeHtml(String(cfg.goal.c + 1))})</div>
-        <div class="mr-badge">Pos: (${escapeHtml(String(state.pos.r + 1))}, ${escapeHtml(String(state.pos.c + 1))})${escapeHtml(unsafeNow)}</div>
       </div>
       <div class="mr-toolbar" style="margin-top:0;">
         <div></div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button type="button" class="mr-btn" data-mr-reset="1">Reset</button>
-          <button type="button" class="mr-btn primary" data-mr-next="1" style="display:${state.won ? "inline-flex" : "none"};">Next</button>
         </div>
       </div>
       <div class="mr-board-wrap-520" style="--mr-cell:${escapeHtml(String(cellPx))}px; --mr-gap:2px; --mr-pad:2px;">
         ${renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal: cfg.goal, pos: state.pos, selected: state.selected, pieceType: cfg.piece.type })}
       </div>
-      ${state.msg ? `<div class="mr-card" style="margin-top:12px; background:${state.msgType === "ok" ? "#ecfdf5" : state.msgType === "err" ? "#fef2f2" : "#f8fafc"}; border-color:${state.msgType === "ok" ? "#10b98133" : state.msgType === "err" ? "#ef444433" : "#e5e7eb"};">
-        <div style="font-weight:950; color:#111827;">${escapeHtml(state.msg)}</div>
-      </div>` : ""}
     `;
   }
 
@@ -895,6 +885,41 @@
     host.querySelector("#mrAttackOk")?.addEventListener("click", close);
     host.querySelector("#mrAttackBackdrop")?.addEventListener("click", (e) => {
       if (e.target && e.target.id === "mrAttackBackdrop") close();
+    });
+  }
+
+  function openSuccessModal(root, opts = {}) {
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="mrSuccessBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Success" style="width: calc(100vw - 40px); max-width: 720px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">Success</div>
+            <button id="mrSuccessClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="font-weight:1000; color:#16a34a; font-size:26px; letter-spacing:0.2px;">
+              Congrarts! You have done this
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px; flex-wrap:wrap;">
+              <button id="mrSuccessNext" type="button" class="mr-btn primary">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    root.appendChild(host);
+    const close = () => { try { host.remove(); } catch {} };
+    host.querySelector("#mrSuccessClose")?.addEventListener("click", close);
+    host.querySelector("#mrSuccessBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "mrSuccessBackdrop") close();
+    });
+    host.querySelector("#mrSuccessNext")?.addEventListener("click", async () => {
+      try {
+        if (typeof opts.onNext === "function") await opts.onNext();
+      } finally {
+        close();
+      }
     });
   }
 
@@ -1021,9 +1046,7 @@
           selected: null,
           rocks: cfg.rocks.slice(),
           blacks: cfg.blacks.slice(),
-          won: false,
-          msg: "",
-          msgType: "info"
+          won: false
         };
         ui.stage.playState = initial;
         const host = document.getElementById("mrStagePlayHost");
@@ -1150,37 +1173,19 @@
         bindPlayHandlers();
       };
 
-      const reset = (msg, msgType) => {
+      const reset = () => {
         ui.stage.playState = {
           pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
           stepsUsed: 0,
           selected: null,
           rocks: cfg.rocks.slice(),
           blacks: cfg.blacks.slice(),
-          won: false,
-          msg: msg || "",
-          msgType: msgType || "info"
+          won: false
         };
         rerenderPlay();
       };
 
-      host.querySelectorAll("[data-mr-reset]").forEach((btn) => btn.addEventListener("click", () => reset("Reset.", "info")));
-
-      host.querySelectorAll("[data-mr-next]").forEach((btn) =>
-        btn.addEventListener("click", async () => {
-          // Next stage in same difficulty (by stageNo)
-          const curNo = Number(stage?.stageNo || 0) || 0;
-          const list = Array.isArray(ui.stage.stages) ? ui.stage.stages : [];
-          const next = list.find((s) => Number(s.stageNo) === curNo + 1);
-          if (next && next.id) {
-            await openStage(next.id);
-          } else {
-            ui.stage.playState.msg = "No next stage in this difficulty.";
-            ui.stage.playState.msgType = "info";
-            rerenderPlay();
-          }
-        })
-      );
+      host.querySelectorAll("[data-mr-reset]").forEach((btn) => btn.addEventListener("click", () => reset()));
 
       host.querySelectorAll("[data-mr-cell]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1198,7 +1203,6 @@
           if (!state.selected) {
             if (state.pos.r === r && state.pos.c === c) {
               state.selected = { r, c };
-              state.msg = "";
               rerenderPlay();
             }
             return;
@@ -1214,8 +1218,6 @@
           if (!isLegal) {
             // Illegal move: flash whole screen 3 times
             flashIllegalMove(root);
-            state.msg = "";
-            state.msgType = "info";
             return rerenderPlay();
           }
 
@@ -1225,8 +1227,6 @@
           if (attacked.has(`${to.r}:${to.c}`) && !targetBlack) {
             // Attacked square: modal warning, continue game after close
             openAttackModal(root);
-            state.msg = "";
-            state.msgType = "info";
             return rerenderPlay();
           }
 
@@ -1241,18 +1241,25 @@
           // Win?
           if (posEq(state.pos, cfg.goal)) {
             state.won = true;
-            state.msg = "Success! You reached the goal.";
-            state.msgType = "ok";
+            // Success: modal with Next button
+            openSuccessModal(root, {
+              onNext: async () => {
+                const curNo = Number(stage?.stageNo || 0) || 0;
+                const list = Array.isArray(ui.stage.stages) ? ui.stage.stages : [];
+                const next = list.find((s) => Number(s.stageNo) === curNo + 1);
+                if (next && next.id) {
+                  await openStage(next.id);
+                }
+              }
+            });
             return rerenderPlay();
           }
 
           // Step limit fail?
           if (cfg.maxSteps != null && state.stepsUsed >= cfg.maxSteps) {
-            return reset("Failed: step limit reached. Restarting stage.", "err");
+            return reset();
           }
 
-          state.msg = "";
-          state.msgType = "info";
           return rerenderPlay();
         });
       });
