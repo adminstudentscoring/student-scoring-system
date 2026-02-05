@@ -110,7 +110,36 @@
   function renderSettings() {
     return `
       <div class="mr-section-title">Setting</div>
-      <div class="mr-muted" style="margin-top:8px;">Coming soon.</div>
+      <div class="mr-muted" style="margin-top:8px;">Customize the board colors.</div>
+      <div class="mr-card" style="margin-top:12px;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:end;">
+          <div>
+            <div style="font-weight:950; color:#111827;">Light squares</div>
+            <input id="mrSettingLight" type="color" style="margin-top:8px; width:100%; height:46px; border:none; background:transparent; padding:0;">
+          </div>
+          <div>
+            <div style="font-weight:950; color:#111827;">Dark squares</div>
+            <input id="mrSettingDark" type="color" style="margin-top:8px; width:100%; height:46px; border:none; background:transparent; padding:0;">
+          </div>
+        </div>
+        <div class="mr-muted" style="margin-top:10px;">Preview</div>
+        <div style="margin-top:10px;">
+          <div class="mr-board" style="--mr-cell:40px; --mr-gap:2px; --mr-pad:2px; grid-template-columns: repeat(4, var(--mr-cell, 40px));">
+            ${Array.from({ length: 16 }).map((_, i) => {
+              const r = Math.floor(i / 4);
+              const c = i % 4;
+              const dark = (r + c) % 2 === 1;
+              const cls = `mr-cell ${dark ? "is-dark" : ""}`.trim();
+              return `<div class="${cls}" style="cursor:default;"></div>`;
+            }).join("")}
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:14px;">
+          <button id="mrSettingReset" type="button" class="mr-btn">Reset</button>
+          <button id="mrSettingSave" type="button" class="mr-btn primary">Save</button>
+        </div>
+        <div id="mrSettingHint" class="mr-muted" style="margin-top:10px;"></div>
+      </div>
     `;
   }
 
@@ -843,10 +872,54 @@
         stages: [],
         stageId: "",
         stageDetail: null
+      },
+      theme: {
+        light: "#ffffff",
+        dark: "#f3f4f6"
       }
     };
 
     root.innerHTML = renderShell({ role, mode: ui.mode });
+
+    function isHexColor(s) {
+      return /^#[0-9a-fA-F]{6}$/.test(String(s || "").trim());
+    }
+
+    function loadTheme() {
+      try {
+        const l = String(localStorage.getItem("mazeRunnerBoardLight") || "").trim();
+        const d = String(localStorage.getItem("mazeRunnerBoardDark") || "").trim();
+        if (isHexColor(l)) ui.theme.light = l;
+        if (isHexColor(d)) ui.theme.dark = d;
+      } catch {}
+    }
+
+    function applyTheme() {
+      try {
+        root.style.setProperty("--mr-light", ui.theme.light);
+        root.style.setProperty("--mr-dark", ui.theme.dark);
+      } catch {}
+    }
+
+    function saveTheme() {
+      try {
+        localStorage.setItem("mazeRunnerBoardLight", ui.theme.light);
+        localStorage.setItem("mazeRunnerBoardDark", ui.theme.dark);
+      } catch {}
+    }
+
+    function resetTheme() {
+      ui.theme.light = "#ffffff";
+      ui.theme.dark = "#f3f4f6";
+      try {
+        localStorage.removeItem("mazeRunnerBoardLight");
+        localStorage.removeItem("mazeRunnerBoardDark");
+      } catch {}
+      applyTheme();
+    }
+
+    loadTheme();
+    applyTheme();
 
     const setMain = (html) => {
       const el = document.getElementById("mrMain");
@@ -909,7 +982,11 @@
     async function rerenderMain() {
       if (ui.mode === "home") return setMain(renderHome());
       if (ui.mode === "challenge") return setMain(renderChallenge());
-      if (ui.mode === "settings") return setMain(renderSettings());
+      if (ui.mode === "settings") {
+        setMain(renderSettings());
+        bindSettingsHandlers();
+        return;
+      }
       if (ui.mode === "stage") {
         const deepStageId = String(getUrlParam("stageId") || "").trim();
         if (deepStageId) return await openStage(deepStageId);
@@ -949,6 +1026,42 @@
         rulesBtn.addEventListener("click", () => openRulesModal(root));
       }
     };
+
+    function bindSettingsHandlers() {
+      const light = root.querySelector("#mrSettingLight");
+      const dark = root.querySelector("#mrSettingDark");
+      const saveBtn = root.querySelector("#mrSettingSave");
+      const resetBtn = root.querySelector("#mrSettingReset");
+      const hint = root.querySelector("#mrSettingHint");
+
+      if (light) light.value = ui.theme.light;
+      if (dark) dark.value = ui.theme.dark;
+
+      const setHint = (txt) => { if (hint) hint.textContent = String(txt || ""); };
+
+      light?.addEventListener("input", () => {
+        const v = String(light.value || "").trim();
+        if (isHexColor(v)) ui.theme.light = v;
+        applyTheme();
+        setHint("Preview updated.");
+      });
+      dark?.addEventListener("input", () => {
+        const v = String(dark.value || "").trim();
+        if (isHexColor(v)) ui.theme.dark = v;
+        applyTheme();
+        setHint("Preview updated.");
+      });
+      saveBtn?.addEventListener("click", () => {
+        saveTheme();
+        setHint("Saved.");
+      });
+      resetBtn?.addEventListener("click", () => {
+        resetTheme();
+        if (light) light.value = ui.theme.light;
+        if (dark) dark.value = ui.theme.dark;
+        setHint("Reset to defaults.");
+      });
+    }
 
     function bindStageHandlers() {
       root.querySelectorAll("[data-mr-diff]").forEach((btn) => {

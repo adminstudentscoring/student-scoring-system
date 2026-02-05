@@ -230,18 +230,17 @@
   border-radius: 6px;
   font-weight: 900;
   cursor: pointer;
-  background: #ffffff;
+  background: var(--mr-light, #ffffff);
   padding: 0;
   border: none;
 }
 
 .mr-cell.is-dark {
-  background: #f3f4f6;
+  background: var(--mr-dark, #f3f4f6);
 }
 
 .mr-cell.is-rock {
-  background: #111827;
-  color: #ffffff;
+  /* Keep original square color; rock is shown by image */
 }
 
 .mr-cell.is-goal {
