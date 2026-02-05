@@ -1241,6 +1241,34 @@ function openTacticsFighterAsMe() {
 
 window.openTacticsFighterAsMe = openTacticsFighterAsMe;
 
+function openMazeRunnerAsMe() {
+    if (!currentUser || !currentUser.id) {
+        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
+        return;
+    }
+    const player = {
+        id: String(currentUser.id),
+        name: String(currentUser.name || currentUser.email || 'Teacher'),
+        studentId: String(currentUser.teacherId || currentUser.id)
+    };
+    try {
+        localStorage.setItem('mazeRunnerPlayers', JSON.stringify([player]));
+    } catch (error) {
+        console.warn('Unable to persist mazeRunnerPlayers to localStorage:', error);
+    }
+
+    const url = '/game/game-window.html?game=mazeRunner&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Maze Runner opened in a new tab', 'success');
+}
+
+window.openMazeRunnerAsMe = openMazeRunnerAsMe;
+
 function openBlundersTeacherMode() {
     // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
     const url = '/game/game-window.html?game=blunders&role=teacher';
@@ -2420,6 +2448,7 @@ const SHARE_APP_DEST_ORDER = [
     'game_royalExchange',
     'game_hopeMate',
     'game_tacticsFighter',
+    'game_mazeRunner',
     'game_blunders'
 ];
 
@@ -2430,6 +2459,7 @@ const SHARE_APP_DEST_MAP = {
     game_royalExchange: { label: 'Royal Exchange', openGame: 'royalExchange' },
     game_hopeMate: { label: 'Hope Mate', openGame: 'hopeMate' },
     game_tacticsFighter: { label: 'Tactics Fighter', openGame: 'tacticsFighter' },
+    game_mazeRunner: { label: 'Maze Runner', openGame: 'mazeRunner' },
     game_blunders: { label: 'Blunders', openGame: 'blunders' }
 };
 

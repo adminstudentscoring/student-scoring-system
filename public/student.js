@@ -313,6 +313,21 @@ window.openStudentGame = function(gameKey, options = {}) {
         return;
     }
 
+    if (gameKey === 'mazeRunner') {
+        try {
+            localStorage.setItem('mazeRunnerPlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist mazeRunnerPlayers', e);
+        }
+        const url = `/game/game-window.html?game=mazeRunner&role=student`;
+        if (openMode === 'sameTab') {
+            window.location.href = url;
+        } else {
+            window.open(url, '_blank');
+        }
+        return;
+    }
+
     if (gameKey === 'blunders') {
         try {
             localStorage.setItem('blundersPlayers', JSON.stringify([player]));

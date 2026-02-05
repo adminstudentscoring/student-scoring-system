@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/game/hope-mate.css">
     <link rel="stylesheet" href="/game/blunders/blunders.css">
     <link rel="stylesheet" href="/game/tactics-fighter/tactics-fighter.css">
+    <link rel="stylesheet" href="/game/maze-runner/maze-runner.css">
     <link rel="stylesheet" href="/game/vchess-platform/vchess-platform.css">
     <link rel="stylesheet" href="/game/vchess-platform/normal-chess.css">
     <style>
@@ -78,6 +79,7 @@
                 document.body.classList.toggle('game-is-blunders', gameKey === 'blunders');
                 document.body.classList.toggle('game-is-running-queen', gameKey === 'runningQueen');
                 document.body.classList.toggle('game-is-tactics-fighter', gameKey === 'tacticsFighter');
+                document.body.classList.toggle('game-is-maze-runner', gameKey === 'mazeRunner');
                 document.body.classList.toggle('game-is-vcp', gameKey === 'vChessPlatform');
 
                 if (gameKey === 'runningQueen') {
@@ -239,6 +241,28 @@
                         window.initTacticsFighter();
                     } else {
                         showError('Tactics Fighter script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'mazeRunner') {
+                    content.innerHTML = `
+                        <div id="mazeRunnerRoot" class="maze-runner-root">
+                            <h2>🧩 Maze Runner</h2>
+                            <p>Loading...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('mazeRunnerPlayers');
+                        if (storedPlayers) {
+                            window.mazeRunnerPlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore maze runner players from storage:', error);
+                    }
+                    await loadScript('/game/maze-runner/core.js');
+                    await loadScript('/game/maze-runner/maze-runner.js');
+                    if (window.initMazeRunner) {
+                        window.initMazeRunner();
+                    } else {
+                        showError('Maze Runner script loaded but init function missing.');
                     }
                 } else if (gameKey === 'vChessPlatform') {
                     content.innerHTML = `
