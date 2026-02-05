@@ -163,6 +163,16 @@
     return await mrJson(resp);
   }
 
+  async function updateStage(stageId, config) {
+    const id = String(stageId || "").trim();
+    if (!id) throw new Error("Missing stageId");
+    const resp = await apiRequest(`/api/teachers/maze-runner/stages/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ config: config && typeof config === "object" ? config : {} })
+    });
+    return await mrJson(resp);
+  }
+
   function renderBuilder({ difficulty, stages }) {
     const diff = normalizeDiff(difficulty);
     const list = Array.isArray(stages) ? stages : [];
@@ -184,9 +194,9 @@
       ${list.length ? `
         <div class="mr-stage-grid">
           ${list.map((s) => `
-            <div class="mr-stage-card" style="cursor:default;" title="Stage ${escapeHtml(String(s.stageNo ?? ""))}">
+            <button type="button" class="mr-stage-card" data-mr-builder-edit="${escapeHtml(String(s.id || ''))}" title="Stage ${escapeHtml(String(s.stageNo ?? ""))}">
               ${escapeHtml(String(s.stageNo ?? ""))}
-            </div>
+            </button>
           `).join("")}
         </div>
       ` : `
@@ -195,9 +205,11 @@
     `;
   }
 
-  function openCreateStageModal({ root, difficulty, onCreated }) {
-    const diff = normalizeDiff(difficulty);
-    let cfg = defaultStageConfig();
+  function openCreateStageModal({ root, difficulty, stage, onCreated }) {
+    const diff = normalizeDiff(stage?.difficulty || difficulty);
+    const isEdit = !!(stage && stage.id);
+    const stageNo = stage?.stageNo != null ? Number(stage.stageNo) : null;
+    let cfg = (stage && typeof stage.config === "object" && stage.config) ? stage.config : defaultStageConfig();
     let tool = "start"; // start | goal | rock | black | erase
     let blackType = "P";
 
@@ -272,7 +284,7 @@
       <div class="vcp-modal-backdrop" id="mrCreateBackdrop" role="presentation">
         <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Create stage" style="width: calc(100vw - 40px); max-width: 1300px;">
           <div class="vcp-modal-header">
-            <div class="vcp-modal-title">Create Stage (${escapeHtml(diffLabel(diff))})</div>
+            <div class="vcp-modal-title">${isEdit ? `Edit Stage ${escapeHtml(String(stageNo ?? ''))}` : 'Create Stage'} (${escapeHtml(diffLabel(diff))})</div>
             <button id="mrCreateClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
           </div>
           <div class="vcp-modal-body">
@@ -360,7 +372,7 @@
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px;">
               <button id="mrCreateCancel" class="mr-btn" type="button">Cancel</button>
-              <button id="mrCreateSave" class="mr-btn primary" type="button">Create</button>
+              <button id="mrCreateSave" class="mr-btn primary" type="button">${isEdit ? 'Save' : 'Create'}</button>
             </div>
           </div>
         </div>
@@ -507,7 +519,11 @@
     host.querySelector("#mrCreateSave")?.addEventListener("click", async () => {
       try {
         clampCfgToBoard();
-        await createStage({ difficulty: diff, config: cfg });
+        if (isEdit) {
+          await updateStage(String(stage.id), cfg);
+        } else {
+          await createStage({ difficulty: diff, config: cfg });
+        }
         close();
         if (typeof onCreated === "function") onCreated();
       } catch (e) {
@@ -804,7 +820,7 @@
         <div class="mr-badge">Pos: (${escapeHtml(String(state.pos.r + 1))}, ${escapeHtml(String(state.pos.c + 1))})${escapeHtml(unsafeNow)}</div>
       </div>
       <div class="mr-toolbar" style="margin-top:0;">
-        <div class="mr-muted">Click the piece, then click a destination.</div>
+        <div></div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button type="button" class="mr-btn" data-mr-reset="1">Reset</button>
           <button type="button" class="mr-btn primary" data-mr-next="1" style="display:${state.won ? "inline-flex" : "none"};">Next</button>
@@ -851,6 +867,48 @@
     host.querySelector("#mrRulesBackdrop")?.addEventListener("click", (e) => {
       if (e.target && e.target.id === "mrRulesBackdrop") close();
     });
+  }
+
+  function openAttackModal(root) {
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="mrAttackBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Attack warning" style="width: calc(100vw - 40px); max-width: 720px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">Warning</div>
+            <button id="mrAttackClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="font-weight:1000; color:#ef4444; font-size:28px; letter-spacing:0.5px;">
+              YOU ARE BEING ATTACK!!!
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+              <button id="mrAttackOk" type="button" class="mr-btn primary">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    root.appendChild(host);
+    const close = () => { try { host.remove(); } catch {} };
+    host.querySelector("#mrAttackClose")?.addEventListener("click", close);
+    host.querySelector("#mrAttackOk")?.addEventListener("click", close);
+    host.querySelector("#mrAttackBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "mrAttackBackdrop") close();
+    });
+  }
+
+  function flashIllegalMove(root) {
+    const app = root.querySelector(".mr-app");
+    if (!app) return;
+    app.classList.remove("mr-flash-illegal");
+    // Force reflow so animation restarts
+    // eslint-disable-next-line no-unused-expressions
+    app.offsetHeight;
+    app.classList.add("mr-flash-illegal");
+    setTimeout(() => {
+      try { app.classList.remove("mr-flash-illegal"); } catch {}
+    }, 800);
   }
 
   window.initMazeRunner = async function initMazeRunner() {
@@ -1154,8 +1212,10 @@
           const moves = legalMovesForWhite({ type: cfg.piece.type, from, rocksSet, blacksMap, rows, cols });
           const isLegal = moves.some((x) => x.r === to.r && x.c === to.c);
           if (!isLegal) {
-            state.msg = "Illegal move.";
-            state.msgType = "err";
+            // Illegal move: flash whole screen 3 times
+            flashIllegalMove(root);
+            state.msg = "";
+            state.msgType = "info";
             return rerenderPlay();
           }
 
@@ -1163,8 +1223,10 @@
           // Safety rule: cannot move onto attacked square unless capturing a black piece on that square
           const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
           if (attacked.has(`${to.r}:${to.c}`) && !targetBlack) {
-            state.msg = "That square is guarded by a black piece.";
-            state.msgType = "err";
+            // Attacked square: modal warning, continue game after close
+            openAttackModal(root);
+            state.msg = "";
+            state.msgType = "info";
             return rerenderPlay();
           }
 
@@ -1212,6 +1274,26 @@
             difficulty: ui.stage.difficulty,
             onCreated: () => rerenderMain()
           });
+        });
+      });
+
+      root.querySelectorAll("[data-mr-builder-edit]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            const stageId = String(btn.getAttribute("data-mr-builder-edit") || "").trim();
+            if (!stageId) return;
+            const data = await fetchStageDetail({ isTeacher: true, stageId });
+            const st = data?.stage || null;
+            if (!st) return;
+            openCreateStageModal({
+              root,
+              difficulty: String(st.difficulty || ui.stage.difficulty),
+              stage: st,
+              onCreated: () => rerenderMain()
+            });
+          } catch (e) {
+            alert(e?.message || String(e));
+          }
         });
       });
     }

@@ -227,6 +227,46 @@ function registerMazeRunnerRoutes(app, deps) {
         }
       }
     );
+
+    app.patch(
+      "/api/teachers/maze-runner/stages/:stageId",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        if (!(await requireDbReady(res))) return;
+        try {
+          const orgId = await resolveOrgId(req);
+          if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
+          const stageId = String(req.params.stageId || "").trim();
+          if (!stageId) return res.status(400).json({ ok: false, error: "Missing stageId" });
+          const config = (req.body && typeof req.body.config === "object" && req.body.config) ? req.body.config : null;
+          if (!config) return res.status(400).json({ ok: false, error: "Missing config" });
+
+          const r = await pool.query(
+            `UPDATE maze_runner_stages
+             SET config = $1, updated_at = NOW()
+             WHERE org_id = $2 AND id = $3
+             RETURNING id, difficulty, stage_no, updated_at`,
+            [config, String(orgId), String(stageId)]
+          );
+          const row = r.rows?.[0];
+          if (!row) return res.status(404).json({ ok: false, error: "Stage not found" });
+          return res.json({
+            ok: true,
+            stage: {
+              id: String(row.id),
+              difficulty: String(row.difficulty || "easy"),
+              stageNo: Number(row.stage_no),
+              updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : nowIso()
+            }
+          });
+        } catch (e) {
+          console.error("[maze-runner] update stage error:", e);
+          return res.status(500).json({ ok: false, error: "Failed to update stage" });
+        }
+      }
+    );
   }
 
   // ===== Public student: read-only stages =====
