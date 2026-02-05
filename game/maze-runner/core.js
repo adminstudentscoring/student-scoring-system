@@ -32,6 +32,13 @@
     return allowed.has(m) ? m : "home";
   }
 
+  function getPublicStudentPassword() {
+    try {
+      return String(localStorage.getItem("studentAccessPassword") || "").trim();
+    } catch {}
+    return "";
+  }
+
   async function apiRequest(path, opts = {}) {
     const url = String(path || "");
     const method = String(opts.method || "GET").toUpperCase();
@@ -108,6 +115,7 @@
     getUrlMode,
     setUrlMode,
     normalizeMode,
+    getPublicStudentPassword,
     apiRequest,
     mrJson,
     renderShell

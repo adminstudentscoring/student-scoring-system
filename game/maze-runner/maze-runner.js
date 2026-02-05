@@ -7,36 +7,767 @@
     return;
   }
 
-  const { escapeHtml, getUrlMode, setUrlMode, normalizeMode, renderShell } = MR;
+  const {
+    escapeHtml,
+    getUrlMode,
+    setUrlMode,
+    normalizeMode,
+    renderShell,
+    apiRequest,
+    mrJson,
+    getPublicStudentPassword
+  } = MR;
 
-  function renderPlaceholder(mode, isTeacher) {
-    const title =
-      mode === "home"
-        ? "Welcome"
-        : mode === "stage"
-        ? "Stages"
-        : mode === "challenge"
-        ? "Challenges"
-        : mode === "builder"
-        ? "Builder"
-        : "Settings";
+  const DIFFICULTIES = [
+    { key: "easy", label: "Easy" },
+    { key: "medium", label: "Medium" },
+    { key: "hard", label: "Hard" },
+    { key: "extremelyhard", label: "Extremely Hard" },
+    { key: "master", label: "Master" }
+  ];
 
-    const subtitle =
-      mode === "builder"
-        ? "Teacher-only builder template is ready."
-        : "This page is a template. Content will be added later.";
+  function diffLabel(key) {
+    const k = String(key || "").toLowerCase();
+    return DIFFICULTIES.find((d) => d.key === k)?.label || k || "Easy";
+  }
+
+  function normalizeDiff(key) {
+    const k = String(key || "").trim().toLowerCase();
+    if (!k) return "easy";
+    if (k === "extremely hard" || k === "extremely_hard" || k === "extremely-hard") return "extremelyhard";
+    return DIFFICULTIES.some((d) => d.key === k) ? k : "easy";
+  }
+
+  function getPublicStudentIdFromPlayers() {
+    try {
+      const players = Array.isArray(window.mazeRunnerPlayers) ? window.mazeRunnerPlayers : [];
+      return String(players?.[0]?.id || "").trim();
+    } catch {}
+    return "";
+  }
+
+  function setUrlParam(key, value) {
+    try {
+      const url = new URL(window.location.href);
+      if (value == null || String(value).trim() === "") url.searchParams.delete(key);
+      else url.searchParams.set(key, String(value));
+      window.history.replaceState({}, "", url.toString());
+    } catch {}
+  }
+
+  function getUrlParam(key) {
+    try {
+      const url = new URL(window.location.href);
+      return String(url.searchParams.get(key) || "");
+    } catch {}
+    return "";
+  }
+
+  async function fetchStages({ isTeacher, difficulty }) {
+    const diff = normalizeDiff(difficulty);
+    if (isTeacher) {
+      const resp = await apiRequest(`/api/teachers/maze-runner/stages?difficulty=${encodeURIComponent(diff)}`, { method: "GET" });
+      return await mrJson(resp);
+    }
+    const sid = getPublicStudentIdFromPlayers();
+    const pwd = getPublicStudentPassword();
+    const qp = new URLSearchParams();
+    qp.set("difficulty", diff);
+    if (pwd) qp.set("password", pwd);
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(sid)}/maze-runner/stages?${qp.toString()}`, { method: "GET" });
+    return await mrJson(resp);
+  }
+
+  async function fetchStageDetail({ isTeacher, stageId }) {
+    const id = String(stageId || "").trim();
+    if (!id) throw new Error("Missing stageId");
+    if (isTeacher) {
+      const resp = await apiRequest(`/api/teachers/maze-runner/stages/${encodeURIComponent(id)}`, { method: "GET" });
+      return await mrJson(resp);
+    }
+    const sid = getPublicStudentIdFromPlayers();
+    const pwd = getPublicStudentPassword();
+    const qp = new URLSearchParams();
+    if (pwd) qp.set("password", pwd);
+    const resp = await apiRequest(`/api/public/students/${encodeURIComponent(sid)}/maze-runner/stages/${encodeURIComponent(id)}?${qp.toString()}`, { method: "GET" });
+    return await mrJson(resp);
+  }
+
+  function renderHome() {
+    return `
+      <div class="mr-section-title">Welcome</div>
+      <div class="mr-muted" style="margin-top:8px;">Maze Runner template is ready.</div>
+    `;
+  }
+
+  function renderChallenge() {
+    return `
+      <div class="mr-section-title">Challenge</div>
+      <div class="mr-muted" style="margin-top:8px;">Coming soon.</div>
+    `;
+  }
+
+  function renderSettings() {
+    return `
+      <div class="mr-section-title">Setting</div>
+      <div class="mr-muted" style="margin-top:8px;">Coming soon.</div>
+    `;
+  }
+
+  function defaultStageConfig() {
+    return {
+      board: { rows: 6, cols: 6 },
+      piece: { type: "N", start: { r: 5, c: 0 } },
+      goal: { r: 0, c: 5 },
+      rocks: [],
+      blacks: [],
+      maxSteps: 10
+    };
+  }
+
+  async function createStage({ difficulty, config }) {
+    const diff = normalizeDiff(difficulty);
+    const resp = await apiRequest(`/api/teachers/maze-runner/stages`, {
+      method: "POST",
+      body: JSON.stringify({ difficulty: diff, config: config && typeof config === "object" ? config : {} })
+    });
+    return await mrJson(resp);
+  }
+
+  function renderBuilder({ difficulty, stages }) {
+    const diff = normalizeDiff(difficulty);
+    const list = Array.isArray(stages) ? stages : [];
+    return `
+      <div class="mr-toolbar">
+        <div>
+          <div class="mr-section-title">Builder</div>
+          <div class="mr-muted" style="margin-top:6px;">Pick a difficulty bucket, then create stages.</div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="mr-btn primary" data-mr-builder-create="1">Create</button>
+        </div>
+      </div>
+      <div class="mr-diff-row" role="tablist" aria-label="Difficulty">
+        ${DIFFICULTIES.map((d) => `
+          <button type="button" class="mr-pill ${d.key === diff ? "is-active" : ""}" data-mr-builder-diff="${escapeHtml(d.key)}">${escapeHtml(d.label)}</button>
+        `).join("")}
+      </div>
+      ${list.length ? `
+        <div class="mr-stage-grid">
+          ${list.map((s) => `
+            <div class="mr-stage-card" style="cursor:default;" title="Stage ${escapeHtml(String(s.stageNo ?? ""))}">
+              ${escapeHtml(String(s.stageNo ?? ""))}
+            </div>
+          `).join("")}
+        </div>
+      ` : `
+        <div class="mr-muted" style="padding:12px 2px;">No stages in this difficulty yet. Click Create.</div>
+      `}
+    `;
+  }
+
+  function openCreateStageModal({ root, difficulty, onCreated }) {
+    const diff = normalizeDiff(difficulty);
+    let cfg = defaultStageConfig();
+    let tool = "start"; // start | goal | rock | black | erase
+    let blackType = "P";
+
+    const clampCfgToBoard = () => {
+      const rows = Math.max(2, Number(cfg?.board?.rows || 6) || 6);
+      const cols = Math.max(2, Number(cfg?.board?.cols || 6) || 6);
+      const clamp = (rc) => ({
+        r: Math.max(0, Math.min(rows - 1, Number(rc?.r || 0) || 0)),
+        c: Math.max(0, Math.min(cols - 1, Number(rc?.c || 0) || 0))
+      });
+      cfg.board.rows = rows;
+      cfg.board.cols = cols;
+      cfg.piece.start = clamp(cfg.piece.start);
+      cfg.goal = clamp(cfg.goal);
+      cfg.rocks = (Array.isArray(cfg.rocks) ? cfg.rocks : []).map(clamp).filter((x) => inBounds(x.r, x.c, rows, cols));
+      cfg.blacks = (Array.isArray(cfg.blacks) ? cfg.blacks : []).map((b) => ({ type: String(b?.type || "P").toUpperCase(), ...clamp(b) }))
+        .filter((x) => inBounds(x.r, x.c, rows, cols));
+    };
+
+    const pieceImgSrc = (color, type) => {
+      const t = String(type || "").toUpperCase();
+      const c = String(color || "").toLowerCase() === "b" ? "black" : "white";
+      const map = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn" };
+      const nm = map[t] || "";
+      if (!nm) return "";
+      // NOTE: We reuse existing shared pieces under /game/pieces for now.
+      return `/game/pieces/${c}_${nm}.png`;
+    };
+
+    const renderCellContent = (r, c) => {
+      if (cfg.piece.start.r === r && cfg.piece.start.c === c) {
+        const src = pieceImgSrc("w", cfg.piece.type);
+        return src ? `<img src="${escapeHtml(src)}" alt="White ${escapeHtml(cfg.piece.type)}">` : escapeHtml(iconWhite(cfg.piece.type));
+      }
+      const blk = (Array.isArray(cfg.blacks) ? cfg.blacks : []).find((b) => Number(b.r) === r && Number(b.c) === c);
+      if (blk) {
+        const src = pieceImgSrc("b", blk.type);
+        return src ? `<img src="${escapeHtml(src)}" alt="Black ${escapeHtml(blk.type)}">` : escapeHtml(iconBlack(blk.type));
+      }
+      const isRock = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
+      if (isRock) return "⬛";
+      return "";
+    };
+
+    const renderBuilderBoard = () => {
+      clampCfgToBoard();
+      const rows = cfg.board.rows;
+      const cols = cfg.board.cols;
+      const colsCss = `repeat(${cols}, 36px)`;
+      const cells = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const dark = (r + c) % 2 === 1;
+          const isRock = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
+          const isGoal = cfg.goal.r === r && cfg.goal.c === c;
+          const classes = [
+            "mr-cell",
+            dark ? "is-dark" : "",
+            isRock ? "is-rock" : "",
+            isGoal ? "is-goal" : ""
+          ].filter(Boolean).join(" ");
+          cells.push(
+            `<button type="button" class="${classes}" data-mr-bcell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${renderCellContent(r, c)}</button>`
+          );
+        }
+      }
+      return `<div class="mr-board" id="mrBuilderBoard" style="grid-template-columns:${colsCss};">${cells.join("")}</div>`;
+    };
+
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="mrCreateBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Create stage" style="width: calc(100vw - 40px); max-width: 1300px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">Create Stage (${escapeHtml(diffLabel(diff))})</div>
+            <button id="mrCreateClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="vcp-modal-body">
+            <div class="mr-muted" style="margin-top:-4px;">Click tools below, then click the board to place.</div>
+            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; margin-top:12px; align-items:start;">
+              <div>
+                <div style="font-weight:950; color:#111827;">Settings</div>
+                <div class="mr-card" style="margin-top:10px; background:#ffffff;">
+                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+                    <div style="font-weight:950; color:#111827;">Board size</div>
+                  </div>
+                  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                    <label class="mr-muted">Rows</label>
+                    <input id="mrRows" type="number" min="2" step="1" value="${escapeHtml(String(cfg.board.rows))}" style="width:120px; padding:10px; border:1px solid #e5e7eb; border-radius:12px;">
+                    <label class="mr-muted">Cols</label>
+                    <input id="mrCols" type="number" min="2" step="1" value="${escapeHtml(String(cfg.board.cols))}" style="width:120px; padding:10px; border:1px solid #e5e7eb; border-radius:12px;">
+                  </div>
+                  <div class="mr-muted" style="margin-top:8px;">(No max limit, but huge boards may be slow.)</div>
+                </div>
+
+                <div class="mr-card" style="margin-top:12px; background:#ffffff;">
+                  <div style="font-weight:950; color:#111827;">Piece</div>
+                  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                    <label class="mr-muted">Type</label>
+                    <select id="mrPieceType" style="min-width:140px; padding:10px; border:1px solid #e5e7eb; border-radius:12px;">
+                      <option value="K">K</option>
+                      <option value="Q">Q</option>
+                      <option value="R">R</option>
+                      <option value="B">B</option>
+                      <option value="N" selected>N</option>
+                      <option value="P">P</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="mr-card" style="margin-top:12px; background:#ffffff;">
+                  <div style="font-weight:950; color:#111827;">Step limit</div>
+                  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                    <input id="mrInfinite" type="checkbox" style="width:18px; height:18px;">
+                    <label for="mrInfinite" class="mr-muted">Infinite</label>
+                  </div>
+                  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                    <input id="mrMaxSteps" type="number" min="1" step="1" value="${escapeHtml(String(cfg.maxSteps))}" style="width:180px; padding:10px; border:1px solid #e5e7eb; border-radius:12px;">
+                    <span class="mr-muted">Min 1</span>
+                  </div>
+                </div>
+
+                <div class="mr-card" style="margin-top:12px; background:#ffffff;">
+                  <div style="font-weight:950; color:#111827;">Tools</div>
+                  <div class="mr-tool-row">
+                    <button type="button" class="mr-tool is-active" data-mr-tool="start">Start</button>
+                    <button type="button" class="mr-tool" data-mr-tool="goal">Goal</button>
+                    <button type="button" class="mr-tool" data-mr-tool="rock">Rock</button>
+                    <button type="button" class="mr-tool" data-mr-tool="black">Black</button>
+                    <button type="button" class="mr-tool" data-mr-tool="erase">Eraser</button>
+                  </div>
+                  <div id="mrBlackTool" style="display:none; margin-top:10px;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                      <label class="mr-muted">Black type</label>
+                      <select id="mrBlackType" style="min-width:140px; padding:10px; border:1px solid #e5e7eb; border-radius:12px;">
+                        <option value="K">K</option>
+                        <option value="Q">Q</option>
+                        <option value="R">R</option>
+                        <option value="B">B</option>
+                        <option value="N">N</option>
+                        <option value="P" selected>P</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="mr-muted" style="margin-top:10px;">
+                    Rock blocks movement (cannot be captured). Black squares guard squares (cannot enter, except capturing the black piece).
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-weight:950; color:#111827;">Board</div>
+                <div class="mr-card" style="margin-top:10px; background:#ffffff;">
+                  <div id="mrBoardHolder">${renderBuilderBoard()}</div>
+                  <div class="mr-muted" style="margin-top:10px;">
+                    Start = white piece. Goal = green outline. Rock = ⬛.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px;">
+              <button id="mrCreateCancel" class="mr-btn" type="button">Cancel</button>
+              <button id="mrCreateSave" class="mr-btn primary" type="button">Create</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    root.appendChild(host);
+
+    const close = () => { try { host.remove(); } catch {} };
+    host.querySelector("#mrCreateClose")?.addEventListener("click", close);
+    host.querySelector("#mrCreateCancel")?.addEventListener("click", close);
+    host.querySelector("#mrCreateBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "mrCreateBackdrop") close();
+    });
+
+    const toolBtns = Array.from(host.querySelectorAll("[data-mr-tool]"));
+    const blackToolWrap = host.querySelector("#mrBlackTool");
+    const blackTypeSel = host.querySelector("#mrBlackType");
+    if (blackTypeSel) {
+      blackTypeSel.value = blackType;
+      blackTypeSel.addEventListener("change", () => {
+        blackType = String(blackTypeSel.value || "P").trim().toUpperCase() || "P";
+      });
+    }
+
+    const setTool = (t) => {
+      tool = String(t || "start");
+      toolBtns.forEach((b) => b.classList.toggle("is-active", String(b.getAttribute("data-mr-tool")) === tool));
+      if (blackToolWrap) blackToolWrap.style.display = tool === "black" ? "block" : "none";
+    };
+    toolBtns.forEach((b) => b.addEventListener("click", () => setTool(b.getAttribute("data-mr-tool"))));
+    setTool(tool);
+
+    const rowsInput = host.querySelector("#mrRows");
+    const colsInput = host.querySelector("#mrCols");
+    const pieceSel = host.querySelector("#mrPieceType");
+    const boardHolder = host.querySelector("#mrBoardHolder");
+    const infiniteCb = host.querySelector("#mrInfinite");
+    const maxStepsInput = host.querySelector("#mrMaxSteps");
+
+    const renderToDom = () => {
+      if (pieceSel) pieceSel.value = String(cfg.piece.type || "N");
+      if (rowsInput) rowsInput.value = String(cfg.board.rows);
+      if (colsInput) colsInput.value = String(cfg.board.cols);
+      if (infiniteCb) infiniteCb.checked = cfg.maxSteps == null;
+      if (maxStepsInput) {
+        maxStepsInput.disabled = cfg.maxSteps == null;
+        maxStepsInput.value = cfg.maxSteps == null ? "" : String(cfg.maxSteps);
+      }
+      if (boardHolder) boardHolder.innerHTML = renderBuilderBoard();
+      bindBoardClicks();
+    };
+
+    const removeRockAt = (r, c) => {
+      cfg.rocks = (Array.isArray(cfg.rocks) ? cfg.rocks : []).filter((x) => !(Number(x.r) === r && Number(x.c) === c));
+    };
+    const removeBlackAt = (r, c) => {
+      cfg.blacks = (Array.isArray(cfg.blacks) ? cfg.blacks : []).filter((x) => !(Number(x.r) === r && Number(x.c) === c));
+    };
+
+    const bindBoardClicks = () => {
+      const board = host.querySelector("#mrBuilderBoard");
+      if (!board) return;
+      board.querySelectorAll("[data-mr-bcell]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const rc = String(btn.getAttribute("data-mr-bcell") || "");
+          const m = rc.match(/^(\d+):(\d+)$/);
+          if (!m) return;
+          const r = Number(m[1]), c = Number(m[2]);
+          // apply tool
+          if (tool === "start") {
+            // cannot place start on rock
+            removeRockAt(r, c);
+            removeBlackAt(r, c);
+            cfg.piece.start = { r, c };
+            // if goal overlaps start, keep it (allowed) but typically not desired; let teacher decide
+            renderToDom();
+            return;
+          }
+          if (tool === "goal") {
+            // cannot place goal on rock
+            removeRockAt(r, c);
+            cfg.goal = { r, c };
+            renderToDom();
+            return;
+          }
+          if (tool === "rock") {
+            // cannot place rock on start/goal
+            if ((cfg.piece.start.r === r && cfg.piece.start.c === c) || (cfg.goal.r === r && cfg.goal.c === c)) return;
+            const exists = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
+            if (exists) removeRockAt(r, c);
+            else cfg.rocks = [...(Array.isArray(cfg.rocks) ? cfg.rocks : []), { r, c }];
+            // remove any black on rock
+            removeBlackAt(r, c);
+            renderToDom();
+            return;
+          }
+          if (tool === "black") {
+            // cannot place black on start; allow on goal (capture on goal is possible)
+            if (cfg.piece.start.r === r && cfg.piece.start.c === c) return;
+            // cannot place black on rock
+            const rockExists = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
+            if (rockExists) return;
+            // place/replace
+            removeBlackAt(r, c);
+            cfg.blacks = [...(Array.isArray(cfg.blacks) ? cfg.blacks : []), { type: blackType, r, c }];
+            renderToDom();
+            return;
+          }
+          if (tool === "erase") {
+            removeRockAt(r, c);
+            removeBlackAt(r, c);
+            // do not erase start/goal with eraser (keep stable)
+            renderToDom();
+          }
+        });
+      });
+    };
+
+    rowsInput?.addEventListener("input", () => {
+      cfg.board.rows = Math.max(2, Number(rowsInput.value || 2) || 2);
+      renderToDom();
+    });
+    colsInput?.addEventListener("input", () => {
+      cfg.board.cols = Math.max(2, Number(colsInput.value || 2) || 2);
+      renderToDom();
+    });
+    pieceSel?.addEventListener("change", () => {
+      cfg.piece.type = String(pieceSel.value || "N").trim().toUpperCase() || "N";
+      renderToDom();
+    });
+    infiniteCb?.addEventListener("change", () => {
+      if (infiniteCb.checked) cfg.maxSteps = null;
+      else cfg.maxSteps = Math.max(1, Number(maxStepsInput?.value || 10) || 10);
+      renderToDom();
+    });
+    maxStepsInput?.addEventListener("input", () => {
+      if (cfg.maxSteps == null) return;
+      const v = String(maxStepsInput.value ?? "").trim();
+      cfg.maxSteps = v ? Math.max(1, Number(v) || 1) : 1;
+    });
+
+    renderToDom();
+
+    host.querySelector("#mrCreateSave")?.addEventListener("click", async () => {
+      try {
+        clampCfgToBoard();
+        await createStage({ difficulty: diff, config: cfg });
+        close();
+        if (typeof onCreated === "function") onCreated();
+      } catch (e) {
+        // simple inline alert for now
+        alert(e?.message || String(e));
+      }
+    });
+  }
+
+  function renderStageList({ difficulty, stages }) {
+    const diff = normalizeDiff(difficulty);
+    const list = Array.isArray(stages) ? stages : [];
+    return `
+      <div class="mr-toolbar">
+        <div>
+          <div class="mr-section-title">Stage</div>
+          <div class="mr-muted" style="margin-top:6px;">Choose a difficulty, then pick a stage.</div>
+        </div>
+        <div class="mr-badge">${escapeHtml(diffLabel(diff))}</div>
+      </div>
+      <div class="mr-diff-row" role="tablist" aria-label="Difficulty">
+        ${DIFFICULTIES.map((d) => `
+          <button type="button" class="mr-pill ${d.key === diff ? "is-active" : ""}" data-mr-diff="${escapeHtml(d.key)}">${escapeHtml(d.label)}</button>
+        `).join("")}
+      </div>
+      ${list.length ? `
+        <div class="mr-stage-grid">
+          ${list.map((s) => `
+            <button type="button" class="mr-stage-card" data-mr-stage="${escapeHtml(String(s.id || ""))}" aria-label="Stage ${escapeHtml(String(s.stageNo ?? ""))}">
+              ${escapeHtml(String(s.stageNo ?? ""))}
+            </button>
+          `).join("")}
+        </div>
+      ` : `
+        <div class="mr-muted" style="padding:12px 2px;">No stages in this difficulty yet.</div>
+      `}
+    `;
+  }
+
+  function renderStagePlayShell({ stage }) {
+    const st = stage && typeof stage === "object" ? stage : {};
+    return `
+      <div class="mr-toolbar">
+        <div>
+          <div class="mr-section-title">Stage ${escapeHtml(String(st.stageNo ?? ""))}</div>
+          <div class="mr-muted" style="margin-top:6px;">${escapeHtml(diffLabel(st.difficulty || ""))}</div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="mr-btn" data-mr-back-stage="1">← Back</button>
+        </div>
+      </div>
+      <div id="mrStagePlayHost"></div>
+    `;
+  }
+
+  function inBounds(r, c, rows, cols) {
+    return r >= 0 && c >= 0 && r < rows && c < cols;
+  }
+
+  function posEq(a, b) {
+    return !!a && !!b && Number(a.r) === Number(b.r) && Number(a.c) === Number(b.c);
+  }
+
+  function keyOf(rc) {
+    return `${Number(rc.r)}:${Number(rc.c)}`;
+  }
+
+  function iconWhite(type) {
+    const t = String(type || "").toUpperCase();
+    const map = { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙" };
+    return map[t] || t || "♙";
+  }
+
+  function iconBlack(type) {
+    const t = String(type || "").toUpperCase();
+    const map = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
+    return map[t] || t || "♟";
+  }
+
+  function normalizeStageConfig(raw) {
+    const cfg = raw && typeof raw === "object" ? raw : {};
+    const rows = Math.max(2, Number(cfg?.board?.rows || 6) || 6);
+    const cols = Math.max(2, Number(cfg?.board?.cols || 6) || 6);
+    const pieceType = String(cfg?.piece?.type || "N").trim().toUpperCase() || "N";
+    const start = {
+      r: Math.max(0, Math.min(rows - 1, Number(cfg?.piece?.start?.r || rows - 1) || 0)),
+      c: Math.max(0, Math.min(cols - 1, Number(cfg?.piece?.start?.c || 0) || 0))
+    };
+    const goal = {
+      r: Math.max(0, Math.min(rows - 1, Number(cfg?.goal?.r || 0) || 0)),
+      c: Math.max(0, Math.min(cols - 1, Number(cfg?.goal?.c || cols - 1) || 0))
+    };
+    const rocks = Array.isArray(cfg?.rocks) ? cfg.rocks
+      .map((x) => ({ r: Number(x?.r), c: Number(x?.c) }))
+      .filter((x) => Number.isFinite(x.r) && Number.isFinite(x.c) && inBounds(x.r, x.c, rows, cols))
+      : [];
+    const blacks = Array.isArray(cfg?.blacks) ? cfg.blacks
+      .map((x) => ({ type: String(x?.type || "P").trim().toUpperCase(), r: Number(x?.r), c: Number(x?.c) }))
+      .filter((x) => Number.isFinite(x.r) && Number.isFinite(x.c) && inBounds(x.r, x.c, rows, cols))
+      : [];
+    const maxStepsRaw = cfg?.maxSteps;
+    const maxSteps = (maxStepsRaw == null || String(maxStepsRaw).trim() === "") ? null : Math.max(1, Number(maxStepsRaw) || 1);
+    return { board: { rows, cols }, piece: { type: pieceType, start }, goal, rocks, blacks, maxSteps };
+  }
+
+  function isRockAt(rocksSet, r, c) {
+    return rocksSet.has(`${r}:${c}`);
+  }
+
+  function blackAt(blacksMap, r, c) {
+    return blacksMap.get(`${r}:${c}`) || null;
+  }
+
+  function buildRocksSet(rocks) {
+    const s = new Set();
+    for (const rc of (Array.isArray(rocks) ? rocks : [])) s.add(keyOf(rc));
+    return s;
+  }
+
+  function buildBlacksMap(blacks) {
+    const m = new Map();
+    for (const b of (Array.isArray(blacks) ? blacks : [])) {
+      m.set(`${Number(b.r)}:${Number(b.c)}`, { type: String(b.type || "P").toUpperCase(), r: Number(b.r), c: Number(b.c) });
+    }
+    return m;
+  }
+
+  function squaresAttackedByBlack({ blacks, rocksSet, rows, cols }) {
+    const attacked = new Set();
+    const occ = buildBlacksMap(blacks);
+
+    const add = (r, c) => { if (inBounds(r, c, rows, cols)) attacked.add(`${r}:${c}`); };
+
+    const ray = (r0, c0, dr, dc) => {
+      let r = r0 + dr;
+      let c = c0 + dc;
+      while (inBounds(r, c, rows, cols)) {
+        if (isRockAt(rocksSet, r, c)) break;
+        add(r, c);
+        if (blackAt(occ, r, c)) break; // blocked by another black
+        r += dr;
+        c += dc;
+      }
+    };
+
+    for (const b of blacks) {
+      const t = String(b.type || "P").toUpperCase();
+      const r = Number(b.r);
+      const c = Number(b.c);
+      if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+      if (t === "P") {
+        // black pawn attacks "down" (increasing row)
+        add(r + 1, c - 1);
+        add(r + 1, c + 1);
+      } else if (t === "N") {
+        const ds = [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];
+        for (const [dr, dc] of ds) add(r + dr, c + dc);
+      } else if (t === "K") {
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (dr || dc) add(r + dr, c + dc);
+      } else if (t === "B" || t === "Q") {
+        ray(r, c, 1, 1); ray(r, c, 1, -1); ray(r, c, -1, 1); ray(r, c, -1, -1);
+      }
+      if (t === "R" || t === "Q") {
+        ray(r, c, 1, 0); ray(r, c, -1, 0); ray(r, c, 0, 1); ray(r, c, 0, -1);
+      }
+    }
+    return attacked;
+  }
+
+  function legalMovesForWhite({ type, from, rocksSet, blacksMap, rows, cols }) {
+    const moves = [];
+    const fr = Number(from.r), fc = Number(from.c);
+    const occBlack = (r, c) => !!blackAt(blacksMap, r, c);
+    const blocked = (r, c) => isRockAt(rocksSet, r, c) || occBlack(r, c);
+
+    const pushIf = (r, c) => {
+      if (!inBounds(r, c, rows, cols)) return;
+      if (isRockAt(rocksSet, r, c)) return;
+      moves.push({ r, c });
+    };
+
+    const ray = (dr, dc) => {
+      let r = fr + dr, c = fc + dc;
+      while (inBounds(r, c, rows, cols)) {
+        if (isRockAt(rocksSet, r, c)) break;
+        moves.push({ r, c });
+        if (occBlack(r, c)) break; // can capture but cannot pass through
+        r += dr; c += dc;
+      }
+    };
+
+    const t = String(type || "N").toUpperCase();
+    if (t === "K") {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (dr || dc) pushIf(fr + dr, fc + dc);
+    } else if (t === "N") {
+      const ds = [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];
+      for (const [dr, dc] of ds) pushIf(fr + dr, fc + dc);
+    } else if (t === "B") {
+      ray(1, 1); ray(1, -1); ray(-1, 1); ray(-1, -1);
+    } else if (t === "R") {
+      ray(1, 0); ray(-1, 0); ray(0, 1); ray(0, -1);
+    } else if (t === "Q") {
+      ray(1, 1); ray(1, -1); ray(-1, 1); ray(-1, -1);
+      ray(1, 0); ray(-1, 0); ray(0, 1); ray(0, -1);
+    } else if (t === "P") {
+      // white pawn: forward is "up" (decreasing row)
+      const fwdR = fr - 1;
+      if (inBounds(fwdR, fc, rows, cols) && !blocked(fwdR, fc)) moves.push({ r: fwdR, c: fc });
+      // captures
+      const cap1 = { r: fr - 1, c: fc - 1 };
+      const cap2 = { r: fr - 1, c: fc + 1 };
+      if (inBounds(cap1.r, cap1.c, rows, cols) && occBlack(cap1.r, cap1.c)) moves.push(cap1);
+      if (inBounds(cap2.r, cap2.c, rows, cols) && occBlack(cap2.r, cap2.c)) moves.push(cap2);
+    }
+    return moves;
+  }
+
+  function renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal, pos, selected }) {
+    const colsCss = `repeat(${cols}, 36px)`;
+    const cells = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const dark = (r + c) % 2 === 1;
+        const isRock = isRockAt(rocksSet, r, c);
+        const blk = blackAt(blacksMap, r, c);
+        const isGoal = posEq(goal, { r, c });
+        const isSel = selected && Number(selected.r) === r && Number(selected.c) === c;
+        const isPos = posEq(pos, { r, c });
+        const classes = [
+          "mr-cell",
+          dark ? "is-dark" : "",
+          isRock ? "is-rock" : "",
+          blk ? "is-black" : "",
+          isGoal ? "is-goal" : "",
+          isSel ? "is-selected" : ""
+        ].filter(Boolean).join(" ");
+        let txt = "";
+        if (isRock) txt = "⬛";
+        else if (blk) txt = iconBlack(blk.type);
+        else if (isPos) txt = "♙"; // replaced by caller overlay (we keep simple)
+        cells.push(`<button type="button" class="${classes}" data-mr-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${escapeHtml(txt)}</button>`);
+      }
+    }
+    return `<div class="mr-board" style="grid-template-columns:${colsCss};">${cells.join("")}</div>`;
+  }
+
+  function renderPlayView({ stage, state }) {
+    const cfg = normalizeStageConfig(stage?.config || {});
+    const rows = cfg.board.rows;
+    const cols = cfg.board.cols;
+    const rocksSet = buildRocksSet(state.rocks);
+    const blacksMap = buildBlacksMap(state.blacks);
+    const pieceIcon = iconWhite(cfg.piece.type);
+    const maxStepsLabel = cfg.maxSteps == null ? "∞" : String(cfg.maxSteps);
+    const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
+    const unsafeNow = attacked.has(`${state.pos.r}:${state.pos.c}`) ? " (unsafe)" : "";
 
     return `
-      <div class="mr-section-title">${escapeHtml(title)}</div>
-      <div class="mr-muted" style="margin-top:8px;">
-        ${escapeHtml(subtitle)}
+      <div class="mr-hud">
+        <div class="mr-badge">Piece: ${escapeHtml(cfg.piece.type)} ${escapeHtml(pieceIcon)}</div>
+        <div class="mr-badge">Steps: ${escapeHtml(String(state.stepsUsed))} / ${escapeHtml(maxStepsLabel)}</div>
+        <div class="mr-badge">Goal: (${escapeHtml(String(cfg.goal.r + 1))}, ${escapeHtml(String(cfg.goal.c + 1))})</div>
+        <div class="mr-badge">Pos: (${escapeHtml(String(state.pos.r + 1))}, ${escapeHtml(String(state.pos.c + 1))})${escapeHtml(unsafeNow)}</div>
       </div>
-      <div class="mr-card" style="margin-top:12px; background:#f8fafc;">
-        <div style="font-weight:900; color:#111827;">Role</div>
-        <div class="mr-muted" style="margin-top:6px;">${escapeHtml(isTeacher ? "teacher" : "student")}</div>
-        <div style="height:10px;"></div>
-        <div style="font-weight:900; color:#111827;">Mode</div>
-        <div class="mr-muted" style="margin-top:6px;">${escapeHtml(mode)}</div>
+      <div class="mr-toolbar" style="margin-top:0;">
+        <div class="mr-muted">Click the piece, then click a destination.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="mr-btn" data-mr-reset="1">Reset</button>
+          <button type="button" class="mr-btn primary" data-mr-next="1" style="display:${state.won ? "inline-flex" : "none"};">Next</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+        <div id="mrBoardWrap" style="position:relative;">
+          ${renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal: cfg.goal, pos: state.pos, selected: state.selected })}
+          <div style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; display:grid; grid-template-columns: repeat(${cols}, 36px); gap:2px; padding:2px;">
+            <div style="grid-column:${state.pos.c + 1}; grid-row:${state.pos.r + 1}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:950;">${escapeHtml(pieceIcon)}</div>
+          </div>
+        </div>
+        <div style="min-width:220px; flex:1 1 260px;">
+          <div style="font-weight:950; color:#111827;">Rules (current)</div>
+          <div class="mr-muted" style="margin-top:6px;">
+            - Rocks block movement (knight can jump).<br>
+            - You cannot move onto a square attacked by black pieces (unless capturing a black piece on that square).<br>
+            - Step limit: fail resets the stage.
+          </div>
+          ${state.msg ? `<div class="mr-card" style="margin-top:12px; background:${state.msgType === "ok" ? "#ecfdf5" : state.msgType === "err" ? "#fef2f2" : "#f8fafc"}; border-color:${state.msgType === "ok" ? "#10b98133" : state.msgType === "err" ? "#ef444433" : "#e5e7eb"};">
+            <div style="font-weight:950; color:#111827;">${escapeHtml(state.msg)}</div>
+          </div>` : ""}
+        </div>
       </div>
     `;
   }
@@ -48,37 +779,261 @@
     const params = new URLSearchParams(window.location.search);
     const role = String(params.get("role") || "");
     const isTeacher = role.toLowerCase() === "teacher";
-    let mode = normalizeMode(getUrlMode() || "home", isTeacher);
 
-    root.innerHTML = renderShell({ role, mode });
+    const ui = {
+      mode: normalizeMode(getUrlMode() || "home", isTeacher),
+      stage: {
+        difficulty: normalizeDiff(getUrlParam("difficulty") || "easy"),
+        view: "list", // list | play
+        stages: [],
+        stageId: "",
+        stageDetail: null
+      }
+    };
+
+    root.innerHTML = renderShell({ role, mode: ui.mode });
 
     const setMain = (html) => {
       const el = document.getElementById("mrMain");
       if (el) el.innerHTML = html;
     };
 
-    const rerender = () => {
-      // Re-render shell so active nav state updates.
-      root.innerHTML = renderShell({ role, mode });
-      setMain(renderPlaceholder(mode, isTeacher));
+    const rerenderShell = () => {
+      root.innerHTML = renderShell({ role, mode: ui.mode });
       bindNav();
     };
+
+    async function loadStageList() {
+      setMain(`<div class="mr-muted">Loading...</div>`);
+      const data = await fetchStages({ isTeacher, difficulty: ui.stage.difficulty });
+      ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
+      ui.stage.view = "list";
+      ui.stage.stageId = "";
+      ui.stage.stageDetail = null;
+      setUrlParam("difficulty", ui.stage.difficulty);
+      setUrlParam("stageId", "");
+      setMain(renderStageList({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
+      bindStageHandlers();
+    }
+
+    async function openStage(stageId) {
+      ui.stage.stageId = String(stageId || "").trim();
+      setUrlParam("stageId", ui.stage.stageId);
+      setMain(`<div class="mr-muted">Loading stage...</div>`);
+      const data = await fetchStageDetail({ isTeacher, stageId: ui.stage.stageId });
+      ui.stage.stageDetail = data?.stage || null;
+      ui.stage.view = "play";
+      setMain(renderStagePlayShell({ stage: ui.stage.stageDetail }));
+      bindStageHandlers();
+
+      const cfg = normalizeStageConfig(ui.stage.stageDetail?.config || {});
+      const initial = {
+        pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
+        stepsUsed: 0,
+        selected: null,
+        rocks: cfg.rocks.slice(),
+        blacks: cfg.blacks.slice(),
+        won: false,
+        msg: "",
+        msgType: "info"
+      };
+      ui.stage.playState = initial;
+      const host = document.getElementById("mrStagePlayHost");
+      if (host) host.innerHTML = renderPlayView({ stage: ui.stage.stageDetail, state: ui.stage.playState });
+      bindPlayHandlers();
+    }
+
+    async function rerenderMain() {
+      if (ui.mode === "home") return setMain(renderHome());
+      if (ui.mode === "challenge") return setMain(renderChallenge());
+      if (ui.mode === "settings") return setMain(renderSettings());
+      if (ui.mode === "stage") {
+        const deepStageId = String(getUrlParam("stageId") || "").trim();
+        if (deepStageId) return await openStage(deepStageId);
+        return await loadStageList();
+      }
+      // Builder (teacher only)
+      if (!isTeacher) return setMain(`<div class="mr-muted">Builder is for teachers only.</div>`);
+      setMain(`<div class="mr-muted">Loading...</div>`);
+      const data = await fetchStages({ isTeacher: true, difficulty: ui.stage.difficulty });
+      ui.stage.stages = Array.isArray(data?.stages) ? data.stages : [];
+      setMain(renderBuilder({ difficulty: ui.stage.difficulty, stages: ui.stage.stages }));
+      bindBuilderHandlers();
+      return;
+    }
 
     const bindNav = () => {
       root.querySelectorAll("[data-mr-mode]").forEach((btn) => {
         btn.addEventListener("click", () => {
           const next = String(btn.getAttribute("data-mr-mode") || "").trim().toLowerCase();
           const normalized = normalizeMode(next, isTeacher);
-          if (normalized === mode) return;
-          mode = normalized;
-          setUrlMode(mode);
-          rerender();
+          if (normalized === ui.mode) return;
+          ui.mode = normalized;
+          setUrlMode(ui.mode);
+          rerenderShell();
+          rerenderMain();
         });
       });
     };
 
-    setMain(renderPlaceholder(mode, isTeacher));
+    function bindStageHandlers() {
+      root.querySelectorAll("[data-mr-diff]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const next = normalizeDiff(btn.getAttribute("data-mr-diff"));
+          if (next === ui.stage.difficulty) return;
+          ui.stage.difficulty = next;
+          loadStageList();
+        });
+      });
+      root.querySelectorAll("[data-mr-stage]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = String(btn.getAttribute("data-mr-stage") || "").trim();
+          if (!id) return;
+          openStage(id);
+        });
+      });
+      root.querySelectorAll("[data-mr-back-stage]").forEach((btn) => {
+        btn.addEventListener("click", () => loadStageList());
+      });
+    }
+
+    function bindPlayHandlers() {
+      const host = document.getElementById("mrStagePlayHost");
+      if (!host) return;
+      const stage = ui.stage.stageDetail;
+      const cfg = normalizeStageConfig(stage?.config || {});
+
+      const rerenderPlay = () => {
+        host.innerHTML = renderPlayView({ stage, state: ui.stage.playState });
+        bindPlayHandlers();
+      };
+
+      const reset = (msg, msgType) => {
+        ui.stage.playState = {
+          pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
+          stepsUsed: 0,
+          selected: null,
+          rocks: cfg.rocks.slice(),
+          blacks: cfg.blacks.slice(),
+          won: false,
+          msg: msg || "",
+          msgType: msgType || "info"
+        };
+        rerenderPlay();
+      };
+
+      host.querySelectorAll("[data-mr-reset]").forEach((btn) => btn.addEventListener("click", () => reset("Reset.", "info")));
+
+      host.querySelectorAll("[data-mr-next]").forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          // Next stage in same difficulty (by stageNo)
+          const curNo = Number(stage?.stageNo || 0) || 0;
+          const list = Array.isArray(ui.stage.stages) ? ui.stage.stages : [];
+          const next = list.find((s) => Number(s.stageNo) === curNo + 1);
+          if (next && next.id) {
+            await openStage(next.id);
+          } else {
+            ui.stage.playState.msg = "No next stage in this difficulty.";
+            ui.stage.playState.msgType = "info";
+            rerenderPlay();
+          }
+        })
+      );
+
+      host.querySelectorAll("[data-mr-cell]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (ui.stage.playState.won) return;
+          const rc = String(btn.getAttribute("data-mr-cell") || "");
+          const m = rc.match(/^(\d+):(\d+)$/);
+          if (!m) return;
+          const r = Number(m[1]), c = Number(m[2]);
+          const state = ui.stage.playState;
+          const rows = cfg.board.rows, cols = cfg.board.cols;
+          const rocksSet = buildRocksSet(state.rocks);
+          const blacksMap = buildBlacksMap(state.blacks);
+
+          // First click: select piece if clicking its cell
+          if (!state.selected) {
+            if (state.pos.r === r && state.pos.c === c) {
+              state.selected = { r, c };
+              state.msg = "";
+              rerenderPlay();
+            }
+            return;
+          }
+
+          // Second click: attempt move
+          const from = { ...state.pos };
+          const to = { r, c };
+          state.selected = null;
+
+          const moves = legalMovesForWhite({ type: cfg.piece.type, from, rocksSet, blacksMap, rows, cols });
+          const isLegal = moves.some((x) => x.r === to.r && x.c === to.c);
+          if (!isLegal) {
+            state.msg = "Illegal move.";
+            state.msgType = "err";
+            return rerenderPlay();
+          }
+
+          const targetBlack = blackAt(blacksMap, to.r, to.c);
+          // Safety rule: cannot move onto attacked square unless capturing a black piece on that square
+          const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
+          if (attacked.has(`${to.r}:${to.c}`) && !targetBlack) {
+            state.msg = "That square is guarded by a black piece.";
+            state.msgType = "err";
+            return rerenderPlay();
+          }
+
+          // Apply capture (if any)
+          if (targetBlack) {
+            state.blacks = state.blacks.filter((b) => !(Number(b.r) === to.r && Number(b.c) === to.c));
+          }
+
+          state.pos = to;
+          state.stepsUsed += 1;
+
+          // Win?
+          if (posEq(state.pos, cfg.goal)) {
+            state.won = true;
+            state.msg = "Success! You reached the goal.";
+            state.msgType = "ok";
+            return rerenderPlay();
+          }
+
+          // Step limit fail?
+          if (cfg.maxSteps != null && state.stepsUsed >= cfg.maxSteps) {
+            return reset("Failed: step limit reached. Restarting stage.", "err");
+          }
+
+          state.msg = "";
+          state.msgType = "info";
+          return rerenderPlay();
+        });
+      });
+    }
+
+    function bindBuilderHandlers() {
+      root.querySelectorAll("[data-mr-builder-diff]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const next = normalizeDiff(btn.getAttribute("data-mr-builder-diff"));
+          if (next === ui.stage.difficulty) return;
+          ui.stage.difficulty = next;
+          rerenderMain();
+        });
+      });
+      root.querySelectorAll("[data-mr-builder-create]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          openCreateStageModal({
+            root,
+            difficulty: ui.stage.difficulty,
+            onCreated: () => rerenderMain()
+          });
+        });
+      });
+    }
+
     bindNav();
+    await rerenderMain();
   };
 })();
 

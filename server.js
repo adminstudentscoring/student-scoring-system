@@ -3732,6 +3732,17 @@ registerTacticsFighterRoutes(app, {
   TACTICS_FIGHTER_ATTEMPTS_FILE
 });
 
+// ==================== Maze Runner APIs (scaffold) ====================
+const { registerMazeRunnerRoutes } = require('./server/routes/mazeRunnerRoutes');
+registerMazeRunnerRoutes(app, {
+  appDb,
+  readData,
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  resolveOrgIdFromUser
+});
+
 // ============================
 // Billing (PayPal subscriptions)
 // ============================
