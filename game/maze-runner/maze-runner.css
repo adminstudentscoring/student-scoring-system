@@ -85,11 +85,11 @@
 }
 
 /* Stage page: hide top-left title + subtitle */
-.mr-app[data-mr-mode="stage"] .mr-title,
-.mr-app[data-mr-mode="stage"] .mr-container > .mr-muted {
+.mr-app[data-mr-current-mode="stage"] .mr-title,
+.mr-app[data-mr-current-mode="stage"] .mr-container > .mr-muted {
   display: none;
 }
-.mr-app[data-mr-mode="stage"] .mr-container {
+.mr-app[data-mr-current-mode="stage"] .mr-container {
   padding-top: 12px;
 }
 
