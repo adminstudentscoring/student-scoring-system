@@ -110,8 +110,10 @@
           - You cannot move onto squares attacked by black pieces, <strong>except</strong> when capturing the black piece on that square.<br>
           - Clear the stage to unlock the next one.
         </div>
-        <div style="display:flex; justify-content:flex-end; margin-top:14px; gap:10px; flex-wrap:wrap;">
-          <button type="button" class="mr-btn primary" data-mr-start-game="1">Start the Game</button>
+        <div style="display:flex; align-items:center; justify-content:center; min-height:140px; margin-top:10px;">
+          <button type="button" class="mr-btn primary" data-mr-start-game="1" style="min-width:220px;">
+            Start the Game
+          </button>
         </div>
       </div>
     `;
@@ -1140,29 +1142,8 @@
         setUrlParam("difficulty", ui.stage.difficulty);
         setUrlParam("stageId", "");
         rerenderShell();
-
-        await setMain(`<div class="mr-muted">Loading stage 1...</div>`);
-        try {
-          const data = await fetchStages({ isTeacher, difficulty: "easy" });
-          const stages = Array.isArray(data?.stages) ? data.stages : [];
-          const stage1 = stages.find((s) => Number(s?.stageNo) === 1) || null;
-          if (stage1?.id) {
-            await openStage(String(stage1.id));
-            return;
-          }
-          // fallback: open the smallest stageNo if stage 1 not found
-          const sorted = stages
-            .slice()
-            .filter((s) => s && s.id != null)
-            .sort((a, b) => Number(a.stageNo ?? 0) - Number(b.stageNo ?? 0));
-          if (sorted[0]?.id) {
-            await openStage(String(sorted[0].id));
-            return;
-          }
-          await setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">No stages found in Easy yet.</div>`);
-        } catch (e) {
-          await setMain(`<div class="mr-section-title">Stage</div><div class="mr-muted" style="margin-top:8px;">${escapeHtml(e?.message || String(e))}</div>`);
-        }
+        // go to Stage page only (do not auto-enter a stage)
+        void rerenderMain();
       });
     }
 
