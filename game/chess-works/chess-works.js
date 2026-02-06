@@ -455,6 +455,41 @@
       });
     };
 
+    const computeFenForStudentPv = ({ it, st }) => {
+      try {
+        if (!it?.boardEnabled) return "";
+        const rows = Number(it.board?.rows), cols = Number(it.board?.cols);
+        const pieces = (st && Array.isArray(st.pieces)) ? st.pieces : (it.pieces || []);
+        const movesLen = (st && Array.isArray(st.moves)) ? st.moves.length : 0;
+        const pvTurn = (() => {
+          if (it.turn !== "w" && it.turn !== "b") return "";
+          return (movesLen % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
+        })();
+        const turn = it.pvEnabled ? pvTurn : it.turn;
+        if (rows === 8 && cols === 8) return buildFen8({ pieces, turn });
+        return buildCwFen({ rows, cols, pieces, turn });
+      } catch {}
+      return "";
+    };
+
+    const rerenderStudentPvOnly = () => {
+      const main = root.querySelector("#cwMain");
+      if (!main) return;
+      const host = main.querySelector("#cwPvBoardHost");
+      if (!host) return;
+      const work = normalizeWork(ui.studentWorks.work || {});
+      const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+      const it = work.items[idx];
+      if (!it?.boardEnabled || !it?.pvEnabled) return;
+      const flip = it.turn === "b";
+      const st = ui.studentWorks.pvState?.[idx] || null;
+      const pieces = (st && Array.isArray(st.pieces)) ? st.pieces : (it.pieces || []);
+      host.innerHTML = renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces, interactive: true, flip });
+      const fen = computeFenForStudentPv({ it, st });
+      const fenEl = main.querySelector("#cwFenHidden");
+      if (fenEl) fenEl.value = String(fen || "");
+    };
+
     const rerenderShell = () => {
       root.innerHTML = renderShell({ role, mode: ui.mode });
       bindNav();
@@ -1698,8 +1733,16 @@
       });
 
       // Right-click board to copy FEN
-      main.querySelectorAll(".cw-board")?.forEach((board) => {
-        board.addEventListener("contextmenu", (e) => {
+      // (delegated below)
+
+      // PV interaction (student move recorder)
+      // PV + contextmenu handlers (delegated, bind once)
+      if (!main.__cwDelegatedBound) {
+        main.__cwDelegatedBound = true;
+
+        main.addEventListener("contextmenu", (e) => {
+          const board = e.target?.closest?.(".cw-board");
+          if (!board) return;
           try { e.preventDefault(); } catch {}
           const fen = String(main.querySelector("#cwFenHidden")?.value || "").trim();
           if (!fen) return;
@@ -1707,155 +1750,150 @@
             root,
             x: e.clientX,
             y: e.clientY,
-            items: [
-              {
-                label: "Copy FEN",
-                onClick: async () => { await copyToClipboard(fen); }
-              }
-            ]
+            items: [{ label: "Copy FEN", onClick: async () => { await copyToClipboard(fen); } }]
           });
         });
-      });
 
-      // PV interaction (student move recorder)
-      const pvUndo = main.querySelector("[data-cw-pv-undo]");
-      const pvReset = main.querySelector("[data-cw-pv-reset]");
-      if (pvUndo) {
-        pvUndo.addEventListener("click", () => {
+        main.addEventListener("click", (e) => {
+          const t = e.target;
+          const undoBtn = t?.closest?.("[data-cw-pv-undo]");
+          const resetBtn = t?.closest?.("[data-cw-pv-reset]");
+          const cellBtn = t?.closest?.("[data-cw-cell]");
+
           const work = normalizeWork(ui.studentWorks.work || {});
           const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
           const it = work.items[idx];
-          if (!it.boardEnabled || !it.pvEnabled) return;
-          const st = ui.studentWorks.pvState?.[idx];
-          if (!st || !Array.isArray(st.moves) || !st.moves.length) return;
-          st.moves.pop();
-          // rebuild pieces from initial
-          const base = JSON.parse(JSON.stringify(it.pieces || []));
-          for (const mv of st.moves) {
-            const [frs, fcs] = String(mv.from || "").split(":");
-            const [trs, tcs] = String(mv.to || "").split(":");
-            const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
-            const pi = base.findIndex((p) => p.r === fr && p.c === fc);
-            if (pi < 0) continue;
-            const cap = base.findIndex((p) => p.r === tr && p.c === tc);
-            if (cap >= 0) base.splice(cap, 1);
-            base[pi].r = tr;
-            base[pi].c = tc;
-          }
-          st.pieces = base;
-          st.selected = "";
-          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
-        });
-      }
-      if (pvReset) {
-        pvReset.addEventListener("click", () => {
-          const work = normalizeWork(ui.studentWorks.work || {});
-          const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
-          const it = work.items[idx];
-          if (!it.boardEnabled || !it.pvEnabled) return;
-          ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
-          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
-        });
-      }
+          if (!it?.boardEnabled) return;
 
-      main.querySelectorAll("#cwPvBoardHost [data-cw-cell]")?.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const work = normalizeWork(ui.studentWorks.work || {});
-          const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
-          const it = work.items[idx];
-          if (!it.boardEnabled || !it.pvEnabled) return;
-          const plyLimit = Number(it.pvPlies || 1);
-          const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
-          ui.studentWorks.pvState[idx] = st;
-          st.moves = Array.isArray(st.moves) ? st.moves : [];
-          st.pieces = Array.isArray(st.pieces) ? st.pieces : [];
-
-          const cell = String(btn.getAttribute("data-cw-cell") || "");
-          const [rs, cs] = cell.split(":");
-          const r = Number(rs), c = Number(cs);
-          if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
-          if (st.moves.length >= plyLimit) return;
-
-          const pieces = st.pieces;
-          const occ = new Map(pieces.map((p) => [`${p.r}:${p.c}`, p]));
-          const at = occ.get(`${r}:${c}`) || null;
-
-          const currentTurn = (() => {
-            if (it.turn !== "w" && it.turn !== "b") return "";
-            return (st.moves.length % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
-          })();
-
-          if (!st.selected) {
-            if (!at) return;
-            if (currentTurn && at.color !== currentTurn) return;
-            st.selected = `${r}:${c}`;
-            setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+          if (undoBtn) {
+            if (!it.pvEnabled) return;
+            const st = ui.studentWorks.pvState?.[idx];
+            if (!st || !Array.isArray(st.moves) || !st.moves.length) return;
+            st.moves.pop();
+            // rebuild pieces from initial
+            const base = JSON.parse(JSON.stringify(it.pieces || []));
+            for (const mv of st.moves) {
+              const [frs, fcs] = String(mv.from || "").split(":");
+              const [trs, tcs] = String(mv.to || "").split(":");
+              const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+              const pi = base.findIndex((p) => p.r === fr && p.c === fc);
+              if (pi < 0) continue;
+              const cap = base.findIndex((p) => p.r === tr && p.c === tc);
+              if (cap >= 0) base.splice(cap, 1);
+              base[pi].r = tr;
+              base[pi].c = tc;
+            }
+            st.pieces = base;
+            st.selected = "";
+            rerenderStudentPvOnly();
             return;
           }
 
-          const [frs, fcs] = String(st.selected).split(":");
-          const fr = Number(frs), fc = Number(fcs);
-          const mover = occ.get(`${fr}:${fc}`) || null;
-          if (!mover) { st.selected = ""; setMain(renderStudentDoWork()).then(bindStudentWorksHandlers); return; }
-          if (currentTurn && mover.color !== currentTurn) { st.selected = ""; setMain(renderStudentDoWork()).then(bindStudentWorksHandlers); return; }
-          if (fr === r && fc === c) { st.selected = ""; setMain(renderStudentDoWork()).then(bindStudentWorksHandlers); return; }
-
-          const dest = at;
-          if (dest && dest.color === mover.color) {
-            st.selected = `${r}:${c}`;
-            setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+          if (resetBtn) {
+            if (!it.pvEnabled) return;
+            ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
+            rerenderStudentPvOnly();
             return;
           }
 
-          const dr = r - fr;
-          const dc = c - fc;
-          const abs = (x) => Math.abs(x);
-          const sign = (x) => (x === 0 ? 0 : x > 0 ? 1 : -1);
-          const clearRay = (sdr, sdc) => {
-            let rr = fr + sdr, cc = fc + sdc;
-            while (rr !== r || cc !== c) {
-              if (occ.get(`${rr}:${cc}`)) return false;
-              rr += sdr;
-              cc += sdc;
+          if (cellBtn) {
+            // Only handle PV board cells
+            if (!cellBtn.closest("#cwPvBoardHost")) return;
+            if (!it.pvEnabled) return;
+
+            const plyLimit = Number(it.pvPlies || 1);
+            const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
+            ui.studentWorks.pvState[idx] = st;
+            st.moves = Array.isArray(st.moves) ? st.moves : [];
+            st.pieces = Array.isArray(st.pieces) ? st.pieces : [];
+
+            const cell = String(cellBtn.getAttribute("data-cw-cell") || "");
+            const [rs, cs] = cell.split(":");
+            const r = Number(rs), c = Number(cs);
+            if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
+            if (st.moves.length >= plyLimit) return;
+
+            const pieces = st.pieces;
+            const occ = new Map(pieces.map((p) => [`${p.r}:${p.c}`, p]));
+            const at = occ.get(`${r}:${c}`) || null;
+
+            const currentTurn = (() => {
+              if (it.turn !== "w" && it.turn !== "b") return "";
+              return (st.moves.length % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
+            })();
+
+            if (!st.selected) {
+              if (!at) return;
+              if (currentTurn && at.color !== currentTurn) return;
+              st.selected = `${r}:${c}`;
+              // no full rerender (avoid screen flash)
+              return;
             }
-            return true;
-          };
-          let ok = false;
-          const t = String(mover.type || "").toUpperCase();
-          if (t === "N") ok = (abs(dr) === 2 && abs(dc) === 1) || (abs(dr) === 1 && abs(dc) === 2);
-          else if (t === "K") ok = abs(dr) <= 1 && abs(dc) <= 1;
-          else if (t === "B") ok = abs(dr) === abs(dc) && clearRay(sign(dr), sign(dc));
-          else if (t === "R") ok = (dr === 0 || dc === 0) && clearRay(sign(dr), sign(dc));
-          else if (t === "Q") ok = ((dr === 0 || dc === 0) || (abs(dr) === abs(dc))) && clearRay(sign(dr), sign(dc));
-          else if (t === "P") {
-            if (mover.color === "w") {
-              if (dest) ok = (dr === -1 && abs(dc) === 1);
-              else ok = (dc === 0 && dr === -1);
-            } else {
-              if (dest) ok = (dr === 1 && abs(dc) === 1);
-              else ok = (dc === 0 && dr === 1);
+
+            const [frs, fcs] = String(st.selected).split(":");
+            const fr = Number(frs), fc = Number(fcs);
+            const mover = occ.get(`${fr}:${fc}`) || null;
+            if (!mover) { st.selected = ""; return; }
+            if (currentTurn && mover.color !== currentTurn) { st.selected = ""; return; }
+            if (fr === r && fc === c) { st.selected = ""; return; }
+
+            const dest = at;
+            if (dest && dest.color === mover.color) {
+              st.selected = `${r}:${c}`;
+              return;
             }
+
+            const dr = r - fr;
+            const dc = c - fc;
+            const abs = (x) => Math.abs(x);
+            const sign = (x) => (x === 0 ? 0 : x > 0 ? 1 : -1);
+            const clearRay = (sdr, sdc) => {
+              let rr = fr + sdr, cc = fc + sdc;
+              while (rr !== r || cc !== c) {
+                if (occ.get(`${rr}:${cc}`)) return false;
+                rr += sdr;
+                cc += sdc;
+              }
+              return true;
+            };
+            let ok = false;
+            const pt = String(mover.type || "").toUpperCase();
+            if (pt === "N") ok = (abs(dr) === 2 && abs(dc) === 1) || (abs(dr) === 1 && abs(dc) === 2);
+            else if (pt === "K") ok = abs(dr) <= 1 && abs(dc) <= 1;
+            else if (pt === "B") ok = abs(dr) === abs(dc) && clearRay(sign(dr), sign(dc));
+            else if (pt === "R") ok = (dr === 0 || dc === 0) && clearRay(sign(dr), sign(dc));
+            else if (pt === "Q") ok = ((dr === 0 || dc === 0) || (abs(dr) === abs(dc))) && clearRay(sign(dr), sign(dc));
+            else if (pt === "P") {
+              if (mover.color === "w") {
+                if (dest) ok = (dr === -1 && abs(dc) === 1);
+                else ok = (dc === 0 && dr === -1);
+              } else {
+                if (dest) ok = (dr === 1 && abs(dc) === 1);
+                else ok = (dc === 0 && dr === 1);
+              }
+            }
+            if (!ok) return;
+
+            // apply
+            if (dest) {
+              const capI = pieces.findIndex((p) => p.r === r && p.c === c);
+              if (capI >= 0) pieces.splice(capI, 1);
+            }
+            const mi = pieces.findIndex((p) => p.r === fr && p.c === fc);
+            if (mi >= 0) { pieces[mi].r = r; pieces[mi].c = c; }
+            st.moves.push({ color: mover.color, type: mover.type, from: `${fr}:${fc}`, to: `${r}:${c}` });
+            st.selected = "";
+
+            // persist into answers state
+            const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
+            a.pvMoves = st.moves.slice(0, plyLimit);
+            ui.studentWorks.answers.items[idx] = a;
+
+            // rerender only PV board to show the move instantly (no full-screen fade)
+            rerenderStudentPvOnly();
           }
-          if (!ok) return;
-
-          // apply
-          if (dest) {
-            const capI = pieces.findIndex((p) => p.r === r && p.c === c);
-            if (capI >= 0) pieces.splice(capI, 1);
-          }
-          const mi = pieces.findIndex((p) => p.r === fr && p.c === fc);
-          if (mi >= 0) { pieces[mi].r = r; pieces[mi].c = c; }
-          st.moves.push({ color: mover.color, type: mover.type, from: `${fr}:${fc}`, to: `${r}:${c}` });
-          st.selected = "";
-
-          // persist into answers state
-          const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
-          a.pvMoves = st.moves.slice(0, plyLimit);
-          ui.studentWorks.answers.items[idx] = a;
-
-          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
         });
-      });
+      }
     }
 
     function bindTeacherWorksHandlers() {
