@@ -748,6 +748,16 @@
     return portalsMap.get(`${Number(r)}:${Number(c)}`) || null;
   }
 
+  function isSquareAttackedByOtherBlacks({ blacks, rocksSet, rows, cols, square, exclude }) {
+    const ex = exclude && typeof exclude === "object" ? exclude : null;
+    const filtered = (Array.isArray(blacks) ? blacks : []).filter((b) => {
+      if (!ex) return true;
+      return !(Number(b.r) === Number(ex.r) && Number(b.c) === Number(ex.c));
+    });
+    const attacked = squaresAttackedByBlack({ blacks: filtered, rocksSet, rows, cols });
+    return attacked.has(`${Number(square.r)}:${Number(square.c)}`);
+  }
+
   function computeCellPx({ rows, cols, targetPx = 520, gapPx = 2, padPx = 2 }) {
     const r = Math.max(1, Number(rows) || 1);
     const c = Math.max(1, Number(cols) || 1);
@@ -1008,7 +1018,8 @@
               - You control only <strong>one</strong> white piece (K/Q/R/B/N/P).<br>
               - Reach the goal within the step limit.<br>
               - Rocks cannot be captured and cannot be passed through (Knight can jump).<br>
-              - You cannot move onto squares attacked by black pieces, <strong>except</strong> you may move to capture the black piece on that square.<br>
+              - You cannot move onto squares attacked by black pieces.<br>
+              - You may capture a black piece on an attacked square <strong>only if</strong> that black piece is <strong>not protected</strong> by any other black piece.<br>
               - If you exceed the step limit, the stage restarts.
             </div>
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
@@ -1503,10 +1514,26 @@
           const targetBlack = blackAt(blacksMap, to.r, to.c);
           // Safety rule: cannot move onto attacked square unless capturing a black piece on that square
           const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
-          if (attacked.has(`${to.r}:${to.c}`) && !targetBlack) {
-            // Attacked square: modal warning, continue game after close
-            openAttackModal(root);
-            return rerenderPlay();
+          const toKey = `${to.r}:${to.c}`;
+          if (attacked.has(toKey)) {
+            if (!targetBlack) {
+              // Attacked square: modal warning, continue game after close
+              openAttackModal(root);
+              return rerenderPlay();
+            }
+            // Capture is only allowed if the destination is NOT attacked by other black pieces
+            const defended = isSquareAttackedByOtherBlacks({
+              blacks: state.blacks,
+              rocksSet,
+              rows,
+              cols,
+              square: to,
+              exclude: { r: to.r, c: to.c }
+            });
+            if (defended) {
+              openAttackModal(root);
+              return rerenderPlay();
+            }
           }
 
           // Apply capture (if any)
@@ -1530,11 +1557,27 @@
             // Rules:
             // - moving onto portal counts as the step (already counted)
             // - teleport itself doesn't cost a step
-            // - if landing square is Rock or (attacked and not capturing), cannot teleport
-            if (!destIsRock && (!(attacked2.has(`${er}:${ec}`)) || destBlack)) {
-              // capture on landing, if any
-              if (destBlack) state.blacks = state.blacks.filter((b) => !(Number(b.r) === er && Number(b.c) === ec));
-              state.pos = { r: er, c: ec };
+            // - if landing square is Rock, cannot teleport
+            // - if landing square is attacked, you can only land there by capturing AND that captured piece is not defended
+            const destKey = `${er}:${ec}`;
+            if (!destIsRock) {
+              if (!attacked2.has(destKey)) {
+                state.pos = { r: er, c: ec };
+              } else if (destBlack) {
+                const defended = isSquareAttackedByOtherBlacks({
+                  blacks: state.blacks,
+                  rocksSet: rocksSet2,
+                  rows,
+                  cols,
+                  square: { r: er, c: ec },
+                  exclude: { r: er, c: ec }
+                });
+                if (!defended) {
+                  // capture on landing, if any
+                  state.blacks = state.blacks.filter((b) => !(Number(b.r) === er && Number(b.c) === ec));
+                  state.pos = { r: er, c: ec };
+                }
+              }
             }
           }
 
