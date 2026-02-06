@@ -184,9 +184,10 @@
     return {
       board: { rows: 6, cols: 6 },
       piece: { type: "N", start: { r: 5, c: 0 } },
-      goal: { r: 0, c: 5 },
+      goals: [{ r: 0, c: 5 }],
       rocks: [],
       blacks: [],
+      portals: [],
       maxSteps: 10
     };
   }
@@ -247,8 +248,9 @@
     const isEdit = !!(stage && stage.id);
     const stageNo = stage?.stageNo != null ? Number(stage.stageNo) : null;
     let cfg = (stage && typeof stage.config === "object" && stage.config) ? stage.config : defaultStageConfig();
-    let tool = "start"; // start | goal | rock | black | erase
+    let tool = "start"; // start | goal | portal | rock | black | erase
     let blackType = "P";
+    let portalPending = null; // {r,c} awaiting pair placement
 
     const clampCfgToBoard = () => {
       const rows = Math.max(2, Number(cfg?.board?.rows || 6) || 6);
@@ -260,10 +262,19 @@
       cfg.board.rows = rows;
       cfg.board.cols = cols;
       cfg.piece.start = clamp(cfg.piece.start);
-      cfg.goal = clamp(cfg.goal);
+      // Back-compat: migrate legacy goal -> goals[]
+      if (!Array.isArray(cfg.goals) || !cfg.goals.length) {
+        if (cfg.goal && typeof cfg.goal === "object") cfg.goals = [cfg.goal];
+        else cfg.goals = [{ r: 0, c: cols - 1 }];
+      }
+      cfg.goals = (Array.isArray(cfg.goals) ? cfg.goals : []).map(clamp).filter((x) => inBounds(x.r, x.c, rows, cols));
+      if (!cfg.goals.length) cfg.goals = [{ r: 0, c: cols - 1 }].map(clamp);
       cfg.rocks = (Array.isArray(cfg.rocks) ? cfg.rocks : []).map(clamp).filter((x) => inBounds(x.r, x.c, rows, cols));
       cfg.blacks = (Array.isArray(cfg.blacks) ? cfg.blacks : []).map((b) => ({ type: String(b?.type || "P").toUpperCase(), ...clamp(b) }))
         .filter((x) => inBounds(x.r, x.c, rows, cols));
+      cfg.portals = (Array.isArray(cfg.portals) ? cfg.portals : [])
+        .map((p) => ({ a: p?.a ? clamp(p.a) : null, b: p?.b ? clamp(p.b) : null }))
+        .filter((p) => p.a && p.b && !(p.a.r === p.b.r && p.a.c === p.b.c));
     };
 
     const pieceImgSrc = (color, type) => {
@@ -288,6 +299,10 @@
       }
       const isRock = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
       if (isRock) return `<img src="/game/maze-runner/images/pieces/rock_1.png" alt="Rock">`;
+      const portalsMap = buildPortalsMap(cfg.portals);
+      if (portalExit(portalsMap, r, c)) return `<span aria-hidden="true" style="font-size:18px;">🌀</span>`;
+      const gi = (Array.isArray(cfg.goals) ? cfg.goals : []).findIndex((g) => Number(g.r) === r && Number(g.c) === c);
+      if (gi >= 0) return `<span style="font-weight:1000; color:#16a34a;">G${gi + 1}</span>`;
       return "";
     };
 
@@ -301,7 +316,7 @@
         for (let c = 0; c < cols; c++) {
           const dark = (r + c) % 2 === 1;
           const isRock = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
-          const isGoal = cfg.goal.r === r && cfg.goal.c === c;
+          const isGoal = (Array.isArray(cfg.goals) ? cfg.goals : []).some((g) => Number(g.r) === r && Number(g.c) === c);
           const classes = [
             "mr-cell",
             dark ? "is-dark" : "",
@@ -374,6 +389,7 @@
                   <div class="mr-tool-row">
                     <button type="button" class="mr-tool is-active" data-mr-tool="start">Start</button>
                     <button type="button" class="mr-tool" data-mr-tool="goal">Goal</button>
+                    <button type="button" class="mr-tool" data-mr-tool="portal">Portal</button>
                     <button type="button" class="mr-tool" data-mr-tool="rock">Rock</button>
                     <button type="button" class="mr-tool" data-mr-tool="black">Black</button>
                     <button type="button" class="mr-tool" data-mr-tool="erase">Eraser</button>
@@ -402,7 +418,7 @@
                 <div class="mr-card" style="margin-top:10px; background:#ffffff;">
                   <div id="mrBoardHolder">${renderBuilderBoard()}</div>
                   <div class="mr-muted" style="margin-top:10px;">
-                    Start = white piece. Goal = green outline. Rock = ⬛.
+                    Start = white piece. Goals = G1, G2, ... (in order). Portal = 🌀 (place in pairs).
                   </div>
                 </div>
               </div>
@@ -468,6 +484,19 @@
     const removeBlackAt = (r, c) => {
       cfg.blacks = (Array.isArray(cfg.blacks) ? cfg.blacks : []).filter((x) => !(Number(x.r) === r && Number(x.c) === c));
     };
+    const removeGoalAt = (r, c) => {
+      cfg.goals = (Array.isArray(cfg.goals) ? cfg.goals : []).filter((g) => !(Number(g.r) === r && Number(g.c) === c));
+      if (!cfg.goals.length) cfg.goals = [{ r: 0, c: (Number(cfg?.board?.cols || 6) || 6) - 1 }];
+    };
+    const removePortalAt = (r, c) => {
+      cfg.portals = (Array.isArray(cfg.portals) ? cfg.portals : []).filter((p) => {
+        const a = p?.a, b = p?.b;
+        if (!a || !b) return false;
+        const hitA = Number(a.r) === r && Number(a.c) === c;
+        const hitB = Number(b.r) === r && Number(b.c) === c;
+        return !(hitA || hitB);
+      });
+    };
 
     const bindBoardClicks = () => {
       const board = host.querySelector("#mrBuilderBoard");
@@ -489,20 +518,63 @@
             return;
           }
           if (tool === "goal") {
-            // cannot place goal on rock
+            // cannot place goal on rock / portal (we'll remove those)
             removeRockAt(r, c);
-            cfg.goal = { r, c };
+            removePortalAt(r, c);
+            // toggle: if already a goal, remove; else append as next goal
+            cfg.goals = Array.isArray(cfg.goals) ? cfg.goals : [];
+            const existsIdx = cfg.goals.findIndex((g) => Number(g.r) === r && Number(g.c) === c);
+            if (existsIdx >= 0) cfg.goals.splice(existsIdx, 1);
+            else cfg.goals.push({ r, c });
+            renderToDom();
+            return;
+          }
+          if (tool === "portal") {
+            // cannot place portal on rock/start/goal/black
+            const onStart = cfg.piece.start.r === r && cfg.piece.start.c === c;
+            const onGoal = (Array.isArray(cfg.goals) ? cfg.goals : []).some((g) => Number(g.r) === r && Number(g.c) === c);
+            const onRock = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
+            const onBlack = (Array.isArray(cfg.blacks) ? cfg.blacks : []).some((b) => Number(b.r) === r && Number(b.c) === c);
+            if (onStart || onGoal || onRock || onBlack) return;
+
+            // If click a cell that is already a portal endpoint, remove that pair
+            const pm = buildPortalsMap(cfg.portals);
+            if (portalExit(pm, r, c)) {
+              removePortalAt(r, c);
+              portalPending = null;
+              renderToDom();
+              return;
+            }
+
+            // Place in pairs
+            if (!portalPending) {
+              portalPending = { r, c };
+              renderToDom();
+              return;
+            }
+            // cancel if clicking same
+            if (portalPending.r === r && portalPending.c === c) {
+              portalPending = null;
+              renderToDom();
+              return;
+            }
+            cfg.portals = Array.isArray(cfg.portals) ? cfg.portals : [];
+            cfg.portals.push({ a: { r: portalPending.r, c: portalPending.c }, b: { r, c } });
+            portalPending = null;
             renderToDom();
             return;
           }
           if (tool === "rock") {
             // cannot place rock on start/goal
-            if ((cfg.piece.start.r === r && cfg.piece.start.c === c) || (cfg.goal.r === r && cfg.goal.c === c)) return;
+            if (cfg.piece.start.r === r && cfg.piece.start.c === c) return;
+            if ((Array.isArray(cfg.goals) ? cfg.goals : []).some((g) => Number(g.r) === r && Number(g.c) === c)) return;
             const exists = (Array.isArray(cfg.rocks) ? cfg.rocks : []).some((x) => Number(x.r) === r && Number(x.c) === c);
             if (exists) removeRockAt(r, c);
             else cfg.rocks = [...(Array.isArray(cfg.rocks) ? cfg.rocks : []), { r, c }];
             // remove any black on rock
             removeBlackAt(r, c);
+            // remove any portal on rock
+            removePortalAt(r, c);
             renderToDom();
             return;
           }
@@ -521,7 +593,10 @@
           if (tool === "erase") {
             removeRockAt(r, c);
             removeBlackAt(r, c);
-            // do not erase start/goal with eraser (keep stable)
+            removePortalAt(r, c);
+            // allow erasing goals (but keep at least one)
+            removeGoalAt(r, c);
+            // do not erase start with eraser (keep stable)
             renderToDom();
           }
         });
@@ -656,6 +731,23 @@
     return "/game/maze-runner/images/pieces/rock_1.png";
   }
 
+  function buildPortalsMap(portals) {
+    const m = new Map();
+    for (const p of (Array.isArray(portals) ? portals : [])) {
+      const a = p?.a, b = p?.b;
+      if (!a || !b) continue;
+      const ak = `${Number(a.r)}:${Number(a.c)}`;
+      const bk = `${Number(b.r)}:${Number(b.c)}`;
+      m.set(ak, { r: Number(b.r), c: Number(b.c) });
+      m.set(bk, { r: Number(a.r), c: Number(a.c) });
+    }
+    return m;
+  }
+
+  function portalExit(portalsMap, r, c) {
+    return portalsMap.get(`${Number(r)}:${Number(c)}`) || null;
+  }
+
   function computeCellPx({ rows, cols, targetPx = 520, gapPx = 2, padPx = 2 }) {
     const r = Math.max(1, Number(rows) || 1);
     const c = Math.max(1, Number(cols) || 1);
@@ -675,10 +767,18 @@
       r: Math.max(0, Math.min(rows - 1, Number(cfg?.piece?.start?.r || rows - 1) || 0)),
       c: Math.max(0, Math.min(cols - 1, Number(cfg?.piece?.start?.c || 0) || 0))
     };
-    const goal = {
-      r: Math.max(0, Math.min(rows - 1, Number(cfg?.goal?.r || 0) || 0)),
-      c: Math.max(0, Math.min(cols - 1, Number(cfg?.goal?.c || cols - 1) || 0))
-    };
+    const clampRc = (rc, def) => ({
+      r: Math.max(0, Math.min(rows - 1, Number(rc?.r ?? def?.r ?? 0) || 0)),
+      c: Math.max(0, Math.min(cols - 1, Number(rc?.c ?? def?.c ?? (cols - 1)) || 0))
+    });
+    const legacyGoal = cfg?.goal ? clampRc(cfg.goal, { r: 0, c: cols - 1 }) : null;
+    let goals = Array.isArray(cfg?.goals) ? cfg.goals
+      .map((x) => ({ r: Number(x?.r), c: Number(x?.c) }))
+      .filter((x) => Number.isFinite(x.r) && Number.isFinite(x.c) && inBounds(x.r, x.c, rows, cols))
+      : [];
+    if (!goals.length && legacyGoal) goals = [legacyGoal];
+    if (!goals.length) goals = [clampRc(null, { r: 0, c: cols - 1 })];
+
     const rocks = Array.isArray(cfg?.rocks) ? cfg.rocks
       .map((x) => ({ r: Number(x?.r), c: Number(x?.c) }))
       .filter((x) => Number.isFinite(x.r) && Number.isFinite(x.c) && inBounds(x.r, x.c, rows, cols))
@@ -687,9 +787,20 @@
       .map((x) => ({ type: String(x?.type || "P").trim().toUpperCase(), r: Number(x?.r), c: Number(x?.c) }))
       .filter((x) => Number.isFinite(x.r) && Number.isFinite(x.c) && inBounds(x.r, x.c, rows, cols))
       : [];
+    const portals = Array.isArray(cfg?.portals) ? cfg.portals
+      .map((p) => ({
+        a: p?.a ? { r: Number(p.a.r), c: Number(p.a.c) } : null,
+        b: p?.b ? { r: Number(p.b.r), c: Number(p.b.c) } : null
+      }))
+      .filter((p) => p.a && p.b
+        && Number.isFinite(p.a.r) && Number.isFinite(p.a.c) && inBounds(p.a.r, p.a.c, rows, cols)
+        && Number.isFinite(p.b.r) && Number.isFinite(p.b.c) && inBounds(p.b.r, p.b.c, rows, cols)
+        && !(p.a.r === p.b.r && p.a.c === p.b.c)
+      )
+      : [];
     const maxStepsRaw = cfg?.maxSteps;
     const maxSteps = (maxStepsRaw == null || String(maxStepsRaw).trim() === "") ? null : Math.max(1, Number(maxStepsRaw) || 1);
-    return { board: { rows, cols }, piece: { type: pieceType, start }, goal, rocks, blacks, maxSteps };
+    return { board: { rows, cols }, piece: { type: pieceType, start }, goals, rocks, blacks, portals, maxSteps };
   }
 
   function isRockAt(rocksSet, r, c) {
@@ -804,15 +915,18 @@
     return moves;
   }
 
-  function renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal, pos, selected, pieceType }) {
+  function renderBoardHtml({ rows, cols, rocksSet, blacksMap, goals, goalIndex, portalsMap, pos, selected, pieceType }) {
     const colsCss = `repeat(${cols}, var(--mr-cell, 36px))`;
+    const goalArr = Array.isArray(goals) ? goals : [];
+    const activeGoal = goalArr[Math.max(0, Math.min(goalArr.length - 1, Number(goalIndex) || 0))] || null;
     const cells = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const dark = (r + c) % 2 === 1;
         const isRock = isRockAt(rocksSet, r, c);
         const blk = blackAt(blacksMap, r, c);
-        const isGoal = posEq(goal, { r, c });
+        const isGoal = activeGoal ? posEq(activeGoal, { r, c }) : false;
+        const isPortal = !!portalExit(portalsMap, r, c);
         const isSel = selected && Number(selected.r) === r && Number(selected.c) === c;
         const isPos = posEq(pos, { r, c });
         const classes = [
@@ -821,6 +935,7 @@
           isRock ? "is-rock" : "",
           blk ? "is-black" : "",
           isGoal ? "is-goal" : "",
+          isPortal ? "is-portal" : "",
           isSel ? "is-selected" : ""
         ].filter(Boolean).join(" ");
         let inner = "";
@@ -832,6 +947,8 @@
         } else if (isPos) {
           const src = mrPieceImgSrc("w", pieceType);
           inner = src ? `<img src="${escapeHtml(src)}" alt="White ${escapeHtml(String(pieceType || ''))}">` : escapeHtml(iconWhite(pieceType));
+        } else if (isPortal) {
+          inner = `<span aria-hidden="true" style="font-size:18px;">🌀</span>`;
         }
         cells.push(`<button type="button" class="${classes}" data-mr-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
       }
@@ -845,8 +962,8 @@
     const cols = cfg.board.cols;
     const rocksSet = buildRocksSet(state.rocks);
     const blacksMap = buildBlacksMap(state.blacks);
+    const portalsMap = buildPortalsMap(cfg.portals);
     const maxStepsLabel = cfg.maxSteps == null ? "∞" : String(cfg.maxSteps);
-    const attacked = squaresAttackedByBlack({ blacks: state.blacks, rocksSet, rows, cols });
     const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
 
     return `
@@ -860,7 +977,18 @@
         </div>
       </div>
       <div class="mr-board-wrap-520" style="--mr-cell:${escapeHtml(String(cellPx))}px; --mr-gap:2px; --mr-pad:2px;">
-        ${renderBoardHtml({ rows, cols, rocksSet, blacksMap, goal: cfg.goal, pos: state.pos, selected: state.selected, pieceType: cfg.piece.type })}
+        ${renderBoardHtml({
+          rows,
+          cols,
+          rocksSet,
+          blacksMap,
+          goals: cfg.goals,
+          goalIndex: state.goalIndex || 0,
+          portalsMap,
+          pos: state.pos,
+          selected: state.selected,
+          pieceType: cfg.piece.type
+        })}
       </div>
     `;
   }
@@ -1147,6 +1275,7 @@
           pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
           stepsUsed: 0,
           selected: null,
+          goalIndex: 0,
           rocks: cfg.rocks.slice(),
           blacks: cfg.blacks.slice(),
           won: false
@@ -1327,6 +1456,7 @@
           pos: { r: cfg.piece.start.r, c: cfg.piece.start.c },
           stepsUsed: 0,
           selected: null,
+          goalIndex: 0,
           rocks: cfg.rocks.slice(),
           blacks: cfg.blacks.slice(),
           won: false
@@ -1387,19 +1517,47 @@
           state.pos = to;
           state.stepsUsed += 1;
 
-          // Win?
-          if (posEq(state.pos, cfg.goal)) {
+          // Portal teleport (does not cost extra step)
+          const portalsMap = buildPortalsMap(cfg.portals);
+          const exit = portalExit(portalsMap, state.pos.r, state.pos.c);
+          if (exit) {
+            const er = Number(exit.r), ec = Number(exit.c);
+          const rocksSet2 = buildRocksSet(state.rocks);
+          const attacked2 = squaresAttackedByBlack({ blacks: state.blacks, rocksSet: rocksSet2, rows, cols });
+            const blacksMap2 = buildBlacksMap(state.blacks);
+            const destBlack = blackAt(blacksMap2, er, ec);
+            const destIsRock = isRockAt(rocksSet2, er, ec);
+            // Rules:
+            // - moving onto portal counts as the step (already counted)
+            // - teleport itself doesn't cost a step
+            // - if landing square is Rock or (attacked and not capturing), cannot teleport
+            if (!destIsRock && (!(attacked2.has(`${er}:${ec}`)) || destBlack)) {
+              // capture on landing, if any
+              if (destBlack) state.blacks = state.blacks.filter((b) => !(Number(b.r) === er && Number(b.c) === ec));
+              state.pos = { r: er, c: ec };
+            }
+          }
+
+          // Sequential goals
+          const goals = Array.isArray(cfg.goals) ? cfg.goals : [];
+          const gi = Math.max(0, Math.min(goals.length - 1, Number(state.goalIndex) || 0));
+          const activeGoal = goals[gi] || null;
+          const isAtActiveGoal = !!activeGoal && posEq(state.pos, activeGoal);
+          if (isAtActiveGoal) {
+            // If not the last goal, advance to the next goal and continue
+            if (gi < goals.length - 1) {
+              state.goalIndex = gi + 1;
+              return rerenderPlay();
+            }
+            // Last goal reached => win
             state.won = true;
             markStageComplete(String(stage?.id || ui.stage.stageId || ""));
-            // Success: modal with Next button
             openSuccessModal(root, {
               onNext: async () => {
                 const curNo = Number(stage?.stageNo || 0) || 0;
                 const list = Array.isArray(ui.stage.stages) ? ui.stage.stages : [];
                 const next = list.find((s) => Number(s.stageNo) === curNo + 1);
-                if (next && next.id) {
-                  await openStage(next.id);
-                }
+                if (next && next.id) await openStage(next.id);
               }
             });
             return rerenderPlay();
