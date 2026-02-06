@@ -42,9 +42,23 @@
     setUrlParam("mode", normalizeMode(mode));
   }
 
-  async function apiRequest(path, options = {}) {
+  function getPublicStudentPassword() {
+    try {
+      return String(localStorage.getItem("studentAccessPassword") || "").trim();
+    } catch {}
+    return "";
+  }
+
+  async function apiRequest(urlOrPath, options = {}) {
+    // Accept both:
+    // - full urls/paths like "/api/teachers/..."
+    // - relative paths like "/teachers/..." (auto-prefixed by window.API_BASE)
     const base = String(window.API_BASE || "/api").replace(/\/+$/, "");
-    const url = `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+    const raw = String(urlOrPath || "");
+    const url =
+      raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("/api/")
+        ? raw
+        : `${base}${raw.startsWith("/") ? "" : "/"}${raw}`;
     const headers = Object.assign({}, options.headers || {});
     headers["Content-Type"] = headers["Content-Type"] || "application/json";
 
@@ -128,6 +142,7 @@
     normalizeMode,
     getUrlMode,
     setUrlMode,
+    getPublicStudentPassword,
     apiRequest,
     renderShell
   };

@@ -5,6 +5,8 @@
   --cs-muted: #64748b;
   --cs-border: #e2e8f0;
   --cs-bg: #ffffff;
+  --cs-soft: #f1f5f9;
+  --cs-glow: rgba(250, 204, 21, 0.30);
 }
 
 .cs-app {
@@ -117,6 +119,15 @@
   transform: translateY(6px);
 }
 
+/* Stage page: hide top-left title + subtitle (match Maze Runner UX) */
+.cs-app[data-cs-current-mode="stage"] .cs-title,
+.cs-app[data-cs-current-mode="stage"] .cs-container > .cs-muted {
+  display: none;
+}
+.cs-app[data-cs-current-mode="stage"] .cs-container {
+  padding-top: 12px;
+}
+
 .cs-btn {
   border: 1px solid var(--cs-border);
   background: #ffffff;
@@ -136,4 +147,119 @@
   background: var(--cs-primary);
   border-color: var(--cs-primary);
   color: #ffffff;
+}
+
+/* Common controls */
+.cs-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cs-badge {
+  border: 1px solid rgba(91, 112, 143, 0.35);
+  background: rgba(91, 112, 143, 0.10);
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-weight: 950;
+  color: var(--cs-ink);
+}
+
+.cs-pill-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.cs-pill {
+  border: 1px solid var(--cs-border);
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 950;
+}
+.cs-pill.is-active {
+  border-color: rgba(91, 112, 143, 0.55);
+  background: rgba(91, 112, 143, 0.10);
+}
+
+.cs-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 12px;
+}
+.cs-stage-card {
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  border: 1px solid var(--cs-border);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 950;
+  color: var(--cs-ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.cs-stage-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(91, 112, 143, 0.45);
+  box-shadow: 0 16px 26px rgba(15, 23, 42, 0.10);
+}
+
+/* Board */
+.cs-board-wrap-520 {
+  width: min(520px, 100%);
+  margin: 0 auto;
+  padding: var(--cs-pad, 2px);
+}
+.cs-board {
+  display: grid;
+  gap: var(--cs-gap, 2px);
+  padding: var(--cs-pad, 2px);
+  border-radius: 16px;
+  background: #e2e8f0;
+  width: fit-content;
+  margin: 0 auto;
+}
+.cs-cell {
+  width: var(--cs-cell, 38px);
+  height: var(--cs-cell, 38px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+}
+.cs-cell.is-dark {
+  background: var(--cs-soft);
+}
+.cs-cell.is-removed {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+.cs-cell.is-selected:not(.is-removed)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px rgba(91, 112, 143, 0.55), 0 0 14px rgba(91, 112, 143, 0.25);
+  pointer-events: none;
+}
+.cs-cell.is-capture:not(.is-removed)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--cs-glow), 0 0 18px var(--cs-glow);
+  pointer-events: none;
 }

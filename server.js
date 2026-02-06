@@ -3754,6 +3754,17 @@ registerChessLightRoutes(app, {
   resolveOrgIdFromUser
 });
 
+// ==================== Chess Solitaire APIs (scaffold) ====================
+const { registerChessSolitaireRoutes } = require('./server/routes/chessSolitaireRoutes');
+registerChessSolitaireRoutes(app, {
+  appDb,
+  readData,
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  resolveOrgIdFromUser
+});
+
 // ============================
 // Billing (PayPal subscriptions)
 // ============================
