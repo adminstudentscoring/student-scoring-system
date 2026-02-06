@@ -3,7 +3,7 @@
 }
 
 /* Theme */
-.cl-app {
+.chess-light-root {
   --cl-primary: #4b6b8f;      /* grey-blue */
   --cl-primary-2: #6b89aa;
   --cl-ink: #0f172a;

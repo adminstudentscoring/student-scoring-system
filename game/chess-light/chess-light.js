@@ -256,7 +256,16 @@
     return attacked;
   }
 
-  function renderBoardHtml({ rows, cols, removedSet, forbiddenSet, highlightSet, piecesByCell }) {
+  function clPieceImgSrc(color, type) {
+    const t = String(type || "").toUpperCase();
+    const c = String(color || "").toLowerCase() === "b" ? "black" : "white";
+    const map = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn" };
+    const nm = map[t] || "";
+    if (!nm) return "";
+    return `/game/chess-light/pieces/${c}_${nm}.png`;
+  }
+
+  function renderBoardHtml({ rows, cols, removedSet, forbiddenSet, highlightSet, piecesByCell, disableRemoved = false }) {
     const colsCss = `repeat(${cols}, var(--cl-cell, 36px))`;
     const cells = [];
     for (let r = 0; r < rows; r++) {
@@ -274,8 +283,14 @@
           (!isRemoved && isForbidden) ? "is-forbidden" : "",
           (!isRemoved && isHighlight) ? "is-highlight" : ""
         ].filter(Boolean).join(" ");
-        const inner = p ? `<span style="font-weight:1000; color:#0f172a;">${escapeHtml(p.type)}</span>` : "";
-        const disabled = isRemoved ? "disabled" : "";
+        let inner = "";
+        if (p) {
+          const src = clPieceImgSrc(p.color || "w", p.type);
+          inner = src
+            ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(String(p.color || "w"))} ${escapeHtml(String(p.type || ""))}" style="width: calc(var(--cl-cell, 36px) - 10px); height: calc(var(--cl-cell, 36px) - 10px); object-fit:contain;">`
+            : `<span style="font-weight:1000; color:#0f172a;">${escapeHtml(p.type)}</span>`;
+        }
+        const disabled = (disableRemoved && isRemoved) ? "disabled" : "";
         cells.push(`<button type="button" class="${classes}" data-cl-cell="${r}:${c}" ${disabled} aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
       }
     }
@@ -535,13 +550,13 @@
       const removedSet = buildRemovedSet(cfg.removed);
       const forbidden = squaresAttackedByBlack({ blacks: cfg.blacks, rows, cols });
       const piecesByCell = new Map();
-      // show black pieces on removed cells as lowercase
-      for (const b of cfg.blacks) piecesByCell.set(`${b.r}:${b.c}`, { type: String(b.type || "P").toUpperCase() });
+      // show black pieces on removed cells
+      for (const b of cfg.blacks) piecesByCell.set(`${b.r}:${b.c}`, { color: "b", type: String(b.type || "P").toUpperCase() });
       const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
       if (boardHolder) {
         boardHolder.innerHTML = `
           <div class="cl-board-wrap-520" style="--cl-cell:${escapeHtml(String(cellPx))}px; --cl-gap:2px; --cl-pad:2px;">
-            ${renderBoardHtml({ rows, cols, removedSet, forbiddenSet: forbidden, highlightSet: new Set(), piecesByCell })}
+            ${renderBoardHtml({ rows, cols, removedSet, forbiddenSet: forbidden, highlightSet: new Set(), piecesByCell, disableRemoved: false })}
           </div>
         `;
       }
@@ -640,17 +655,18 @@
 
     const piecesByCell = new Map();
     for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
-      piecesByCell.set(`${p.r}:${p.c}`, { type: String(p.type || "N").toUpperCase(), i: Number(p.i) });
+      piecesByCell.set(`${p.r}:${p.c}`, { color: "w", type: String(p.type || "N").toUpperCase(), i: Number(p.i) });
     }
 
     const occ = new Set(Array.from(piecesByCell.keys()));
-    const active = (state.activeI != null) ? (state.placed.find((p) => Number(p.i) === Number(state.activeI)) || null) : null;
+    // Persistent highlight: all placed pieces keep their attack lines lit
     const highlight = new Set();
-    if (active) {
-      const att = attacksForPiece({ type: active.type, from: active, rows, cols, occupiedSet: occ });
-      // highlight only existing (non-removed) squares
+    for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
+      const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occ });
       for (const k of att) if (!removedSet.has(k)) highlight.add(k);
     }
+    // also glow the squares where pieces sit
+    for (const k of occ) if (!removedSet.has(k)) highlight.add(k);
 
     // lit squares
     const lit = new Set();
@@ -690,7 +706,7 @@
       </div>
 
       <div class="cl-board-wrap-520" style="--cl-cell:${escapeHtml(String(cellPx))}px; --cl-gap:2px; --cl-pad:2px; margin-top:14px;">
-        ${renderBoardHtml({ rows, cols, removedSet, forbiddenSet: forbidden, highlightSet: highlight, piecesByCell })}
+        ${renderBoardHtml({ rows, cols, removedSet, forbiddenSet: forbidden, highlightSet: highlight, piecesByCell, disableRemoved: true })}
       </div>
     `;
   }
