@@ -131,11 +131,14 @@
     return m;
   }
 
-  function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false }) {
+  function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false, selectedCell = "", lastMove = null }) {
     const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
     const colsCss = `repeat(${cols}, var(--cw-cell, ${cellPx}px))`;
     const m = piecesByCell(pieces);
     const cells = [];
+    const sel = String(selectedCell || "");
+    const lmFrom = String(lastMove?.from || "");
+    const lmTo = String(lastMove?.to || "");
     const toModel = (vr, vc) => {
       if (!flip) return { r: vr, c: vc };
       return { r: (rows - 1 - vr), c: (cols - 1 - vc) };
@@ -149,7 +152,9 @@
         const inner = p
           ? `<img src="${escapeHtml(pieceImgSrc(p.color, p.type))}" alt="${escapeHtml(p.color)} ${escapeHtml(p.type)}">`
           : "";
-        const cls = ["cw-cell", dark ? "is-dark" : ""].filter(Boolean).join(" ");
+        const isSel = !!sel && key === sel;
+        const isLast = (!!lmFrom && key === lmFrom) || (!!lmTo && key === lmTo);
+        const cls = ["cw-cell", dark ? "is-dark" : "", isLast ? "is-lastmove" : "", isSel ? "is-selected" : ""].filter(Boolean).join(" ");
         if (interactive) {
           cells.push(`<button type="button" class="${cls}" data-cw-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
         } else {
@@ -484,7 +489,15 @@
       const flip = it.turn === "b";
       const st = ui.studentWorks.pvState?.[idx] || null;
       const pieces = (st && Array.isArray(st.pieces)) ? st.pieces : (it.pieces || []);
-      host.innerHTML = renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces, interactive: true, flip });
+      host.innerHTML = renderBoardHtml({
+        rows: it.board.rows,
+        cols: it.board.cols,
+        pieces,
+        interactive: true,
+        flip,
+        selectedCell: String(st?.selected || ""),
+        lastMove: st?.lastMove || null
+      });
       const fen = computeFenForStudentPv({ it, st });
       const fenEl = main.querySelector("#cwFenHidden");
       if (fenEl) fenEl.value = String(fen || "");
@@ -577,11 +590,19 @@
               </div>
 
               <div class="cw-board-center">
-                ${it.pvEnabled ? `
-                  <div id="cwPvBoardHost">
-                    ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true, flip })}
-                  </div>
-                ` : `
+                  ${it.pvEnabled ? `
+                    <div id="cwPvBoardHost">
+                      ${renderBoardHtml({
+                        rows: it.board.rows,
+                        cols: it.board.cols,
+                        pieces: (pvState?.pieces || it.pieces),
+                        interactive: true,
+                        flip,
+                        selectedCell: String(pvState?.selected || ""),
+                        lastMove: pvState?.lastMove || null
+                      })}
+                    </div>
+                  ` : `
                   ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false, flip })}
                 `}
               </div>
@@ -593,7 +614,7 @@
                 ` : ``}
               </div>
             </div>
-            <input type="hidden" id="cwFenHidden" value="${escapeHtml(it.pvEnabled ? fenNow : fenBase)}">
+              <input type="hidden" id="cwFenHidden" value="${escapeHtml(it.pvEnabled ? fenNow : fenBase)}">
           </div>
         ` : ``}
 
@@ -1770,6 +1791,7 @@
             const st = ui.studentWorks.pvState?.[idx];
             if (!st || !Array.isArray(st.moves) || !st.moves.length) return;
             st.moves.pop();
+            st.lastMove = st.moves.length ? { from: String(st.moves[st.moves.length - 1]?.from || ""), to: String(st.moves[st.moves.length - 1]?.to || "") } : null;
             // rebuild pieces from initial
             const base = JSON.parse(JSON.stringify(it.pieces || []));
             for (const mv of st.moves) {
@@ -1791,7 +1813,7 @@
 
           if (resetBtn) {
             if (!it.pvEnabled) return;
-            ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
+            ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])), lastMove: null };
             rerenderStudentPvOnly();
             return;
           }
@@ -1802,10 +1824,11 @@
             if (!it.pvEnabled) return;
 
             const plyLimit = Number(it.pvPlies || 1);
-            const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
+            const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])), lastMove: null };
             ui.studentWorks.pvState[idx] = st;
             st.moves = Array.isArray(st.moves) ? st.moves : [];
             st.pieces = Array.isArray(st.pieces) ? st.pieces : [];
+            st.lastMove = st.lastMove || null;
 
             const cell = String(cellBtn.getAttribute("data-cw-cell") || "");
             const [rs, cs] = cell.split(":");
@@ -1826,20 +1849,21 @@
               if (!at) return;
               if (currentTurn && at.color !== currentTurn) return;
               st.selected = `${r}:${c}`;
-              // no full rerender (avoid screen flash)
+              rerenderStudentPvOnly();
               return;
             }
 
             const [frs, fcs] = String(st.selected).split(":");
             const fr = Number(frs), fc = Number(fcs);
             const mover = occ.get(`${fr}:${fc}`) || null;
-            if (!mover) { st.selected = ""; return; }
-            if (currentTurn && mover.color !== currentTurn) { st.selected = ""; return; }
-            if (fr === r && fc === c) { st.selected = ""; return; }
+            if (!mover) { st.selected = ""; rerenderStudentPvOnly(); return; }
+            if (currentTurn && mover.color !== currentTurn) { st.selected = ""; rerenderStudentPvOnly(); return; }
+            if (fr === r && fc === c) { st.selected = ""; rerenderStudentPvOnly(); return; }
 
             const dest = at;
             if (dest && dest.color === mover.color) {
               st.selected = `${r}:${c}`;
+              rerenderStudentPvOnly();
               return;
             }
 
@@ -1883,6 +1907,7 @@
             if (mi >= 0) { pieces[mi].r = r; pieces[mi].c = c; }
             st.moves.push({ color: mover.color, type: mover.type, from: `${fr}:${fc}`, to: `${r}:${c}` });
             st.selected = "";
+            st.lastMove = { from: `${fr}:${fc}`, to: `${r}:${c}` };
 
             // persist into answers state
             const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
