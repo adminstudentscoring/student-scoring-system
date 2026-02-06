@@ -1269,6 +1269,34 @@ function openMazeRunnerAsMe() {
 
 window.openMazeRunnerAsMe = openMazeRunnerAsMe;
 
+function openChessLightAsMe() {
+    if (!currentUser || !currentUser.id) {
+        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
+        return;
+    }
+    const player = {
+        id: String(currentUser.id),
+        name: String(currentUser.name || currentUser.email || 'Teacher'),
+        studentId: String(currentUser.teacherId || currentUser.id)
+    };
+    try {
+        localStorage.setItem('chessLightPlayers', JSON.stringify([player]));
+    } catch (error) {
+        console.warn('Unable to persist chessLightPlayers to localStorage:', error);
+    }
+
+    const url = '/game/game-window.html?game=chessLight&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Chess Light opened in a new tab', 'success');
+}
+
+window.openChessLightAsMe = openChessLightAsMe;
+
 function openBlundersTeacherMode() {
     // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
     const url = '/game/game-window.html?game=blunders&role=teacher';
