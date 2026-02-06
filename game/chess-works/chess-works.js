@@ -131,14 +131,19 @@
     return m;
   }
 
-  function renderBoardHtml({ rows, cols, pieces, interactive = false }) {
+  function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false }) {
     const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
     const colsCss = `repeat(${cols}, var(--cw-cell, ${cellPx}px))`;
     const m = piecesByCell(pieces);
     const cells = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const dark = (r + c) % 2 === 1;
+    const toModel = (vr, vc) => {
+      if (!flip) return { r: vr, c: vc };
+      return { r: (rows - 1 - vr), c: (cols - 1 - vc) };
+    };
+    for (let vr = 0; vr < rows; vr++) {
+      for (let vc = 0; vc < cols; vc++) {
+        const { r, c } = toModel(vr, vc);
+        const dark = (vr + vc) % 2 === 1;
         const key = `${r}:${c}`;
         const p = m.get(key) || null;
         const inner = p
@@ -159,6 +164,76 @@
         </div>
       </div>
     `;
+  }
+
+  function turnLabel(turn) {
+    if (turn === "w") return "White to move";
+    if (turn === "b") return "Black to move";
+    return "";
+  }
+
+  function moveLabel(n) {
+    const k = Math.max(1, Number(n) || 1);
+    return `${k} move${k === 1 ? "" : "s"}`;
+  }
+
+  function copyToClipboard(text) {
+    const s = String(text ?? "");
+    if (!s) return Promise.resolve(false);
+    if (navigator?.clipboard?.writeText) {
+      return navigator.clipboard.writeText(s).then(() => true).catch(() => false);
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = s;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return Promise.resolve(!!ok);
+    } catch {
+      return Promise.resolve(false);
+    }
+  }
+
+  function openContextMenu({ root, x, y, items = [] }) {
+    const host = document.createElement("div");
+    host.className = "cw-contextmenu";
+    host.style.left = `${Math.max(8, Number(x) || 8)}px`;
+    host.style.top = `${Math.max(8, Number(y) || 8)}px`;
+    host.innerHTML = `
+      <div class="cw-contextmenu-inner">
+        ${items.map((it, i) => `<button type="button" class="cw-contextmenu-item" data-cw-cm="${i}">${escapeHtml(it.label || "")}</button>`).join("")}
+      </div>
+    `;
+    root.appendChild(host);
+    const close = () => { try { host.remove(); } catch {} };
+    const onDoc = (e) => {
+      const t = e.target;
+      if (t && host.contains(t)) return;
+      close();
+      document.removeEventListener("click", onDoc, true);
+      document.removeEventListener("contextmenu", onDoc, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") onDoc(e);
+    };
+    document.addEventListener("click", onDoc, true);
+    document.addEventListener("contextmenu", onDoc, true);
+    document.addEventListener("keydown", onKey, true);
+    host.querySelectorAll("[data-cw-cm]")?.forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const i = Number(btn.getAttribute("data-cw-cm"));
+        const fn = items[i]?.onClick;
+        close();
+        if (typeof fn === "function") await fn();
+      });
+    });
+    return host;
   }
 
   // ===== FEN helpers =====
@@ -421,18 +496,25 @@
       const work = normalizeWork(w);
       const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
       const it = work.items[idx];
-      const fen = fenForItem(it);
+      const fenBase = fenForItem(it);
       const ans = (ui.studentWorks.answers?.items?.[idx]) || {};
       const pvMoves = Array.isArray(ans.pvMoves) ? ans.pvMoves : [];
       const text = String(ans.text || "");
       const pvState = ui.studentWorks.pvState?.[idx] || null;
-      const pvLines = (pvState && Array.isArray(pvState.moves) ? pvState.moves : pvMoves).map((m, i) => {
-        const from = String(m.from || "");
-        const to = String(m.to || "");
-        const color = String(m.color || "");
-        const type = String(m.type || "");
-        return `${i + 1}. ${color}${type} ${from}→${to}`;
-      });
+      const flip = it.turn === "b";
+      const pvTurn = (() => {
+        if (it.turn !== "w" && it.turn !== "b") return "";
+        const n = (pvState && Array.isArray(pvState.moves)) ? pvState.moves.length : pvMoves.length;
+        return (n % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
+      })();
+      const fenNow = (() => {
+        if (!it.boardEnabled) return "";
+        const pieces = (pvState && Array.isArray(pvState.pieces)) ? pvState.pieces : it.pieces;
+        const rows = Number(it.board.rows), cols = Number(it.board.cols);
+        const turn = it.pvEnabled ? pvTurn : it.turn;
+        if (rows === 8 && cols === 8) return buildFen8({ pieces, turn });
+        return buildCwFen({ rows, cols, pieces, turn });
+      })();
       return `
         <div class="cw-toolbar">
           <button type="button" class="cw-btn" data-cw-back="1">Back</button>
@@ -445,38 +527,37 @@
 
         <div class="cw-card" style="margin-top:12px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-            <div style="font-weight:1000; color:var(--cw-ink);">Question</div>
+            <div style="font-weight:1000; color:var(--cw-ink);"></div>
             <div style="display:flex; gap:10px;">
               <button type="button" class="cw-btn" data-cw-prev="1">←</button>
               <button type="button" class="cw-btn" data-cw-next="1">→</button>
             </div>
           </div>
-          <textarea id="cwStudentPrompt" readonly style="width:100%; min-height:90px; margin-top:10px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; background:#f9fafb; font-weight:900; color:var(--cw-ink);">${escapeHtml(it.prompt || "")}</textarea>
+          <div style="margin-top:10px; text-align:center; font-size:300%; line-height:1.35; font-weight:1000; color:var(--cw-ink); white-space:pre-wrap;">
+            ${escapeHtml(it.prompt || "")}
+          </div>
         </div>
 
         ${it.boardEnabled ? `
           <div class="cw-card" style="margin-top:12px;">
-            <div style="font-weight:1000; color:var(--cw-ink);">Board ${it.turn ? `· ${(it.turn === "w" ? "White" : "Black")} to move` : ""}</div>
+            <div style="text-align:center; font-weight:1000; color:var(--cw-ink);">${escapeHtml(turnLabel(it.turn))}</div>
             <div style="margin-top:10px;">
               ${it.pvEnabled ? `
                 <div class="cw-toolbar" style="margin-bottom:10px;">
-                  <div class="cw-badge">PV · ${escapeHtml(String(it.pvPlies || 1))} ply</div>
+                  <div class="cw-badge" style="margin-left:auto; margin-right:auto;">${escapeHtml(moveLabel(it.pvPlies || 1))}</div>
                   <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="button" class="cw-btn" data-cw-pv-undo="1">Undo</button>
                     <button type="button" class="cw-btn" data-cw-pv-reset="1">Reset</button>
                   </div>
                 </div>
                 <div id="cwPvBoardHost">
-                  ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true })}
+                  ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true, flip })}
                 </div>
-                <div class="cw-muted" style="margin-top:10px;">PV moves (${escapeHtml(String((pvState?.moves || pvMoves).length))} / ${escapeHtml(String(it.pvPlies || 1))})</div>
-                <div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(pvLines.join("\n"))}</div>
               ` : `
-                ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false })}
+                ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false, flip })}
               `}
             </div>
-            <div class="cw-muted" style="margin-top:10px;">FEN</div>
-            <input type="text" readonly value="${escapeHtml(fen)}" style="width:100%; padding:10px; border:1px solid var(--cw-border); border-radius:12px; background:#f9fafb; font-weight:900; color:var(--cw-ink);">
+            <input type="hidden" id="cwFenHidden" value="${escapeHtml(it.pvEnabled ? fenNow : fenBase)}">
           </div>
         ` : ``}
 
@@ -1609,6 +1690,26 @@
           const hint = main.querySelector("#cwSaveHint");
           if (hint) hint.textContent = String(e?.message || e);
         }
+      });
+
+      // Right-click board to copy FEN
+      main.querySelectorAll(".cw-board")?.forEach((board) => {
+        board.addEventListener("contextmenu", (e) => {
+          try { e.preventDefault(); } catch {}
+          const fen = String(main.querySelector("#cwFenHidden")?.value || "").trim();
+          if (!fen) return;
+          openContextMenu({
+            root,
+            x: e.clientX,
+            y: e.clientY,
+            items: [
+              {
+                label: "Copy FEN",
+                onClick: async () => { await copyToClipboard(fen); }
+              }
+            ]
+          });
+        });
       });
 
       // PV interaction (student move recorder)
