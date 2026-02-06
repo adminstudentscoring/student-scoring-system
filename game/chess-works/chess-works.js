@@ -520,19 +520,14 @@
           <button type="button" class="cw-btn" data-cw-back="1">Back</button>
           <div class="cw-badge">${escapeHtml(work.title || "(Untitled)")} · ${escapeHtml(String(idx + 1))}/${escapeHtml(String(work.items.length))}</div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="cw-btn" data-cw-prev="1">←</button>
+            <button type="button" class="cw-btn" data-cw-next="1">→</button>
             <button type="button" class="cw-btn" data-cw-cancel="1">Cancel</button>
             <button type="button" class="cw-btn primary" data-cw-save="1">Save</button>
           </div>
         </div>
 
         <div class="cw-card cw-student-q-card" style="margin-top:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-            <div style="font-weight:1000; color:var(--cw-ink);"></div>
-            <div style="display:flex; gap:10px;">
-              <button type="button" class="cw-btn" data-cw-prev="1">←</button>
-              <button type="button" class="cw-btn" data-cw-next="1">→</button>
-            </div>
-          </div>
           <div class="cw-student-q">
             ${escapeHtml(it.prompt || "")}
           </div>

@@ -348,13 +348,13 @@
 
 /* Student do-work question + PV header tweaks */
 .cw-student-q-card {
-  padding: 8px;
+  padding: 4px;
 }
 .cw-student-q {
-  margin-top: 6px;
+  margin-top: 0px;
   text-align: center;
   font-size: 240%; /* -20% from 300% */
-  line-height: 1.25;
+  line-height: 1.12;
   font-weight: 500; /* not bold */
   color: var(--cw-ink);
   white-space: pre-wrap;
