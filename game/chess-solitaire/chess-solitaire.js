@@ -593,53 +593,74 @@
       const selectedIdx = Number(play.selectedIdx);
       const hasSelection = selectedIdx >= 0 && selectedIdx < pieces.length;
 
-      // If we have a selection and clicked another piece => attempt capture
-      if (hasSelection && clicked && Number(clicked.idx) !== selectedIdx) {
-        const mover = pieces[selectedIdx];
-        const occ = occupiedSetFromPieces(pieces);
-        const att = attacksForPiece({ type: mover.type, from: mover, rows, cols, occupiedSet: occ });
-        const canCapture = att.has(`${r}:${c}`);
-        if (!canCapture) {
-          setMsg(root, "Illegal capture.");
+      // Clicking on a piece
+      if (clicked) {
+        const clickedIdx = Number(clicked.idx);
+
+        // Re-click selected piece => deselect (not a move)
+        if (hasSelection && clickedIdx === selectedIdx) {
+          play.selectedIdx = -1;
+          rerenderPlay();
+          setMsg(root, "Deselected.");
           return;
         }
 
-        // Do capture: remove target, move mover to target square
-        const newPieces = [];
-        for (let i = 0; i < pieces.length; i++) {
-          if (i === Number(clicked.idx)) continue; // captured
-          if (i === selectedIdx) continue; // mover replaced
-          newPieces.push(pieces[i]);
-        }
-        newPieces.push({ type: mover.type, r, c });
-        play.pieces = newPieces;
-        play.selectedIdx = newPieces.length - 1;
-        rerenderPlay();
+        // If we have a selection and clicked another piece:
+        // - if capturable => capture
+        // - else => switch selection to the clicked piece (NOT an illegal action)
+        if (hasSelection && clickedIdx !== selectedIdx) {
+          const mover = pieces[selectedIdx];
+          const occ = occupiedSetFromPieces(pieces);
+          const att = attacksForPiece({ type: mover.type, from: mover, rows, cols, occupiedSet: occ });
+          const canCapture = att.has(`${r}:${c}`);
+          if (!canCapture) {
+            play.selectedIdx = clickedIdx;
+            rerenderPlay();
+            setMsg(root, "Selected. (No capture from previous piece)");
+            return;
+          }
 
-        if (newPieces.length <= 1) {
-          markStageComplete(ui.stage.stageId || ui.stage.stage?.id || "");
-          openSuccessModal(root, {
-            title: "Congrarts!",
-            body: "You have done this",
-            okLabel: "Close",
-            onOk: () => setMsg(root, "Completed.")
-          });
-        } else {
-          setMsg(root, `Captured! Pieces left: ${newPieces.length}`);
-        }
-        return;
-      }
+          // Do capture: remove target, move mover to target square
+          const newPieces = [];
+          for (let i = 0; i < pieces.length; i++) {
+            if (i === clickedIdx) continue; // captured
+            if (i === selectedIdx) continue; // mover replaced
+            newPieces.push(pieces[i]);
+          }
+          newPieces.push({ type: mover.type, r, c });
+          play.pieces = newPieces;
+          play.selectedIdx = newPieces.length - 1;
+          rerenderPlay();
 
-      // Clicking on a piece (no selection, or same piece): select it
-      if (clicked) {
-        play.selectedIdx = Number(clicked.idx);
+          if (newPieces.length <= 1) {
+            markStageComplete(ui.stage.stageId || ui.stage.stage?.id || "");
+            openSuccessModal(root, {
+              title: "Congrarts!",
+              body: "You have done this",
+              okLabel: "Close",
+              onOk: () => setMsg(root, "Completed.")
+            });
+          } else {
+            setMsg(root, `Captured! Pieces left: ${newPieces.length}`);
+          }
+          return;
+        }
+
+        // No selection => select clicked
+        play.selectedIdx = clickedIdx;
         rerenderPlay();
         setMsg(root, "Select a target piece to capture.");
         return;
       }
 
-      // Must capture: clicking empty is always illegal
-      setMsg(root, "Illegal: every move must capture a piece.");
+      // Clicking empty: allow deselect (not a move). If nothing selected, just hint.
+      if (hasSelection) {
+        play.selectedIdx = -1;
+        rerenderPlay();
+        setMsg(root, "Deselected.");
+        return;
+      }
+      setMsg(root, "Select a piece, then capture a piece.");
     };
   }
 
