@@ -26,6 +26,84 @@
     { key: "master", label: "Master" }
   ];
 
+  const HOME_STORY = [
+    `In the city of Slateblue, the streets are laid out like a chessboard—cold, quiet, and waiting. Tonight, the lamps have gone out, and the only way to bring the light back is to place your pieces with intention.`,
+    `Here, light is not a glow you carry—it is a path you cast. Each piece shines along its attack lines, painting pale gold across the board wherever it can reach.`,
+    `But there is a twist: your own square is never lit by your own power. A piece stands in shadow unless another ally’s line touches it. You will need harmony, not just strength.`,
+    `Some squares have vanished from the map, like broken tiles in an old temple. They don’t block the light’s travel, but they change the shape of what must be illuminated—and what can be ignored.`,
+    `And in the missing places, darkness hides its guardians. Black pieces block your rays, and their attacks forbid your placements. Outsmart the shadows, light every remaining square, and Slateblue will wake again.`
+  ];
+
+  function renderHome({ storyIndex = 0 } = {}) {
+    const idx = Math.max(0, Math.min(4, Number(storyIndex) || 0));
+    const total = HOME_STORY.length;
+    const raw = HOME_STORY[idx] || "";
+    const lines = String(raw)
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const storyHtml = lines.map((ln) => `<div style="margin-top:10px;">${escapeHtml(ln)}</div>`).join("");
+    const isLast = idx >= total - 1;
+
+    return `
+      <div style="font-weight:1000; color:var(--cl-ink);">Chess Light</div>
+      <div class="cl-card" style="margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="font-weight:1000; color:var(--cl-ink);">Story</div>
+          <div class="cl-muted">${escapeHtml(String(idx + 1))} / ${escapeHtml(String(total))}</div>
+        </div>
+        <div class="cl-muted" style="margin-top:14px; line-height:1.75; text-align:center; font-size:200%; max-width:920px; margin-left:auto; margin-right:auto;">
+          ${storyHtml}
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:center; min-height:150px; margin-top:12px;">
+          ${isLast ? `
+            <div style="display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; width:100%;">
+              <button type="button" class="cl-btn" data-cl-home-rules="1" style="width:280px; max-width:80vw;">Rules</button>
+              <button type="button" class="cl-btn primary" data-cl-start-game="1" style="width:280px; max-width:80vw;">Start the Game</button>
+            </div>
+          ` : `
+            <button type="button" class="cl-btn primary" data-cl-story-next="1" style="width:280px; max-width:80vw;">Next</button>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  function openRulesModal(root) {
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="clRulesBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Rules" style="width: calc(100vw - 40px); max-width: 980px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">Rules</div>
+            <button id="clRulesClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="font-weight:950; color:var(--cl-ink);">Chess Light</div>
+            <div class="cl-muted" style="margin-top:8px; line-height:1.55;">
+              - Place the required white pieces on the board.<br>
+              - A square is lit only if it is attacked by at least one <strong>other</strong> white piece.<br>
+              - Your own square is <strong>not</strong> lit unless attacked by another piece.<br>
+              - Removed cells disappear but do <strong>not</strong> block white attack lines.<br>
+              - Black pieces block white attack lines, and squares attacked by black pieces cannot be used for placement.
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+              <button id="clRulesOk" type="button" class="cl-btn primary">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    root.appendChild(host);
+    const close = () => { try { host.remove(); } catch {} };
+    host.querySelector("#clRulesClose")?.addEventListener("click", close);
+    host.querySelector("#clRulesOk")?.addEventListener("click", close);
+    host.querySelector("#clRulesBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "clRulesBackdrop") close();
+    });
+  }
+
   function diffLabel(key) {
     const k = String(key || "").toLowerCase();
     return DIFFICULTIES.find((d) => d.key === k)?.label || k || "Easy";
@@ -723,6 +801,9 @@
 
     const ui = {
       mode: normalizeMode(getUrlMode() || "home", isTeacher),
+      home: {
+        storyIndex: 0
+      },
       stage: {
         difficulty: normalizeDiff(getUrlParam("difficulty") || "easy"),
         view: "list",
@@ -802,25 +883,8 @@
 
     async function rerenderMain() {
       if (ui.mode === "home") {
-        await setMain(`
-          <div style="font-weight:1000; color:var(--cl-ink);">Welcome to Chess Light</div>
-          <div class="cl-muted" style="margin-top:8px; line-height:1.7;">
-            Place the required chess pieces on the board. Your goal is to light every square using their attack patterns.
-          </div>
-          <div style="display:flex; justify-content:flex-end; margin-top:14px;">
-            <button type="button" class="cl-btn primary" data-cl-go-stage="1">Start</button>
-          </div>
-        `);
-        const btn = root.querySelector("[data-cl-go-stage]");
-        if (btn && btn.dataset.bound !== "1") {
-          btn.dataset.bound = "1";
-          btn.addEventListener("click", () => {
-            ui.mode = "stage";
-            setUrlMode(ui.mode);
-            rerenderShell();
-            void rerenderMain();
-          });
-        }
+        await setMain(renderHome({ storyIndex: ui.home.storyIndex }));
+        bindHomeHandlers();
         return;
       }
       if (ui.mode === "challenge") {
@@ -864,6 +928,38 @@
           void rerenderMain();
         });
       });
+    }
+
+    function bindHomeHandlers() {
+      const main = root.querySelector("#clMain");
+      if (!main) return;
+
+      const nextBtn = main.querySelector('[data-cl-story-next="1"]');
+      if (nextBtn) {
+        nextBtn.addEventListener("click", async () => {
+          ui.home.storyIndex = Math.min(4, Number(ui.home.storyIndex || 0) + 1);
+          await setMain(renderHome({ storyIndex: ui.home.storyIndex }));
+          bindHomeHandlers();
+        });
+      }
+
+      const rulesBtn = main.querySelector('[data-cl-home-rules="1"]');
+      if (rulesBtn) {
+        rulesBtn.addEventListener("click", () => openRulesModal(root));
+      }
+
+      const startBtn = main.querySelector('[data-cl-start-game="1"]');
+      if (startBtn) {
+        startBtn.addEventListener("click", () => {
+          ui.mode = "stage";
+          ui.stage.difficulty = "easy";
+          ui.home.storyIndex = 0;
+          setUrlMode(ui.mode);
+          setUrlParam("difficulty", ui.stage.difficulty);
+          rerenderShell();
+          void rerenderMain();
+        });
+      }
     }
 
     function bindStageHandlers() {
