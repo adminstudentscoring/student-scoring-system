@@ -36,6 +36,13 @@
     return allow.has(m) ? m : "home";
   }
 
+  function getPublicStudentPassword() {
+    try {
+      return String(localStorage.getItem("studentAccessPassword") || "").trim();
+    } catch {}
+    return "";
+  }
+
   // Same behavior as Maze Runner: auto-add Bearer token when present.
   async function apiRequest(url, opts = {}) {
     const headers = new Headers(opts.headers || {});
@@ -108,6 +115,7 @@
     getUrlMode,
     setUrlMode,
     normalizeMode,
+    getPublicStudentPassword,
     apiRequest,
     clJson,
     renderShell

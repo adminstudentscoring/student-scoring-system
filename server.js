@@ -3743,6 +3743,17 @@ registerMazeRunnerRoutes(app, {
   resolveOrgIdFromUser
 });
 
+// ==================== Chess Light APIs (scaffold) ====================
+const { registerChessLightRoutes } = require('./server/routes/chessLightRoutes');
+registerChessLightRoutes(app, {
+  appDb,
+  readData,
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  resolveOrgIdFromUser
+});
+
 // ============================
 // Billing (PayPal subscriptions)
 // ============================
