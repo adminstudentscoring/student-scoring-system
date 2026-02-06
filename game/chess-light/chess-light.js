@@ -663,15 +663,15 @@
     }
 
     // IMPORTANT RULE:
-    // Removed cells do not block attack paths, and black pieces sit on removed cells.
-    // Therefore, black pieces should NOT block white attack rays.
-    const occWhite = new Set((Array.isArray(state.placed) ? state.placed : []).map((p) => `${Number(p.r)}:${Number(p.c)}`));
+    // - Removed cells do not block attack paths (by themselves)
+    // - BUT black pieces DO block white attack rays (even if they sit on removed cells)
+    const occAll = new Set(Array.from(piecesByCell.keys()));
 
     // Persistent highlight: ALL placed pieces' attack lines stay lit.
     // NOTE: A piece does NOT light its own square automatically.
     const highlight = new Set();
     for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
-      const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occWhite });
+      const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occAll });
       for (const k of att) if (!removedSet.has(k)) highlight.add(k);
     }
 
@@ -990,9 +990,14 @@
           // - every non-removed square is lit by at least one white piece attack
           //   (a piece's own square is NOT lit unless attacked by other piece(s))
           const occ = new Set(pieces.map((p) => `${p.r}:${p.c}`));
+          const occAll = new Set(Array.from(occ));
+          // include black pieces as blockers (even on removed cells)
+          for (const b of (Array.isArray(cfg.blacks) ? cfg.blacks : [])) {
+            occAll.add(`${Number(b.r)}:${Number(b.c)}`);
+          }
           const lit = new Set();
           for (const p of pieces) {
-            const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occ });
+            const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occAll });
             for (const k2 of att) if (!removedSet.has(k2)) lit.add(k2);
           }
           const targetCount = (rows * cols) - removedSet.size;
