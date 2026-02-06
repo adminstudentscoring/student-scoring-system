@@ -677,7 +677,14 @@
       pieces = Array.from(m.values());
     }
 
-    const piecesOptions = PIECE_TYPES.map((t) => `<option value="${t}" ${t === pieceType ? "selected" : ""}>${t}</option>`).join("");
+    const piecePickerHtml = PIECE_TYPES.map((t) => {
+      const src = pieceImgSrc("white", t); // Builder default: white pieces
+      return `
+        <button type="button" class="cs-piece-btn" data-cs-piece="${Core.escapeHtml(t)}" aria-label="Piece ${Core.escapeHtml(t)}">
+          ${src ? `<img src="${Core.escapeHtml(src)}" alt="${Core.escapeHtml(t)}">` : Core.escapeHtml(t)}
+        </button>
+      `;
+    }).join("");
 
     const host = document.createElement("div");
     host.innerHTML = `
@@ -703,16 +710,16 @@
                 </div>
 
                 <div class="cs-card" style="margin-top:12px; background:#ffffff;">
-                  <div style="font-weight:950; color:var(--cs-ink);">Tool</div>
-                  <div class="cs-tool-row">
-                    <button type="button" class="cs-tool is-active" data-cs-tool="piece">Piece</button>
+                  <div style="font-weight:950; color:var(--cs-ink);">Tools</div>
+                  <div style="margin-top:10px; font-weight:900; color:var(--cs-muted);">Pieces</div>
+                  <div class="cs-piece-row" id="csPieceRow">
+                    ${piecePickerHtml}
+                  </div>
+                  <div style="margin-top:12px;">
                     <button type="button" class="cs-tool" data-cs-tool="remove">Remove the cell</button>
-                    <select id="csPieceType" class="cs-select" style="min-width:140px;">
-                      ${piecesOptions}
-                    </select>
                   </div>
                   <div style="margin-top:10px; color:var(--cs-muted); font-weight:900;">
-                    Tool tips: Piece = place/remove a piece. Remove the cell = toggle cell removed/restored.
+                    Tips: Click a piece icon, then click the board to place/remove it. Remove the cell = toggle cell removed/restored.
                   </div>
                 </div>
               </div>
@@ -756,14 +763,17 @@
       });
       const pc = host.querySelector("#csPieceCount");
       if (pc) pc.textContent = `Piece count: ${pieces.length}. Every move in Stage must capture.`;
-      // tool button active state
+      // Active states:
+      // - piece buttons active when tool=piece and type matches
+      host.querySelectorAll("[data-cs-piece]")?.forEach((b) => {
+        const t = String(b.getAttribute("data-cs-piece") || "").toUpperCase();
+        b.classList.toggle("is-active", tool === "piece" && t === String(pieceType || "").toUpperCase());
+      });
+      // - remove button active when tool=remove
       host.querySelectorAll("[data-cs-tool]")?.forEach((b) => {
         const k = String(b.getAttribute("data-cs-tool") || "");
         b.classList.toggle("is-active", k === tool);
       });
-      // show/hide pieceType select depending on tool
-      const sel = host.querySelector("#csPieceType");
-      if (sel) sel.style.display = tool === "piece" ? "" : "none";
     }
 
     async function onSave() {
@@ -808,8 +818,14 @@
           rerenderBoard();
         });
       });
-      host.querySelector("#csPieceType")?.addEventListener("change", (e) => {
-        pieceType = String(e.target.value || "Q").toUpperCase();
+      host.querySelectorAll?.("[data-cs-piece]")?.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const t = String(btn.getAttribute("data-cs-piece") || "").toUpperCase();
+          if (!isPieceType(t)) return;
+          pieceType = t;
+          tool = "piece";
+          rerenderBoard();
+        });
       });
 
       // Board clicks
