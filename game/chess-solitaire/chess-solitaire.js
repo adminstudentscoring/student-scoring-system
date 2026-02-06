@@ -54,6 +54,41 @@
     }
   };
 
+  const COMPLETED_KEY = "chessSolitaireCompletedStageIds";
+
+  function loadCompletedSet() {
+    try {
+      const raw = localStorage.getItem(COMPLETED_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return new Set();
+      return new Set(arr.map((x) => String(x || "").trim()).filter(Boolean));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveCompletedSet(set) {
+    try {
+      localStorage.setItem(COMPLETED_KEY, JSON.stringify(Array.from(set)));
+    } catch {}
+  }
+
+  function isStageComplete(stageId) {
+    const id = String(stageId || "").trim();
+    if (!id) return false;
+    return loadCompletedSet().has(id);
+  }
+
+  function markStageComplete(stageId) {
+    const id = String(stageId || "").trim();
+    if (!id) return;
+    const s = loadCompletedSet();
+    if (s.has(id)) return;
+    s.add(id);
+    saveCompletedSet(s);
+  }
+
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -343,7 +378,7 @@
       <div style="display:flex; flex-direction:column; gap:12px;">
         <div style="font-weight:950; font-size:16px;">Welcome to Chess Solitaire</div>
         <div style="color:var(--cs-muted); line-height:1.5;">
-          Capture pieces until there is only one piece left. Every move must capture exactly one piece.
+          Capture pieces until there is only one piece left. Every move must capture exactly one piece. You may use a different piece each move.
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button type="button" class="cs-btn primary" data-cs-action="goStage">Go to Stage</button>
@@ -406,7 +441,8 @@
       <div class="cs-stage-grid" aria-label="Stages">
         ${(Array.isArray(stages) ? stages : []).map((s) => {
           const no = Number(s.stageNo);
-          return `<button type="button" class="cs-stage-card" data-cs-stage-id="${Core.escapeHtml(String(s.id || ""))}">${Number.isFinite(no) ? no : "?"}</button>`;
+          const done = !!s.__isComplete;
+          return `<button type="button" class="cs-stage-card ${done ? "is-complete" : ""}" data-cs-stage-id="${Core.escapeHtml(String(s.id || ""))}">${Number.isFinite(no) ? no : "?"}</button>`;
         }).join("")}
       </div>
     `;
@@ -444,6 +480,10 @@
     const diff = modeKey === "builder" ? ui.builder.difficulty : ui.stage.difficulty;
     const resp = await fetchStages({ isTeacher, difficulty: diff });
     const stages = Array.isArray(resp?.stages) ? resp.stages : [];
+    for (const s of stages) {
+      const id = String(s?.id || "").trim();
+      s.__isComplete = id ? isStageComplete(id) : false;
+    }
     if (modeKey === "builder") ui.builder.stages = stages;
     else ui.stage.stages = stages;
   }
@@ -577,6 +617,7 @@
         rerenderPlay();
 
         if (newPieces.length <= 1) {
+          markStageComplete(ui.stage.stageId || ui.stage.stage?.id || "");
           openSuccessModal(root, {
             title: "Congrarts!",
             body: "You have done this",

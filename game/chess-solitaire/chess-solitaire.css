@@ -289,6 +289,16 @@
   border-color: rgba(91, 112, 143, 0.45);
   box-shadow: 0 16px 26px rgba(15, 23, 42, 0.10);
 }
+.cs-stage-card.is-complete {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #6b7280;
+}
+.cs-stage-card.is-complete:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #d1d5db;
+}
 
 /* Board */
 .cs-board-wrap-520 {
