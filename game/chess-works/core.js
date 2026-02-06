@@ -31,7 +31,7 @@
 
   function normalizeMode(mode, isTeacher) {
     const m = String(mode || "").trim().toLowerCase();
-    const allow = new Set(["home", "stage", "challenge", "settings"]);
+    const allow = new Set(["home", "works", "history", "settings"]);
     if (isTeacher) allow.add("builder");
     return allow.has(m) ? m : "home";
   }
@@ -71,8 +71,8 @@
     const isTeacher = String(role || "").toLowerCase() === "teacher";
     const nav = [
       { key: "home", label: "Home" },
-      { key: "stage", label: "Stage" },
-      { key: "challenge", label: "Challenge" },
+      { key: "works", label: "Works" },
+      { key: "history", label: "History" },
       { key: "settings", label: "Setting" }
     ];
     if (isTeacher) nav.splice(3, 0, { key: "builder", label: "Builder" });
@@ -94,10 +94,10 @@
             <div class="cw-title">${escapeHtml(
               mode === "home"
                 ? "Home"
-                : mode === "stage"
-                ? "Stage"
-                : mode === "challenge"
-                ? "Challenge"
+                : mode === "works"
+                ? "Works"
+                : mode === "history"
+                ? "History"
                 : mode === "builder"
                 ? "Builder"
                 : "Setting"

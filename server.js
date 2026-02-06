@@ -3765,6 +3765,17 @@ registerChessSolitaireRoutes(app, {
   resolveOrgIdFromUser
 });
 
+// ==================== Chess Works APIs (scaffold) ====================
+const { registerChessWorksRoutes } = require('./server/routes/chessWorksRoutes');
+registerChessWorksRoutes(app, {
+  appDb,
+  readData,
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  resolveOrgIdFromUser
+});
+
 // ============================
 // Billing (PayPal subscriptions)
 // ============================
