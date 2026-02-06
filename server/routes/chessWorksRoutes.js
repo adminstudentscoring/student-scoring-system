@@ -321,6 +321,68 @@ function registerChessWorksRoutes(app, deps) {
       }
     );
 
+    // delete folder (and all works inside)
+    app.delete(
+      "/api/teachers/chess-works/folders/:folderId",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        if (!(await requireDbReady(res))) return;
+        try {
+          const orgId = await resolveOrgId(req);
+          if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
+          const folderId = toIdString(req.params.folderId || "");
+          if (!folderId) return res.status(400).json({ ok: false, error: "Missing folderId" });
+
+          await pool.query("BEGIN");
+          const fR = await pool.query(
+            `SELECT 1 AS ok FROM chess_works_folders WHERE org_id = $1 AND id = $2 LIMIT 1`,
+            [String(orgId), Number(folderId)]
+          );
+          if (!fR.rows?.[0]) {
+            await pool.query("ROLLBACK");
+            return res.status(404).json({ ok: false, error: "Folder not found" });
+          }
+
+          const wR = await pool.query(
+            `SELECT id FROM chess_works_works WHERE org_id = $1 AND folder_id = $2`,
+            [String(orgId), Number(folderId)]
+          );
+          const workIds = (wR.rows || []).map((x) => Number(x.id)).filter(Number.isFinite);
+          if (workIds.length) {
+            await pool.query(
+              `DELETE FROM chess_works_assignments WHERE org_id = $1 AND work_id = ANY($2::bigint[])`,
+              [String(orgId), workIds]
+            );
+            await pool.query(
+              `DELETE FROM chess_works_submissions WHERE org_id = $1 AND work_id = ANY($2::bigint[])`,
+              [String(orgId), workIds]
+            );
+            await pool.query(
+              `DELETE FROM chess_works_reviews WHERE org_id = $1 AND work_id = ANY($2::bigint[])`,
+              [String(orgId), workIds]
+            );
+          }
+          await pool.query(
+            `DELETE FROM chess_works_works WHERE org_id = $1 AND folder_id = $2`,
+            [String(orgId), Number(folderId)]
+          );
+          await pool.query(
+            `DELETE FROM chess_works_folders WHERE org_id = $1 AND id = $2`,
+            [String(orgId), Number(folderId)]
+          );
+          await pool.query("COMMIT");
+          return res.json({ ok: true });
+        } catch (e) {
+          try { await pool.query("ROLLBACK"); } catch {}
+          console.error("[chess-works] delete folder error:", e);
+          const msg = toCleanString(e?.message || e);
+          return res.status(500).json({ ok: false, error: "Failed to delete folder", details: msg });
+        }
+      }
+    );
+
     // works list
     app.get(
       "/api/teachers/chess-works/works",
@@ -491,6 +553,56 @@ function registerChessWorksRoutes(app, deps) {
           console.error("[chess-works] update work error:", e);
           const msg = toCleanString(e?.message || e);
           return res.status(500).json({ ok: false, error: "Failed to update work", details: msg });
+        }
+      }
+    );
+
+    // delete work
+    app.delete(
+      "/api/teachers/chess-works/works/:workId",
+      authenticateUser,
+      authorizeRole("teacher"),
+      requireOrganizationAccess,
+      async (req, res) => {
+        if (!(await requireDbReady(res))) return;
+        try {
+          const orgId = await resolveOrgId(req);
+          if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
+          const workId = toIdString(req.params.workId || "");
+          if (!workId) return res.status(400).json({ ok: false, error: "Missing workId" });
+
+          await pool.query("BEGIN");
+          const eR = await pool.query(
+            `SELECT 1 AS ok FROM chess_works_works WHERE org_id = $1 AND id = $2 LIMIT 1`,
+            [String(orgId), Number(workId)]
+          );
+          if (!eR.rows?.[0]) {
+            await pool.query("ROLLBACK");
+            return res.status(404).json({ ok: false, error: "Work not found" });
+          }
+          await pool.query(
+            `DELETE FROM chess_works_assignments WHERE org_id = $1 AND work_id = $2`,
+            [String(orgId), Number(workId)]
+          );
+          await pool.query(
+            `DELETE FROM chess_works_submissions WHERE org_id = $1 AND work_id = $2`,
+            [String(orgId), Number(workId)]
+          );
+          await pool.query(
+            `DELETE FROM chess_works_reviews WHERE org_id = $1 AND work_id = $2`,
+            [String(orgId), Number(workId)]
+          );
+          await pool.query(
+            `DELETE FROM chess_works_works WHERE org_id = $1 AND id = $2`,
+            [String(orgId), Number(workId)]
+          );
+          await pool.query("COMMIT");
+          return res.json({ ok: true });
+        } catch (e) {
+          try { await pool.query("ROLLBACK"); } catch {}
+          console.error("[chess-works] delete work error:", e);
+          const msg = toCleanString(e?.message || e);
+          return res.status(500).json({ ok: false, error: "Failed to delete work", details: msg });
         }
       }
     );
@@ -796,9 +908,12 @@ function registerChessWorksRoutes(app, deps) {
           const marks = Array.isArray(req.body?.marks) ? req.body.marks : [];
           const finished = !!req.body?.finished;
           const reviewedBy = req?.user?.id ? String(req.user.id) : null;
+          const marksJson = (() => {
+            try { return JSON.stringify(marks); } catch { return "[]"; }
+          })();
           await pool.query(
             `INSERT INTO chess_works_reviews(org_id, work_id, student_id, marks, finished, reviewed_by, reviewed_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $5 THEN NOW() ELSE NULL END, NOW())
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, CASE WHEN $5 THEN NOW() ELSE NULL END, NOW())
              ON CONFLICT (org_id, work_id, student_id)
              DO UPDATE SET
                marks = EXCLUDED.marks,
@@ -806,7 +921,7 @@ function registerChessWorksRoutes(app, deps) {
                reviewed_by = EXCLUDED.reviewed_by,
                reviewed_at = CASE WHEN EXCLUDED.finished THEN NOW() ELSE chess_works_reviews.reviewed_at END,
                updated_at = NOW()`,
-            [String(orgId), Number(workId), String(studentId), marks, finished, reviewedBy]
+            [String(orgId), Number(workId), String(studentId), marksJson, finished, reviewedBy]
           );
           return res.json({ ok: true });
         } catch (e) {

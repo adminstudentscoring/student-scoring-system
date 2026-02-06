@@ -131,8 +131,30 @@
     return m;
   }
 
-  function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false, selectedCell = "", lastMove = null }) {
-    const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
+  function applyPvMovesToPieces({ basePieces, moves, step }) {
+    let pieces = JSON.parse(JSON.stringify(Array.isArray(basePieces) ? basePieces : []));
+    const list = Array.isArray(moves) ? moves : [];
+    const n = Math.max(0, Math.min(list.length, Number(step) || 0));
+    for (let i = 0; i < n; i++) {
+      const mv = list[i] || {};
+      const [frs, fcs] = String(mv.from || "").split(":");
+      const [trs, tcs] = String(mv.to || "").split(":");
+      const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+      if (!Number.isFinite(fr) || !Number.isFinite(fc) || !Number.isFinite(tr) || !Number.isFinite(tc)) continue;
+      let moverIdx = pieces.findIndex((p) => Number(p.r) === fr && Number(p.c) === fc);
+      if (moverIdx < 0) continue;
+      // capture any piece on destination (if present)
+      pieces = pieces.filter((p, pi) => pi === moverIdx || !(Number(p.r) === tr && Number(p.c) === tc));
+      moverIdx = pieces.findIndex((p) => Number(p.r) === fr && Number(p.c) === fc);
+      if (moverIdx < 0) continue;
+      pieces[moverIdx].r = tr;
+      pieces[moverIdx].c = tc;
+    }
+    return pieces;
+  }
+
+  function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false, selectedCell = "", lastMove = null, targetPx = 520 }) {
+    const cellPx = computeCellPx({ rows, cols, targetPx: Number(targetPx) || 520, gapPx: 2, padPx: 2 });
     const colsCss = `repeat(${cols}, var(--cw-cell, ${cellPx}px))`;
     const m = piecesByCell(pieces);
     const cells = [];
@@ -739,6 +761,10 @@
           const a = answers[idx] || {};
           const mk = String(marks[idx] || "");
           const pvMoves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
+          const pvStepRaw = ui.teacherWorks.reviewPvStep && Object.prototype.hasOwnProperty.call(ui.teacherWorks.reviewPvStep, idx) ? ui.teacherWorks.reviewPvStep[idx] : 0;
+          const pvStep = Math.max(0, Math.min(pvMoves.length, Number(pvStepRaw) || 0));
+          const pvPieces = it.pvEnabled ? applyPvMovesToPieces({ basePieces: it.pieces, moves: pvMoves, step: pvStep }) : [];
+          const pvLast = (it.pvEnabled && pvStep > 0) ? pvMoves[pvStep - 1] : null;
           const pill = (k, label) => `<button type="button" class="cw-pill ${mk === k ? "is-active" : ""}" data-cw-mark="${escapeHtml(String(idx))}:${escapeHtml(k)}">${escapeHtml(label)}</button>`;
           return `
             <div class="cw-card" style="margin-top:12px;">
@@ -753,6 +779,24 @@
               <div class="cw-muted" style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(it.prompt || "")}</div>
               ${it.pvEnabled ? `
                 <div class="cw-muted" style="margin-top:10px;">PV moves (${escapeHtml(String(pvMoves.length))} / ${escapeHtml(String(it.pvPlies || 1))})</div>
+                <div class="cw-card" style="margin-top:10px; padding:10px;">
+                  <div style="display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;">
+                    <button type="button" class="cw-btn" style="padding:8px 10px;" data-cw-pv-prev="${escapeHtml(String(idx))}">←</button>
+                    <div class="cw-muted" data-cw-pv-mini-label="${escapeHtml(String(idx))}">${escapeHtml(String(pvStep))}/${escapeHtml(String(pvMoves.length))}</div>
+                    <button type="button" class="cw-btn" style="padding:8px 10px;" data-cw-pv-next="${escapeHtml(String(idx))}">→</button>
+                  </div>
+                  <div style="margin-top:10px;" data-cw-pv-mini-board="${escapeHtml(String(idx))}">
+                    ${renderBoardHtml({
+                      rows: it.board.rows,
+                      cols: it.board.cols,
+                      pieces: pvPieces,
+                      interactive: false,
+                      flip: (it.turn === "b"),
+                      lastMove: pvLast,
+                      targetPx: 240
+                    })}
+                  </div>
+                </div>
                 <div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(
                   pvMoves.map((m, i) => `${i + 1}. ${String(m.color || "")}${String(m.type || "")} ${String(m.from || "")}→${String(m.to || "")}`).join("\n")
                 )}</div>
@@ -771,7 +815,15 @@
       const folders = ui.builder.folders || [];
       const works = ui.builder.works || [];
       const active = String(ui.builder.folderId || "all");
-      const folderBtn = (id, label) => `<button type="button" class="cw-folder-btn ${active === id ? "is-active" : ""}" data-cw-folder="${escapeHtml(id)}">${escapeHtml(label)}</button>`;
+      const folderBtn = (id, label) => {
+        const canDel = id !== "all" && id !== "unfiled";
+        return `
+          <button type="button" class="cw-folder-btn ${active === id ? "is-active" : ""}" data-cw-folder="${escapeHtml(id)}">
+            <span class="cw-folder-label">${escapeHtml(label)}</span>
+            ${canDel ? `<span class="cw-folder-x" data-cw-folder-del="${escapeHtml(id)}" aria-label="Delete folder">×</span>` : ``}
+          </button>
+        `;
+      };
       return `
         <div class="cw-toolbar">
           <div class="cw-badge">Builder</div>
@@ -795,10 +847,12 @@
             <div class="cw-grid">
               ${works.map((w) => `
                 <div class="cw-work-card" draggable="true" data-cw-work-card="${escapeHtml(String(w.id))}">
+                  <button type="button" class="cw-work-x" data-cw-work-del="${escapeHtml(String(w.id))}" aria-label="Delete work">×</button>
                   <div class="cw-work-title">${escapeHtml(w.title || "(Untitled)")}</div>
                   <div class="cw-work-actions">
                     <button type="button" class="cw-btn" data-cw-edit="${escapeHtml(String(w.id))}">Edit</button>
                     <button type="button" class="cw-btn" data-cw-assign="${escapeHtml(String(w.id))}">Assign</button>
+                    <button type="button" class="cw-btn" data-cw-work-move="${escapeHtml(String(w.id))}">Move</button>
                   </div>
                 </div>
               `).join("")}
@@ -807,6 +861,57 @@
           </div>
         </div>
       `;
+    }
+
+    function openMoveWorkModal(workId) {
+      const wid = String(workId || "").trim();
+      if (!wid) return;
+      const folders = ui.builder.folders || [];
+      const works = ui.builder.works || [];
+      const w = (works || []).find((x) => String(x.id) === wid) || null;
+      const current = w ? String(w.folderId || "") : "";
+
+      const host = document.createElement("div");
+      host.innerHTML = `
+        <div class="vcp-modal-backdrop" id="cwMoveWorkBackdrop" role="presentation">
+          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Move work" style="width: calc(100vw - 40px); max-width: 720px;">
+            <div class="vcp-modal-header">
+              <div class="vcp-modal-title">Move</div>
+              <button id="cwMoveWorkClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="vcp-modal-body">
+              <div style="font-weight:1000; color:var(--cw-ink);">Destination folder</div>
+              <select id="cwMoveWorkSelect" style="width:100%; margin-top:10px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900;">
+                <option value="" ${current ? "" : "selected"}>Unfiled</option>
+                ${(folders || []).map((f) => `<option value="${escapeHtml(String(f.id))}" ${String(f.id) === current ? "selected" : ""}>${escapeHtml(String(f.name || f.id))}</option>`).join("")}
+              </select>
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+                <button id="cwMoveWorkCancel" type="button" class="cw-btn">Cancel</button>
+                <button id="cwMoveWorkOk" type="button" class="cw-btn primary">Move</button>
+              </div>
+              <div id="cwMoveWorkHint" class="cw-muted" style="margin-top:10px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      root.appendChild(host);
+      const close = () => { try { host.remove(); } catch {} };
+      host.querySelector("#cwMoveWorkClose")?.addEventListener("click", close);
+      host.querySelector("#cwMoveWorkCancel")?.addEventListener("click", close);
+      host.querySelector("#cwMoveWorkBackdrop")?.addEventListener("click", (e) => {
+        if (e.target && e.target.id === "cwMoveWorkBackdrop") close();
+      });
+      host.querySelector("#cwMoveWorkOk")?.addEventListener("click", async () => {
+        const folderId = String(host.querySelector("#cwMoveWorkSelect")?.value || "");
+        const hint = host.querySelector("#cwMoveWorkHint");
+        try {
+          await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`, { folderId });
+          close();
+          await loadBuilder();
+        } catch (e) {
+          if (hint) hint.textContent = String(e?.message || e);
+        }
+      });
     }
 
     // ===== Modals =====
@@ -1174,6 +1279,7 @@
                 <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:14px;">
                   <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="button" class="cw-btn" data-cw-add-item="1">Next item</button>
+                    <button type="button" class="cw-btn" data-cw-del-item="1">Delete item</button>
                   </div>
                   <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="button" class="cw-btn" data-cw-cancel="1">Cancel</button>
@@ -1229,6 +1335,23 @@
         host.querySelector("[data-cw-item-prev]")?.addEventListener("click", () => { readFromDom(); idx = Math.max(0, idx - 1); rerender(); });
         host.querySelector("[data-cw-item-next]")?.addEventListener("click", () => { readFromDom(); idx = Math.min(work.items.length - 1, idx + 1); rerender(); });
         host.querySelector("[data-cw-add-item]")?.addEventListener("click", () => { readFromDom(); work.items.push(defaultItem()); idx = work.items.length - 1; rerender(); });
+        host.querySelector("[data-cw-del-item]")?.addEventListener("click", () => {
+          readFromDom();
+          const ok = confirm("Delete this item?");
+          if (!ok) return;
+          work = normalizeWork(work);
+          if (!Array.isArray(work.items)) work.items = [defaultItem()];
+          if (work.items.length <= 1) {
+            // keep at least 1 item
+            work.items = [defaultItem()];
+            idx = 0;
+            rerender();
+            return;
+          }
+          work.items.splice(idx, 1);
+          idx = Math.max(0, Math.min(work.items.length - 1, idx));
+          rerender();
+        });
 
         host.querySelector("#cwWorkTitle")?.addEventListener("input", () => readFromDom());
         host.querySelector("#cwPrompt")?.addEventListener("input", () => readFromDom());
@@ -1398,6 +1521,11 @@
         ui.teacherWorks.studentId = sid;
         ui.teacherWorks.submission = data?.submission || null;
         ui.teacherWorks.review = data?.review || null;
+      ui.teacherWorks.reviewPvStep = {};
+      try {
+        const work = normalizeWork(ui.teacherWorks.work || {});
+        for (let i = 0; i < (work.items || []).length; i++) ui.teacherWorks.reviewPvStep[i] = 0;
+      } catch {}
         ui.teacherWorks.view = "review";
         await setMain(renderTeacherReviewStudent());
         bindTeacherWorksHandlers();
@@ -1669,6 +1797,26 @@
           }
         });
       });
+      main.querySelectorAll("[data-cw-folder-del]")?.forEach((x) => {
+        x.addEventListener("click", async (e) => {
+          try { e.preventDefault(); } catch {}
+          try { e.stopPropagation(); } catch {}
+          const fid = String(x.getAttribute("data-cw-folder-del") || "").trim();
+          if (!fid || fid === "all" || fid === "unfiled") return;
+          const ok = confirm("Delete this folder and all works inside?");
+          if (!ok) return;
+          try {
+            await tDelete(`/api/teachers/chess-works/folders/${encodeURIComponent(fid)}`);
+            if (String(ui.builder.folderId || "all") === fid) {
+              ui.builder.folderId = "all";
+              setUrlParam("folderId", ui.builder.folderId);
+            }
+            await loadBuilder();
+          } catch (err) {
+            alert(String(err?.message || err));
+          }
+        });
+      });
       main.querySelectorAll("[data-cw-work-card]")?.forEach((card) => {
         card.addEventListener("dragstart", (e) => {
           const id = String(card.getAttribute("data-cw-work-card") || "");
@@ -1687,6 +1835,27 @@
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           openAssignModal(String(btn.getAttribute("data-cw-assign") || ""));
+        });
+      });
+      main.querySelectorAll("[data-cw-work-move]")?.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openMoveWorkModal(String(btn.getAttribute("data-cw-work-move") || ""));
+        });
+      });
+      main.querySelectorAll("[data-cw-work-del]")?.forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const wid = String(btn.getAttribute("data-cw-work-del") || "").trim();
+          if (!wid) return;
+          const ok = confirm("Delete this work?");
+          if (!ok) return;
+          try {
+            await tDelete(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`);
+            await loadBuilder();
+          } catch (err) {
+            alert(String(err?.message || err));
+          }
         });
       });
     }
@@ -1924,6 +2093,8 @@
     function bindTeacherWorksHandlers() {
       const main = root.querySelector("#cwMain");
       if (!main) return;
+      if (!ui.teacherWorks || typeof ui.teacherWorks !== "object") ui.teacherWorks = {};
+      if (!ui.teacherWorks.reviewPvStep || typeof ui.teacherWorks.reviewPvStep !== "object") ui.teacherWorks.reviewPvStep = {};
       main.querySelector("[data-cw-refresh-teacher-works]")?.addEventListener("click", () => loadTeacherWorksList());
       main.querySelectorAll("[data-cw-teacher-open]")?.forEach((card) => {
         card.addEventListener("click", () => openTeacherWork(String(card.getAttribute("data-cw-teacher-open") || "")));
@@ -1961,6 +2132,61 @@
           marks[i] = mk;
           ui.teacherWorks.review = Object.assign({}, ui.teacherWorks.review || {}, { marks, finished: false });
           setMain(renderTeacherReviewStudent()).then(bindTeacherWorksHandlers);
+        });
+      });
+
+      const rerenderTeacherPvMini = (qIdx) => {
+        const w = ui.teacherWorks.work;
+        if (!w) return;
+        const work = normalizeWork(w);
+        const it = work.items?.[qIdx];
+        if (!it?.pvEnabled || !it?.boardEnabled) return;
+        const submission = ui.teacherWorks.submission?.answers || {};
+        const answers = Array.isArray(submission?.items) ? submission.items : [];
+        const a = answers[qIdx] || {};
+        const pvMoves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
+        const stepRaw = ui.teacherWorks.reviewPvStep && Object.prototype.hasOwnProperty.call(ui.teacherWorks.reviewPvStep, qIdx) ? ui.teacherWorks.reviewPvStep[qIdx] : 0;
+        const step = Math.max(0, Math.min(pvMoves.length, Number(stepRaw) || 0));
+        ui.teacherWorks.reviewPvStep[qIdx] = step;
+        const pieces = applyPvMovesToPieces({ basePieces: it.pieces, moves: pvMoves, step });
+        const last = step > 0 ? pvMoves[step - 1] : null;
+        const host = main.querySelector(`[data-cw-pv-mini-board="${String(qIdx)}"]`);
+        if (host) {
+          host.innerHTML = renderBoardHtml({
+            rows: it.board.rows,
+            cols: it.board.cols,
+            pieces,
+            interactive: false,
+            flip: (it.turn === "b"),
+            lastMove: last,
+            targetPx: 240
+          });
+        }
+        const lab = main.querySelector(`[data-cw-pv-mini-label="${String(qIdx)}"]`);
+        if (lab) lab.textContent = `${step}/${pvMoves.length}`;
+      };
+
+      main.querySelectorAll("[data-cw-pv-prev]")?.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const qIdx = Number(btn.getAttribute("data-cw-pv-prev"));
+          if (!Number.isFinite(qIdx)) return;
+          const cur = Number(ui.teacherWorks.reviewPvStep?.[qIdx] || 0);
+          ui.teacherWorks.reviewPvStep[qIdx] = Math.max(0, cur - 1);
+          rerenderTeacherPvMini(qIdx);
+        });
+      });
+      main.querySelectorAll("[data-cw-pv-next]")?.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const qIdx = Number(btn.getAttribute("data-cw-pv-next"));
+          if (!Number.isFinite(qIdx)) return;
+          const submission = ui.teacherWorks.submission?.answers || {};
+          const answers = Array.isArray(submission?.items) ? submission.items : [];
+          const pvMoves = Array.isArray(answers[qIdx]?.pvMoves) ? answers[qIdx].pvMoves : [];
+          const cur = Number(ui.teacherWorks.reviewPvStep?.[qIdx] || 0);
+          ui.teacherWorks.reviewPvStep[qIdx] = Math.min(pvMoves.length, cur + 1);
+          rerenderTeacherPvMini(qIdx);
         });
       });
 

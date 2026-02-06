@@ -181,6 +181,7 @@
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
   text-align: left;
+  position: relative;
 }
 .cw-work-card:hover {
   transform: translateY(-2px);
@@ -203,6 +204,33 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 10px;
+}
+
+.cw-work-x {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(15, 23, 42, 0.70);
+  cursor: pointer;
+  font-weight: 1000;
+  line-height: 20px;
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.12s ease, transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.cw-work-card:hover .cw-work-x {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+.cw-work-x:hover {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.10);
+  color: rgba(185, 28, 28, 0.95);
 }
 
 .cw-layout-2 {
@@ -229,6 +257,7 @@
   cursor: pointer;
   font-weight: 950;
   text-align: left;
+  position: relative;
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 .cw-folder-btn:hover {
@@ -243,6 +272,41 @@
 .cw-folder-btn.is-drop {
   border-color: rgba(46, 204, 113, 0.75);
   box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.18);
+}
+
+.cw-folder-label {
+  padding-right: 18px;
+  display: inline-block;
+}
+.cw-folder-x {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(15, 23, 42, 0.75);
+  font-weight: 1000;
+  font-size: 12px;
+  line-height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.cw-folder-btn:hover .cw-folder-x {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-1px);
+}
+.cw-folder-x:hover {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.10);
+  color: rgba(185, 28, 28, 0.95);
 }
 
 .cw-pill-row {
