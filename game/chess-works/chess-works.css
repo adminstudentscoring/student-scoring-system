@@ -341,6 +341,39 @@
   background: rgba(239, 68, 68, 0.08);
 }
 
+/* Hide page header in Works mode (stage-like view) */
+.cw-app[data-cw-current-mode="works"] .cw-pagehead {
+  display: none;
+}
+
+/* Student do-work question + PV header tweaks */
+.cw-student-q-card {
+  padding: 8px;
+}
+.cw-student-q {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 240%; /* -20% from 300% */
+  line-height: 1.25;
+  font-weight: 500; /* not bold */
+  color: var(--cw-ink);
+  white-space: pre-wrap;
+}
+.cw-pv-row {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  min-height: 44px;
+}
+.cw-pv-badge {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 /* Context menu (Copy FEN) */
 .cw-contextmenu {
   position: fixed;

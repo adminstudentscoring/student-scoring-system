@@ -91,18 +91,20 @@
         </aside>
         <main class="cw-main">
           <div class="cw-container">
-            <div class="cw-title">${escapeHtml(
-              mode === "home"
-                ? "Home"
-                : mode === "works"
-                ? "Works"
-                : mode === "history"
-                ? "History"
-                : mode === "builder"
-                ? "Builder"
-                : "Setting"
-            )}</div>
-            <div class="cw-muted">Chess Works</div>
+            <div class="cw-pagehead">
+              <div class="cw-title">${escapeHtml(
+                mode === "home"
+                  ? "Home"
+                  : mode === "works"
+                  ? "Works"
+                  : mode === "history"
+                  ? "History"
+                  : mode === "builder"
+                  ? "Builder"
+                  : "Setting"
+              )}</div>
+              <div class="cw-muted cw-page-sub">Chess Works</div>
+            </div>
             <div id="cwMain" class="cw-card"></div>
           </div>
         </main>

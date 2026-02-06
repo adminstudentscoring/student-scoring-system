@@ -525,7 +525,7 @@
           </div>
         </div>
 
-        <div class="cw-card" style="margin-top:12px;">
+        <div class="cw-card cw-student-q-card" style="margin-top:12px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
             <div style="font-weight:1000; color:var(--cw-ink);"></div>
             <div style="display:flex; gap:10px;">
@@ -533,7 +533,7 @@
               <button type="button" class="cw-btn" data-cw-next="1">→</button>
             </div>
           </div>
-          <div style="margin-top:10px; text-align:center; font-size:300%; line-height:1.35; font-weight:1000; color:var(--cw-ink); white-space:pre-wrap;">
+          <div class="cw-student-q">
             ${escapeHtml(it.prompt || "")}
           </div>
         </div>
@@ -543,8 +543,8 @@
             <div style="text-align:center; font-weight:1000; color:var(--cw-ink);">${escapeHtml(turnLabel(it.turn))}</div>
             <div style="margin-top:10px;">
               ${it.pvEnabled ? `
-                <div class="cw-toolbar" style="margin-bottom:10px;">
-                  <div class="cw-badge" style="margin-left:auto; margin-right:auto;">${escapeHtml(moveLabel(it.pvPlies || 1))}</div>
+                <div class="cw-pv-row">
+                  <div class="cw-badge cw-pv-badge">${escapeHtml(moveLabel(it.pvPlies || 1))}</div>
                   <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="button" class="cw-btn" data-cw-pv-undo="1">Undo</button>
                     <button type="button" class="cw-btn" data-cw-pv-reset="1">Reset</button>
