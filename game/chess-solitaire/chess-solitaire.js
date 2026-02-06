@@ -89,6 +89,21 @@
     saveCompletedSet(s);
   }
 
+  function getNextStageId() {
+    const curId = String(ui.stage.stageId || ui.stage.stage?.id || "").trim();
+    const curNo = Number(ui.stage.stage?.stageNo);
+    if (!curId || !Number.isFinite(curNo)) return "";
+    const list = Array.isArray(ui.stage.stages) ? ui.stage.stages : [];
+    let best = null;
+    for (const s of list) {
+      const no = Number(s?.stageNo);
+      if (!Number.isFinite(no)) continue;
+      if (no <= curNo) continue;
+      if (!best || no < Number(best.stageNo)) best = s;
+    }
+    return best?.id ? String(best.id) : "";
+  }
+
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -332,7 +347,9 @@
     const title = String(opts.title || "Congrarts!");
     const body = String(opts.body || "You have done this");
     const okLabel = String(opts.okLabel || "Close");
+    const nextLabel = String(opts.nextLabel || "Next");
     const onOk = typeof opts.onOk === "function" ? opts.onOk : null;
+    const onNext = typeof opts.onNext === "function" ? opts.onNext : null;
 
     const html = `
       <div class="vcp-modal-backdrop" id="csSuccessBackdrop" role="presentation">
@@ -344,7 +361,8 @@
           <div class="vcp-modal-body">
             <div style="font-size:18px; font-weight:950; margin-bottom:10px;">${Core.escapeHtml(body)}</div>
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
-              <button id="csSuccessOk" class="vcp-btn vcp-btn-primary" type="button">${Core.escapeHtml(okLabel)}</button>
+              <button id="csSuccessOk" class="cs-btn" type="button">${Core.escapeHtml(okLabel)}</button>
+              ${onNext ? `<button id="csSuccessNext" class="cs-btn primary" type="button">${Core.escapeHtml(nextLabel)}</button>` : ""}
             </div>
           </div>
         </div>
@@ -354,6 +372,7 @@
     const backdrop = root.querySelector("#csSuccessBackdrop");
     const close = root.querySelector("#csSuccessClose");
     const ok = root.querySelector("#csSuccessOk");
+    const next = root.querySelector("#csSuccessNext");
     function cleanup() {
       try { backdrop?.remove?.(); } catch {}
     }
@@ -364,6 +383,14 @@
     ok?.addEventListener("click", () => {
       cleanup();
       onOk && onOk();
+    });
+    next?.addEventListener("click", () => {
+      cleanup();
+      try {
+        const r = onNext && onNext();
+        // ignore promise completion (UI handles it)
+        void r;
+      } catch {}
     });
     backdrop?.addEventListener("click", (e) => {
       if (e.target === backdrop) {
@@ -634,11 +661,39 @@
 
           if (newPieces.length <= 1) {
             markStageComplete(ui.stage.stageId || ui.stage.stage?.id || "");
+          // Update in-memory stage list so UI can reflect completion immediately
+          try {
+            const id = String(ui.stage.stageId || ui.stage.stage?.id || "").trim();
+            for (const s of (Array.isArray(ui.stage.stages) ? ui.stage.stages : [])) {
+              if (String(s?.id || "").trim() === id) s.__isComplete = true;
+            }
+          } catch {}
+          const nextId = getNextStageId();
             openSuccessModal(root, {
               title: "Congrarts!",
               body: "You have done this",
               okLabel: "Close",
-              onOk: () => setMsg(root, "Completed.")
+            nextLabel: "Next",
+            onOk: async () => {
+              setMsg(root, "Completed.");
+              // if user closes, keep them on current board
+            },
+            onNext: nextId
+              ? async () => {
+                  try {
+                    await openStage(nextId);
+                  } catch (e) {
+                    setMsg(root, String(e?.message || e));
+                  }
+                }
+              : async () => {
+                  // no next stage: go back to stage list
+                  ui.stage.stageId = "";
+                  ui.stage.stage = null;
+                  ui.stage.play = null;
+                  await loadStageListFor("stage").catch(() => {});
+                  await renderStage();
+                }
             });
           } else {
             setMsg(root, `Captured! Pieces left: ${newPieces.length}`);
