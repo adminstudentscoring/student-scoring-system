@@ -1638,6 +1638,11 @@
     function bindStudentWorksHandlers() {
       const main = root.querySelector("#cwMain");
       if (!main) return;
+      // Ensure state objects always exist (teacher "View Works" uses same renderer)
+      if (!ui.studentWorks || typeof ui.studentWorks !== "object") ui.studentWorks = {};
+      if (!ui.studentWorks.answers || typeof ui.studentWorks.answers !== "object") ui.studentWorks.answers = { items: [] };
+      if (!Array.isArray(ui.studentWorks.answers.items)) ui.studentWorks.answers.items = [];
+      if (!ui.studentWorks.pvState || typeof ui.studentWorks.pvState !== "object") ui.studentWorks.pvState = {};
 
       main.querySelector("[data-cw-refresh]")?.addEventListener("click", () => loadStudentWorksList());
       main.querySelectorAll("[data-cw-open-work]")?.forEach((card) => {
@@ -1866,6 +1871,7 @@
         // teacher "try works" uses student renderer locally (no saving)
         ui.studentWorks.work = ui.teacherWorks.work;
         ui.studentWorks.answers = { items: [] };
+        ui.studentWorks.pvState = {};
         ui.studentWorks.idx = 0;
         ui.studentWorks.view = "do";
         await setMain(renderStudentDoWork());
