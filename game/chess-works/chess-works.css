@@ -324,6 +324,7 @@
   box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.18);
 }
 .cw-piece-btn img { width: 30px; height: 30px; object-fit: contain; }
+.cw-piece-btn img:not([src]), .cw-piece-btn img[src=""] { display:none; }
 
 .cw-review-row {
   border: 1px solid var(--cw-border);

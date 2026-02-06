@@ -85,6 +85,7 @@
       : [];
     const turnRaw = String(it.turn || "").toLowerCase();
     const turn = turnRaw === "w" || turnRaw === "b" ? turnRaw : ""; // "" => N/A
+    const pvPlies = Math.max(1, Number(it.pvPlies || 1) || 1);
     return {
       prompt: String(it.prompt || ""),
       boardEnabled,
@@ -92,9 +93,10 @@
       pieces,
       turn,
       pvEnabled: !!it.pvEnabled,
-      pv: String(it.pv || ""),
+      pvPlies,
       textEnabled: !!it.textEnabled,
-      text: String(it.text || "")
+      // teacher does not store correct text answer here
+      text: ""
     };
   }
 
@@ -106,7 +108,7 @@
       pieces: [],
       turn: "",
       pvEnabled: false,
-      pv: "",
+      pvPlies: 1,
       textEnabled: false,
       text: ""
     });
@@ -421,8 +423,16 @@
       const it = work.items[idx];
       const fen = fenForItem(it);
       const ans = (ui.studentWorks.answers?.items?.[idx]) || {};
-      const pv = String(ans.pv || "");
+      const pvMoves = Array.isArray(ans.pvMoves) ? ans.pvMoves : [];
       const text = String(ans.text || "");
+      const pvState = ui.studentWorks.pvState?.[idx] || null;
+      const pvLines = (pvState && Array.isArray(pvState.moves) ? pvState.moves : pvMoves).map((m, i) => {
+        const from = String(m.from || "");
+        const to = String(m.to || "");
+        const color = String(m.color || "");
+        const type = String(m.type || "");
+        return `${i + 1}. ${color}${type} ${from}→${to}`;
+      });
       return `
         <div class="cw-toolbar">
           <button type="button" class="cw-btn" data-cw-back="1">Back</button>
@@ -447,7 +457,24 @@
         ${it.boardEnabled ? `
           <div class="cw-card" style="margin-top:12px;">
             <div style="font-weight:1000; color:var(--cw-ink);">Board ${it.turn ? `· ${(it.turn === "w" ? "White" : "Black")} to move` : ""}</div>
-            <div style="margin-top:10px;">${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false })}</div>
+            <div style="margin-top:10px;">
+              ${it.pvEnabled ? `
+                <div class="cw-toolbar" style="margin-bottom:10px;">
+                  <div class="cw-badge">PV · ${escapeHtml(String(it.pvPlies || 1))} ply</div>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="button" class="cw-btn" data-cw-pv-undo="1">Undo</button>
+                    <button type="button" class="cw-btn" data-cw-pv-reset="1">Reset</button>
+                  </div>
+                </div>
+                <div id="cwPvBoardHost">
+                  ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true })}
+                </div>
+                <div class="cw-muted" style="margin-top:10px;">PV moves (${escapeHtml(String((pvState?.moves || pvMoves).length))} / ${escapeHtml(String(it.pvPlies || 1))})</div>
+                <div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(pvLines.join("\n"))}</div>
+              ` : `
+                ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false })}
+              `}
+            </div>
             <div class="cw-muted" style="margin-top:10px;">FEN</div>
             <input type="text" readonly value="${escapeHtml(fen)}" style="width:100%; padding:10px; border:1px solid var(--cw-border); border-radius:12px; background:#f9fafb; font-weight:900; color:var(--cw-ink);">
           </div>
@@ -455,10 +482,6 @@
 
         <div class="cw-card" style="margin-top:12px;">
           <div style="font-weight:1000; color:var(--cw-ink);">Answer</div>
-          ${it.pvEnabled ? `
-            <div class="cw-muted" style="margin-top:8px;">PV</div>
-            <textarea id="cwAnsPv" style="width:100%; min-height:70px; margin-top:8px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900; color:var(--cw-ink);">${escapeHtml(pv)}</textarea>
-          ` : ``}
           ${it.textEnabled ? `
             <div class="cw-muted" style="margin-top:10px;">Text</div>
             <textarea id="cwAnsText" style="width:100%; min-height:90px; margin-top:8px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900; color:var(--cw-ink);">${escapeHtml(text)}</textarea>
@@ -578,6 +601,7 @@
         ${(work.items || []).map((it, idx) => {
           const a = answers[idx] || {};
           const mk = String(marks[idx] || "");
+          const pvMoves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
           const pill = (k, label) => `<button type="button" class="cw-pill ${mk === k ? "is-active" : ""}" data-cw-mark="${escapeHtml(String(idx))}:${escapeHtml(k)}">${escapeHtml(label)}</button>`;
           return `
             <div class="cw-card" style="margin-top:12px;">
@@ -590,7 +614,12 @@
                 </div>
               </div>
               <div class="cw-muted" style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(it.prompt || "")}</div>
-              ${it.pvEnabled ? `<div class="cw-muted" style="margin-top:10px;">PV</div><div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(String(a.pv || ""))}</div>` : ``}
+              ${it.pvEnabled ? `
+                <div class="cw-muted" style="margin-top:10px;">PV moves (${escapeHtml(String(pvMoves.length))} / ${escapeHtml(String(it.pvPlies || 1))})</div>
+                <div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(
+                  pvMoves.map((m, i) => `${i + 1}. ${String(m.color || "")}${String(m.type || "")} ${String(m.from || "")}→${String(m.to || "")}`).join("\n")
+                )}</div>
+              ` : ``}
               ${it.textEnabled ? `<div class="cw-muted" style="margin-top:10px;">Text</div><div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(String(a.text || ""))}</div>` : ``}
               ${(!it.pvEnabled && !it.textEnabled) ? `<div class="cw-muted" style="margin-top:10px;">No answer fields enabled.</div>` : ``}
             </div>
@@ -904,6 +933,7 @@
           const active = tool.kind === "piece" && tool.color === color && tool.type === t;
           return `<button type="button" class="cw-piece-btn ${active ? "is-active" : ""}" data-cw-pick="${escapeHtml(color)}:${escapeHtml(t)}" aria-label="${escapeHtml(color)} ${escapeHtml(t)}">
             <img src="${escapeHtml(pieceImgSrc(color, t))}" alt="${escapeHtml(color)} ${escapeHtml(t)}">
+            <span style="display:none; font-weight:1000; color:var(--cw-ink);">${escapeHtml(color)} ${escapeHtml(t)}</span>
           </button>`;
         };
         return `
@@ -983,13 +1013,16 @@
                         <input id="cwPvEnabled" type="checkbox" ${it.pvEnabled ? "checked" : ""}>
                         PV enabled
                       </label>
-                      ${it.pvEnabled ? `<textarea id="cwPv" placeholder="PV answer..." style="width:100%; min-height:70px; margin-top:10px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900; color:var(--cw-ink);">${escapeHtml(it.pv || "")}</textarea>` : ``}
+                      ${it.pvEnabled ? `
+                        <div class="cw-muted" style="margin-top:10px;">PV ply count</div>
+                        <input id="cwPvPlies" type="number" min="1" value="${escapeHtml(String(it.pvPlies || 1))}" style="width:180px; margin-top:8px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900;">
+                      ` : ``}
 
                       <label style="display:flex; gap:8px; align-items:center; margin-top:10px; font-weight:900; color:var(--cw-muted); cursor:pointer;">
                         <input id="cwTextEnabled" type="checkbox" ${it.textEnabled ? "checked" : ""}>
                         Text answer enabled
                       </label>
-                      ${it.textEnabled ? `<textarea id="cwText" placeholder="Text answer..." style="width:100%; min-height:90px; margin-top:10px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900; color:var(--cw-ink);">${escapeHtml(it.text || "")}</textarea>` : ``}
+                      <div class="cw-muted" style="margin-top:10px;">(Students will type the text answer during works.)</div>
                     </div>
                   </div>
 
@@ -1042,12 +1075,11 @@
         }
         const pvEn = host.querySelector("#cwPvEnabled");
         it.pvEnabled = !!pvEn?.checked;
-        const pvEl = host.querySelector("#cwPv");
-        it.pv = it.pvEnabled ? String(pvEl?.value || "") : "";
+        const pvPliesEl = host.querySelector("#cwPvPlies");
+        it.pvPlies = it.pvEnabled ? Math.max(1, Number(pvPliesEl?.value || 1) || 1) : 1;
         const txEn = host.querySelector("#cwTextEnabled");
         it.textEnabled = !!txEn?.checked;
-        const txEl = host.querySelector("#cwText");
-        it.text = it.textEnabled ? String(txEl?.value || "") : "";
+        it.text = "";
       };
 
       const bind = () => {
@@ -1069,6 +1101,7 @@
         host.querySelector("#cwTurn")?.addEventListener("change", () => { readFromDom(); rerender(); });
         host.querySelector("#cwPvEnabled")?.addEventListener("change", () => { readFromDom(); rerender(); });
         host.querySelector("#cwTextEnabled")?.addEventListener("change", () => { readFromDom(); rerender(); });
+        host.querySelector("#cwPvPlies")?.addEventListener("input", () => { readFromDom(); });
 
         host.querySelectorAll("[data-cw-pick]")?.forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -1267,6 +1300,32 @@
         ui.studentWorks.submission = sub?.submission || null;
         ui.studentWorks.answers = (sub?.submission?.answers && typeof sub.submission.answers === "object") ? sub.submission.answers : { items: [] };
         if (!Array.isArray(ui.studentWorks.answers.items)) ui.studentWorks.answers.items = [];
+        // PV state per item (replay pvMoves onto initial pieces)
+        ui.studentWorks.pvState = {};
+        try {
+          const work = normalizeWork(ui.studentWorks.work || {});
+          for (let i = 0; i < work.items.length; i++) {
+            const it = work.items[i];
+            if (!it.boardEnabled || !it.pvEnabled) continue;
+            const a = ui.studentWorks.answers.items[i] || {};
+            const moves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
+            const base = JSON.parse(JSON.stringify(it.pieces || []));
+            const apply = (mv) => {
+              const [frs, fcs] = String(mv.from || "").split(":");
+              const [trs, tcs] = String(mv.to || "").split(":");
+              const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+              if (![fr, fc, tr, tc].every(Number.isFinite)) return;
+              const pi = base.findIndex((p) => p.r === fr && p.c === fc);
+              if (pi < 0) return;
+              const cap = base.findIndex((p) => p.r === tr && p.c === tc);
+              if (cap >= 0) base.splice(cap, 1);
+              base[pi].r = tr;
+              base[pi].c = tc;
+            };
+            moves.slice(0, it.pvPlies || 1).forEach(apply);
+            ui.studentWorks.pvState[i] = { selected: "", moves: moves.slice(0, it.pvPlies || 1), pieces: base };
+          }
+        } catch {}
         ui.studentWorks.view = "do";
         await setMain(renderStudentDoWork());
         bindStudentWorksHandlers();
@@ -1532,10 +1591,12 @@
         if (!wid || !sid) return;
         const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
         const it = work.items[idx];
-        const pvEl = main.querySelector("#cwAnsPv");
         const txEl = main.querySelector("#cwAnsText");
         const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
-        if (it.pvEnabled) a.pv = String(pvEl?.value || "");
+        if (it.pvEnabled) {
+          const st = ui.studentWorks.pvState?.[idx] || null;
+          a.pvMoves = Array.isArray(st?.moves) ? st.moves.slice(0, it.pvPlies || 1) : [];
+        }
         if (it.textEnabled) a.text = String(txEl?.value || "");
         ui.studentWorks.answers.items[idx] = a;
         try {
@@ -1548,6 +1609,146 @@
           const hint = main.querySelector("#cwSaveHint");
           if (hint) hint.textContent = String(e?.message || e);
         }
+      });
+
+      // PV interaction (student move recorder)
+      const pvUndo = main.querySelector("[data-cw-pv-undo]");
+      const pvReset = main.querySelector("[data-cw-pv-reset]");
+      if (pvUndo) {
+        pvUndo.addEventListener("click", () => {
+          const work = normalizeWork(ui.studentWorks.work || {});
+          const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+          const it = work.items[idx];
+          if (!it.boardEnabled || !it.pvEnabled) return;
+          const st = ui.studentWorks.pvState?.[idx];
+          if (!st || !Array.isArray(st.moves) || !st.moves.length) return;
+          st.moves.pop();
+          // rebuild pieces from initial
+          const base = JSON.parse(JSON.stringify(it.pieces || []));
+          for (const mv of st.moves) {
+            const [frs, fcs] = String(mv.from || "").split(":");
+            const [trs, tcs] = String(mv.to || "").split(":");
+            const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+            const pi = base.findIndex((p) => p.r === fr && p.c === fc);
+            if (pi < 0) continue;
+            const cap = base.findIndex((p) => p.r === tr && p.c === tc);
+            if (cap >= 0) base.splice(cap, 1);
+            base[pi].r = tr;
+            base[pi].c = tc;
+          }
+          st.pieces = base;
+          st.selected = "";
+          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+        });
+      }
+      if (pvReset) {
+        pvReset.addEventListener("click", () => {
+          const work = normalizeWork(ui.studentWorks.work || {});
+          const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+          const it = work.items[idx];
+          if (!it.boardEnabled || !it.pvEnabled) return;
+          ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
+          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+        });
+      }
+
+      main.querySelectorAll("#cwPvBoardHost [data-cw-cell]")?.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const work = normalizeWork(ui.studentWorks.work || {});
+          const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+          const it = work.items[idx];
+          if (!it.boardEnabled || !it.pvEnabled) return;
+          const plyLimit = Number(it.pvPlies || 1);
+          const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])) };
+          ui.studentWorks.pvState[idx] = st;
+          st.moves = Array.isArray(st.moves) ? st.moves : [];
+          st.pieces = Array.isArray(st.pieces) ? st.pieces : [];
+
+          const cell = String(btn.getAttribute("data-cw-cell") || "");
+          const [rs, cs] = cell.split(":");
+          const r = Number(rs), c = Number(cs);
+          if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
+          if (st.moves.length >= plyLimit) return;
+
+          const pieces = st.pieces;
+          const occ = new Map(pieces.map((p) => [`${p.r}:${p.c}`, p]));
+          const at = occ.get(`${r}:${c}`) || null;
+
+          const currentTurn = (() => {
+            if (it.turn !== "w" && it.turn !== "b") return "";
+            return (st.moves.length % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
+          })();
+
+          if (!st.selected) {
+            if (!at) return;
+            if (currentTurn && at.color !== currentTurn) return;
+            st.selected = `${r}:${c}`;
+            setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+            return;
+          }
+
+          const [frs, fcs] = String(st.selected).split(":");
+          const fr = Number(frs), fc = Number(fcs);
+          const mover = occ.get(`${fr}:${fc}`) || null;
+          if (!mover) { st.selected = ""; setMain(renderStudentDoWork()).then(bindStudentWorksHandlers); return; }
+          if (currentTurn && mover.color !== currentTurn) { st.selected = ""; setMain(renderStudentDoWork()).then(bindStudentWorksHandlers); return; }
+          if (fr === r && fc === c) { st.selected = ""; setMain(renderStudentDoWork()).then(bindStudentWorksHandlers); return; }
+
+          const dest = at;
+          if (dest && dest.color === mover.color) {
+            st.selected = `${r}:${c}`;
+            setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+            return;
+          }
+
+          const dr = r - fr;
+          const dc = c - fc;
+          const abs = (x) => Math.abs(x);
+          const sign = (x) => (x === 0 ? 0 : x > 0 ? 1 : -1);
+          const clearRay = (sdr, sdc) => {
+            let rr = fr + sdr, cc = fc + sdc;
+            while (rr !== r || cc !== c) {
+              if (occ.get(`${rr}:${cc}`)) return false;
+              rr += sdr;
+              cc += sdc;
+            }
+            return true;
+          };
+          let ok = false;
+          const t = String(mover.type || "").toUpperCase();
+          if (t === "N") ok = (abs(dr) === 2 && abs(dc) === 1) || (abs(dr) === 1 && abs(dc) === 2);
+          else if (t === "K") ok = abs(dr) <= 1 && abs(dc) <= 1;
+          else if (t === "B") ok = abs(dr) === abs(dc) && clearRay(sign(dr), sign(dc));
+          else if (t === "R") ok = (dr === 0 || dc === 0) && clearRay(sign(dr), sign(dc));
+          else if (t === "Q") ok = ((dr === 0 || dc === 0) || (abs(dr) === abs(dc))) && clearRay(sign(dr), sign(dc));
+          else if (t === "P") {
+            if (mover.color === "w") {
+              if (dest) ok = (dr === -1 && abs(dc) === 1);
+              else ok = (dc === 0 && dr === -1);
+            } else {
+              if (dest) ok = (dr === 1 && abs(dc) === 1);
+              else ok = (dc === 0 && dr === 1);
+            }
+          }
+          if (!ok) return;
+
+          // apply
+          if (dest) {
+            const capI = pieces.findIndex((p) => p.r === r && p.c === c);
+            if (capI >= 0) pieces.splice(capI, 1);
+          }
+          const mi = pieces.findIndex((p) => p.r === fr && p.c === fc);
+          if (mi >= 0) { pieces[mi].r = r; pieces[mi].c = c; }
+          st.moves.push({ color: mover.color, type: mover.type, from: `${fr}:${fc}`, to: `${r}:${c}` });
+          st.selected = "";
+
+          // persist into answers state
+          const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
+          a.pvMoves = st.moves.slice(0, plyLimit);
+          ui.studentWorks.answers.items[idx] = a;
+
+          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+        });
       });
     }
 
