@@ -535,16 +535,20 @@
 
         ${it.boardEnabled ? `
           <div class="cw-card" style="margin-top:12px;">
-            <div style="text-align:center; font-weight:1000; color:var(--cw-ink);">${escapeHtml(turnLabel(it.turn))}</div>
-            <div style="margin-top:10px;">
+            <div class="cw-board-head-520">
+              <div class="cw-board-left">
+                <div class="cw-board-turn">${escapeHtml(turnLabel(it.turn))}</div>
+                ${it.pvEnabled ? `<div class="cw-badge">${escapeHtml(moveLabel(it.pvPlies || 1))}</div>` : ``}
+              </div>
               ${it.pvEnabled ? `
-                <div class="cw-pv-row">
-                  <div class="cw-badge cw-pv-badge">${escapeHtml(moveLabel(it.pvPlies || 1))}</div>
-                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button type="button" class="cw-btn" data-cw-pv-undo="1">Undo</button>
-                    <button type="button" class="cw-btn" data-cw-pv-reset="1">Reset</button>
-                  </div>
+                <div class="cw-board-right">
+                  <button type="button" class="cw-btn" data-cw-pv-undo="1">Undo</button>
+                  <button type="button" class="cw-btn" data-cw-pv-reset="1">Reset</button>
                 </div>
+              ` : `<div></div>`}
+            </div>
+            <div>
+              ${it.pvEnabled ? `
                 <div id="cwPvBoardHost">
                   ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true, flip })}
                 </div>
@@ -556,15 +560,14 @@
           </div>
         ` : ``}
 
-        <div class="cw-card" style="margin-top:12px;">
-          <div style="font-weight:1000; color:var(--cw-ink);">Answer</div>
-          ${it.textEnabled ? `
+        ${it.textEnabled ? `
+          <div class="cw-card" style="margin-top:12px;">
+            <div style="font-weight:1000; color:var(--cw-ink);">Answer</div>
             <div class="cw-muted" style="margin-top:10px;">Text</div>
             <textarea id="cwAnsText" style="width:100%; min-height:90px; margin-top:8px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900; color:var(--cw-ink);">${escapeHtml(text)}</textarea>
-          ` : ``}
-          ${(!it.pvEnabled && !it.textEnabled) ? `<div class="cw-muted" style="margin-top:8px;">No answer fields enabled for this question.</div>` : ``}
-          <div id="cwSaveHint" class="cw-muted" style="margin-top:10px;"></div>
-        </div>
+          </div>
+        ` : ``}
+        <div id="cwSaveHint" class="cw-muted" style="margin-top:10px;"></div>
       `;
     }
 

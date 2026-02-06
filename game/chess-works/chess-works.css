@@ -359,6 +359,33 @@
   color: var(--cw-ink);
   white-space: pre-wrap;
 }
+
+/* Board header aligned with 520 board */
+.cw-board-head-520 {
+  width: min(520px, 100%);
+  margin: 0 auto 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.cw-board-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 160px;
+}
+.cw-board-turn {
+  font-weight: 1000;
+  color: var(--cw-ink);
+}
+.cw-board-right {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .cw-pv-row {
   position: relative;
   display: flex;
