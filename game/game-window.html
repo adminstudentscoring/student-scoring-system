@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/game/tactics-fighter/tactics-fighter.css">
     <link rel="stylesheet" href="/game/maze-runner/maze-runner.css">
     <link rel="stylesheet" href="/game/chess-light/chess-light.css">
+    <link rel="stylesheet" href="/game/chess-solitaire/chess-solitaire.css">
     <link rel="stylesheet" href="/game/vchess-platform/vchess-platform.css">
     <link rel="stylesheet" href="/game/vchess-platform/normal-chess.css">
     <style>
@@ -48,6 +49,18 @@
             min-height: 100vh;
         }
         body.game-is-chess-light .game-area-content {
+            padding: 0;
+        }
+
+        body.game-is-chess-solitaire {
+            padding: 0;
+        }
+        body.game-is-chess-solitaire .game-window-container {
+            border-radius: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        body.game-is-chess-solitaire .game-area-content {
             padding: 0;
         }
         .game-window-container {
@@ -107,6 +120,7 @@
                 document.body.classList.toggle('game-is-tactics-fighter', gameKey === 'tacticsFighter');
                 document.body.classList.toggle('game-is-maze-runner', gameKey === 'mazeRunner');
                 document.body.classList.toggle('game-is-chess-light', gameKey === 'chessLight');
+                document.body.classList.toggle('game-is-chess-solitaire', gameKey === 'chessSolitaire');
                 document.body.classList.toggle('game-is-vcp', gameKey === 'vChessPlatform');
 
                 if (gameKey === 'runningQueen') {
@@ -314,6 +328,27 @@
                         window.initChessLight();
                     } else {
                         showError('Chess Light script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'chessSolitaire') {
+                    content.innerHTML = `
+                        <div id="chessSolitaireRoot" class="chess-solitaire-root">
+                            <p>Loading...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('chessSolitairePlayers');
+                        if (storedPlayers) {
+                            window.chessSolitairePlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore chess solitaire players from storage:', error);
+                    }
+                    await loadScript('/game/chess-solitaire/core.js');
+                    await loadScript('/game/chess-solitaire/chess-solitaire.js');
+                    if (window.initChessSolitaire) {
+                        window.initChessSolitaire();
+                    } else {
+                        showError('Chess Solitaire script loaded but init function missing.');
                     }
                 } else if (gameKey === 'vChessPlatform') {
                     content.innerHTML = `

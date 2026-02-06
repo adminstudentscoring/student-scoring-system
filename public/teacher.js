@@ -1297,6 +1297,34 @@ function openChessLightAsMe() {
 
 window.openChessLightAsMe = openChessLightAsMe;
 
+function openChessSolitaireAsMe() {
+    if (!currentUser || !currentUser.id) {
+        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
+        return;
+    }
+    const player = {
+        id: String(currentUser.id),
+        name: String(currentUser.name || currentUser.email || 'Teacher'),
+        studentId: String(currentUser.teacherId || currentUser.id)
+    };
+    try {
+        localStorage.setItem('chessSolitairePlayers', JSON.stringify([player]));
+    } catch (error) {
+        console.warn('Unable to persist chessSolitairePlayers to localStorage:', error);
+    }
+
+    const url = '/game/game-window.html?game=chessSolitaire&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Chess Solitaire opened in a new tab', 'success');
+}
+
+window.openChessSolitaireAsMe = openChessSolitaireAsMe;
+
 function openBlundersTeacherMode() {
     // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
     const url = '/game/game-window.html?game=blunders&role=teacher';

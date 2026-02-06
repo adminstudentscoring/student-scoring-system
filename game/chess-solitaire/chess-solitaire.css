@@ -1,0 +1,139 @@
+.chess-solitaire-root {
+  min-height: 200px;
+  --cs-primary: #5b708f; /* grey-blue */
+  --cs-ink: #0f172a;
+  --cs-muted: #64748b;
+  --cs-border: #e2e8f0;
+  --cs-bg: #ffffff;
+}
+
+.cs-app {
+  display: flex;
+  min-height: 100vh;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--cs-bg);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.cs-sidebar {
+  width: 260px;
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.98) 0%, rgba(30, 41, 59, 0.94) 100%);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cs-side-title {
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: 0.2px;
+}
+
+.cs-side-sub {
+  margin-top: -8px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.cs-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.cs-nav-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  padding: 12px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cs-nav-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.18);
+}
+
+.cs-nav-btn.is-active {
+  background: rgba(91, 112, 143, 0.38);
+  border-color: rgba(91, 112, 143, 0.55);
+  box-shadow: 0 16px 26px rgba(91, 112, 143, 0.22);
+}
+
+.cs-sidebar-bottom {
+  margin-top: auto;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.cs-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.cs-container {
+  padding: 18px 18px;
+}
+
+.cs-title {
+  font-size: 22px;
+  font-weight: 950;
+  color: var(--cs-ink);
+}
+
+.cs-muted {
+  color: var(--cs-muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.cs-card {
+  margin-top: 14px;
+  border: 1px solid var(--cs-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--cs-bg);
+}
+
+.cs-fade {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  opacity: 1;
+}
+.cs-fade.is-out {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.cs-btn {
+  border: 1px solid var(--cs-border);
+  background: #ffffff;
+  color: var(--cs-ink);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 950;
+  transition: background 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+.cs-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(91, 112, 143, 0.45);
+  background: #f8fafc;
+}
+.cs-btn.primary {
+  background: var(--cs-primary);
+  border-color: var(--cs-primary);
+  color: #ffffff;
+}

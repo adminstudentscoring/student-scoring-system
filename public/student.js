@@ -343,6 +343,21 @@ window.openStudentGame = function(gameKey, options = {}) {
         return;
     }
 
+    if (gameKey === 'chessSolitaire') {
+        try {
+            localStorage.setItem('chessSolitairePlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist chessSolitairePlayers', e);
+        }
+        const url = `/game/game-window.html?game=chessSolitaire&role=student`;
+        if (openMode === 'sameTab') {
+            window.location.href = url;
+        } else {
+            window.open(url, '_blank');
+        }
+        return;
+    }
+
     if (gameKey === 'blunders') {
         try {
             localStorage.setItem('blundersPlayers', JSON.stringify([player]));
