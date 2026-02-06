@@ -458,7 +458,12 @@
                     </div>
                     <div id="shareApplicationOptions" style="display:none; margin-top:10px; padding:10px; border:1px solid #eee; border-radius:12px; background:#f9fafb;">
                         <div style="font-weight:800; color:#111827; margin-bottom:8px;">Choose an application:</div>
-                        <div id="shareApplicationOptionsButtons" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                            <input type="text" id="shareAppSearchInput" placeholder="🔍 Search application..." style="flex: 1 1 220px; min-width:220px; padding:10px; border:1px solid #ddd; border-radius:12px; background:#fff;">
+                            <select id="shareAppSelect" style="flex: 1 1 260px; min-width:260px; padding:10px; border:1px solid #ddd; border-radius:12px; background:#fff;">
+                                <option value="">Select an application...</option>
+                            </select>
+                        </div>
                         <small style="color:#666;">Pick one to generate the link. (Dashboard link stays unchanged.)</small>
                     </div>
                     <small style="color:#666;">The link will open the student dashboard at the selected section.</small>

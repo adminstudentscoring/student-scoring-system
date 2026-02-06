@@ -2505,6 +2505,8 @@ const SHARE_APP_DEST_ORDER = [
     'game_hopeMate',
     'game_tacticsFighter',
     'game_mazeRunner',
+    'game_chessLight',
+    'game_chessSolitaire',
     'game_blunders'
 ];
 
@@ -2516,6 +2518,8 @@ const SHARE_APP_DEST_MAP = {
     game_hopeMate: { label: 'Hope Mate', openGame: 'hopeMate' },
     game_tacticsFighter: { label: 'Tactics Fighter', openGame: 'tacticsFighter' },
     game_mazeRunner: { label: 'Maze Runner', openGame: 'mazeRunner' },
+    game_chessLight: { label: 'Chess Light', openGame: 'chessLight' },
+    game_chessSolitaire: { label: 'Chess Solitaire', openGame: 'chessSolitaire' },
     game_blunders: { label: 'Blunders', openGame: 'blunders' }
 };
 
@@ -2551,7 +2555,8 @@ function initShareDestinationTabs() {
     container.dataset.initialized = '1';
 
     const appOptions = document.getElementById('shareApplicationOptions');
-    const appButtons = document.getElementById('shareApplicationOptionsButtons');
+    const appSearchInput = document.getElementById('shareAppSearchInput');
+    const appSelect = document.getElementById('shareAppSelect');
 
     const setPrimaryActive = (destKey) => {
         container.querySelectorAll('.share-dest-tab').forEach(b => b.classList.remove('btn-info'));
@@ -2564,19 +2569,33 @@ function initShareDestinationTabs() {
     };
 
     const setAppActive = (destKey) => {
-        if (!appOptions) return;
-        appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
-        appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
-        const btn = appOptions.querySelector(`[data-share-dest="${CSS.escape(String(destKey || ''))}"]`);
-        if (btn) {
-            btn.classList.remove('btn-secondary');
-            btn.classList.add('btn-info');
-        }
+        if (!appSelect) return;
+        const v = String(destKey || '');
+        appSelect.value = v;
     };
 
     const showAppOptions = (show) => {
         if (!appOptions) return;
         appOptions.style.display = show ? 'block' : 'none';
+    };
+
+    const getShareAppEntries = () => {
+        const keys = SHARE_APP_DEST_ORDER.filter(k => !!SHARE_APP_DEST_MAP[k]);
+        return keys.map((k) => ({ key: k, label: String(SHARE_APP_DEST_MAP[k]?.label || k) }));
+    };
+
+    const rebuildSelect = (query) => {
+        if (!appSelect) return;
+        const q = String(query || '').trim().toLowerCase();
+        const entries = getShareAppEntries().filter((e) => {
+            if (!q) return true;
+            return String(e.label || '').toLowerCase().includes(q) || String(e.key || '').toLowerCase().includes(q);
+        });
+        const keep = String(appSelect.value || '');
+        appSelect.innerHTML = `<option value="">Select an application...</option>` + entries
+            .map((e) => `<option value="${escapeHtml(e.key)}">${escapeHtml(e.label)}</option>`)
+            .join('');
+        if (keep) appSelect.value = keep;
     };
 
     container.querySelectorAll('.share-dest-tab').forEach(btn => {
@@ -2601,23 +2620,13 @@ function initShareDestinationTabs() {
         });
     });
 
-    // Build Application options dynamically (so new apps appear automatically when added to mapping).
-    if (appButtons && appButtons.dataset.built !== '1') {
-        appButtons.dataset.built = '1';
-        const keys = SHARE_APP_DEST_ORDER.filter(k => !!SHARE_APP_DEST_MAP[k]);
-        appButtons.innerHTML = keys.map((k) => {
-            const cfg = SHARE_APP_DEST_MAP[k];
-            return `<button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="${escapeHtml(k)}">${escapeHtml(cfg.label)}</button>`;
-        }).join('');
-    }
-    if (appOptions && appOptions.dataset.initialized !== '1') {
-        appOptions.dataset.initialized = '1';
-        appOptions.addEventListener('click', (ev) => {
-            const t = ev.target;
-            const btn = t && t.closest ? t.closest('.share-app-dest') : null;
-            if (!btn) return;
-            const dest = String(btn.getAttribute('data-share-dest') || '');
-            if (!dest) return;
+    // Build Application options into a searchable select.
+    if (appSelect && appSelect.dataset.built !== '1') {
+        appSelect.dataset.built = '1';
+        rebuildSelect('');
+        appSelect.addEventListener('change', () => {
+            const dest = String(appSelect.value || '');
+            if (!dest) return; // keep link unchanged until chosen
             currentShareDestinationGroup = 'application';
             currentShareDestination = dest;
             showAppOptions(true);
@@ -2625,6 +2634,10 @@ function initShareDestinationTabs() {
             setAppActive(dest);
             updateShareLinkInput();
         });
+    }
+    if (appSearchInput && appSearchInput.dataset.bound !== '1') {
+        appSearchInput.dataset.bound = '1';
+        appSearchInput.addEventListener('input', () => rebuildSelect(appSearchInput.value));
     }
 }
 
@@ -2652,21 +2665,12 @@ window.openShareModal = function(studentId) {
             }
         }
         const appOptions = document.getElementById('shareApplicationOptions');
-        const appButtons = document.getElementById('shareApplicationOptionsButtons');
+        const appSearchInput = document.getElementById('shareAppSearchInput');
+        const appSelect = document.getElementById('shareAppSelect');
         if (appOptions) {
             appOptions.style.display = 'none';
-            // Ensure buttons exist (built in initShareDestinationTabs), and reset their visual state.
-            if (appButtons && appButtons.dataset.built !== '1') {
-                // If modal opened before init ran for some reason, ensure build now.
-                appButtons.dataset.built = '1';
-                const keys = SHARE_APP_DEST_ORDER.filter(k => !!SHARE_APP_DEST_MAP[k]);
-                appButtons.innerHTML = keys.map((k) => {
-                    const cfg = SHARE_APP_DEST_MAP[k];
-                    return `<button type="button" class="btn btn-secondary btn-small share-app-dest" data-share-dest="${escapeHtml(k)}">${escapeHtml(cfg.label)}</button>`;
-                }).join('');
-            }
-            appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.remove('btn-info'));
-            appOptions.querySelectorAll('.share-app-dest').forEach(b => b.classList.add('btn-secondary'));
+            if (appSearchInput) appSearchInput.value = '';
+            if (appSelect) appSelect.value = '';
         }
         
         // Set Link
