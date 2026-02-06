@@ -77,7 +77,10 @@
     return `
       <div class="mr-app" data-mr-current-mode="${escapeHtml(String(mode || ""))}">
         <aside class="mr-sidebar" aria-label="Maze Runner sidebar">
-          <div class="mr-side-title">🧩 Maze Runner</div>
+          <div class="mr-side-title" style="display:flex; align-items:center; gap:10px;">
+            <img src="/game/maze-runner/images/logo/logo.jpg" alt="Maze Runner" style="width:28px; height:28px; border-radius:8px; object-fit:cover;">
+            <span>Maze Runner</span>
+          </div>
           <div class="mr-side-sub">${escapeHtml(isTeacher ? "teacher" : "student")}</div>
           <div class="mr-nav" role="navigation" aria-label="Modes">
             ${nav
