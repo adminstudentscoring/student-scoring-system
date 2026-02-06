@@ -535,26 +535,28 @@
 
         ${it.boardEnabled ? `
           <div class="cw-card" style="margin-top:12px;">
-            <div class="cw-board-head-520">
-              <div class="cw-board-left">
+            <div class="cw-board-3col">
+              <div class="cw-board-side cw-board-side-left">
                 <div class="cw-board-turn">${escapeHtml(turnLabel(it.turn))}</div>
                 ${it.pvEnabled ? `<div class="cw-badge">${escapeHtml(moveLabel(it.pvPlies || 1))}</div>` : ``}
               </div>
-              ${it.pvEnabled ? `
-                <div class="cw-board-right">
+
+              <div class="cw-board-center">
+                ${it.pvEnabled ? `
+                  <div id="cwPvBoardHost">
+                    ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true, flip })}
+                  </div>
+                ` : `
+                  ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false, flip })}
+                `}
+              </div>
+
+              <div class="cw-board-side cw-board-side-right">
+                ${it.pvEnabled ? `
                   <button type="button" class="cw-btn" data-cw-pv-undo="1">Undo</button>
                   <button type="button" class="cw-btn" data-cw-pv-reset="1">Reset</button>
-                </div>
-              ` : `<div></div>`}
-            </div>
-            <div>
-              ${it.pvEnabled ? `
-                <div id="cwPvBoardHost">
-                  ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: (pvState?.pieces || it.pieces), interactive: true, flip })}
-                </div>
-              ` : `
-                ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false, flip })}
-              `}
+                ` : ``}
+              </div>
             </div>
             <input type="hidden" id="cwFenHidden" value="${escapeHtml(it.pvEnabled ? fenNow : fenBase)}">
           </div>
