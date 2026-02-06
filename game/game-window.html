@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="/game/maze-runner/maze-runner.css">
     <link rel="stylesheet" href="/game/chess-light/chess-light.css">
     <link rel="stylesheet" href="/game/chess-solitaire/chess-solitaire.css">
+    <link rel="stylesheet" href="/game/chess-works/chess-works.css">
     <link rel="stylesheet" href="/game/vchess-platform/vchess-platform.css">
     <link rel="stylesheet" href="/game/vchess-platform/normal-chess.css">
     <style>
@@ -61,6 +62,18 @@
             min-height: 100vh;
         }
         body.game-is-chess-solitaire .game-area-content {
+            padding: 0;
+        }
+
+        body.game-is-chess-works {
+            padding: 0;
+        }
+        body.game-is-chess-works .game-window-container {
+            border-radius: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        body.game-is-chess-works .game-area-content {
             padding: 0;
         }
         .game-window-container {
@@ -121,6 +134,7 @@
                 document.body.classList.toggle('game-is-maze-runner', gameKey === 'mazeRunner');
                 document.body.classList.toggle('game-is-chess-light', gameKey === 'chessLight');
                 document.body.classList.toggle('game-is-chess-solitaire', gameKey === 'chessSolitaire');
+                document.body.classList.toggle('game-is-chess-works', gameKey === 'chessWorks');
                 document.body.classList.toggle('game-is-vcp', gameKey === 'vChessPlatform');
 
                 if (gameKey === 'runningQueen') {
@@ -349,6 +363,27 @@
                         window.initChessSolitaire();
                     } else {
                         showError('Chess Solitaire script loaded but init function missing.');
+                    }
+                } else if (gameKey === 'chessWorks') {
+                    content.innerHTML = `
+                        <div id="chessWorksRoot" class="chess-works-root">
+                            <p>Loading...</p>
+                        </div>
+                    `;
+                    try {
+                        const storedPlayers = localStorage.getItem('chessWorksPlayers');
+                        if (storedPlayers) {
+                            window.chessWorksPlayers = JSON.parse(storedPlayers);
+                        }
+                    } catch (error) {
+                        console.warn('Unable to restore chess works players from storage:', error);
+                    }
+                    await loadScript('/game/chess-works/core.js');
+                    await loadScript('/game/chess-works/chess-works.js');
+                    if (window.initChessWorks) {
+                        window.initChessWorks();
+                    } else {
+                        showError('Chess Works script loaded but init function missing.');
                     }
                 } else if (gameKey === 'vChessPlatform') {
                     content.innerHTML = `

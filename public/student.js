@@ -358,6 +358,21 @@ window.openStudentGame = function(gameKey, options = {}) {
         return;
     }
 
+    if (gameKey === 'chessWorks') {
+        try {
+            localStorage.setItem('chessWorksPlayers', JSON.stringify([player]));
+        } catch (e) {
+            console.warn('Unable to persist chessWorksPlayers', e);
+        }
+        const url = `/game/game-window.html?game=chessWorks&role=student`;
+        if (openMode === 'sameTab') {
+            window.location.href = url;
+        } else {
+            window.open(url, '_blank');
+        }
+        return;
+    }
+
     if (gameKey === 'blunders') {
         try {
             localStorage.setItem('blundersPlayers', JSON.stringify([player]));
