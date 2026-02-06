@@ -657,14 +657,21 @@
     for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
       piecesByCell.set(`${p.r}:${p.c}`, { color: "w", type: String(p.type || "N").toUpperCase(), i: Number(p.i) });
     }
+    // Display black pieces (they live on removed cells)
+    for (const b of (Array.isArray(cfg.blacks) ? cfg.blacks : [])) {
+      piecesByCell.set(`${Number(b.r)}:${Number(b.c)}`, { color: "b", type: String(b.type || "P").toUpperCase() });
+    }
 
-    const occ = new Set(Array.from(piecesByCell.keys()));
+    // IMPORTANT RULE:
+    // Removed cells do not block attack paths, and black pieces sit on removed cells.
+    // Therefore, black pieces should NOT block white attack rays.
+    const occWhite = new Set((Array.isArray(state.placed) ? state.placed : []).map((p) => `${Number(p.r)}:${Number(p.c)}`));
 
     // Persistent highlight: ALL placed pieces' attack lines stay lit.
     // NOTE: A piece does NOT light its own square automatically.
     const highlight = new Set();
     for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
-      const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occ });
+      const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occWhite });
       for (const k of att) if (!removedSet.has(k)) highlight.add(k);
     }
 
