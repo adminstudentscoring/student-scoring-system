@@ -253,7 +253,7 @@
     return `/game/pieces/${c}_${nm}.png`;
   }
 
-  function renderBoardHtml({ rows, cols, removedSet, pieces, selectedIdx, captureSet }) {
+  function renderBoardHtml({ rows, cols, removedSet, pieces, selectedIdx, captureSet, disableRemoved = true }) {
     const cellPx = computeCellPx({ rows, cols, targetPx: 520, gapPx: 2, padPx: 2 });
     const colsCss = `repeat(${cols}, var(--cs-cell, ${cellPx}px))`;
     const piecesByCell = buildPiecesByCell(pieces);
@@ -280,7 +280,7 @@
             ? `<img src="${Core.escapeHtml(src)}" alt="${Core.escapeHtml(info.type)}" style="width: calc(var(--cs-cell, ${cellPx}px) - 10px); height: calc(var(--cs-cell, ${cellPx}px) - 10px); object-fit:contain;">`
             : `<span style="font-weight:950;">${Core.escapeHtml(info.type)}</span>`;
         }
-        const disabled = isRemoved ? "disabled" : "";
+        const disabled = (disableRemoved && isRemoved) ? "disabled" : "";
         cells.push(`<button type="button" class="${classes}" data-cs-cell="${r}:${c}" ${disabled} aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
       }
     }
@@ -660,9 +660,6 @@
     function removedSet() {
       return buildRemovedSet(removed);
     }
-    function piecesByCell() {
-      return buildPiecesByCell(pieces);
-    }
     function clampAll() {
       rows = Math.max(1, Math.trunc(rows || 4));
       cols = Math.max(1, Math.trunc(cols || 4));
@@ -680,79 +677,93 @@
       pieces = Array.from(m.values());
     }
 
-    function render() {
-      clampAll();
-      const rset = removedSet();
-      const ps = pieces;
-      const htmlBoard = renderBoardHtml({
-        rows,
-        cols,
-        removedSet: rset,
-        pieces: ps,
-        selectedIdx: -1,
-        captureSet: new Set()
-      });
-      const toolPieceActive = tool === "piece" ? "vcp-btn-primary" : "";
-      const toolRemoveActive = tool === "remove" ? "vcp-btn-primary" : "";
-      const piecesOptions = PIECE_TYPES.map((t) => `<option value="${t}" ${t === pieceType ? "selected" : ""}>${t}</option>`).join("");
-      return `
-        <div class="vcp-modal-backdrop" id="csEditBackdrop" role="presentation">
-          <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Stage editor" style="width: calc(100vw - 40px); max-width: 1200px;">
-            <div class="vcp-modal-header">
-              <div class="vcp-modal-title">${Core.escapeHtml(isEdit ? `Edit Stage ${Number.isFinite(stageNo) ? stageNo : ""}` : "Create Stage")} (${Core.escapeHtml(diffLabel(diff))})</div>
-              <button id="csEditClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+    const piecesOptions = PIECE_TYPES.map((t) => `<option value="${t}" ${t === pieceType ? "selected" : ""}>${t}</option>`).join("");
+
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="csEditBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Stage editor" style="width: calc(100vw - 40px); max-width: 1300px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">${Core.escapeHtml(isEdit ? `Edit Stage ${Number.isFinite(stageNo) ? stageNo : ""}` : "Create Stage")} (${Core.escapeHtml(diffLabel(diff))})</div>
+            <button id="csEditClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="color:var(--cs-muted); font-weight:900; margin-top:-4px;">Click tools below, then click the board to place.</div>
+            <div style="display:grid; grid-template-columns: 420px 1fr; gap:14px; margin-top:12px; align-items:start;">
+              <div>
+                <div style="font-weight:950; color:var(--cs-ink);">Settings</div>
+                <div class="cs-card" style="margin-top:10px; background:#ffffff;">
+                  <div style="font-weight:950; color:var(--cs-ink);">Board size</div>
+                  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                    <label style="font-weight:900; color:var(--cs-muted);">Rows</label>
+                    <input id="csRows" class="cs-input" type="number" min="1" step="1" value="${rows}" style="width:120px;">
+                    <label style="font-weight:900; color:var(--cs-muted);">Cols</label>
+                    <input id="csCols" class="cs-input" type="number" min="1" step="1" value="${cols}" style="width:120px;">
+                  </div>
+                </div>
+
+                <div class="cs-card" style="margin-top:12px; background:#ffffff;">
+                  <div style="font-weight:950; color:var(--cs-ink);">Tool</div>
+                  <div class="cs-tool-row">
+                    <button type="button" class="cs-tool is-active" data-cs-tool="piece">Piece</button>
+                    <button type="button" class="cs-tool" data-cs-tool="remove">Remove the cell</button>
+                    <select id="csPieceType" class="cs-select" style="min-width:140px;">
+                      ${piecesOptions}
+                    </select>
+                  </div>
+                  <div style="margin-top:10px; color:var(--cs-muted); font-weight:900;">
+                    Tool tips: Piece = place/remove a piece. Remove the cell = toggle cell removed/restored.
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-weight:950; color:var(--cs-ink);">Board</div>
+                <div class="cs-card" style="margin-top:10px; background:#ffffff;">
+                  <div id="csBoardHolder"></div>
+                  <div id="csPieceCount" style="margin-top:12px; color:var(--cs-muted); font-weight:900;"></div>
+                </div>
+              </div>
             </div>
-            <div class="vcp-modal-body">
-              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;">
-                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-                  <div>
-                    <div style="font-weight:950; margin-bottom:6px;">Board</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                      <label style="font-weight:900; color:var(--cs-muted);">Rows</label>
-                      <input id="csRows" type="number" min="1" value="${rows}" style="width:90px; padding:8px 10px; border:1px solid var(--cs-border); border-radius:12px;">
-                      <label style="font-weight:900; color:var(--cs-muted);">Cols</label>
-                      <input id="csCols" type="number" min="1" value="${cols}" style="width:90px; padding:8px 10px; border:1px solid var(--cs-border); border-radius:12px;">
-                    </div>
-                  </div>
-                  <div>
-                    <div style="font-weight:950; margin-bottom:6px;">Tool</div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                      <button type="button" class="vcp-btn ${toolPieceActive}" data-cs-tool="piece">Piece</button>
-                      <button type="button" class="vcp-btn ${toolRemoveActive}" data-cs-tool="remove">Remove the cell</button>
-                      <select id="csPieceType" style="padding:10px 12px; border:1px solid var(--cs-border); border-radius:12px; font-weight:950;">
-                        ${piecesOptions}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                <div style="display:flex; gap:10px;">
-                  <button id="csSaveStage" class="vcp-btn vcp-btn-primary" type="button">Save</button>
-                </div>
-              </div>
-              <div style="margin-top:12px;">
-                ${htmlBoard}
-              </div>
-              <div style="margin-top:12px; color:var(--cs-muted); font-weight:900;">
-                Piece count: ${ps.length}. Every move in Stage must capture.
-              </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px;">
+              <button id="csEditCancel" class="cs-btn" type="button">Cancel</button>
+              <button id="csSaveStage" class="cs-btn primary" type="button">${isEdit ? "Save" : "Create"}</button>
             </div>
           </div>
         </div>
-      `;
-    }
+      </div>
+    `;
+    root.appendChild(host);
 
-    root.insertAdjacentHTML("beforeend", render());
-    const backdrop = root.querySelector("#csEditBackdrop");
-    const modal = backdrop?.querySelector?.(".vcp-modal");
+    const getBackdrop = () => host.querySelector("#csEditBackdrop");
+    const getModal = () => host.querySelector(".vcp-modal");
+    const close = () => { try { host.remove(); } catch {} };
 
-    function close() {
-      try { backdrop?.remove?.(); } catch {}
-    }
-
-    function rerenderModal() {
-      try { backdrop?.remove?.(); } catch {}
-      root.insertAdjacentHTML("beforeend", render());
-      bind();
+    function rerenderBoard() {
+      clampAll();
+      const rset = removedSet();
+      const holder = host.querySelector("#csBoardHolder");
+      if (!holder) return;
+      holder.innerHTML = renderBoardHtml({
+        rows,
+        cols,
+        removedSet: rset,
+        pieces,
+        selectedIdx: -1,
+        captureSet: new Set(),
+        disableRemoved: false // IMPORTANT: builder must allow clicking removed cells to restore
+      });
+      const pc = host.querySelector("#csPieceCount");
+      if (pc) pc.textContent = `Piece count: ${pieces.length}. Every move in Stage must capture.`;
+      // tool button active state
+      host.querySelectorAll("[data-cs-tool]")?.forEach((b) => {
+        const k = String(b.getAttribute("data-cs-tool") || "");
+        b.classList.toggle("is-active", k === tool);
+      });
+      // show/hide pieceType select depending on tool
+      const sel = host.querySelector("#csPieceType");
+      if (sel) sel.style.display = tool === "piece" ? "" : "none";
     }
 
     async function onSave() {
@@ -769,39 +780,40 @@
     }
 
     function bind() {
-      const bd = root.querySelector("#csEditBackdrop");
-      const m = bd?.querySelector?.(".vcp-modal");
+      const bd = getBackdrop();
+      const m = getModal();
       bd?.addEventListener("click", (e) => {
         if (e.target === bd) close();
       });
-      m?.querySelector?.("#csEditClose")?.addEventListener("click", close);
-      m?.querySelector?.("#csSaveStage")?.addEventListener("click", async () => {
+      host.querySelector("#csEditClose")?.addEventListener("click", close);
+      host.querySelector("#csEditCancel")?.addEventListener("click", close);
+      host.querySelector("#csSaveStage")?.addEventListener("click", async () => {
         try {
           await onSave();
         } catch (err) {
           alert(String(err?.message || err));
         }
       });
-      m?.querySelector?.("#csRows")?.addEventListener("input", (e) => {
+      host.querySelector("#csRows")?.addEventListener("input", (e) => {
         rows = Number(e.target.value || 0) || 4;
-        rerenderModal();
+        rerenderBoard();
       });
-      m?.querySelector?.("#csCols")?.addEventListener("input", (e) => {
+      host.querySelector("#csCols")?.addEventListener("input", (e) => {
         cols = Number(e.target.value || 0) || 4;
-        rerenderModal();
+        rerenderBoard();
       });
-      m?.querySelectorAll?.("[data-cs-tool]")?.forEach((btn) => {
+      host.querySelectorAll?.("[data-cs-tool]")?.forEach((btn) => {
         btn.addEventListener("click", () => {
           tool = String(btn.getAttribute("data-cs-tool") || "piece");
-          rerenderModal();
+          rerenderBoard();
         });
       });
-      m?.querySelector?.("#csPieceType")?.addEventListener("change", (e) => {
+      host.querySelector("#csPieceType")?.addEventListener("change", (e) => {
         pieceType = String(e.target.value || "Q").toUpperCase();
       });
 
       // Board clicks
-      m?.querySelector?.(".cs-board")?.addEventListener("click", (e) => {
+      host.querySelector("#csBoardHolder")?.addEventListener("click", (e) => {
         const cellBtn = e.target && e.target.closest ? e.target.closest("[data-cs-cell]") : null;
         if (!cellBtn) return;
         const cell = String(cellBtn.getAttribute("data-cs-cell") || "");
@@ -815,7 +827,7 @@
           else removed.push({ r, c });
           // removing cell also removes any piece there
           pieces = pieces.filter((p) => !(p.r === r && p.c === c));
-          rerenderModal();
+          rerenderBoard();
           return;
         }
 
@@ -825,15 +837,17 @@
         const idx = pieces.findIndex((p) => p.r === r && p.c === c);
         if (idx >= 0) {
           pieces.splice(idx, 1);
-          rerenderModal();
+          rerenderBoard();
           return;
         }
         if (!isPieceType(pieceType)) pieceType = "Q";
         pieces.push({ type: pieceType, r, c });
-        rerenderModal();
+        rerenderBoard();
       });
     }
 
+    // Initial paint + bind
+    rerenderBoard();
     bind();
   }
 

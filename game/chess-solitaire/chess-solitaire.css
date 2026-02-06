@@ -148,6 +148,47 @@
   border-color: var(--cs-primary);
   color: #ffffff;
 }
+.cs-btn.primary:hover {
+  background: #4b5f7a;
+}
+
+.cs-input,
+.cs-select {
+  padding: 10px 12px;
+  border: 1px solid var(--cs-border);
+  border-radius: 12px;
+  background: #ffffff;
+  font-weight: 950;
+  color: var(--cs-ink);
+}
+
+.cs-tool-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.cs-tool {
+  border: 1px solid var(--cs-border);
+  background: #ffffff;
+  color: var(--cs-ink);
+  border-radius: 999px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 950;
+  transition: background 0.12s ease, transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.cs-tool:hover {
+  transform: translateY(-1px);
+  border-color: rgba(91, 112, 143, 0.45);
+  background: #f8fafc;
+}
+.cs-tool.is-active {
+  border-color: rgba(91, 112, 143, 0.55);
+  background: rgba(91, 112, 143, 0.10);
+  box-shadow: 0 0 0 3px rgba(91, 112, 143, 0.12);
+}
 
 /* Common controls */
 .cs-toolbar {
