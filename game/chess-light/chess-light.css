@@ -126,6 +126,15 @@
   transform: translateY(6px);
 }
 
+/* Stage page: hide top-left title + subtitle (match Maze Runner UX) */
+.cl-app[data-cl-current-mode="stage"] .cl-title,
+.cl-app[data-cl-current-mode="stage"] .cl-container > .cl-muted {
+  display: none;
+}
+.cl-app[data-cl-current-mode="stage"] .cl-container {
+  padding-top: 12px;
+}
+
 /* Common controls (Maze Runner-style) */
 .cl-toolbar {
   display: flex;
@@ -258,6 +267,15 @@
   border-radius: 12px;
   box-shadow: 0 0 0 2px var(--cl-glow), 0 0 18px var(--cl-glow);
   pointer-events: none;
+}
+
+.cl-piece-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
 }
 
 

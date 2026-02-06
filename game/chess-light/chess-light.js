@@ -659,22 +659,18 @@
     }
 
     const occ = new Set(Array.from(piecesByCell.keys()));
-    // Persistent highlight: all placed pieces keep their attack lines lit
+
+    // Persistent highlight: ALL placed pieces' attack lines stay lit.
+    // NOTE: A piece does NOT light its own square automatically.
     const highlight = new Set();
     for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
       const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occ });
       for (const k of att) if (!removedSet.has(k)) highlight.add(k);
     }
-    // also glow the squares where pieces sit
-    for (const k of occ) if (!removedSet.has(k)) highlight.add(k);
 
-    // lit squares
-    const lit = new Set();
-    for (const key of occ) if (!removedSet.has(key)) lit.add(key);
-    for (const p of (Array.isArray(state.placed) ? state.placed : [])) {
-      const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occ });
-      for (const k of att) if (!removedSet.has(k)) lit.add(k);
-    }
+    // Lit squares (win condition): ONLY squares attacked by (any) white pieces.
+    // A piece's own square only becomes lit if attacked by OTHER piece(s).
+    const lit = new Set(highlight);
     const totalCells = rows * cols;
     const removedCount = removedSet.size;
     const targetCount = totalCells - removedCount;
@@ -684,23 +680,22 @@
 
     return `
       <div class="cl-toolbar" style="margin-top:0;">
-        <div class="cl-badge">Lit: ${escapeHtml(String(lit.size))} / ${escapeHtml(String(targetCount))}</div>
+        <div></div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button type="button" class="cl-btn" data-cl-reset="1">Reset</button>
         </div>
       </div>
 
       <div class="cl-card" style="margin-top:12px;">
-        <div style="font-weight:1000; color:var(--cl-ink);">Pieces</div>
-        <div class="cl-muted" style="margin-top:6px;">
-          Click a piece slot, then click a square to place/move it. You cannot place on black-attacked squares.
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+        <div class="cl-piece-row">
           ${inv.map((p, idx) => {
-            const placed = placedByI.get(idx);
             const isActive = Number(state.activeI) === idx;
-            const label = placed ? `${p.type}@${placed.r + 1},${placed.c + 1}` : `${p.type}`;
-            return `<button type="button" class="cl-btn ${isActive ? "primary" : ""}" data-cl-piece-slot="${escapeHtml(String(idx))}">${escapeHtml(label)}</button>`;
+            const src = clPieceImgSrc("w", p.type);
+            return `
+              <button type="button" class="cl-btn ${isActive ? "primary" : ""}" data-cl-piece-slot="${escapeHtml(String(idx))}" aria-label="Piece ${escapeHtml(String(p.type || ""))}">
+                <img src="${escapeHtml(src)}" alt="${escapeHtml(String(p.type || ""))}" style="width:22px; height:22px; object-fit:contain;">
+              </button>
+            `;
           }).join("")}
         </div>
       </div>
@@ -983,10 +978,12 @@
           }
           ui.stage.playState.placed = pieces;
 
-          // win check: all non-removed squares are lit AND all pieces are placed
+          // win check:
+          // - all required pieces are placed
+          // - every non-removed square is lit by at least one white piece attack
+          //   (a piece's own square is NOT lit unless attacked by other piece(s))
           const occ = new Set(pieces.map((p) => `${p.r}:${p.c}`));
           const lit = new Set();
-          for (const k2 of occ) if (!removedSet.has(k2)) lit.add(k2);
           for (const p of pieces) {
             const att = attacksForPiece({ type: p.type, from: p, rows, cols, occupiedSet: occ });
             for (const k2 of att) if (!removedSet.has(k2)) lit.add(k2);
