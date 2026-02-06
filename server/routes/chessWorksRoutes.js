@@ -332,13 +332,19 @@ function registerChessWorksRoutes(app, deps) {
         try {
           const orgId = await resolveOrgId(req);
           if (!orgId) return res.status(400).json({ ok: false, error: "Missing org" });
-          const folderIdRaw = toIdString(req.query?.folderId || "");
+          const hasFolderParam = !!(req.query && Object.prototype.hasOwnProperty.call(req.query, "folderId"));
+          const folderIdRaw = hasFolderParam ? String(req.query.folderId ?? "").trim() : "";
           const folderId = folderIdRaw ? Number(folderIdRaw) : null;
           const params = [String(orgId)];
           let where = `org_id = $1`;
-          if (folderIdRaw) {
-            params.push(folderId);
-            where += ` AND folder_id = $2`;
+          if (hasFolderParam) {
+            if (!folderIdRaw) {
+              // Unfiled: folder_id IS NULL
+              where += ` AND folder_id IS NULL`;
+            } else {
+              params.push(folderId);
+              where += ` AND folder_id = $2`;
+            }
           }
           const r = await pool.query(
             `SELECT id, folder_id, title, updated_at
@@ -378,9 +384,9 @@ function registerChessWorksRoutes(app, deps) {
           const createdBy = req?.user?.id ? String(req.user.id) : null;
           const r = await pool.query(
             `INSERT INTO chess_works_works(org_id, folder_id, title, items, created_by)
-             VALUES ($1, $2, $3, $4, $5)
+             VALUES ($1, $2, $3, $4::jsonb, $5)
              RETURNING id, folder_id, title, items, created_at, updated_at`,
-            [String(orgId), folderId, title, items, createdBy]
+            [String(orgId), folderId, title, JSON.stringify(items), createdBy]
           );
           const row = r.rows?.[0];
           return res.json({

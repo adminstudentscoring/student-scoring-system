@@ -663,6 +663,10 @@
                   <div class="cw-work-title">Create Works</div>
                   <div class="cw-work-sub">Create questions</div>
                 </div>
+                <div class="cw-work-card" data-cw-create-file="1">
+                  <div class="cw-work-title">Create File</div>
+                  <div class="cw-work-sub">Text document in folder</div>
+                </div>
               </div>
               <div style="display:flex; justify-content:flex-end; margin-top:14px;">
                 <button id="cwCreatePickCancel" type="button" class="cw-btn">Cancel</button>
@@ -685,6 +689,10 @@
       host.querySelector("[data-cw-create-work]")?.addEventListener("click", () => {
         close();
         openCreateWorkModal();
+      });
+      host.querySelector("[data-cw-create-file]")?.addEventListener("click", () => {
+        close();
+        openCreateFileModal();
       });
     }
 
@@ -733,6 +741,19 @@
     async function openCreateWorkModal() {
       try {
         const created = await tPost("/api/teachers/chess-works/works", { title: "New Works", items: [defaultItem()] });
+        const work = normalizeWork(created?.work || {});
+        await loadBuilder();
+        openWorkEditorModal(work.id);
+      } catch (e) {
+        alert(String(e?.message || e));
+      }
+    }
+
+    async function openCreateFileModal() {
+      // A "file" is stored as a work with 1 text-only item (board disabled).
+      const fileItem = normalizeItem({ prompt: "", boardEnabled: false, pvEnabled: false, textEnabled: false });
+      try {
+        const created = await tPost("/api/teachers/chess-works/works", { title: "New File", items: [fileItem] });
         const work = normalizeWork(created?.work || {});
         await loadBuilder();
         openWorkEditorModal(work.id);
@@ -1291,6 +1312,11 @@
 
     function renderSettings() {
       const groups = ui.settings.groups || [];
+      const students = ui.settings.students || [];
+      const nameOf = (id) => {
+        const s = students.find((x) => String(x.id) === String(id));
+        return s ? String(s.name || s.id) : String(id);
+      };
       return `
         <div class="cw-toolbar">
           <div class="cw-badge">Setting · Groups</div>
@@ -1298,10 +1324,13 @@
         </div>
         <div style="display:grid; gap:10px;">
           ${groups.map((g) => `
-            <div class="cw-review-row">
+            <div class="cw-review-row" data-cw-group-row="${escapeHtml(String(g.id))}" style="cursor:pointer;">
               <div>
                 <div style="font-weight:1000; color:var(--cw-ink);">${escapeHtml(g.name || "")}</div>
                 <div class="cw-muted" style="margin-top:2px;">Members: ${(Array.isArray(g.members) ? g.members.length : 0)}</div>
+                <div class="cw-muted" data-cw-group-members="${escapeHtml(String(g.id))}" style="margin-top:6px; display:none;">
+                  ${escapeHtml((Array.isArray(g.members) ? g.members : []).map(nameOf).join(", "))}
+                </div>
               </div>
               <button type="button" class="cw-btn" data-cw-manage-group="${escapeHtml(String(g.id))}">Manage</button>
             </div>
@@ -1318,14 +1347,7 @@
       const host = document.createElement("div");
       root.appendChild(host);
       const close = () => { try { host.remove(); } catch {} };
-      const render = (q) => {
-        const query = String(q || "").trim().toLowerCase();
-        const members = new Set(Array.isArray(g.members) ? g.members.map(String) : []);
-        const shown = (ui.settings.students || []).filter((s) => {
-          if (!query) return true;
-          return String(s.name || "").toLowerCase().includes(query) || String(s.id || "").toLowerCase().includes(query);
-        });
-        return `
+      const hostHtml = `
           <div class="vcp-modal-backdrop" id="cwGroupBackdrop" role="presentation">
             <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Group" style="width: calc(100vw - 40px); max-width: 980px;">
               <div class="vcp-modal-header">
@@ -1333,35 +1355,36 @@
                 <button id="cwGroupClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
               </div>
               <div class="vcp-modal-body">
-                <input id="cwGroupSearch" type="text" placeholder="Search students..." value="${escapeHtml(String(q || ""))}" style="width:100%; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900;">
-                <div style="display:grid; gap:8px; margin-top:10px; max-height:420px; overflow:auto;">
-                  ${shown.map((s) => {
-                    const inG = members.has(String(s.id));
-                    return `
-                      <div class="cw-review-row">
-                        <div style="font-weight:900; color:var(--cw-ink);">${escapeHtml(s.name || s.id)}</div>
-                        <button type="button" class="cw-btn ${inG ? "" : "primary"}" data-cw-toggle-member="${escapeHtml(String(s.id))}">
-                          ${inG ? "Remove" : "Add"}
-                        </button>
-                      </div>
-                    `;
-                  }).join("")}
-                </div>
+                <input id="cwGroupSearch" type="text" placeholder="Search students..." style="width:100%; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900;">
+                <div id="cwGroupStudents" style="display:grid; gap:8px; margin-top:10px; max-height:420px; overflow:auto;"></div>
                 <div id="cwGroupHint" class="cw-muted" style="margin-top:10px;"></div>
               </div>
             </div>
           </div>
-        `;
-      };
-      let query = "";
-      const rerender = () => { host.innerHTML = render(query); bind(); };
-      const bind = () => {
-        host.querySelector("#cwGroupClose")?.addEventListener("click", close);
-        host.querySelector("#cwGroupBackdrop")?.addEventListener("click", (e) => {
-          if (e.target && e.target.id === "cwGroupBackdrop") close();
+      `;
+      host.innerHTML = hostHtml;
+
+      const renderStudents = (q) => {
+        const query = String(q || "").trim().toLowerCase();
+        const members = new Set(Array.isArray(g.members) ? g.members.map(String) : []);
+        const list = host.querySelector("#cwGroupStudents");
+        if (!list) return;
+        const shown = (ui.settings.students || []).filter((s) => {
+          if (!query) return true;
+          return String(s.name || "").toLowerCase().includes(query) || String(s.id || "").toLowerCase().includes(query);
         });
-        host.querySelector("#cwGroupSearch")?.addEventListener("input", (e) => { query = e.target.value; rerender(); });
-        host.querySelectorAll("[data-cw-toggle-member]")?.forEach((btn) => {
+        list.innerHTML = shown.map((s) => {
+          const inG = members.has(String(s.id));
+          return `
+            <div class="cw-review-row">
+              <div style="font-weight:900; color:var(--cw-ink);">${escapeHtml(s.name || s.id)}</div>
+              <button type="button" class="cw-btn ${inG ? "" : "primary"}" data-cw-toggle-member="${escapeHtml(String(s.id))}">
+                ${inG ? "Remove" : "Add"}
+              </button>
+            </div>
+          `;
+        }).join("");
+        list.querySelectorAll("[data-cw-toggle-member]")?.forEach((btn) => {
           btn.addEventListener("click", async () => {
             const sid = String(btn.getAttribute("data-cw-toggle-member") || "");
             const hint = host.querySelector("#cwGroupHint");
@@ -1376,14 +1399,23 @@
               const fresh = ui.settings.groups.find((x) => String(x.id) === gid);
               if (fresh) Object.assign(g, fresh);
               if (hint) hint.textContent = "Updated.";
-              rerender();
+              renderStudents(host.querySelector("#cwGroupSearch")?.value || "");
             } catch (e) {
               if (hint) hint.textContent = String(e?.message || e);
             }
           });
         });
       };
-      rerender();
+
+      const bind = () => {
+        host.querySelector("#cwGroupClose")?.addEventListener("click", close);
+        host.querySelector("#cwGroupBackdrop")?.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "cwGroupBackdrop") close();
+        });
+        host.querySelector("#cwGroupSearch")?.addEventListener("input", (e) => renderStudents(e.target.value));
+      };
+      bind();
+      renderStudents("");
     }
 
     // ===== Handlers =====
@@ -1595,6 +1627,20 @@
       });
       main.querySelectorAll("[data-cw-manage-group]")?.forEach((btn) => {
         btn.addEventListener("click", () => openGroupManageModal(String(btn.getAttribute("data-cw-manage-group") || "")));
+      });
+
+      // toggle show member names when clicking the group row (but not the Manage button)
+      main.querySelectorAll("[data-cw-group-row]")?.forEach((row) => {
+        row.addEventListener("click", (e) => {
+          const tgt = e.target;
+          const manageBtn = tgt && tgt.closest ? tgt.closest("[data-cw-manage-group]") : null;
+          if (manageBtn) return;
+          const gid = String(row.getAttribute("data-cw-group-row") || "");
+          const membersEl = main.querySelector(`[data-cw-group-members="${CSS.escape(gid)}"]`);
+          if (!membersEl) return;
+          const show = membersEl.style.display !== "block";
+          membersEl.style.display = show ? "block" : "none";
+        });
       });
     }
 
