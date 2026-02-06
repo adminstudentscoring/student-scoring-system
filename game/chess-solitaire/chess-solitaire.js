@@ -38,6 +38,9 @@
   const ui = {
     role: getRole(),
     mode: Core.getUrlMode(),
+    home: {
+      storyIndex: 0
+    },
     settings: {
       displayColor: "white" // b. Builder default = white pieces; user can switch in Settings
     },
@@ -107,6 +110,14 @@
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
+
+  const HOME_STORY = [
+    `In a quiet academy where chess pieces learned to dream, the board was never just a board—it was a maze of choices. Tonight, the squares are awake, and every piece can feel the tension of the next move.`,
+    `A strange rule echoes through the hall: no wandering, no hesitation. Each step must be a capture—one piece falls, one piece advances. The board keeps the score with silence.`,
+    `You are not a single hero piece. You are the whole army’s mind. You may change leaders at any time—Knight, Bishop, Queen—whoever can strike next will carry your will.`,
+    `Some squares are missing, as if the board has forgotten parts of itself. Those empty gaps don’t block attacks, but they can break plans. Learn to read the shape of the battlefield, not just the pieces.`,
+    `At the end, only one piece must remain—standing alone under a pale spotlight. Clear the board with perfect captures, and the academy will open its final door.`
+  ];
 
   function loadSettings() {
     try {
@@ -400,19 +411,72 @@
     });
   }
 
-  function renderHome() {
+  function renderHome({ storyIndex = 0 } = {}) {
+    const idx = Math.max(0, Math.min(4, Number(storyIndex) || 0));
+    const total = HOME_STORY.length;
+    const raw = HOME_STORY[idx] || "";
+    const lines = String(raw)
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const storyHtml = lines.map((ln) => `<div style="margin-top:10px;">${Core.escapeHtml(ln)}</div>`).join("");
+    const isLast = idx >= total - 1;
     return `
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div style="font-weight:950; font-size:16px;">Welcome to Chess Solitaire</div>
-        <div style="color:var(--cs-muted); line-height:1.5;">
-          Capture pieces until there is only one piece left. Every move must capture exactly one piece. You may use a different piece each move.
+      <div class="cs-section-title" style="font-weight:1000; color:var(--cs-ink);">Chess Solitaire</div>
+      <div class="cs-card" style="margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="font-weight:1000; color:var(--cs-ink);">Story</div>
+          <div style="color:var(--cs-muted); font-weight:900;">${Core.escapeHtml(String(idx + 1))} / ${Core.escapeHtml(String(total))}</div>
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button type="button" class="cs-btn primary" data-cs-action="goStage">Go to Stage</button>
-          ${ui.role === "teacher" ? `<button type="button" class="cs-btn" data-cs-action="goBuilder">Open Builder</button>` : ""}
+        <div style="margin-top:14px; line-height:1.75; text-align:center; font-size:200%; max-width:920px; margin-left:auto; margin-right:auto; color:var(--cs-muted); font-weight:900;">
+          ${storyHtml}
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:center; min-height:150px; margin-top:12px;">
+          ${isLast ? `
+            <div style="display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; width:100%;">
+              <button type="button" class="cs-btn" data-cs-home-rules="1" style="width:280px; max-width:80vw;">Rules</button>
+              <button type="button" class="cs-btn primary" data-cs-start-game="1" style="width:280px; max-width:80vw;">Start the Game</button>
+            </div>
+          ` : `
+            <button type="button" class="cs-btn primary" data-cs-story-next="1" style="width:280px; max-width:80vw;">Next</button>
+          `}
         </div>
       </div>
     `;
+  }
+
+  function openRulesModal(root) {
+    const host = document.createElement("div");
+    host.innerHTML = `
+      <div class="vcp-modal-backdrop" id="csRulesBackdrop" role="presentation">
+        <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Rules" style="width: calc(100vw - 40px); max-width: 980px;">
+          <div class="vcp-modal-header">
+            <div class="vcp-modal-title">Rules</div>
+            <button id="csRulesClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+          </div>
+          <div class="vcp-modal-body">
+            <div style="font-weight:950; color:var(--cs-ink);">Chess Solitaire</div>
+            <div style="margin-top:8px; line-height:1.55; color:var(--cs-muted); font-weight:900;">
+              - Every move must capture <strong>exactly one</strong> piece.<br>
+              - You may choose a <strong>different</strong> piece each move.<br>
+              - You win when there is <strong>only one</strong> piece left on the board.<br>
+              - Removed cells cannot be used, but they do <strong>not</strong> block attack lines.
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+              <button id="csRulesOk" type="button" class="cs-btn primary">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    root.appendChild(host);
+    const close = () => { try { host.remove(); } catch {} };
+    host.querySelector("#csRulesClose")?.addEventListener("click", close);
+    host.querySelector("#csRulesOk")?.addEventListener("click", close);
+    host.querySelector("#csRulesBackdrop")?.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "csRulesBackdrop") close();
+    });
   }
 
   function renderPlaceholder(title, hint) {
@@ -426,7 +490,7 @@
 
   async function rerenderMain() {
     if (ui.mode === "home") {
-      await setMain(renderHome());
+      await setMain(renderHome({ storyIndex: ui.home.storyIndex }));
       bindHomeHandlers();
       return;
     }
@@ -1085,21 +1149,28 @@
     if (!root) return;
     const main = root.querySelector("#csMain");
     if (!main) return;
-    const goStage = main.querySelector('[data-cs-action="goStage"]');
-    if (goStage) {
-      goStage.addEventListener("click", async () => {
-        ui.mode = "stage";
-        Core.setUrlMode(ui.mode);
-        rerenderShell();
-        await rerenderMain();
+    const nextBtn = main.querySelector('[data-cs-story-next="1"]');
+    if (nextBtn) {
+      nextBtn.addEventListener("click", async () => {
+        ui.home.storyIndex = Math.min(4, Number(ui.home.storyIndex || 0) + 1);
+        await setMain(renderHome({ storyIndex: ui.home.storyIndex }));
+        bindHomeHandlers();
       });
     }
-    const goBuilder = main.querySelector('[data-cs-action="goBuilder"]');
-    if (goBuilder) {
-      goBuilder.addEventListener("click", async () => {
-        if (ui.role !== "teacher") return;
-        ui.mode = "builder";
+
+    const rulesBtn = main.querySelector('[data-cs-home-rules="1"]');
+    if (rulesBtn) {
+      rulesBtn.addEventListener("click", () => openRulesModal(root));
+    }
+
+    const startBtn = main.querySelector('[data-cs-start-game="1"]');
+    if (startBtn) {
+      startBtn.addEventListener("click", async () => {
+        ui.mode = "stage";
+        ui.stage.difficulty = "easy";
+        ui.home.storyIndex = 0;
         Core.setUrlMode(ui.mode);
+        await loadStageListFor("stage").catch(() => {});
         rerenderShell();
         await rerenderMain();
       });
