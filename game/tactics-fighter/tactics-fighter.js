@@ -660,6 +660,25 @@
       document.body.appendChild(modal);
 
       const close = () => { try { document.body.removeChild(modal); } catch {} };
+      const wait = (ms) => new Promise((r) => setTimeout(r, Math.max(0, Number(ms) || 0)));
+      const fadeHost = modal.querySelector('.tf-practice-runner-grid');
+      if (fadeHost) fadeHost.classList.add('tf-fade');
+      let fadeToken = 0;
+      const fadeDuring = async (fn) => {
+        const token = ++fadeToken;
+        if (fadeHost) fadeHost.classList.add('is-out');
+        await wait(120);
+        if (token !== fadeToken) return null;
+        const out = await fn();
+        if (token !== fadeToken) return out;
+        if (fadeHost) {
+          requestAnimationFrame(() => {
+            try { fadeHost.classList.remove('is-out'); } catch {}
+          });
+          await wait(220);
+        }
+        return out;
+      };
       const setMsg = (type, text) => {
         const el = modal.querySelector('#tfStuRunnerMsg');
         if (!el) return;
@@ -749,6 +768,19 @@
         ui.student.runner.playerSide = startSide;
         ui.student.runner.orientation = (startSide === 'b') ? 'black' : 'white';
         return true;
+      }
+
+      async function transitionToAbsIndex(nextAbs) {
+        if (ui.student.runner.busy) return false;
+        ui.student.runner.busy = true;
+        try {
+          const ok = await fadeDuring(() => resetRunnerToAbsIndex(nextAbs));
+          if (!ok) return false;
+          renderRunner();
+          return true;
+        } finally {
+          ui.student.runner.busy = false;
+        }
       }
 
       function renderRunner() {
@@ -1236,9 +1268,7 @@
               setMsg('ok', 'No more incomplete puzzles.');
               return renderRunner();
             }
-            const ok = await resetRunnerToAbsIndex(nextAbs);
-            if (!ok) return;
-            renderRunner();
+            await transitionToAbsIndex(nextAbs);
           })();
           return;
         }
@@ -1253,9 +1283,7 @@
               const total = Math.max(0, Number(ui.student.total || 0));
               if (!total) return;
               const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
-              const ok = await resetRunnerToAbsIndex(cur);
-              if (!ok) return;
-              renderRunner();
+              await transitionToAbsIndex(cur);
             } catch (e) {
               setMsg('err', e?.message || String(e));
               renderRunner();
@@ -1271,9 +1299,7 @@
               const total = Math.max(0, Number(ui.student.total || 0));
               if (!total) return;
               const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
-              const ok = await resetRunnerToAbsIndex(cur);
-              if (!ok) return;
-              renderRunner();
+              await transitionToAbsIndex(cur);
             } catch (e) {
               setMsg('err', e?.message || String(e));
               renderRunner();
@@ -1286,9 +1312,7 @@
             const total = Math.max(0, Number(ui.student.total || 0));
             if (!total) return;
             const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
-            const ok = await resetRunnerToAbsIndex(cur - 1);
-            if (!ok) return;
-            renderRunner();
+            await transitionToAbsIndex(cur - 1);
           })();
           return;
         }
@@ -1303,9 +1327,7 @@
               setMsg('ok', 'No more incomplete puzzles.');
               return renderRunner();
             }
-            const ok = await resetRunnerToAbsIndex(nextAbs);
-            if (!ok) return;
-            renderRunner();
+            await transitionToAbsIndex(nextAbs);
           })();
           return;
         }
@@ -1317,9 +1339,7 @@
               const total = Math.max(0, Number(ui.student.total || 0));
               if (!total) return;
               const cur = Math.max(0, Math.min(total - 1, Math.trunc(Number(ui.student.runner?.absIndex || 0))));
-              const ok = await resetRunnerToAbsIndex(cur);
-              if (!ok) return;
-              renderRunner();
+              await transitionToAbsIndex(cur);
             } catch (e) {
               setMsg('err', e?.message || String(e));
               renderRunner();
@@ -1432,6 +1452,25 @@
       document.body.appendChild(modal);
 
       const close = () => { try { document.body.removeChild(modal); } catch {} };
+      const wait = (ms) => new Promise((r) => setTimeout(r, Math.max(0, Number(ms) || 0)));
+      const fadeHost = modal.querySelector('.tf-practice-runner-grid');
+      if (fadeHost) fadeHost.classList.add('tf-fade');
+      let fadeToken = 0;
+      const fadeDuring = async (fn) => {
+        const token = ++fadeToken;
+        if (fadeHost) fadeHost.classList.add('is-out');
+        await wait(120);
+        if (token !== fadeToken) return null;
+        const out = await fn();
+        if (token !== fadeToken) return out;
+        if (fadeHost) {
+          requestAnimationFrame(() => {
+            try { fadeHost.classList.remove('is-out'); } catch {}
+          });
+          await wait(220);
+        }
+        return out;
+      };
       const setMsg = (type, text) => {
         const el = modal.querySelector('#tfTeaRunnerMsg');
         if (!el) return;
@@ -1580,6 +1619,19 @@
       async function resetRunnerToAbsIndex(nextAbs) {
         const abs = clampAbs(nextAbs);
         return loadAbs(abs);
+      }
+
+      async function transitionToAbsIndex(nextAbs) {
+        if (ui.teacher.runner.busy) return false;
+        ui.teacher.runner.busy = true;
+        try {
+          const ok = await fadeDuring(() => resetRunnerToAbsIndex(nextAbs));
+          if (!ok) return false;
+          renderRunner();
+          return true;
+        } finally {
+          ui.teacher.runner.busy = false;
+        }
       }
 
       async function applyTeacherMove(from, to) {
@@ -1885,9 +1937,7 @@
         if (t.closest('[data-tea-feedback-next]')) {
           (async () => {
             const cur = clampAbs(ui.teacher.runner?.absIndex);
-            const ok = await resetRunnerToAbsIndex(cur + 1);
-            if (!ok) return;
-            renderRunner();
+            await transitionToAbsIndex(cur + 1);
           })();
           return;
         }
@@ -1896,9 +1946,7 @@
             try {
               if (ui.teacher.runner.busy) return;
               const cur = clampAbs(ui.teacher.runner?.absIndex);
-              const ok = await resetRunnerToAbsIndex(cur);
-              if (!ok) return;
-              renderRunner();
+              await transitionToAbsIndex(cur);
             } catch (e) {
               setMsg('err', e?.message || String(e));
               renderRunner();
@@ -1909,18 +1957,14 @@
         if (t.closest('[data-tea-prev]')) {
           (async () => {
             const cur = clampAbs(ui.teacher.runner?.absIndex);
-            const ok = await resetRunnerToAbsIndex(cur - 1);
-            if (!ok) return;
-            renderRunner();
+            await transitionToAbsIndex(cur - 1);
           })();
           return;
         }
         if (t.closest('[data-tea-next]')) {
           (async () => {
             const cur = clampAbs(ui.teacher.runner?.absIndex);
-            const ok = await resetRunnerToAbsIndex(cur + 1);
-            if (!ok) return;
-            renderRunner();
+            await transitionToAbsIndex(cur + 1);
           })();
           return;
         }
@@ -1929,9 +1973,7 @@
             try {
               if (ui.teacher.runner.busy) return;
               const cur = clampAbs(ui.teacher.runner?.absIndex);
-              const ok = await resetRunnerToAbsIndex(cur);
-              if (!ok) return;
-              renderRunner();
+              await transitionToAbsIndex(cur);
             } catch (e) {
               setMsg('err', e?.message || String(e));
               renderRunner();
