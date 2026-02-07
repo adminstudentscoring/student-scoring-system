@@ -1070,8 +1070,20 @@ function renderPlayerClassesSettings() {
                             <div class="skills-list">
                                 ${charClass.skills.map((skill, skillIndex) => `
                                     <div class="skill-item">
-                                        <strong>${skill.name}</strong> (${skill.type})
-                                        ${skill.cooldown ? `<span>CD: ${skill.cooldown}</span>` : ''}
+                                        <div class="mf-skill-row">
+                                            <div class="mf-skill-main">
+                                                <strong>${skill.name}</strong> (${skill.type})
+                                            </div>
+                                            <div class="mf-skill-cd-editor">
+                                                <span class="mf-skill-cd-label">CD</span>
+                                                <input type="number"
+                                                       id="player_${index}_skill_${skillIndex}_cd"
+                                                       min="0"
+                                                       step="1"
+                                                       value="${(skill.cooldown ?? '')}"
+                                                       placeholder="-">
+                                            </div>
+                                        </div>
                                         <p>${skill.description}</p>
                                     </div>
                                 `).join('')}
@@ -1117,8 +1129,20 @@ function renderMonsterTypesSettings() {
                             <div class="skills-list">
                                 ${monster.skills.map((skill, skillIndex) => `
                                     <div class="skill-item">
-                                        <strong>${skill.name}</strong> (${skill.type})
-                                        ${skill.cooldown ? `<span>CD: ${skill.cooldown}</span>` : ''}
+                                        <div class="mf-skill-row">
+                                            <div class="mf-skill-main">
+                                                <strong>${skill.name}</strong> (${skill.type})
+                                            </div>
+                                            <div class="mf-skill-cd-editor">
+                                                <span class="mf-skill-cd-label">CD</span>
+                                                <input type="number"
+                                                       id="monster_${index}_skill_${skillIndex}_cd"
+                                                       min="0"
+                                                       step="1"
+                                                       value="${(skill.cooldown ?? '')}"
+                                                       placeholder="-">
+                                            </div>
+                                        </div>
                                         <p>${skill.description}</p>
                                     </div>
                                 `).join('')}
@@ -1369,10 +1393,23 @@ async function saveGameSettings() {
         playerItems.forEach((item, index) => {
             const originalClass = gameSettings.playerClasses[index];
             if (originalClass) {
+                const nextSkills = (originalClass.skills || []).map((s, skillIndex) => {
+                    const input = document.getElementById(`player_${index}_skill_${skillIndex}_cd`);
+                    if (!input) return s;
+                    const raw = String(input.value ?? '').trim();
+                    if (raw === '') {
+                        const { cooldown, ...rest } = s || {};
+                        return { ...rest };
+                    }
+                    const cd = parseInt(raw, 10);
+                    if (Number.isFinite(cd) && cd >= 0) return { ...(s || {}), cooldown: cd };
+                    return s;
+                });
                 playerClasses.push({
                     ...originalClass,
                     baseAttack: parseInt(document.getElementById(`player_${index}_attack`).value) || originalClass.baseAttack,
-                    baseHP: parseInt(document.getElementById(`player_${index}_hp`).value) || originalClass.baseHP
+                    baseHP: parseInt(document.getElementById(`player_${index}_hp`).value) || originalClass.baseHP,
+                    skills: nextSkills
                 });
             }
         });
@@ -1383,10 +1420,23 @@ async function saveGameSettings() {
         monsterItems.forEach((item, index) => {
             const originalMonster = gameSettings.monsterTypes[index];
             if (originalMonster) {
+                const nextSkills = (originalMonster.skills || []).map((s, skillIndex) => {
+                    const input = document.getElementById(`monster_${index}_skill_${skillIndex}_cd`);
+                    if (!input) return s;
+                    const raw = String(input.value ?? '').trim();
+                    if (raw === '') {
+                        const { cooldown, ...rest } = s || {};
+                        return { ...rest };
+                    }
+                    const cd = parseInt(raw, 10);
+                    if (Number.isFinite(cd) && cd >= 0) return { ...(s || {}), cooldown: cd };
+                    return s;
+                });
                 monsterTypes.push({
                     ...originalMonster,
                     baseAttack: parseInt(document.getElementById(`monster_${index}_attack`).value) || originalMonster.baseAttack,
-                    baseHP: parseInt(document.getElementById(`monster_${index}_hp`).value) || originalMonster.baseHP
+                    baseHP: parseInt(document.getElementById(`monster_${index}_hp`).value) || originalMonster.baseHP,
+                    skills: nextSkills
                 });
             }
         });

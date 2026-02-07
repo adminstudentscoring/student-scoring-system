@@ -1141,6 +1141,48 @@ body {
     border-left: 3px solid #667eea;
 }
 
+.mf-skill-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mf-skill-main {
+    min-width: 0;
+}
+
+.mf-skill-cd-editor {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    flex: 0 0 auto;
+}
+
+.mf-skill-cd-label {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #374151;
+}
+
+.mf-skill-cd-editor input {
+    width: 70px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.mf-skill-cd-editor input:focus {
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
 .skill-item strong {
     color: #667eea;
 }
