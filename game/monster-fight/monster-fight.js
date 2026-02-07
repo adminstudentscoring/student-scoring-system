@@ -108,6 +108,51 @@ const POPUP_AUTO_CLOSE_MS = null;
 let actionLogCollapsed = false;
 let monsterTurnReplay = { active: false, pendingWsState: null, onDone: null };
 
+// Character selection UI state (client-only)
+const charSelectUi = {};
+
+function getCharSelectState(studentId) {
+    const id = String(studentId || '');
+    if (!charSelectUi[id]) {
+        charSelectUi[id] = { idx: 0 };
+    }
+    return charSelectUi[id];
+}
+
+function clampIndex(idx, len) {
+    const n = Number(idx) || 0;
+    const L = Number(len) || 0;
+    if (L <= 0) return 0;
+    return ((n % L) + L) % L;
+}
+
+function charSelectPrev(studentId) {
+    const st = getCharSelectState(studentId);
+    const classes = getPlayerClasses();
+    st.idx = clampIndex((st.idx || 0) - 1, classes.length);
+    renderCharacterSelection();
+}
+
+function charSelectNext(studentId) {
+    const st = getCharSelectState(studentId);
+    const classes = getPlayerClasses();
+    st.idx = clampIndex((st.idx || 0) + 1, classes.length);
+    renderCharacterSelection();
+}
+
+function charSelectSyncIndexToChosen(player) {
+    const classes = getPlayerClasses();
+    const st = getCharSelectState(player?.studentId);
+    if (!classes.length) return;
+    const chosenId = String(player?.characterClass || '');
+    if (!chosenId) return;
+    const idx = classes.findIndex(c => String(c.id) === chosenId);
+    if (idx >= 0) st.idx = idx;
+}
+
+window.charSelectPrev = charSelectPrev;
+window.charSelectNext = charSelectNext;
+
 const LEVEL_DIFFICULTY_PRESETS = {
     easy: [
         { monsters: [
@@ -741,43 +786,67 @@ function renderGame() {
 // Render character selection screen
 function renderCharacterSelection() {
     const container = document.getElementById('monsterFightGame');
+    // Sync carousel index to already chosen class (if any)
+    try {
+        (gameState?.players || []).forEach(p => charSelectSyncIndexToChosen(p));
+    } catch {}
+
+    const classes = getPlayerClasses();
     container.innerHTML = `
         <div class="game-screen">
             <div class="character-selection-header">
-                <h2>🐉 Monster Fight - Character Selection</h2>
+                <div class="mf-title-row">
+                    <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
+                    <h2>Monster Fight</h2>
+                </div>
                 <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
             </div>
             <div class="character-selection-grid">
                 ${gameState.players.map(player => `
                     <div class="character-selection-card">
                         <h3>${player.studentName}</h3>
-                        ${player.characterClass ? `
-                            <div class="selected-character">
-                                ${(() => {
-                                    const cls = getPlayerClasses().find(c => c.id === player.characterClass);
-                                    const src = imageSrcForFile(classImageFileById(player.characterClass));
-                                    const fb = cls?.emoji || '❓';
-                                    const alt = cls?.name || 'Character';
-                                    return renderIconWrap({ imgSrc: src, fallbackEmoji: fb, alt, wrapClass: 'character-emoji' });
-                                })()}
-                                <p>${getPlayerClasses().find(c => c.id === player.characterClass)?.name || 'Unknown'}</p>
-                            </div>
-                        ` : `
-                            <div class="character-options">
-                                ${getPlayerClasses().map(charClass => `
-                                    <div class="character-option" onclick="selectCharacter('${player.studentId}', '${charClass.id}')">
-                                        ${renderIconWrap({
-                                            imgSrc: imageSrcForFile(`${String(charClass.name || '').trim()}.png`),
-                                            fallbackEmoji: charClass.emoji || '❓',
-                                            alt: charClass.name || 'Character',
-                                            wrapClass: 'character-emoji'
-                                        })}
-                                        <p>${charClass.name}</p>
-                                        <small>ATK: ${charClass.baseAttack} | HP: ${charClass.baseHP}</small>
+                        ${(() => {
+                            const st = getCharSelectState(player.studentId);
+                            const idx = clampIndex(st.idx || 0, classes.length);
+                            const cls = classes[idx] || {};
+                            const src = imageSrcForFile(`${String(cls.name || '').trim()}.png`);
+                            const fb = cls.emoji || '❓';
+                            const alt = cls.name || 'Character';
+                            const skills = Array.isArray(cls.skills) ? cls.skills : [];
+                            const confirmed = String(player.characterClass || '').trim();
+                            const confirmedName = confirmed
+                                ? (getPlayerClasses().find(c => String(c.id) === confirmed)?.name || 'Unknown')
+                                : '';
+                            return `
+                                <div class="mf-char-carousel">
+                                    <button class="mf-arrow" onclick="charSelectPrev('${player.studentId}')" aria-label="Previous">‹</button>
+                                    <div class="mf-char-center">
+                                        ${renderIconWrap({ imgSrc: src, fallbackEmoji: fb, alt, wrapClass: 'mf-char-big' })}
+                                        <div class="mf-char-meta">
+                                            <div class="mf-char-name">${escapeHtml(cls.name || '')}</div>
+                                            <div class="mf-char-stats">ATK: ${cls.baseAttack || 0} &nbsp;|&nbsp; HP: ${cls.baseHP || 0}</div>
+                                            ${confirmed ? `<div class="mf-confirmed">Confirmed: ${escapeHtml(confirmedName)}</div>` : ``}
+                                        </div>
+                                        <div class="mf-skill-intro">
+                                            <div class="mf-skill-intro-title">Skills</div>
+                                            ${skills.length ? skills.map(s => `
+                                                <div class="mf-skill-item">
+                                                    <div class="mf-skill-item-head">
+                                                        <span class="mf-skill-emoji">${escapeHtml(s.emoji || '⭐')}</span>
+                                                        <span class="mf-skill-name">${escapeHtml(s.name || '')}</span>
+                                                        <span class="mf-skill-type">${escapeHtml(s.type || '')}</span>
+                                                        ${s.cooldown ? `<span class="mf-skill-cd">CD ${escapeHtml(s.cooldown)}</span>` : ''}
+                                                    </div>
+                                                    <div class="mf-skill-desc">${escapeHtml(s.description || '')}</div>
+                                                </div>
+                                            `).join('') : `<div class="mf-skill-empty">No skills</div>`}
+                                        </div>
+                                        <button class="btn btn-primary" style="margin-top:12px;" onclick="selectCharacter('${player.studentId}', '${escapeHtml(cls.id || '')}')">Confirm</button>
                                     </div>
-                                `).join('')}
-                            </div>
-                        `}
+                                    <button class="mf-arrow" onclick="charSelectNext('${player.studentId}')" aria-label="Next">›</button>
+                                </div>
+                            `;
+                        })()}
                     </div>
                 `).join('')}
             </div>
@@ -1120,11 +1189,18 @@ function renderLevelMonsters(levelIndex, monsters) {
     const result = [];
     for (let i = 0; i < count; i++) {
         const monster = monsters[i] || { type: availableMonsterTypes[0]?.id || 'slime', count: 1 };
+        const mt = availableMonsterTypes.find(m => String(m.id) === String(monster.type));
+        const iconSrc = imageSrcForFile(monsterImageFileByType(monster.type));
+        const iconFb = mt?.emoji || '👾';
+        const iconAlt = mt?.name || 'Monster';
         result.push(`
             <div class="level-monster-item">
-                <select id="level_${levelIndex}_monster_${i}_type">
+                <div id="level_${levelIndex}_monster_${i}_icon" class="mf-level-monster-icon">
+                    ${renderIconWrap({ imgSrc: iconSrc, fallbackEmoji: iconFb, alt: iconAlt, wrapClass: 'mf-level-monster-iconwrap' })}
+                </div>
+                <select id="level_${levelIndex}_monster_${i}_type" onchange="updateLevelMonsterPreview(${levelIndex}, ${i}, this.value)">
                     ${availableMonsterTypes.map(m => `
-                        <option value="${m.id}" ${m.id === monster.type ? 'selected' : ''}>${m.emoji} ${m.name}</option>
+                        <option value="${m.id}" ${m.id === monster.type ? 'selected' : ''}>${m.name}</option>
                     `).join('')}
                 </select>
                 <input type="number" id="level_${levelIndex}_monster_${i}_count" min="1" max="10" value="${monster.count || 1}" placeholder="Count">
@@ -1134,6 +1210,20 @@ function renderLevelMonsters(levelIndex, monsters) {
     
     return result.join('');
 }
+
+function updateLevelMonsterPreview(levelIndex, monsterIndex, typeId) {
+    const availableMonsterTypes = gameSettings.monsterTypes || window.monsterTypes || [];
+    const mt = availableMonsterTypes.find(m => String(m.id) === String(typeId));
+    const iconSrc = imageSrcForFile(monsterImageFileByType(typeId));
+    const iconFb = mt?.emoji || '👾';
+    const iconAlt = mt?.name || 'Monster';
+    const host = document.getElementById(`level_${levelIndex}_monster_${monsterIndex}_icon`);
+    if (host) {
+        host.innerHTML = renderIconWrap({ imgSrc: iconSrc, fallbackEmoji: iconFb, alt: iconAlt, wrapClass: 'mf-level-monster-iconwrap' });
+    }
+}
+
+window.updateLevelMonsterPreview = updateLevelMonsterPreview;
 
 function applyDifficultyPreset(presetKey) {
     const preset = LEVEL_DIFFICULTY_PRESETS[presetKey];
@@ -1380,7 +1470,13 @@ function renderPuzzleInput() {
     const container = document.getElementById('monsterFightGame');
     container.innerHTML = `
         <div class="game-screen">
-            <h2>🐉 Monster Fight - Puzzle Points Input</h2>
+            <div class="character-selection-header" style="margin-bottom:10px;">
+                <div class="mf-title-row">
+                    <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
+                    <h2>Monster Fight</h2>
+                </div>
+                <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+            </div>
             <p>Enter puzzle points for each student (8-40 points)</p>
             <div class="puzzle-input-grid">
                 ${gameState.players.map(player => `
@@ -1452,7 +1548,10 @@ function renderBattleMode() {
     container.innerHTML = `
         <div class="game-screen">
             <div class="battle-header">
-                <h2>🐉 Monster Fight - Level ${gameState.currentLevel}</h2>
+                <div class="mf-title-row">
+                    <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
+                    <h2>Monster Fight - Level ${gameState.currentLevel}</h2>
+                </div>
                 <div class="battle-header-actions">
                     <div class="turn-info">
                         <span>Turn: ${gameState.currentTurn}</span>

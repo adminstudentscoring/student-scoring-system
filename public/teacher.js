@@ -1504,7 +1504,9 @@ function showGameSelection() {
                 </div>
             </div>
             <div class="game-item" onclick="startMonsterFight()">
-                <div class="game-icon">🐉</div>
+                <div class="game-icon">
+                    <img src="/game/monster-fight/images/Logo.png" alt="Monster Fight" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
+                </div>
                 <div class="game-info">
                     <h4>Monster Fight</h4>
                     <p>Turn-based combat game with character selection</p>
