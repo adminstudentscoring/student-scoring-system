@@ -13,6 +13,62 @@ let monsterTypes = [];
 const CLASS_ICON_MAP = {};
 let monsterIconMap = {};
 
+function getImagesBase() {
+    // Prefer absolute /game path (works in game-window and standalone served by server).
+    // If opened as local file, fall back to relative.
+    try {
+        if (window.location && window.location.protocol === 'file:') return 'images/';
+    } catch {}
+    return '/game/monster-fight/images/';
+}
+
+function imageSrcForFile(file) {
+    const f = String(file || '').trim();
+    if (!f) return '';
+    return `${getImagesBase()}${encodeURIComponent(f)}`;
+}
+
+function classImageFileById(classId) {
+    const cls = getPlayerClasses().find(c => c.id === classId);
+    const name = String(cls?.name || '').trim();
+    if (!name) return '';
+    return `${name}.png`;
+}
+
+function monsterImageFileByType(typeId) {
+    const mt = getMonsterTypes().find(m => m.id === typeId);
+    const name = String(mt?.name || '').trim();
+    if (!name) return '';
+    return `${name}.png`;
+}
+
+function renderIconWrap({ imgSrc, fallbackEmoji, alt, wrapClass }) {
+    const src = String(imgSrc || '').trim();
+    const fb = String(fallbackEmoji || '').trim() || '❓';
+    const a = String(alt || '').trim() || '';
+    const cls = String(wrapClass || '').trim();
+    if (!src) {
+        return `<span class="${cls}"><span class="mf-emoji-fallback">${escapeHtml(fb)}</span></span>`;
+    }
+    // Show emoji fallback only if image fails to load.
+    return `
+      <span class="${cls}">
+        <img class="mf-icon-img" src="${escapeHtml(src)}" alt="${escapeHtml(a)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
+        <span class="mf-emoji-fallback" style="display:none;">${escapeHtml(fb)}</span>
+      </span>
+    `;
+}
+
+function escapeHtml(text) {
+    const s = String(text ?? '');
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // Helper function to safely get playerClasses array
 function getPlayerClasses() {
     if (!Array.isArray(playerClasses)) {
@@ -247,11 +303,21 @@ function showActionPopup(message, summary, context) {
 
     const actorIcon = document.createElement('div');
     actorIcon.className = 'action-popup-actor';
-    actorIcon.textContent = context.actorEmoji || '🎭';
+    if (context.actorImgSrc) {
+        const fb = String(context.actorEmoji || '🎭');
+        actorIcon.innerHTML = `<img class="mf-popup-icon" alt="" src="${escapeHtml(String(context.actorImgSrc))}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"><span class="mf-popup-emoji" style="display:none;">${escapeHtml(fb)}</span>`;
+    } else {
+        actorIcon.textContent = context.actorEmoji || '🎭';
+    }
 
     const targetIcon = document.createElement('div');
     targetIcon.className = 'action-popup-target';
-    targetIcon.textContent = context.targetEmoji || '🎯';
+    if (context.targetImgSrc) {
+        const fb = String(context.targetEmoji || '🎯');
+        targetIcon.innerHTML = `<img class="mf-popup-icon" alt="" src="${escapeHtml(String(context.targetImgSrc))}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"><span class="mf-popup-emoji" style="display:none;">${escapeHtml(fb)}</span>`;
+    } else {
+        targetIcon.textContent = context.targetEmoji || '🎯';
+    }
 
     animationWrapper.appendChild(actorIcon);
     animationWrapper.appendChild(targetIcon);
@@ -687,14 +753,25 @@ function renderCharacterSelection() {
                         <h3>${player.studentName}</h3>
                         ${player.characterClass ? `
                             <div class="selected-character">
-                                <span class="character-emoji">${getPlayerClasses().find(c => c.id === player.characterClass)?.emoji || '❓'}</span>
+                                ${(() => {
+                                    const cls = getPlayerClasses().find(c => c.id === player.characterClass);
+                                    const src = imageSrcForFile(classImageFileById(player.characterClass));
+                                    const fb = cls?.emoji || '❓';
+                                    const alt = cls?.name || 'Character';
+                                    return renderIconWrap({ imgSrc: src, fallbackEmoji: fb, alt, wrapClass: 'character-emoji' });
+                                })()}
                                 <p>${getPlayerClasses().find(c => c.id === player.characterClass)?.name || 'Unknown'}</p>
                             </div>
                         ` : `
                             <div class="character-options">
                                 ${getPlayerClasses().map(charClass => `
                                     <div class="character-option" onclick="selectCharacter('${player.studentId}', '${charClass.id}')">
-                                        <span class="character-emoji">${charClass.emoji}</span>
+                                        ${renderIconWrap({
+                                            imgSrc: imageSrcForFile(`${String(charClass.name || '').trim()}.png`),
+                                            fallbackEmoji: charClass.emoji || '❓',
+                                            alt: charClass.name || 'Character',
+                                            wrapClass: 'character-emoji'
+                                        })}
                                         <p>${charClass.name}</p>
                                         <small>ATK: ${charClass.baseAttack} | HP: ${charClass.baseHP}</small>
                                     </div>
@@ -901,7 +978,12 @@ function renderPlayerClassesSettings() {
             ${classes.map((charClass, index) => `
                 <div class="settings-item">
                     <div class="settings-item-header" onclick="toggleSettingsItem('player_${index}')">
-                        <span class="character-emoji">${charClass.emoji}</span>
+                        ${renderIconWrap({
+                            imgSrc: imageSrcForFile(`${String(charClass.name || '').trim()}.png`),
+                            fallbackEmoji: charClass.emoji || '❓',
+                            alt: charClass.name || 'Class',
+                            wrapClass: 'character-emoji'
+                        })}
                         <h4>${charClass.name}</h4>
                         <span class="toggle-icon">▼</span>
                     </div>
@@ -943,7 +1025,12 @@ function renderMonsterTypesSettings() {
             ${types.map((monster, index) => `
                 <div class="settings-item">
                     <div class="settings-item-header" onclick="toggleSettingsItem('monster_${index}')">
-                        <span class="monster-emoji">${monster.emoji}</span>
+                        ${renderIconWrap({
+                            imgSrc: imageSrcForFile(`${String(monster.name || '').trim()}.png`),
+                            fallbackEmoji: monster.emoji || '👾',
+                            alt: monster.name || 'Monster',
+                            wrapClass: 'monster-emoji'
+                        })}
                         <h4>${monster.name} ${monster.isBoss ? '(Boss)' : ''}</h4>
                         <span class="toggle-icon">▼</span>
                     </div>
@@ -1300,7 +1387,16 @@ function renderPuzzleInput() {
                     <div class="puzzle-input-card">
                         <h3>${player.studentName}</h3>
                         <div class="character-info">
-                            <span class="character-emoji">${getPlayerClasses().find(c => c.id === player.characterClass)?.emoji || '❓'}</span>
+                            ${(() => {
+                                const cls = getPlayerClasses().find(c => c.id === player.characterClass);
+                                const src = imageSrcForFile(classImageFileById(player.characterClass));
+                                return renderIconWrap({
+                                    imgSrc: src,
+                                    fallbackEmoji: cls?.emoji || '❓',
+                                    alt: cls?.name || 'Character',
+                                    wrapClass: 'character-emoji'
+                                });
+                            })()}
                             <span>${getPlayerClasses().find(c => c.id === player.characterClass)?.name || 'Unknown'}</span>
                         </div>
                         <input type="number" 
@@ -1468,7 +1564,12 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
         <div class="player-card-full ${!player.isAlive ? 'defeated' : ''}">
             <div class="player-card-header">
                 <div class="card-header">
-                    <span class="character-emoji">${charClass?.emoji || '❓'}</span>
+                    ${renderIconWrap({
+                        imgSrc: imageSrcForFile(classImageFileById(player.characterClass)),
+                        fallbackEmoji: charClass?.emoji || '❓',
+                        alt: charClass?.name || 'Character',
+                        wrapClass: 'character-emoji'
+                    })}
                     <h4>${player.studentName} ${renderStatusText(player)}</h4>
                 </div>
                 <div class="player-stats-inline">
@@ -1565,7 +1666,12 @@ function renderMonsterCard(monster) {
     return `
         <div class="monster-card ${!monster.isAlive ? 'defeated' : ''}">
             <div class="card-header">
-                <span class="monster-emoji">${monster.emoji}</span>
+                ${renderIconWrap({
+                    imgSrc: imageSrcForFile(monsterImageFileByType(monster.type)),
+                    fallbackEmoji: monsterType?.emoji || monster.emoji || '👾',
+                    alt: monsterType?.name || monster.name || 'Monster',
+                    wrapClass: 'monster-emoji'
+                })}
                 <h4>${monster.name} ${renderStatusText(monster)}</h4>
             </div>
             <div class="hp-bar">
@@ -2343,12 +2449,20 @@ function addIconToName(name, type, id) {
     if (!name) return '';
     if (type === 'player') {
         const cls = getPlayerClasses().find(c => c.id === id);
-        const icon = (cls && cls.emoji) || CLASS_ICON_MAP[id] || '🧑';
-        return `${icon} ${name}`;
+        const src = imageSrcForFile(classImageFileById(id));
+        const fb = (cls && cls.emoji) || CLASS_ICON_MAP[id] || '🧑';
+        const iconHtml = src
+            ? `<img class="mf-inline-icon" alt="" src="${escapeHtml(src)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"><span class="mf-inline-emoji" style="display:none;">${escapeHtml(fb)}</span>`
+            : `<span class="mf-inline-emoji">${escapeHtml(fb)}</span>`;
+        return `${iconHtml} ${escapeHtml(name)}`;
     }
     if (type === 'monster') {
-        const icon = monsterIconMap[id] || '👾';
-        return `${icon} ${name}`;
+        const src = imageSrcForFile(monsterImageFileByType(id));
+        const fb = monsterIconMap[id] || '👾';
+        const iconHtml = src
+            ? `<img class="mf-inline-icon" alt="" src="${escapeHtml(src)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"><span class="mf-inline-emoji" style="display:none;">${escapeHtml(fb)}</span>`
+            : `<span class="mf-inline-emoji">${escapeHtml(fb)}</span>`;
+        return `${iconHtml} ${escapeHtml(name)}`;
     }
     return name;
 }
@@ -2393,13 +2507,15 @@ function derivePopupContext(message) {
             type: 'monster',
             id: monster.type,
             name: monster.name,
-            emoji: monsterIconMap[monster.type] || monster.emoji || '👾'
+            emoji: monsterIconMap[monster.type] || monster.emoji || '👾',
+            imgSrc: imageSrcForFile(monsterImageFileByType(monster.type))
         })),
         ...gameState.players.map(player => ({
             type: 'player',
             id: player.characterClass,
             name: player.studentName,
-            emoji: CLASS_ICON_MAP[player.characterClass] || '🧑'
+            emoji: CLASS_ICON_MAP[player.characterClass] || '🧑',
+            imgSrc: imageSrcForFile(classImageFileById(player.characterClass))
         }))
     ];
 
@@ -2428,9 +2544,11 @@ function derivePopupContext(message) {
 
     if (actor) {
         context.actorEmoji = actor.emoji;
+        if (actor.imgSrc) context.actorImgSrc = actor.imgSrc;
     }
     if (target) {
         context.targetEmoji = target.emoji;
+        if (target.imgSrc) context.targetImgSrc = target.imgSrc;
     }
 
     const lower = message.toLowerCase();
