@@ -604,19 +604,21 @@ body {
     display: grid;
     grid-template-columns: 120px 1fr;
     gap: 14px;
-    align-items: start;
+    align-items: stretch;
 }
 
 .mf-skill-col {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding-top: 6px;
+    padding-top: 0;
+    height: 100%;
 }
 
 .mf-skill-tile {
     width: 100%;
-    aspect-ratio: 1 / 1;
+    flex: 1 1 0;
+    min-height: 0;
     border: 2px solid #e5e7eb;
     border-radius: 14px;
     background: #ffffff;
