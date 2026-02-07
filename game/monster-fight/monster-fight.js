@@ -110,6 +110,7 @@ let monsterTurnReplay = { active: false, pendingWsState: null, onDone: null };
 
 // Character selection UI state (client-only)
 const charSelectUi = {};
+let hasAutoPickedDefaultCharacter = false;
 
 function getCharSelectState(studentId) {
     const id = String(studentId || '');
@@ -126,17 +127,27 @@ function clampIndex(idx, len) {
     return ((n % L) + L) % L;
 }
 
-function charSelectPrev(studentId) {
+async function charSelectPrev(studentId) {
     const st = getCharSelectState(studentId);
     const classes = getPlayerClasses();
     st.idx = clampIndex((st.idx || 0) - 1, classes.length);
+    const clsId = classes[st.idx]?.id;
+    if (clsId) {
+        await selectCharacter(studentId, clsId);
+        return;
+    }
     renderCharacterSelection();
 }
 
-function charSelectNext(studentId) {
+async function charSelectNext(studentId) {
     const st = getCharSelectState(studentId);
     const classes = getPlayerClasses();
     st.idx = clampIndex((st.idx || 0) + 1, classes.length);
+    const clsId = classes[st.idx]?.id;
+    if (clsId) {
+        await selectCharacter(studentId, clsId);
+        return;
+    }
     renderCharacterSelection();
 }
 
@@ -792,14 +803,35 @@ function renderCharacterSelection() {
     } catch {}
 
     const classes = getPlayerClasses();
+
+    // Auto-pick a default character for anyone missing (so no Confirm button needed)
+    if (!hasAutoPickedDefaultCharacter && classes.length) {
+        const missing = (gameState?.players || []).filter(p => !String(p.characterClass || '').trim());
+        if (missing.length) {
+            hasAutoPickedDefaultCharacter = true;
+            (async () => {
+                for (const p of missing) {
+                    const st = getCharSelectState(p.studentId);
+                    st.idx = clampIndex(st.idx || 0, classes.length);
+                    const clsId = classes[st.idx]?.id || classes[0]?.id;
+                    if (clsId) {
+                        await selectCharacter(p.studentId, clsId);
+                    }
+                }
+            })();
+        }
+    }
+
     container.innerHTML = `
         <div class="game-screen mf-charselect">
-            <div class="character-selection-header">
-                <div class="mf-title-row">
+            <div class="mf-topbar">
+                <div class="mf-topbar-left">
                     <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
-                    <h2>Monster Fight</h2>
+                    <div class="mf-topbar-title">Monster Fight</div>
                 </div>
-                <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                <div class="mf-topbar-right">
+                    <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                </div>
             </div>
             <div class="character-selection-grid">
                 ${gameState.players.map(player => `
@@ -813,10 +845,6 @@ function renderCharacterSelection() {
                             const fb = cls.emoji || '❓';
                             const alt = cls.name || 'Character';
                             const skills = Array.isArray(cls.skills) ? cls.skills : [];
-                            const confirmed = String(player.characterClass || '').trim();
-                            const confirmedName = confirmed
-                                ? (getPlayerClasses().find(c => String(c.id) === confirmed)?.name || 'Unknown')
-                                : '';
                             return `
                                 <div class="mf-char-carousel">
                                     <button class="mf-arrow" onclick="charSelectPrev('${player.studentId}')" aria-label="Previous">‹</button>
@@ -825,25 +853,24 @@ function renderCharacterSelection() {
                                         <div class="mf-char-meta">
                                             <div class="mf-char-name">${escapeHtml(cls.name || '')}</div>
                                             <div class="mf-char-stats">ATK: ${cls.baseAttack || 0} &nbsp;|&nbsp; HP: ${cls.baseHP || 0}</div>
-                                            ${confirmed ? `<div class="mf-confirmed">Confirmed: ${escapeHtml(confirmedName)}</div>` : ``}
                                         </div>
                                         <div class="mf-skill-intro">
-                                            <div class="mf-skill-intro-title">Skills</div>
                                             <div class="mf-skill-grid">
                                                 ${skills.length ? skills.map(s => `
                                                     <div class="mf-skill-item">
-                                                        <div class="mf-skill-item-head">
+                                                        <div class="mf-skill-line1">
                                                             <span class="mf-skill-emoji">${escapeHtml(s.emoji || '⭐')}</span>
                                                             <span class="mf-skill-name">${escapeHtml(s.name || '')}</span>
-                                                            <span class="mf-skill-type">${escapeHtml(s.type || '')}</span>
-                                                            ${s.cooldown ? `<span class="mf-skill-cd">CD ${escapeHtml(s.cooldown)}</span>` : ''}
+                                                        </div>
+                                                        <div class="mf-skill-line2">
+                                                            <span class="mf-skill-type-pill">${escapeHtml(s.type || '')}</span>
+                                                            ${s.cooldown ? `<span class="mf-skill-cd-pill">CD ${escapeHtml(s.cooldown)}</span>` : ''}
                                                         </div>
                                                         <div class="mf-skill-desc">${escapeHtml(s.description || '')}</div>
                                                     </div>
                                                 `).join('') : `<div class="mf-skill-empty">No skills</div>`}
                                             </div>
                                         </div>
-                                        <button class="btn btn-primary" style="margin-top:12px;" onclick="selectCharacter('${player.studentId}', '${escapeHtml(cls.id || '')}')">Confirm</button>
                                     </div>
                                     <button class="mf-arrow" onclick="charSelectNext('${player.studentId}')" aria-label="Next">›</button>
                                 </div>
@@ -853,7 +880,9 @@ function renderCharacterSelection() {
                 `).join('')}
             </div>
             ${gameState.players.every(p => p.characterClass) ? `
-                <button class="btn btn-primary" onclick="startBattleMode()">Start Battle</button>
+                <div class="mf-bottom-actions">
+                    <button class="btn btn-primary" onclick="startBattleMode()">Start Battle</button>
+                </div>
             ` : ''}
         </div>
     `;
@@ -1522,12 +1551,14 @@ function renderPuzzleInput() {
     const container = document.getElementById('monsterFightGame');
     container.innerHTML = `
         <div class="game-screen">
-            <div class="character-selection-header" style="margin-bottom:10px;">
-                <div class="mf-title-row">
+            <div class="mf-topbar">
+                <div class="mf-topbar-left">
                     <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
-                    <h2>Monster Fight</h2>
+                    <div class="mf-topbar-title">Monster Fight</div>
                 </div>
-                <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                <div class="mf-topbar-right">
+                    <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                </div>
             </div>
             <p>Enter puzzle points for each student (8-40 points)</p>
             <div class="puzzle-input-grid">
@@ -1599,11 +1630,16 @@ function renderBattleMode() {
     
     container.innerHTML = `
         <div class="game-screen">
-            <div class="battle-header">
-                <div class="mf-title-row">
+            <div class="mf-topbar">
+                <div class="mf-topbar-left">
                     <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
-                    <h2>Monster Fight - Level ${gameState.currentLevel}</h2>
+                    <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
                 </div>
+                <div class="mf-topbar-right">
+                    <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                </div>
+            </div>
+            <div class="battle-header">
                 <div class="battle-header-actions">
                     <div class="turn-info">
                         <span>Turn: ${gameState.currentTurn}</span>

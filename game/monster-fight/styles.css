@@ -60,6 +60,42 @@ body {
     padding: 20px;
 }
 
+/* Full-bleed sticky top bar (logo + title + settings) */
+.mf-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    margin: -20px -20px 18px;
+}
+
+.mf-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.mf-topbar-title {
+    font-weight: 900;
+    font-size: 1.1rem;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mf-bottom-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 18px;
+}
+
 /* Character selection: make player cards wider */
 .game-screen.mf-charselect .character-selection-grid {
     grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
@@ -78,13 +114,6 @@ body {
     object-fit: cover;
     background: #f3f4f6;
     border: 1px solid #e5e7eb;
-}
-
-.mf-confirmed {
-    margin-top: 8px;
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: #2e7d32;
 }
 
 .character-selection-grid,
@@ -194,6 +223,37 @@ body {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+}
+
+.mf-skill-line1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mf-skill-line2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.mf-skill-type-pill {
+    font-size: 0.78rem;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+}
+
+.mf-skill-cd-pill {
+    font-size: 0.78rem;
+    color: #1f2937;
+    background: #e0f2fe;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid #bae6fd;
 }
 
 .mf-skill-intro-title {
