@@ -39,6 +39,8 @@ function applyBackgroundTheme(theme) {
         const url = imageSrcForFile('Background/Background.jpg') || 'images/Background/Background.jpg';
         body.style.setProperty('--mf-bg-url', `url("${url}")`);
         body.classList.add('mf-bg-image');
+        // IMPORTANT: clear shorthand `background` so CSS background-image can take effect.
+        body.style.background = '';
         body.style.backgroundColor = '';
         return;
     }
@@ -367,15 +369,16 @@ function showActionPopup(message, summary, context) {
     
     const animationWrapper = document.createElement('div');
     animationWrapper.className = 'action-popup-animation';
+    const kind = String(context?.actionKind || '').trim();
+    animationWrapper.classList.add(kind === 'heal' ? 'is-heal' : 'is-attack');
 
     const actionTrail = document.createElement('div');
     actionTrail.className = 'action-popup-trail';
     animationWrapper.appendChild(actionTrail);
 
-    const actionIcon = document.createElement('div');
-    actionIcon.className = 'action-popup-action';
-    actionIcon.textContent = context.actionEmoji || '⚔️';
-    animationWrapper.appendChild(actionIcon);
+    const actionArrow = document.createElement('div');
+    actionArrow.className = 'action-popup-arrow';
+    animationWrapper.appendChild(actionArrow);
 
     const actorIcon = document.createElement('div');
     actorIcon.className = 'action-popup-actor';
@@ -2795,22 +2798,31 @@ function derivePopupContext(message) {
     const lower = message.toLowerCase();
     if (lower.includes('heal') || lower.includes('restores') || lower.includes('regenerate')) {
         context.actionEmoji = '✨';
+        context.actionKind = 'heal';
     } else if (lower.includes('burn') || lower.includes('fire') || lower.includes('flame')) {
         context.actionEmoji = '🔥';
+        context.actionKind = 'attack';
     } else if (lower.includes('bleed') || lower.includes('poison')) {
         context.actionEmoji = '🩸';
+        context.actionKind = 'attack';
     } else if (lower.includes('stun') || lower.includes('freeze') || lower.includes('silence')) {
         context.actionEmoji = '💫';
+        context.actionKind = 'attack';
     } else if (lower.includes('defeat') || lower.includes('kill')) {
         context.actionEmoji = '☠️';
+        context.actionKind = 'attack';
     } else if (lower.includes('shield') || lower.includes('protect')) {
         context.actionEmoji = '🛡️';
+        context.actionKind = 'attack';
     } else if (lower.includes('revive')) {
         context.actionEmoji = '🕊️';
+        context.actionKind = 'heal';
     } else if (lower.includes('attack') || lower.includes('strike') || lower.includes('slash') || lower.includes('smashes')) {
         context.actionEmoji = '⚔️';
+        context.actionKind = 'attack';
     } else {
         context.actionEmoji = '⚡';
+        context.actionKind = 'attack';
     }
 
     return context;
