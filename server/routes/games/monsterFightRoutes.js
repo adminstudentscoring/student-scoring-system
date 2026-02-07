@@ -138,7 +138,7 @@ const PLAYER_CLASSES = [
     baseAttack: 9,
     baseHP: 120,
     skills: [
-      { id: 'passive_1', name: 'Shield Block', type: 'passive', description: 'Reduce damage by 30%', effect: { damageReduction: 0.3 } },
+      { id: 'passive_1', name: 'Shield Block', type: 'passive', description: 'Reduce damage by 30% and taunt monsters', effect: { damageReduction: 0.3, tauntMonsters: true } },
       { id: 'active_1', name: 'Shield Bash', type: 'active', cooldown: 3, description: 'Attack and reduce enemy attack', emoji: '🔰', effect: { debuff: 'attack', damageMultiplier: 1.1 } },
       { id: 'active_2', name: 'Shield Smash', type: 'active', cooldown: 4, description: 'Attack with 30% chance to stun', emoji: '🥊', effect: { damageMultiplier: 1.2, stunChance: 0.3, stunTurns: 1 } }
     ]
@@ -500,6 +500,14 @@ function getMonsterPassiveEffect(monster) {
   return passiveSkill?.effect || null;
 }
 
+function getPlayerPassiveEffect(player) {
+  if (!player || !Array.isArray(player.skills)) {
+    return null;
+  }
+  const passiveSkill = player.skills.find(skill => skill.type === 'passive');
+  return passiveSkill?.effect || null;
+}
+
 function getMonsterDamageReduction(monster) {
   const effect = getMonsterPassiveEffect(monster);
   const reduction = effect?.damageReduction;
@@ -730,7 +738,6 @@ function selectPlayerTargetForMonster(alivePlayers, options = {}) {
   if (!alivePlayers || alivePlayers.length === 0) {
     return null;
   }
-  const shield = alivePlayers.find(p => p.characterClass === 'shield_warrior');
   const ignoreTaunt = !!options.ignoreTaunt;
   const preferNonShield = !!options.preferNonShield;
 
@@ -742,8 +749,9 @@ function selectPlayerTargetForMonster(alivePlayers, options = {}) {
     }
   }
 
-  if (!ignoreTaunt && shield && (!preferNonShield || candidates.includes(shield))) {
-    return shield;
+  if (!ignoreTaunt) {
+    const taunter = candidates.find(p => p.isAlive && getPlayerPassiveEffect(p)?.tauntMonsters);
+    if (taunter) return taunter;
   }
 
   return candidates.reduce((lowest, player) => (
@@ -2414,7 +2422,6 @@ app.post('/api/game/monster-turn', async (req, res) => {
         return res.json({ gameState, turnEvents });
       }
 
-      let shieldWarriorTaunt = alivePlayers.find(p => p.characterClass === 'shield_warrior');
       gameState.monsters.filter(m => m.isAlive).forEach(monster => {
         const statusDamage = applyMonsterStatusDamage(monster, gameState, data);
         statusDamage.logs.forEach(message => {
@@ -2464,10 +2471,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
           if (alivePlayers.length === 0) {
             break;
           }
-          shieldWarriorTaunt = alivePlayers.find(p => p.characterClass === 'shield_warrior');
-          let target = shieldWarriorTaunt || alivePlayers.reduce((lowest, p) =>
-            p.currentHP < lowest.currentHP ? p : lowest
-          );
+          const target = selectPlayerTargetForMonster(alivePlayers, {});
           if (!target || !target.isAlive) {
             continue;
           }
