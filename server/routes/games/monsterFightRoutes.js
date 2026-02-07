@@ -2299,6 +2299,30 @@ app.post('/api/game/monster-turn', async (req, res) => {
     }
     
     const gameState = data.gameState.current;
+    const turnEvents = [];
+    const snapshotState = () => {
+      try {
+        return JSON.parse(JSON.stringify({
+          phase: gameState.phase,
+          currentTurn: gameState.currentTurn,
+          players: gameState.players,
+          monsters: gameState.monsters,
+          actionLog: gameState.actionLog
+        }));
+      } catch {
+        return {
+          phase: gameState.phase,
+          currentTurn: gameState.currentTurn,
+          players: gameState.players,
+          monsters: gameState.monsters,
+          actionLog: gameState.actionLog
+        };
+      }
+    };
+    const pushLog = (entry) => {
+      gameState.actionLog.push(entry);
+      turnEvents.push({ log: entry, snapshot: snapshotState() });
+    };
     
     // Check if all players have acted (if in player_turn phase)
     if (gameState.phase === 'player_turn') {
@@ -2319,7 +2343,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
     if (alivePlayers.length === 0) {
       // Game over
       gameState.phase = 'game_over';
-      gameState.actionLog.push({
+      pushLog({
         turn: gameState.currentTurn,
         phase: 'game_over',
         message: 'All players defeated! Game Over.'
@@ -2327,7 +2351,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
     } else {
       const statusLogs = applyPlayerStatusEffects(gameState);
       statusLogs.forEach(message => {
-        gameState.actionLog.push({
+        pushLog({
           turn: gameState.currentTurn,
           phase: 'monster_turn',
           message
@@ -2337,7 +2361,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
       alivePlayers = gameState.players.filter(p => p.isAlive);
       if (alivePlayers.length === 0) {
         gameState.phase = 'game_over';
-        gameState.actionLog.push({
+        pushLog({
           turn: gameState.currentTurn,
           phase: 'game_over',
           message: 'All players defeated! Game Over.'
@@ -2345,12 +2369,12 @@ app.post('/api/game/monster-turn', async (req, res) => {
         data.lastUpdate = new Date().toISOString();
         await writeData(data);
         broadcast({ type: 'gameStateUpdated', gameState });
-        return res.json(gameState);
+        return res.json({ gameState, turnEvents });
       }
 
       const shamanLogs = applyShamanPassiveHealing(gameState, data);
       shamanLogs.forEach(message => {
-        gameState.actionLog.push({
+        pushLog({
           turn: gameState.currentTurn,
           phase: 'monster_turn',
           message,
@@ -2367,7 +2391,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
           const summaryDetails = event.targets
             ? event.targets.map(t => `${t.name}: ${t.before} → ${t.after} (+${t.amount})`)
             : [];
-          gameState.actionLog.push({
+          pushLog({
             turn: gameState.currentTurn,
             phase: 'monster_turn',
             message: `${event.priestName}'s blessing heals ${targetSummary} for ${event.healAmount} HP each.`,
@@ -2379,7 +2403,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
       alivePlayers = gameState.players.filter(p => p.isAlive);
       if (alivePlayers.length === 0) {
         gameState.phase = 'game_over';
-        gameState.actionLog.push({
+        pushLog({
           turn: gameState.currentTurn,
           phase: 'game_over',
           message: 'All players defeated! Game Over.'
@@ -2387,14 +2411,14 @@ app.post('/api/game/monster-turn', async (req, res) => {
         data.lastUpdate = new Date().toISOString();
         await writeData(data);
         broadcast({ type: 'gameStateUpdated', gameState });
-        return res.json(gameState);
+        return res.json({ gameState, turnEvents });
       }
 
       let shieldWarriorTaunt = alivePlayers.find(p => p.characterClass === 'shield_warrior');
       gameState.monsters.filter(m => m.isAlive).forEach(monster => {
         const statusDamage = applyMonsterStatusDamage(monster, gameState, data);
         statusDamage.logs.forEach(message => {
-          gameState.actionLog.push({
+          pushLog({
             turn: gameState.currentTurn,
             phase: 'monster_turn',
             message,
@@ -2403,7 +2427,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
         });
         if (statusDamage.deathLogs && statusDamage.deathLogs.length > 0) {
           statusDamage.deathLogs.forEach(message => {
-            gameState.actionLog.push({
+            pushLog({
               turn: gameState.currentTurn,
               phase: 'monster_turn',
               message
@@ -2415,7 +2439,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
 
         const controlStatus = processMonsterControlStatuses(monster);
         controlStatus.logs.forEach(message => {
-          gameState.actionLog.push({
+          pushLog({
             turn: gameState.currentTurn,
             phase: 'monster_turn',
             message,
@@ -2485,7 +2509,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
 
           const critNote = isCrit ? ' (CRITICAL!)' : '';
           const reductionNote = damageReduction > 0 ? ' (reduced by shield)' : '';
-          gameState.actionLog.push({
+          pushLog({
             turn: gameState.currentTurn,
             phase: 'monster_turn',
             message: `${monster.name} attacks ${target.studentName} for ${damage} damage${critNote}${reductionNote}${!target.isAlive ? ' - DEFEATED!' : ''}`
@@ -2493,7 +2517,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
 
           if (passive.applyBleed) {
             addBleedStatusToPlayer(target, passive.applyBleed, monster.name);
-            gameState.actionLog.push({
+            pushLog({
               turn: gameState.currentTurn,
               phase: 'monster_turn',
               message: `${monster.name} inflicts bleeding on ${target.studentName}!`
@@ -2507,7 +2531,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
               monster.attackGrowth = 0;
             }
             monster.attackGrowth += increase;
-            gameState.actionLog.push({
+            pushLog({
               turn: gameState.currentTurn,
               phase: 'monster_turn',
               message: `${monster.name}'s attack rises to ${monster.attack} through Cunning Momentum!`
@@ -2517,7 +2541,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
           if (passive.bleedingClaw && target.isAlive && damage > 0) {
             const bleedMessage = addBleedingClawStatusToPlayer(target, monster, passive.bleedingClaw);
             if (bleedMessage) {
-              gameState.actionLog.push({
+              pushLog({
                 turn: gameState.currentTurn,
                 phase: 'monster_turn',
                 message: bleedMessage
@@ -2536,7 +2560,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
 
       if (gameState.players.every(p => !p.isAlive)) {
         gameState.phase = 'game_over';
-        gameState.actionLog.push({
+        pushLog({
           turn: gameState.currentTurn,
           phase: 'game_over',
           message: 'All players defeated! Game Over.'
@@ -2589,7 +2613,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
     await writeData(data);
     
     broadcast({ type: 'gameStateUpdated', gameState });
-    res.json(gameState);
+    res.json({ gameState, turnEvents });
   } catch (error) {
     console.error('Error processing monster turn:', error);
     res.status(500).json({ error: 'Failed to process monster turn' });

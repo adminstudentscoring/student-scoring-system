@@ -49,6 +49,8 @@ let lastActionLogLength = 0;
 let actionQueue = [];
 let isShowingPopup = false;
 const POPUP_AUTO_CLOSE_MS = null;
+let actionLogCollapsed = false;
+let monsterTurnReplay = { active: false, pendingWsState: null, onDone: null };
 
 const LEVEL_DIFFICULTY_PRESETS = {
     easy: [
@@ -123,18 +125,32 @@ function ensureActionPopupContainer() {
     }
 }
 
-function processActionQueue() {
+async function processActionQueue() {
     if (isShowingPopup) return;
     const item = actionQueue.shift();
-    if (!item) return;
+    if (!item) {
+        // If a monster-turn replay just finished, apply any pending WS sync now.
+        if (monsterTurnReplay?.active && typeof monsterTurnReplay.onDone === 'function') {
+            try { monsterTurnReplay.onDone(); } catch {}
+            monsterTurnReplay.onDone = null;
+        }
+        return;
+    }
     isShowingPopup = true;
+    try {
+        if (typeof item.beforeShow === 'function') {
+            await Promise.resolve(item.beforeShow());
+        }
+    } catch (e) {
+        console.warn('[actionQueue] beforeShow failed', e);
+    }
     showActionPopup(item.message, item.summary, item.context || {});
 }
 
-function queueActionPopup(message, summary, context = {}) {
+function queueActionPopup(message, summary, context = {}, opts = {}) {
     if (!message) return;
-    actionQueue.push({ message, summary, context });
-    processActionQueue();
+    actionQueue.push({ message, summary, context, beforeShow: opts?.beforeShow });
+    void processActionQueue();
 }
 
 function parseTargetValue(rawValue) {
@@ -161,6 +177,50 @@ function getSkillTargetType(player, skill) {
         }
     }
     return 'monster';
+}
+
+function statusLabel(status) {
+    const t = String(status?.type || '').trim().toLowerCase();
+    const turns = Number(status?.remainingTurns);
+    const withTurns = (label) => Number.isFinite(turns) ? `${label}(${Math.max(0, turns)}T)` : label;
+    if (!t) return '';
+    if (t === 'poison') return withTurns('Poison');
+    if (t === 'bleed') return withTurns('Bleed');
+    if (t === 'bleeding_claw') return withTurns('Bleed');
+    if (t === 'silence') return withTurns('Silence');
+    if (t === 'stun') return withTurns('Stun');
+    if (t === 'freeze') return withTurns('Freeze');
+    if (t === 'attack') return withTurns('ATK↓');
+    if (t === 'regen') return withTurns('Regen');
+    return withTurns(t);
+}
+
+function renderStatusText(entity) {
+    const statuses = Array.isArray(entity?.statuses) ? entity.statuses : [];
+    const labels = statuses
+        .map(statusLabel)
+        .filter(Boolean);
+    if (!labels.length) return '';
+    const txt = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ` +${labels.length - 3}` : '');
+    return `<span class="mf-status-text">${txt}</span>`;
+}
+
+function toggleActionLog() {
+    actionLogCollapsed = !actionLogCollapsed;
+    renderGame();
+}
+
+function applyMonsterTurnSnapshot(snapshot) {
+    if (!snapshot || !gameState) return;
+    try {
+        if (snapshot.phase) gameState.phase = snapshot.phase;
+        if (typeof snapshot.currentTurn === 'number') gameState.currentTurn = snapshot.currentTurn;
+        if (Array.isArray(snapshot.players)) gameState.players = snapshot.players;
+        if (Array.isArray(snapshot.monsters)) gameState.monsters = snapshot.monsters;
+        if (Array.isArray(snapshot.actionLog)) gameState.actionLog = snapshot.actionLog;
+    } catch (e) {
+        console.warn('[monster-turn] failed to apply snapshot', e);
+    }
 }
 
 function showActionPopup(message, summary, context) {
@@ -233,7 +293,7 @@ function showActionPopup(message, summary, context) {
         setTimeout(() => {
             popup.remove();
             isShowingPopup = false;
-            processActionQueue();
+            void processActionQueue();
         }, 300);
     };
 
@@ -263,6 +323,11 @@ function initGameWebSocket() {
     gameWs.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'gameStateUpdated') {
+            // During monster turn replay, ignore WS state changes (we apply snapshots step-by-step).
+            if (monsterTurnReplay && monsterTurnReplay.active) {
+                try { monsterTurnReplay.pendingWsState = data.gameState; } catch {}
+                return;
+            }
             // Check if user is currently interacting with input/select elements
             const activeElement = document.activeElement;
             const isUserInteracting = activeElement && (
@@ -1345,9 +1410,12 @@ function renderBattleMode() {
                 </div>
             ` : ''}
             
-            <div class="action-log">
-                <h3>Action Log</h3>
-                <div class="log-content">
+            <div class="action-log ${actionLogCollapsed ? 'is-collapsed' : ''}">
+                <div class="action-log-header">
+                    <h3 style="margin:0;">Action Log</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="toggleActionLog()">${actionLogCollapsed ? 'Open' : 'Minimize'}</button>
+                </div>
+                <div class="log-content" style="${actionLogCollapsed ? 'display:none;' : ''}">
                     ${gameState.actionLog && gameState.actionLog.length > 0 
                         ? gameState.actionLog.slice(-10).reverse().map(log => `
                             <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
@@ -1403,7 +1471,7 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
             <div class="player-card-header">
                 <div class="card-header">
                     <span class="character-emoji">${charClass?.emoji || '❓'}</span>
-                    <h4>${player.studentName}</h4>
+                    <h4>${player.studentName} ${renderStatusText(player)}</h4>
                 </div>
                 <div class="player-stats-inline">
                     <span>ATK: ${player.attack || 0}</span>
@@ -1500,7 +1568,7 @@ function renderMonsterCard(monster) {
         <div class="monster-card ${!monster.isAlive ? 'defeated' : ''}">
             <div class="card-header">
                 <span class="monster-emoji">${monster.emoji}</span>
-                <h4>${monster.name}</h4>
+                <h4>${monster.name} ${renderStatusText(monster)}</h4>
             </div>
             <div class="hp-bar">
                 <div class="hp-fill" style="width: ${hpPercent}%"></div>
@@ -1930,6 +1998,10 @@ async function playerUseSkill(studentId, skillId) {
 // Process monster turn
 async function processMonsterTurn() {
     console.log('=== PROCESS MONSTER TURN ===');
+    if (monsterTurnReplay && monsterTurnReplay.active) {
+        console.log('[monster-turn] replay in progress, ignoring.');
+        return;
+    }
     console.log('Players BEFORE monster turn:', gameState.players.map(p => ({
         name: p.studentName,
         hp: `${p.currentHP}/${p.maxHP}`,
@@ -1953,78 +2025,71 @@ async function processMonsterTurn() {
         
         const data = await response.json();
         console.log('Server response:', JSON.stringify(data, null, 2));
-        
-        // Preserve current monsters state - update only HP and alive status from server
+
+        const hasEvents = Array.isArray(data?.turnEvents) && data.turnEvents.length > 0 && data.gameState;
+        if (hasEvents) {
+            const finalState = data.gameState;
+            // Prevent WS from duplicating popups for these newly appended logs.
+            lastActionLogLength = Array.isArray(finalState.actionLog) ? finalState.actionLog.length : lastActionLogLength;
+
+            monsterTurnReplay.active = true;
+            monsterTurnReplay.pendingWsState = null;
+            monsterTurnReplay.onDone = () => {
+                monsterTurnReplay.active = false;
+                const synced = monsterTurnReplay.pendingWsState || finalState;
+                if (synced) {
+                    gameState = synced;
+                    lastActionLogLength = Array.isArray(gameState.actionLog) ? gameState.actionLog.length : lastActionLogLength;
+                }
+                renderGame();
+            };
+
+            // Queue popups with snapshot application before each popup appears.
+            data.turnEvents.forEach((evt) => {
+                const log = evt?.log || {};
+                const snap = evt?.snapshot || null;
+                const rawMessage = String(log.message || '');
+                if (!rawMessage) return;
+                const summary = Array.isArray(log.summaryDetails) ? decorateSummaryLines(log.summaryDetails) : null;
+                const context = derivePopupContext(rawMessage);
+                const decoratedMessage = decorateMessageWithIcons(rawMessage);
+                queueActionPopup(decoratedMessage, summary, context, {
+                    beforeShow: () => {
+                        applyMonsterTurnSnapshot(snap);
+                        renderGame();
+                    }
+                });
+            });
+            return;
+        }
+
+        // Fallback (older server): apply full state immediately
         const currentMonsters = gameState.monsters ? [...gameState.monsters] : null;
         const currentPlayers = gameState.players ? [...gameState.players] : null;
-        // Handle both { gameState } and direct gameState response
         gameState = data.gameState || data;
-        
-        // Update player HP from server response
+
         if (currentPlayers && currentPlayers.length > 0 && gameState.players) {
-            console.log('=== UPDATING PLAYER HP ===');
             currentPlayers.forEach((currentPlayer) => {
                 const serverPlayer = gameState.players.find(p => p.studentId === currentPlayer.studentId);
                 if (serverPlayer) {
-                    const oldHP = currentPlayer.currentHP;
-                    const newHP = serverPlayer.currentHP;
-                    const damage = oldHP - newHP;
-                    
-                    if (damage > 0) {
-                        console.log(`Player ${currentPlayer.studentName} (${currentPlayer.studentId}):`);
-                        console.log(`  HP: ${oldHP} -> ${newHP} (damage: ${damage})`);
-                        console.log(`  Alive: ${currentPlayer.isAlive} -> ${serverPlayer.isAlive}`);
-                    }
-                    
                     currentPlayer.currentHP = serverPlayer.currentHP;
                     currentPlayer.isAlive = serverPlayer.isAlive;
-                    if (serverPlayer.maxHP) {
-                        currentPlayer.maxHP = serverPlayer.maxHP;
-                    }
+                    if (serverPlayer.maxHP) currentPlayer.maxHP = serverPlayer.maxHP;
                 }
             });
             gameState.players = currentPlayers;
         }
-        
-        // Update monster HP from server response, but preserve the array structure
         if (currentMonsters && currentMonsters.length > 0 && gameState.monsters) {
-            console.log('=== UPDATING MONSTER HP (MONSTER TURN) ===');
             currentMonsters.forEach((currentMonster) => {
                 const serverMonster = gameState.monsters.find(m => m.id === currentMonster.id);
                 if (serverMonster) {
-                    const oldHP = currentMonster.currentHP;
-                    const newHP = serverMonster.currentHP;
-                    const change = oldHP - newHP;
-                    
-                    if (change !== 0) {
-                        console.log(`Monster ${currentMonster.name} (${currentMonster.id}):`);
-                        console.log(`  HP: ${oldHP} -> ${newHP} (change: ${change > 0 ? '-' : '+'}${Math.abs(change)})`);
-                        console.log(`  Alive: ${currentMonster.isAlive} -> ${serverMonster.isAlive}`);
-                    }
-                    
-                    // Update HP and alive status from server
                     currentMonster.currentHP = serverMonster.currentHP;
                     currentMonster.isAlive = serverMonster.isAlive;
-                    // Also update maxHP in case it changed
-                    if (serverMonster.maxHP) {
-                        currentMonster.maxHP = serverMonster.maxHP;
-                    }
+                    if (serverMonster.maxHP) currentMonster.maxHP = serverMonster.maxHP;
                 }
             });
             gameState.monsters = currentMonsters;
         }
-        
-        console.log('Players AFTER monster turn:', gameState.players.map(p => ({
-            name: p.studentName,
-            hp: `${p.currentHP}/${p.maxHP}`,
-            alive: p.isAlive
-        })));
-        console.log('Monsters AFTER monster turn:', gameState.monsters?.map(m => ({
-            name: m.name,
-            hp: `${m.currentHP}/${m.maxHP}`,
-            alive: m.isAlive
-        })));
-        
         renderGame();
     } catch (error) {
         console.error('Error processing monster turn:', error);
