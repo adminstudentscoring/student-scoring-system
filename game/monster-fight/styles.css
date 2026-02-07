@@ -271,6 +271,155 @@ body {
     width: 100%;
 }
 
+.mf-player-card,
+.mf-monster-card {
+    position: relative;
+}
+
+.mf-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.mf-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 8px;
+}
+
+.mf-avatar-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 6px 0 8px;
+}
+
+/* Large avatar specifically for cards */
+.mf-avatar-lg {
+    width: 76px;
+    height: 76px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mf-avatar-lg .mf-icon-img {
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
+}
+
+.mf-avatar-lg .mf-emoji-fallback {
+    font-size: 52px;
+    line-height: 1;
+}
+
+.mf-hp-wrap {
+    width: 50%;
+    min-width: 190px;
+    margin: 6px auto 8px;
+}
+
+.mf-hp-wrap .hp-bar {
+    height: 12px; /* half */
+    border-radius: 999px;
+    margin: 0;
+}
+
+.mf-hp-wrap .hp-text {
+    font-size: 0.75rem;
+}
+
+.mf-subline {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 6px;
+}
+
+/* Pts + Target same row */
+.mf-pt-target-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 10px;
+    align-items: end;
+    margin-top: 10px;
+}
+
+.mf-pt-target-row label {
+    display: block;
+    text-align: left;
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.mf-pt-target-row .puzzle-input-small,
+.mf-pt-target-row .target-select-small {
+    width: 100%;
+}
+
+/* Skill rail: 3 square icon buttons outside left of card */
+.mf-skill-rail {
+    position: absolute;
+    left: -54px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mf-skill-btn {
+    width: 44px;
+    height: 44px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fff;
+    color: #333;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    cursor: pointer;
+    padding: 0;
+}
+
+.mf-skill-btn:hover:not(:disabled) {
+    border-color: #bdbdbd;
+    transform: translateX(-1px);
+}
+
+.mf-skill-btn:disabled,
+.mf-skill-btn.is-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 700px) {
+    .mf-skill-rail {
+        position: static;
+        transform: none;
+        flex-direction: row;
+        justify-content: center;
+        margin-bottom: 10px;
+    }
+    .mf-player-card,
+    .mf-monster-card {
+        padding-top: 12px;
+    }
+    .mf-hp-wrap {
+        width: 70%;
+    }
+}
+
 .player-card.defeated,
 .monster-card.defeated {
     opacity: 0.5;

@@ -1560,98 +1560,103 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
     }
     const targetOptionsHtml = targetOptions.join('');
     
+    const activeSkills = (player.skills || []).filter(s => s.type === 'active').slice(0, 2);
+    const canAct = !!(isPlayerTurn && player.isAlive && !player.hasActed);
+    const atkBtn = {
+        kind: 'attack',
+        emoji: '⚔️',
+        title: 'Attack',
+        disabled: !canAct,
+        onClick: `playerAttack('${player.studentId}')`
+    };
+    const skillBtns = activeSkills.map((skill) => {
+        const cooldown = (player.skillCooldowns && player.skillCooldowns[skill.id]) || 0;
+        return {
+            kind: skill.id,
+            emoji: skill.emoji || '⭐',
+            title: `${skill.name}${cooldown > 0 ? ` (CD:${cooldown})` : ''}`,
+            disabled: !canAct || cooldown > 0,
+            onClick: `playerUseSkill('${player.studentId}', '${skill.id}')`
+        };
+    });
+    while (skillBtns.length < 2) skillBtns.push({ kind: `empty_${skillBtns.length}`, emoji: ' ', title: '', disabled: true, onClick: '' });
+
     return `
-        <div class="player-card-full ${!player.isAlive ? 'defeated' : ''}">
-            <div class="player-card-header">
-                <div class="card-header">
+        <div class="player-card-full mf-player-card ${!player.isAlive ? 'defeated' : ''}">
+            <div class="mf-skill-rail" aria-label="Skills">
+                <button class="mf-skill-btn ${atkBtn.disabled ? 'is-disabled' : ''}" ${atkBtn.disabled ? 'disabled' : ''} onclick="${atkBtn.onClick}" title="${escapeHtml(atkBtn.title)}">${escapeHtml(atkBtn.emoji)}</button>
+                ${skillBtns.map((b) => `
+                    <button class="mf-skill-btn ${b.disabled ? 'is-disabled' : ''}" ${b.disabled ? 'disabled' : ''} ${b.onClick ? `onclick="${b.onClick}"` : ''} title="${escapeHtml(b.title)}">${escapeHtml(b.emoji)}</button>
+                `).join('')}
+            </div>
+
+            <div class="mf-card-body">
+                <div class="mf-name">${escapeHtml(player.studentName)} ${renderStatusText(player)}</div>
+
+                <div class="mf-avatar-row">
                     ${renderIconWrap({
                         imgSrc: imageSrcForFile(classImageFileById(player.characterClass)),
                         fallbackEmoji: charClass?.emoji || '❓',
                         alt: charClass?.name || 'Character',
-                        wrapClass: 'character-emoji'
+                        wrapClass: 'mf-avatar-lg'
                     })}
-                    <h4>${player.studentName} ${renderStatusText(player)}</h4>
                 </div>
-                <div class="player-stats-inline">
+
+                ${player.maxHP > 0 ? `
+                    <div class="mf-hp-wrap">
+                        <div class="hp-bar">
+                            <div class="hp-fill" style="width: ${hpPercent}%"></div>
+                            <span class="hp-text">${player.currentHP}/${player.maxHP} HP</span>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div class="mf-subline">
                     <span>ATK: ${player.attack || 0}</span>
                     ${player.maxHP > 0 ? `<span>HP: ${player.currentHP}/${player.maxHP}</span>` : ''}
                 </div>
-            </div>
-            
-            ${player.maxHP > 0 ? `
-                <div class="hp-bar">
-                    <div class="hp-fill" style="width: ${hpPercent}%"></div>
-                    <span class="hp-text">${player.currentHP}/${player.maxHP} HP</span>
+
+                <div class="player-actions-integrated" style="border-top:none; padding-top:0; margin-top:10px;">
+                    ${isPlayerTurn && player.isAlive ? `
+                        <div class="mf-pt-target-row">
+                            <div class="mf-pt">
+                                <label>Pts</label>
+                                <input type="text"
+                                       inputmode="numeric"
+                                       pattern="[0-9]*"
+                                       id="puzzle_${player.studentId}"
+                                       min="0"
+                                       value="${player.puzzlePoints || 0}"
+                                       class="puzzle-input-small"
+                                       placeholder="0"
+                                       onchange="updatePuzzlePoints()"
+                                       onblur="setTimeout(() => updatePuzzlePoints(), 100)"
+                                       onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
+                                       onmousedown="event.stopPropagation()">
+                            </div>
+                            <div class="mf-target">
+                                <label>Target</label>
+                                <select id="target_${player.studentId}"
+                                        class="target-select-small"
+                                        onmousedown="event.stopPropagation()">
+                                    ${targetOptionsHtml}
+                                </select>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${!player.isAlive ? `
+                        <div class="revive-section" style="margin-top:10px;">
+                            <button class="btn btn-sm btn-warning" onclick="showReviveModal('${player.studentId}')">💫 Revive</button>
+                        </div>
+                    ` : ''}
+
+                    ${player.hasActed && player.isAlive ? `
+                        <div class="action-status" style="margin-top:10px;">
+                            <span class="status-badge">✓ Action Taken</span>
+                        </div>
+                    ` : ''}
                 </div>
-            ` : ''}
-            
-            <div class="player-actions-integrated">
-                ${isPlayerTurn && player.isAlive ? `
-                    <div class="puzzle-input-section">
-                        <label>Puzzle Points:</label>
-                        <input type="text" 
-                               inputmode="numeric"
-                               pattern="[0-9]*"
-                               id="puzzle_${player.studentId}" 
-                               min="0" 
-                               value="${player.puzzlePoints || 0}" 
-                               class="puzzle-input-small"
-                               placeholder="Enter points"
-                               onchange="updatePuzzlePoints()"
-                               onblur="setTimeout(() => updatePuzzlePoints(), 100)"
-                               onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
-                               onfocus="console.log('Input focused:', '${player.studentId}')"
-                               onblur="console.log('Input blurred:', '${player.studentId}')"
-                               onclick="console.log('Input clicked:', '${player.studentId}'); this.focus()"
-                               onmousedown="event.stopPropagation()">
-                    </div>
-                ` : ''}
-                
-                ${isPlayerTurn && player.isAlive && !player.hasActed ? `
-                    <div class="action-section">
-                        <div class="action-row">
-                            <label>Target:</label>
-                            <select id="target_${player.studentId}" 
-                                    class="target-select-small"
-                                    onchange="console.log('Target selected:', '${player.studentId}', this.value)"
-                                    onfocus="console.log('Select focused:', '${player.studentId}')"
-                                    onblur="console.log('Select blurred:', '${player.studentId}')"
-                                    onclick="console.log('Select clicked:', '${player.studentId}'); this.focus()"
-                                    onmousedown="event.stopPropagation()">
-                                ${targetOptionsHtml}
-                            </select>
-                        </div>
-                        <div class="action-buttons-row">
-                            <button class="btn btn-sm btn-primary" onclick="playerAttack('${player.studentId}')">⚔️ Attack</button>
-                            ${player.skills && player.skills.filter(s => s.type === 'active').map(skill => {
-                                const cooldown = player.skillCooldowns && player.skillCooldowns[skill.id] || 0;
-                                const disabled = cooldown > 0 ? 'disabled' : '';
-                                return `
-                                    <button class="btn btn-sm btn-secondary skill-icon-button" 
-                                            onclick="playerUseSkill('${player.studentId}', '${skill.id}')" 
-                                            ${disabled}
-                                            title="${skill.description}${cooldown > 0 ? ` (CD: ${cooldown})` : ''}">
-                                        <span class="skill-icon">${skill.emoji || '⭐'}</span>
-                                        <span class="skill-name">${skill.name}</span>
-                                        ${cooldown > 0 ? `<span class="skill-cooldown">${cooldown}</span>` : ''}
-                                    </button>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                ${!player.isAlive ? `
-                    <div class="revive-section">
-                        <button class="btn btn-sm btn-warning" onclick="showReviveModal('${player.studentId}')">💫 Revive</button>
-                    </div>
-                ` : ''}
-                
-                ${player.hasActed && player.isAlive ? `
-                    <div class="action-status">
-                        <span class="status-badge">✓ Action Taken</span>
-                    </div>
-                ` : ''}
             </div>
         </div>
     `;
@@ -1664,22 +1669,24 @@ function renderMonsterCard(monster) {
     const hpPercent = (monster.currentHP / monster.maxHP) * 100;
     
     return `
-        <div class="monster-card ${!monster.isAlive ? 'defeated' : ''}">
-            <div class="card-header">
-                ${renderIconWrap({
-                    imgSrc: imageSrcForFile(monsterImageFileByType(monster.type)),
-                    fallbackEmoji: monsterType?.emoji || monster.emoji || '👾',
-                    alt: monsterType?.name || monster.name || 'Monster',
-                    wrapClass: 'monster-emoji'
-                })}
-                <h4>${monster.name} ${renderStatusText(monster)}</h4>
-            </div>
-            <div class="hp-bar">
-                <div class="hp-fill" style="width: ${hpPercent}%"></div>
-                <span class="hp-text">${monster.currentHP}/${monster.maxHP} HP</span>
-            </div>
-            <div class="monster-stats">
-                <div>ATK: ${monster.attack}</div>
+        <div class="monster-card mf-monster-card ${!monster.isAlive ? 'defeated' : ''}">
+            <div class="mf-card-body">
+                <div class="mf-name">${escapeHtml(monster.name)} ${renderStatusText(monster)}</div>
+                <div class="mf-avatar-row">
+                    ${renderIconWrap({
+                        imgSrc: imageSrcForFile(monsterImageFileByType(monster.type)),
+                        fallbackEmoji: monsterType?.emoji || monster.emoji || '👾',
+                        alt: monsterType?.name || monster.name || 'Monster',
+                        wrapClass: 'mf-avatar-lg'
+                    })}
+                </div>
+                <div class="mf-hp-wrap">
+                    <div class="hp-bar">
+                        <div class="hp-fill" style="width: ${hpPercent}%"></div>
+                        <span class="hp-text">${monster.currentHP}/${monster.maxHP} HP</span>
+                    </div>
+                </div>
+                <div class="mf-subline"><span>ATK: ${monster.attack}</span></div>
             </div>
         </div>
     `;
