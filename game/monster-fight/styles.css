@@ -13,6 +13,14 @@ body {
     color: #333;
 }
 
+body.mf-bg-image {
+    background-image: var(--mf-bg-url);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
 .app-container {
     max-width: 1400px;
     margin: 0 auto;
@@ -432,7 +440,7 @@ body {
 .battle-layout-horizontal {
     display: grid;
     grid-template-columns: 320px minmax(0, 1fr);
-    gap: 20px;
+    gap: 40px;
     margin: 20px 0;
     align-items: start;
 }
@@ -598,11 +606,17 @@ body {
     width: 100%;
 }
 
+.mf-pt .puzzle-input-small {
+    width: 50%;
+    min-width: 88px;
+    max-width: 140px;
+}
+
 /* Skill rail: 3 square icon buttons outside left of card */
 /* Player card: skills inside left column */
 .mf-player-layout {
     display: grid;
-    grid-template-columns: 120px 1fr;
+    grid-template-columns: 84px 1fr;
     gap: 14px;
     align-items: stretch;
 }

@@ -25,7 +25,27 @@ function getImagesBase() {
 function imageSrcForFile(file) {
     const f = String(file || '').trim();
     if (!f) return '';
-    return `${getImagesBase()}${encodeURIComponent(f)}`;
+    // Preserve nested folders while encoding each path segment (supports "Background/Background.jpg").
+    const parts = f.split('/').filter(Boolean).map(encodeURIComponent);
+    return `${getImagesBase()}${parts.join('/')}`;
+}
+
+function applyBackgroundTheme(theme) {
+    const t = String(theme || '').trim() || 'white';
+    const body = document.body;
+    if (!body) return;
+
+    if (t === 'image') {
+        const url = imageSrcForFile('Background/Background.jpg') || 'images/Background/Background.jpg';
+        body.style.setProperty('--mf-bg-url', `url("${url}")`);
+        body.classList.add('mf-bg-image');
+        body.style.backgroundColor = '';
+        return;
+    }
+
+    body.classList.remove('mf-bg-image');
+    body.style.removeProperty('--mf-bg-url');
+    body.style.background = '#ffffff';
 }
 
 function classImageFileById(classId) {
@@ -587,6 +607,8 @@ async function loadGameConfig() {
         // Make available globally
         window.playerClasses = playerClasses;
         window.monsterTypes = monsterTypes;
+        // Apply background theme from config (defaults to white)
+        applyBackgroundTheme(gameConfig?.backgroundTheme || 'white');
         console.log('Game config loaded successfully');
         console.log(`Loaded ${playerClasses.length} player classes and ${monsterTypes.length} monster types`);
     } catch (error) {
@@ -1023,7 +1045,8 @@ function renderGlobalSettings() {
         critDamage: 2.0,
         baseReviveRate: 0.01,
         reviveRateDecay: 0.95,
-        maxReviveRate: 0.66
+        maxReviveRate: 0.66,
+        backgroundTheme: 'white'
     };
     
     return `
@@ -1063,6 +1086,15 @@ function renderGlobalSettings() {
                 <label>Max Revive Rate (%):</label>
                 <input type="number" id="setting_maxReviveRate" step="0.01" min="0" max="100" value="${(config.maxReviveRate || 0.66) * 100}">
                 <small>Default: 66%</small>
+            </div>
+
+            <div class="form-group">
+                <label>Background Theme:</label>
+                <select id="setting_backgroundTheme">
+                    <option value="white" ${String(config.backgroundTheme || 'white') === 'white' ? 'selected' : ''}>White</option>
+                    <option value="image" ${String(config.backgroundTheme || '') === 'image' ? 'selected' : ''}>Background (Background.jpg)</option>
+                </select>
+                <small>Preset: white or \`game/monster-fight/images/Background/Background.jpg\`</small>
             </div>
         </div>
     `;
@@ -1415,7 +1447,8 @@ async function saveGameSettings() {
             critDamage: parseFloat(document.getElementById('setting_critDamage').value) || 2.0,
             baseReviveRate: (parseFloat(document.getElementById('setting_baseReviveRate').value) || 1) / 100,
             reviveRateDecay: parseFloat(document.getElementById('setting_reviveRateDecay').value) || 0.95,
-            maxReviveRate: (parseFloat(document.getElementById('setting_maxReviveRate').value) || 66) / 100
+            maxReviveRate: (parseFloat(document.getElementById('setting_maxReviveRate').value) || 66) / 100,
+            backgroundTheme: String(document.getElementById('setting_backgroundTheme')?.value || 'white')
         };
         
         // Collect player classes settings
@@ -1522,6 +1555,7 @@ async function saveGameSettings() {
         if (gameConfig) {
             Object.assign(gameConfig, config);
         }
+        applyBackgroundTheme(config.backgroundTheme || 'white');
         if (playerClasses.length > 0) window.playerClasses = playerClasses;
         if (monsterTypes.length > 0) window.monsterTypes = monsterTypes;
         
