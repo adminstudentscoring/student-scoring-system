@@ -181,18 +181,16 @@ function getSkillTargetType(player, skill) {
 
 function statusLabel(status) {
     const t = String(status?.type || '').trim().toLowerCase();
-    const turns = Number(status?.remainingTurns);
-    const withTurns = (label) => Number.isFinite(turns) ? `${label}(${Math.max(0, turns)}T)` : label;
     if (!t) return '';
-    if (t === 'poison') return withTurns('Poison');
-    if (t === 'bleed') return withTurns('Bleed');
-    if (t === 'bleeding_claw') return withTurns('Bleed');
-    if (t === 'silence') return withTurns('Silence');
-    if (t === 'stun') return withTurns('Stun');
-    if (t === 'freeze') return withTurns('Freeze');
-    if (t === 'attack') return withTurns('ATK↓');
-    if (t === 'regen') return withTurns('Regen');
-    return withTurns(t);
+    if (t === 'poison') return 'Poison';
+    if (t === 'bleed') return 'Bleed';
+    if (t === 'bleeding_claw') return 'Bleed';
+    if (t === 'silence') return 'Silence';
+    if (t === 'stun') return 'Stun';
+    if (t === 'freeze') return 'Freeze';
+    if (t === 'attack') return 'ATK↓';
+    if (t === 'regen') return 'Regen';
+    return t;
 }
 
 function renderStatusText(entity) {
@@ -2014,6 +2012,12 @@ async function processMonsterTurn() {
     })));
     
     try {
+        // IMPORTANT: enter replay mode BEFORE server broadcast arrives (via WebSocket)
+        // to prevent "apply final state first, then revert to snapshots" flicker and double-processing.
+        monsterTurnReplay.active = true;
+        monsterTurnReplay.pendingWsState = null;
+        monsterTurnReplay.onDone = null;
+
         const response = await fetch(`${GAME_API_BASE}/game/monster-turn`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
@@ -2029,14 +2033,9 @@ async function processMonsterTurn() {
         const hasEvents = Array.isArray(data?.turnEvents) && data.turnEvents.length > 0 && data.gameState;
         if (hasEvents) {
             const finalState = data.gameState;
-            // Prevent WS from duplicating popups for these newly appended logs.
-            lastActionLogLength = Array.isArray(finalState.actionLog) ? finalState.actionLog.length : lastActionLogLength;
-
-            monsterTurnReplay.active = true;
-            monsterTurnReplay.pendingWsState = null;
             monsterTurnReplay.onDone = () => {
-                monsterTurnReplay.active = false;
                 const synced = monsterTurnReplay.pendingWsState || finalState;
+                monsterTurnReplay.active = false;
                 if (synced) {
                     gameState = synced;
                     lastActionLogLength = Array.isArray(gameState.actionLog) ? gameState.actionLog.length : lastActionLogLength;
@@ -2091,7 +2090,11 @@ async function processMonsterTurn() {
             gameState.monsters = currentMonsters;
         }
         renderGame();
+        // end replay mode (no step events)
+        monsterTurnReplay.active = false;
     } catch (error) {
+        // ensure replay mode is cleared on failure
+        try { monsterTurnReplay.active = false; } catch {}
         console.error('Error processing monster turn:', error);
         alert('Failed to process monster turn');
     }
