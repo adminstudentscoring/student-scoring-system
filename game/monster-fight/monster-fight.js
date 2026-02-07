@@ -793,7 +793,7 @@ function renderCharacterSelection() {
 
     const classes = getPlayerClasses();
     container.innerHTML = `
-        <div class="game-screen">
+        <div class="game-screen mf-charselect">
             <div class="character-selection-header">
                 <div class="mf-title-row">
                     <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
@@ -829,17 +829,19 @@ function renderCharacterSelection() {
                                         </div>
                                         <div class="mf-skill-intro">
                                             <div class="mf-skill-intro-title">Skills</div>
-                                            ${skills.length ? skills.map(s => `
-                                                <div class="mf-skill-item">
-                                                    <div class="mf-skill-item-head">
-                                                        <span class="mf-skill-emoji">${escapeHtml(s.emoji || '⭐')}</span>
-                                                        <span class="mf-skill-name">${escapeHtml(s.name || '')}</span>
-                                                        <span class="mf-skill-type">${escapeHtml(s.type || '')}</span>
-                                                        ${s.cooldown ? `<span class="mf-skill-cd">CD ${escapeHtml(s.cooldown)}</span>` : ''}
+                                            <div class="mf-skill-grid">
+                                                ${skills.length ? skills.map(s => `
+                                                    <div class="mf-skill-item">
+                                                        <div class="mf-skill-item-head">
+                                                            <span class="mf-skill-emoji">${escapeHtml(s.emoji || '⭐')}</span>
+                                                            <span class="mf-skill-name">${escapeHtml(s.name || '')}</span>
+                                                            <span class="mf-skill-type">${escapeHtml(s.type || '')}</span>
+                                                            ${s.cooldown ? `<span class="mf-skill-cd">CD ${escapeHtml(s.cooldown)}</span>` : ''}
+                                                        </div>
+                                                        <div class="mf-skill-desc">${escapeHtml(s.description || '')}</div>
                                                     </div>
-                                                    <div class="mf-skill-desc">${escapeHtml(s.description || '')}</div>
-                                                </div>
-                                            `).join('') : `<div class="mf-skill-empty">No skills</div>`}
+                                                `).join('') : `<div class="mf-skill-empty">No skills</div>`}
+                                            </div>
                                         </div>
                                         <button class="btn btn-primary" style="margin-top:12px;" onclick="selectCharacter('${player.studentId}', '${escapeHtml(cls.id || '')}')">Confirm</button>
                                     </div>
@@ -1715,6 +1717,7 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
         kind: 'attack',
         emoji: '⚔️',
         title: 'Attack',
+        name: 'Attack',
         disabled: !canAct,
         onClick: `playerAttack('${player.studentId}')`
     };
@@ -1724,22 +1727,33 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
             kind: skill.id,
             emoji: skill.emoji || '⭐',
             title: `${skill.name}${cooldown > 0 ? ` (CD:${cooldown})` : ''}`,
+            name: skill.name || 'Skill',
+            cooldown,
             disabled: !canAct || cooldown > 0,
             onClick: `playerUseSkill('${player.studentId}', '${skill.id}')`
         };
     });
-    while (skillBtns.length < 2) skillBtns.push({ kind: `empty_${skillBtns.length}`, emoji: ' ', title: '', disabled: true, onClick: '' });
+    while (skillBtns.length < 2) skillBtns.push({ kind: `empty_${skillBtns.length}`, emoji: ' ', title: '', name: '', cooldown: 0, disabled: true, onClick: '' });
+
+    const allBtns = [atkBtn, ...skillBtns];
 
     return `
         <div class="player-card-full mf-player-card ${!player.isAlive ? 'defeated' : ''}">
-            <div class="mf-skill-rail" aria-label="Skills">
-                <button class="mf-skill-btn ${atkBtn.disabled ? 'is-disabled' : ''}" ${atkBtn.disabled ? 'disabled' : ''} onclick="${atkBtn.onClick}" title="${escapeHtml(atkBtn.title)}">${escapeHtml(atkBtn.emoji)}</button>
-                ${skillBtns.map((b) => `
-                    <button class="mf-skill-btn ${b.disabled ? 'is-disabled' : ''}" ${b.disabled ? 'disabled' : ''} ${b.onClick ? `onclick="${b.onClick}"` : ''} title="${escapeHtml(b.title)}">${escapeHtml(b.emoji)}</button>
-                `).join('')}
-            </div>
+            <div class="mf-player-layout">
+                <div class="mf-skill-col" aria-label="Skills">
+                    ${allBtns.map((b) => `
+                        <button class="mf-skill-tile ${b.disabled ? 'is-disabled' : ''}"
+                                ${b.disabled ? 'disabled' : ''}
+                                ${b.onClick ? `onclick="${b.onClick}"` : ''}
+                                title="${escapeHtml(b.title)}">
+                            <span class="mf-skill-tile-icon">${escapeHtml(b.emoji || '')}</span>
+                            <span class="mf-skill-tile-name">${escapeHtml(b.name || '')}</span>
+                            ${b.cooldown > 0 ? `<span class="mf-skill-tile-cd">${escapeHtml(b.cooldown)}</span>` : ''}
+                        </button>
+                    `).join('')}
+                </div>
 
-            <div class="mf-card-body">
+                <div class="mf-card-body">
                 <div class="mf-name">${escapeHtml(player.studentName)} ${renderStatusText(player)}</div>
 
                 <div class="mf-avatar-row">
@@ -1805,6 +1819,7 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
                             <span class="status-badge">✓ Action Taken</span>
                         </div>
                     ` : ''}
+                </div>
                 </div>
             </div>
         </div>

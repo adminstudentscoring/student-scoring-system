@@ -60,6 +60,11 @@ body {
     padding: 20px;
 }
 
+/* Character selection: make player cards wider */
+.game-screen.mf-charselect .character-selection-grid {
+    grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+}
+
 .mf-title-row {
     display: inline-flex;
     align-items: center;
@@ -185,6 +190,12 @@ body {
     padding: 10px;
 }
 
+.mf-skill-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
 .mf-skill-intro-title {
     font-weight: 800;
     color: #111827;
@@ -197,11 +208,10 @@ body {
     border-radius: 10px;
     background: #fff;
     border: 1px solid #eef2f7;
+    min-width: 0;
 }
 
-.mf-skill-item + .mf-skill-item {
-    margin-top: 8px;
-}
+.mf-skill-item + .mf-skill-item { margin-top: 0; }
 
 .mf-skill-item-head {
     display: flex;
@@ -529,59 +539,96 @@ body {
 }
 
 /* Skill rail: 3 square icon buttons outside left of card */
-.mf-skill-rail {
-    position: absolute;
-    left: -54px;
-    top: 50%;
-    transform: translateY(-50%);
+/* Player card: skills inside left column */
+.mf-player-layout {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 14px;
+    align-items: start;
+}
+
+.mf-skill-col {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    padding-top: 6px;
 }
 
-.mf-skill-btn {
-    width: 44px;
-    height: 44px;
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    background: #fff;
-    color: #333;
-    font-size: 22px;
+.mf-skill-tile {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border: 2px solid #e5e7eb;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+    cursor: pointer;
+    padding: 10px 8px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-    cursor: pointer;
-    padding: 0;
+    gap: 6px;
+    position: relative;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.mf-skill-btn:hover:not(:disabled) {
-    border-color: #bdbdbd;
-    transform: translateX(-1px);
+.mf-skill-tile:hover:not(:disabled) {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(17, 24, 39, 0.10);
 }
 
-.mf-skill-btn:disabled,
-.mf-skill-btn.is-disabled {
-    opacity: 0.4;
+.mf-skill-tile:disabled,
+.mf-skill-tile.is-disabled {
+    opacity: 0.45;
     cursor: not-allowed;
     transform: none;
 }
 
+.mf-skill-tile-icon {
+    font-size: 26px;
+    line-height: 1;
+}
+
+.mf-skill-tile-name {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #111827;
+    text-align: center;
+    line-height: 1.05;
+}
+
+.mf-skill-tile-cd {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-weight: 900;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 @media (max-width: 700px) {
-    .mf-skill-rail {
-        position: static;
-        transform: none;
+    .mf-player-layout {
+        grid-template-columns: 1fr;
+    }
+    .mf-skill-col {
         flex-direction: row;
         justify-content: center;
-        margin-bottom: 10px;
+        gap: 10px;
+        padding-top: 0;
     }
-    .mf-player-card,
-    .mf-monster-card {
-        padding-top: 12px;
+    .mf-skill-tile {
+        width: 92px;
     }
-    .mf-hp-wrap {
-        width: 70%;
-    }
+    .mf-hp-wrap { width: 70%; }
 }
 
 .player-card.defeated,
