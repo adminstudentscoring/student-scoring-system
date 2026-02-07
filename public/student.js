@@ -87,8 +87,8 @@ function renderDashboard() {
     document.getElementById('sAvatar').textContent = s.name.charAt(0).toUpperCase();
     
     document.getElementById('sScore').textContent = s.score || 0;
-    document.getElementById('sLevel').textContent = s.level || 1;
-    document.getElementById('sAnswers').textContent = s.answerCount || 0;
+    const answersEl = document.getElementById('sAnswers');
+    if (answersEl) answersEl.textContent = s.answerCount || 0;
     
     // Balance might not be in public API unless I add it. 
     // I didn't add it explicitly in server.js publicData object.
@@ -131,13 +131,26 @@ function renderDashboard() {
     document.getElementById('sRankBadge').innerHTML = '';
     document.getElementById('sRankBadge').appendChild(badge);
 
+    // Overview "Level" card shows badge instead of text label
+    const levelEl = document.getElementById('sLevel');
+    if (levelEl) {
+        levelEl.innerHTML = '';
+        if (badge.src) {
+            const b2 = badge.cloneNode(true);
+            levelEl.appendChild(b2);
+        } else {
+            levelEl.textContent = String(s.level || 1);
+        }
+    }
+
     // Progress
     document.getElementById('sRank').textContent = s.rank;
     document.getElementById('sNextRank').textContent = s.nextRank || 'Max';
     document.getElementById('sProgress').style.width = `${s.progress}%`;
     
     if (s.nextRank) {
-        document.getElementById('sScoreToNext').textContent = s.scoreToNext || 0;
+        const n = Number(s.scoreToNext);
+        document.getElementById('sScoreToNext').textContent = Number.isFinite(n) ? String(Math.max(0, Math.ceil(n))) : '0';
     } else {
         document.getElementById('sScoreToNext').parentElement.style.display = 'none';
     }

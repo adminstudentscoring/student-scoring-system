@@ -1880,7 +1880,9 @@ function getRankInfo(score) {
         maxScore: currentRank.maxScore,
         progress: Math.min(100, Math.max(0, progress)),
         nextRank: nextRank ? nextRank.name : null,
-        scoreToNext: nextRank ? nextRank.maxScore - score : 0
+        // Points needed to reach the next rank threshold (end of current rank range).
+        // Example: Silver maxScore=200 → if score=150, need 50 more points.
+        scoreToNext: nextRank && Number.isFinite(currentRank.maxScore) ? Math.max(0, currentRank.maxScore - score) : 0
       };
     }
   }
