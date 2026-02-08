@@ -855,7 +855,14 @@ function drawUnit(ctx, unit, now) {
     // hp
     const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
     // bring HP closer to sprite
-    drawHpBar(ctx, x, y + h / 2 + 6, Math.round(86 * 1.2), 9, pct);
+    const hpW = Math.round(86 * 1.2);
+    const hpH = 9;
+    const hpX = x;
+    const hpY = y + h / 2 + 6;
+    drawHpBar(ctx, hpX, hpY, hpW, hpH, pct);
+    // statuses to the right of HP bar
+    const statuses = mfExtractStatuses(unit.raw || unit);
+    drawStatusIcons(ctx, hpX + hpW / 2 + 8, hpY, statuses);
 
     ctx.restore();
 }
@@ -882,6 +889,7 @@ function drawBattleEntities(ctx, stageW, stageH) {
             name: m.name,
             currentHP: m.currentHP,
             maxHP: m.maxHP,
+            raw: m,
             imgSrc: imageSrcForFile(monsterImageFileByType(m.type))
         })),
         monstersBaseX,
@@ -899,6 +907,7 @@ function drawBattleEntities(ctx, stageW, stageH) {
             name: p.studentName,
             currentHP: p.currentHP,
             maxHP: p.maxHP,
+            raw: p,
             imgSrc: imageSrcForFile(classImageFileById(p.characterClass))
         })),
         playersBaseX,
@@ -975,52 +984,117 @@ function mfSkillTargetType(skill) {
     return 'monster';
 }
 
+function mfStatusIcon(status) {
+    const t = String(status?.type || '').trim().toLowerCase();
+    if (!t) return null;
+    if (t === 'poison') return { key: 'poison', ch: '☠️' };
+    if (t === 'bleed' || t === 'bleeding_claw') return { key: 'bleed', ch: '🩸' };
+    if (t === 'silence') return { key: 'silence', ch: '🤫' };
+    if (t === 'stun') return { key: 'stun', ch: '💫' };
+    if (t === 'freeze') return { key: 'freeze', ch: '❄️' };
+    if (t === 'burn') return { key: 'burn', ch: '🔥' };
+    if (t === 'regen') return { key: 'regen', ch: '💚' };
+    if (t === 'attack') return { key: 'atkdown', ch: '⬇️' };
+    return { key: t, ch: t.slice(0, 1).toUpperCase() };
+}
+
+function mfExtractStatuses(entity) {
+    const arr = Array.isArray(entity?.statuses) ? entity.statuses : [];
+    // Deduplicate by type
+    const seen = new Set();
+    const out = [];
+    for (const s of arr) {
+        const t = String(s?.type || '').trim().toLowerCase();
+        if (!t || seen.has(t)) continue;
+        seen.add(t);
+        out.push(s);
+        if (out.length >= 6) break;
+    }
+    return out;
+}
+
+function drawStatusIcons(ctx, xRight, yCenter, statuses) {
+    const list = Array.isArray(statuses) ? statuses : [];
+    if (!list.length) return;
+    const size = 14;
+    const gap = 4;
+    let x = xRight;
+    for (let i = 0; i < list.length; i++) {
+        const icon = mfStatusIcon(list[i]);
+        if (!icon) continue;
+        ctx.save();
+        ctx.font = '900 12px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // subtle background chip
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        const r = 6;
+        const left = x + i * (size + gap);
+        const top = yCenter - size / 2;
+        // rounded rect
+        ctx.moveTo(left + r, top);
+        ctx.arcTo(left + size, top, left + size, top + size, r);
+        ctx.arcTo(left + size, top + size, left, top + size, r);
+        ctx.arcTo(left, top + size, left, top, r);
+        ctx.arcTo(left, top, left + size, top, r);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.fillText(String(icon.ch || ''), left + size / 2, yCenter + 0.5);
+        ctx.restore();
+    }
+}
+
 function mfRenderBattleHud() {
     const hud = mfGetHudEl();
     const stage = mfGetStageEl();
     if (!hud || !stage || !gameState) return;
 
-    const selectedId = mfBattleUi.selectedPlayerId;
-    const player = selectedId ? (gameState.players || []).find(p => p && p.studentId === selectedId) : null;
-    const unit = selectedId ? (mfScene.units || []).find(u => u && u.kind === 'player' && u.id === selectedId) : null;
-
-    if (!player || !unit) {
-        hud.innerHTML = '';
-        stage.classList.remove('mf-targeting');
-        return;
-    }
+    const selectedPlayerId = mfBattleUi.selectedPlayerId;
+    const selectedMonsterId = mfBattleUi.selectedMonsterId;
+    const player = selectedPlayerId ? (gameState.players || []).find(p => p && p.studentId === selectedPlayerId) : null;
+    const playerUnit = selectedPlayerId ? (mfScene.units || []).find(u => u && u.kind === 'player' && u.id === selectedPlayerId) : null;
+    const monster = selectedMonsterId ? (gameState.monsters || []).find(m => m && m.id === selectedMonsterId) : null;
+    const monsterUnit = selectedMonsterId ? (mfScene.units || []).find(u => u && u.kind === 'monster' && u.id === selectedMonsterId) : null;
 
     const stageW = stage.clientWidth || 1;
     const stageH = stage.clientHeight || 1;
 
-    const draftPts = mfBattleUi.ptsDraft[selectedId];
-    const ptsValue = Number.isFinite(Number(draftPts)) ? Number(draftPts) : (Number(player.puzzlePoints) || 0);
+    const parts = [];
 
-    const activeSkills = Array.isArray(player.skills)
-        ? player.skills.filter(s => s && s.type === 'active')
-        : [];
-    const skillA = activeSkills[0] || null;
-    const skillB = activeSkills[1] || null;
+    // Player panel (actions)
+    if (player && playerUnit) {
+        const canAct = !!(gameState.phase === 'player_turn' && player.isAlive && !player.hasActed);
+        const draftPts = mfBattleUi.ptsDraft[selectedPlayerId];
+        const ptsValue = Number.isFinite(Number(draftPts)) ? Number(draftPts) : (Number(player.puzzlePoints) || 0);
 
-    const cd = (sid) => {
-        const v = player.skillCooldowns && sid ? player.skillCooldowns[sid] : 0;
-        return Number(v) || 0;
-    };
+        const activeSkills = Array.isArray(player.skills)
+            ? player.skills.filter(s => s && s.type === 'active')
+            : [];
+        const skillA = activeSkills[0] || null;
+        const skillB = activeSkills[1] || null;
 
-    const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedId ? mfBattleUi.targeting : null;
+        const cd = (sid) => {
+            const v = player.skillCooldowns && sid ? player.skillCooldowns[sid] : 0;
+            return Number(v) || 0;
+        };
 
-    // Panel position: near the selected player sprite (to the RIGHT)
-    const panelW = 420;
-    const panelH = 210;
-    const rawLeft = unit.x + (unit.w / 2) + 12;
-    const rawTop = unit.y - (unit.h / 2) - 8;
-    const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
-    const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
+        const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedPlayerId ? mfBattleUi.targeting : null;
 
-    const aCd = skillA ? cd(skillA.id) : 0;
-    const bCd = skillB ? cd(skillB.id) : 0;
+        // Panel position: near the selected player sprite (to the RIGHT)
+        const panelW = 420;
+        const panelH = 220;
+        const rawLeft = playerUnit.x + (playerUnit.w / 2) + 12;
+        const rawTop = playerUnit.y - (playerUnit.h / 2) - 8;
+        const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
+        const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
 
-    const renderSkillRow = ({ kind, emoji, title, descTop, descMid, descBot, disabled, act, skillId, cdValue }) => {
+        const aCd = skillA ? cd(skillA.id) : 0;
+        const bCd = skillB ? cd(skillB.id) : 0;
+
+        const renderSkillRow = ({ kind, emoji, title, descTop, descMid, descBot, disabled, act, skillId, cdValue }) => {
         const cdChip = cdValue > 0 ? `<span class="mf-action-cd">${escapeHtml(String(cdValue))}</span>` : '';
         return `
             <div class="mf-skill-row ${disabled ? 'is-disabled' : ''}">
@@ -1035,58 +1109,59 @@ function mfRenderBattleHud() {
                 </div>
             </div>
         `;
-    };
+        };
 
-    const baseCd = (s) => (s && typeof s.cooldown === 'number') ? s.cooldown : 0;
-    const rows = [];
-    rows.push(renderSkillRow({
-        kind: 'attack',
-        emoji: '⚔️',
-        title: 'Attack',
-        descMid: 'Basic',
-        descBot: 'Attack a monster',
-        disabled: false,
-        act: 'attack',
-        cdValue: 0
-    }));
-    if (skillA) {
+        const baseCd = (s) => (s && typeof s.cooldown === 'number') ? s.cooldown : 0;
+        const rows = [];
         rows.push(renderSkillRow({
-            kind: skillA.id,
-            emoji: skillA.emoji || '✨',
-            title: skillA.name || 'Skill',
-            descMid: `${skillA.type || 'active'}${baseCd(skillA) ? `  |  CD ${baseCd(skillA)}` : ''}${aCd > 0 ? `  (now ${aCd})` : ''}`,
-            descBot: skillA.description || '',
-            disabled: aCd > 0,
-            act: 'skill',
-            skillId: skillA.id,
-            cdValue: aCd
+            kind: 'attack',
+            emoji: '⚔️',
+            title: 'Attack',
+            descMid: 'Basic',
+            descBot: 'Attack a monster',
+            disabled: !canAct,
+            act: 'attack',
+            cdValue: 0
         }));
-    }
-    if (skillB) {
-        rows.push(renderSkillRow({
-            kind: skillB.id,
-            emoji: skillB.emoji || '✨',
-            title: skillB.name || 'Skill',
-            descMid: `${skillB.type || 'active'}${baseCd(skillB) ? `  |  CD ${baseCd(skillB)}` : ''}${bCd > 0 ? `  (now ${bCd})` : ''}`,
-            descBot: skillB.description || '',
-            disabled: bCd > 0,
-            act: 'skill',
-            skillId: skillB.id,
-            cdValue: bCd
-        }));
-    }
+        if (skillA) {
+            rows.push(renderSkillRow({
+                kind: skillA.id,
+                emoji: skillA.emoji || '✨',
+                title: skillA.name || 'Skill',
+                descMid: `${skillA.type || 'active'}${baseCd(skillA) ? `  |  CD ${baseCd(skillA)}` : ''}${aCd > 0 ? `  (now ${aCd})` : ''}`,
+                descBot: skillA.description || '',
+                disabled: !canAct || aCd > 0,
+                act: 'skill',
+                skillId: skillA.id,
+                cdValue: aCd
+            }));
+        }
+        if (skillB) {
+            rows.push(renderSkillRow({
+                kind: skillB.id,
+                emoji: skillB.emoji || '✨',
+                title: skillB.name || 'Skill',
+                descMid: `${skillB.type || 'active'}${baseCd(skillB) ? `  |  CD ${baseCd(skillB)}` : ''}${bCd > 0 ? `  (now ${bCd})` : ''}`,
+                descBot: skillB.description || '',
+                disabled: !canAct || bCd > 0,
+                act: 'skill',
+                skillId: skillB.id,
+                cdValue: bCd
+            }));
+        }
 
-    hud.innerHTML = `
-        <div class="mf-action-panel" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
+        parts.push(`
+        <div class="mf-action-panel" data-mf-panel="player" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
             <div class="mf-action-panel-title">
                 <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
                 <button class="mf-action-panel-close" type="button" data-mf="close">×</button>
             </div>
+            ${player.hasActed ? `<div class="mf-action-taken">✓ Action Taken</div>` : ''}
             <div class="mf-action-grid">
                 <div class="mf-action-left">
                     <div class="mf-action-pts">
                         <div class="mf-action-pts-label">Pts</div>
-                        <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" />
+                        <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
                     </div>
                 </div>
                 <div class="mf-action-right">
@@ -1094,11 +1169,63 @@ function mfRenderBattleHud() {
                 </div>
             </div>
         </div>
-    `;
+        `);
 
-    // Toggle targeting cursor
-    if (targeting) stage.classList.add('mf-targeting');
-    else stage.classList.remove('mf-targeting');
+        // Toggle targeting cursor
+        if (targeting) stage.classList.add('mf-targeting');
+        else stage.classList.remove('mf-targeting');
+    }
+
+    // Monster panel (info)
+    if (monster && monsterUnit) {
+        const panelW = 420;
+        const panelH = 240;
+        const rawLeft = monsterUnit.x - (monsterUnit.w / 2) - 12 - panelW;
+        const rawTop = monsterUnit.y - (monsterUnit.h / 2) - 8;
+        const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
+        const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
+
+        // skills from instance fallback to type template
+        const mt = (typeof getMonsterTypes === 'function') ? (getMonsterTypes().find(t => t && t.id === monster.type) || null) : null;
+        const skills = Array.isArray(monster.skills) && monster.skills.length ? monster.skills : (Array.isArray(mt?.skills) ? mt.skills : []);
+        const actives = Array.isArray(skills) ? skills.filter(s => s && s.type === 'active') : [];
+
+        const rows = actives.slice(0, 3).map(s => {
+            const base = (typeof s.cooldown === 'number') ? s.cooldown : 0;
+            return `
+                <div class="mf-monster-skill">
+                    <div class="mf-monster-skill-icon">${escapeHtml(String(s.emoji || '✨'))}</div>
+                    <div class="mf-monster-skill-body">
+                        <div class="mf-monster-skill-name">${escapeHtml(String(s.name || 'Skill'))}</div>
+                        <div class="mf-monster-skill-meta">${escapeHtml(`${s.type || 'active'}${base ? `  |  CD ${base}` : ''}`)}</div>
+                        <div class="mf-monster-skill-desc">${escapeHtml(String(s.description || ''))}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        parts.push(`
+            <div class="mf-action-panel mf-monster-panel" data-mf-panel="monster" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
+                <div class="mf-action-panel-title">
+                    <div class="mf-action-panel-name">${escapeHtml(String(monster.name || 'Monster'))}</div>
+                    <button class="mf-action-panel-close" type="button" data-mf="closeMonster">×</button>
+                </div>
+                <div class="mf-monster-stats">
+                    <div class="mf-monster-stat"><span>ATK</span><b>${escapeHtml(String(monster.attack || 0))}</b></div>
+                    <div class="mf-monster-stat"><span>HP</span><b>${escapeHtml(String(monster.currentHP || 0))}/${escapeHtml(String(monster.maxHP || 0))}</b></div>
+                </div>
+                <div class="mf-monster-skill-list">
+                    ${rows || '<div class="mf-monster-skill-empty">No skills</div>'}
+                </div>
+            </div>
+        `);
+    }
+
+    hud.innerHTML = parts.join('');
+    if (!parts.length) {
+        hud.innerHTML = '';
+        stage.classList.remove('mf-targeting');
+    }
 }
 
 function mfBindBattleCanvasInput() {
@@ -1122,10 +1249,16 @@ function mfBindBattleCanvasInput() {
                 mfBattleUi.selectedPlayerId = hit.id;
                 mfRenderBattleHud();
             } else {
-                // Click empty: close panel
-                mfBattleUi.selectedPlayerId = null;
-                mfBattleUi.targeting = null;
-                mfRenderBattleHud();
+                if (hit && hit.kind === 'monster') {
+                    mfBattleUi.selectedMonsterId = hit.id;
+                    mfRenderBattleHud();
+                } else {
+                    // Click empty: close panels
+                    mfBattleUi.selectedPlayerId = null;
+                    mfBattleUi.selectedMonsterId = null;
+                    mfBattleUi.targeting = null;
+                    mfRenderBattleHud();
+                }
             }
             return;
         }
@@ -1178,12 +1311,18 @@ function mfBindBattleCanvasInput() {
             mfRenderBattleHud();
             return;
         }
+        if (kind === 'closeMonster') {
+            mfBattleUi.selectedMonsterId = null;
+            mfRenderBattleHud();
+            return;
+        }
 
         if (kind === 'act') {
             const actorId = mfBattleUi.selectedPlayerId;
             if (!actorId) return;
             const player = (gameState.players || []).find(p => p && p.studentId === actorId);
             if (!player || !player.isAlive) return;
+            if (!(gameState.phase === 'player_turn') || player.hasActed) return;
 
             const act = btn.getAttribute('data-act');
             if (act === 'attack') {

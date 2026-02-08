@@ -564,6 +564,18 @@ body.mf-bg-image {
     margin-bottom: 10px;
 }
 
+.mf-action-taken {
+    margin: 6px 0 10px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    width: fit-content;
+    background: rgba(34, 197, 94, 0.20);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: rgba(255,255,255,0.92);
+    font-weight: 900;
+    font-size: 0.85rem;
+}
+
 /* New HUD layout: left pts, right skills+descriptions */
 .mf-action-grid {
     display: grid;
@@ -572,6 +584,92 @@ body.mf-bg-image {
     align-items: stretch;
 }
 
+.mf-monster-panel {
+    width: 420px;
+}
+
+.mf-monster-stats {
+    display: flex;
+    gap: 10px;
+    margin: 8px 0 10px;
+}
+
+.mf-monster-stat {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.16);
+    border: 1px solid rgba(255,255,255,0.12);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.mf-monster-stat span {
+    font-size: 0.78rem;
+    opacity: 0.9;
+    font-weight: 900;
+}
+
+.mf-monster-stat b {
+    font-size: 0.98rem;
+    font-weight: 900;
+}
+
+.mf-monster-skill-list {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+}
+
+.mf-monster-skill {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 10px;
+    align-items: start;
+}
+
+.mf-monster-skill-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(0,0,0,0.20);
+    display: grid;
+    place-items: center;
+    font-size: 1.1rem;
+}
+
+.mf-monster-skill-name {
+    font-weight: 900;
+    font-size: 0.92rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mf-monster-skill-meta {
+    font-size: 0.78rem;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mf-monster-skill-desc {
+    font-size: 0.82rem;
+    opacity: 0.92;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mf-monster-skill-empty {
+    opacity: 0.9;
+    font-size: 0.9rem;
+    padding: 6px 0;
+}
 .mf-action-left {
     display: grid;
     place-items: center;
