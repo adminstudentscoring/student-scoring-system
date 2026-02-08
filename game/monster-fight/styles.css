@@ -505,6 +505,17 @@ body.mf-bg-image {
     overflow: visible;
 }
 
+/* When viewport is narrower, reserve space on the right for the outside skill rail,
+   so the whole player card + rail shifts left and stays visible. */
+@media (max-width: 1200px) {
+    .players-section-vertical {
+        padding-right: 150px;
+    }
+    .mf-skill-rail-right {
+        right: -90px;
+    }
+}
+
 @media (max-width: 980px) {
     .battle-layout-horizontal {
         grid-template-columns: 1fr;
