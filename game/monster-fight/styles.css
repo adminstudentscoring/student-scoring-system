@@ -407,6 +407,29 @@ body.mf-bg-image {
     border-bottom: 2px solid #e0e0e0;
 }
 
+/* Canvas battle stage */
+.mf-battle-stage {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    min-height: 520px;
+}
+
+.mf-battle-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.mf-battle-stage .battle-layout-horizontal {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    padding: 18px 0;
+}
+
 .turn-info {
     display: flex;
     gap: 15px;

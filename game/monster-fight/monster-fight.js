@@ -705,6 +705,83 @@ function bindMonstersScrollIndicator() {
     }, { passive: true });
 }
 
+// ----------------------------
+// Canvas battle scene (map only for now)
+// ----------------------------
+let mfCanvasToken = 0;
+let mfCanvasRaf = 0;
+const mfImgCache = new Map(); // src -> { img, ok }
+
+function loadImg(src) {
+    const s = String(src || '').trim();
+    if (!s) return Promise.resolve(null);
+    const cached = mfImgCache.get(s);
+    if (cached && cached.ok && cached.img?.complete) return Promise.resolve(cached.img);
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            mfImgCache.set(s, { img, ok: true });
+            resolve(img);
+        };
+        img.onerror = () => {
+            mfImgCache.set(s, { img, ok: false });
+            resolve(null);
+        };
+        img.src = s;
+    });
+}
+
+async function initBattleCanvas() {
+    const canvas = document.getElementById('mfBattleCanvas');
+    const stage = canvas?.closest('.mf-battle-stage');
+    if (!canvas || !stage) return;
+
+    const token = ++mfCanvasToken;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const mapSrc = imageSrcForFile('Battle/Map.jpg') || 'images/Battle/Map.jpg';
+    const mapImg = await loadImg(mapSrc);
+    if (token !== mfCanvasToken) return; // cancelled by re-render
+
+    const resize = () => {
+        const r = stage.getBoundingClientRect();
+        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        canvas.width = Math.max(1, Math.floor(r.width * dpr));
+        canvas.height = Math.max(1, Math.floor(r.height * dpr));
+        canvas.style.width = `${Math.max(1, Math.floor(r.width))}px`;
+        canvas.style.height = `${Math.max(1, Math.floor(r.height))}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+
+    const draw = () => {
+        if (token !== mfCanvasToken) return;
+        const w = stage.clientWidth;
+        const h = stage.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+
+        if (mapImg) {
+            // cover draw
+            const iw = mapImg.width;
+            const ih = mapImg.height;
+            const s = Math.max(w / iw, h / ih);
+            const dw = iw * s;
+            const dh = ih * s;
+            const dx = (w - dw) / 2;
+            const dy = (h - dh) / 2;
+            ctx.drawImage(mapImg, dx, dy, dw, dh);
+        }
+
+        mfCanvasRaf = requestAnimationFrame(draw);
+    };
+
+    if (mfCanvasRaf) cancelAnimationFrame(mfCanvasRaf);
+    mfCanvasRaf = requestAnimationFrame(draw);
+}
+
 // Render game based on current phase
 let lastRenderPhase = null;
 let renderDebounceTimeout = null;
@@ -1701,19 +1778,23 @@ function renderBattleMode() {
                 </div>
             </div>
             
-            <div class="battle-layout-horizontal">
-                <div class="monsters-section">
-                    <div class="monsters-grid">
-                        ${gameState.monsters && gameState.monsters.length > 0 
-                            ? gameState.monsters.map(monster => renderMonsterCard(monster)).join('')
-                            : '<p>No monsters yet. Initialize battle to start.</p>'
-                        }
+            <div class="mf-battle-stage">
+                <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
+
+                <div class="battle-layout-horizontal">
+                    <div class="monsters-section">
+                        <div class="monsters-grid">
+                            ${gameState.monsters && gameState.monsters.length > 0 
+                                ? gameState.monsters.map(monster => renderMonsterCard(monster)).join('')
+                                : '<p>No monsters yet. Initialize battle to start.</p>'
+                            }
+                        </div>
                     </div>
-                </div>
-                
-                <div class="players-section-vertical">
-                    <div class="players-list-vertical">
-                        ${gameState.players.map(player => renderPlayerCardWithActions(player, isPlayerTurn)).join('')}
+                    
+                    <div class="players-section-vertical">
+                        <div class="players-list-vertical">
+                            ${gameState.players.map(player => renderPlayerCardWithActions(player, isPlayerTurn)).join('')}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1758,6 +1839,9 @@ function renderBattleMode() {
 
     // Bind scroll indicator for hidden scrollbar (monsters list).
     setTimeout(bindMonstersScrollIndicator, 0);
+
+    // Draw map background on canvas (step 1 of canvas battle scene).
+    setTimeout(initBattleCanvas, 0);
 }
 
 // Render player card with all actions integrated (puzzle input + actions in player_turn)
