@@ -728,7 +728,8 @@ const mfDeathFxByKey = new Map();   // key -> { t0 }
 const mfBattleUi = {
     selectedPlayerId: null,
     targeting: null, // { actorId, action: 'attack'|'skill', skillId?, targetType: 'monster'|'ally_alive'|'ally_dead' }
-    ptsDraft: {} // studentId -> number
+    ptsDraft: {}, // studentId -> number
+    hoveredKey: null
 };
 
 function loadImg(src) {
@@ -851,20 +852,10 @@ function drawUnit(ctx, unit, now) {
         ctx.fill();
     }
 
-    // name
-    ctx.font = '700 15px Segoe UI, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.lineWidth = 4;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    const nameY = y - h / 2 - 10;
-    ctx.strokeText(String(name || ''), x, nameY);
-    ctx.fillText(String(name || ''), x, nameY);
-
     // hp
     const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
-    drawHpBar(ctx, x, y + h / 2 + 12, Math.round(86 * 1.2), 9, pct);
+    // bring HP closer to sprite
+    drawHpBar(ctx, x, y + h / 2 + 6, Math.round(86 * 1.2), 9, pct);
 
     ctx.restore();
 }
@@ -930,6 +921,24 @@ function drawBattleEntities(ctx, stageW, stageH) {
     // Draw monsters then players (players on top)
     monsters.forEach(u => drawUnit(ctx, u, now));
     players.forEach(u => drawUnit(ctx, u, now));
+
+    // Hover name label (semi-transparent, centered on sprite)
+    const hoveredKey = mfBattleUi?.hoveredKey;
+    if (hoveredKey) {
+        const u = (mfScene.units || []).find(it => it && it.key === hoveredKey);
+        if (u && u.name) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '900 14px Segoe UI, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.78)';
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = 4;
+            ctx.strokeText(String(u.name), u.x, u.y);
+            ctx.fillText(String(u.name), u.x, u.y);
+            ctx.restore();
+        }
+    }
 }
 
 function mfGetStageEl() {
@@ -999,22 +1008,73 @@ function mfRenderBattleHud() {
     };
 
     const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedId ? mfBattleUi.targeting : null;
-    const hint = targeting
-        ? (targeting.targetType === 'monster' ? 'Click a monster target' :
-            targeting.targetType === 'ally_alive' ? 'Click a living ally' :
-            'Click a fallen ally')
-        : 'Pick an action, then click a target';
 
-    // Panel position: near the selected player sprite (to the left, since players on right side)
-    const panelW = 240;
-    const panelH = 146;
-    const rawLeft = unit.x - (unit.w / 2) - 12 - panelW;
-    const rawTop = unit.y - (unit.h / 2) - 10;
+    // Panel position: near the selected player sprite (to the RIGHT)
+    const panelW = 420;
+    const panelH = 210;
+    const rawLeft = unit.x + (unit.w / 2) + 12;
+    const rawTop = unit.y - (unit.h / 2) - 8;
     const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
     const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
 
     const aCd = skillA ? cd(skillA.id) : 0;
     const bCd = skillB ? cd(skillB.id) : 0;
+
+    const renderSkillRow = ({ kind, emoji, title, descTop, descMid, descBot, disabled, act, skillId, cdValue }) => {
+        const cdChip = cdValue > 0 ? `<span class="mf-action-cd">${escapeHtml(String(cdValue))}</span>` : '';
+        return `
+            <div class="mf-skill-row ${disabled ? 'is-disabled' : ''}">
+                <button class="mf-action-btn ${disabled ? 'is-disabled' : ''}" type="button"
+                        data-mf="act" data-act="${escapeHtml(act)}" ${skillId ? `data-skill="${escapeHtml(String(skillId))}"` : ''}>
+                    ${escapeHtml(String(emoji || '✨'))}${cdChip}
+                </button>
+                <div class="mf-skill-desc">
+                    <div class="mf-skill-desc-top">${escapeHtml(String(title || kind || ''))}</div>
+                    <div class="mf-skill-desc-mid">${escapeHtml(String(descMid || descTop || ''))}</div>
+                    <div class="mf-skill-desc-bot">${escapeHtml(String(descBot || ''))}</div>
+                </div>
+            </div>
+        `;
+    };
+
+    const baseCd = (s) => (s && typeof s.cooldown === 'number') ? s.cooldown : 0;
+    const rows = [];
+    rows.push(renderSkillRow({
+        kind: 'attack',
+        emoji: '⚔️',
+        title: 'Attack',
+        descMid: 'Basic',
+        descBot: 'Attack a monster',
+        disabled: false,
+        act: 'attack',
+        cdValue: 0
+    }));
+    if (skillA) {
+        rows.push(renderSkillRow({
+            kind: skillA.id,
+            emoji: skillA.emoji || '✨',
+            title: skillA.name || 'Skill',
+            descMid: `${skillA.type || 'active'}${baseCd(skillA) ? `  |  CD ${baseCd(skillA)}` : ''}${aCd > 0 ? `  (now ${aCd})` : ''}`,
+            descBot: skillA.description || '',
+            disabled: aCd > 0,
+            act: 'skill',
+            skillId: skillA.id,
+            cdValue: aCd
+        }));
+    }
+    if (skillB) {
+        rows.push(renderSkillRow({
+            kind: skillB.id,
+            emoji: skillB.emoji || '✨',
+            title: skillB.name || 'Skill',
+            descMid: `${skillB.type || 'active'}${baseCd(skillB) ? `  |  CD ${baseCd(skillB)}` : ''}${bCd > 0 ? `  (now ${bCd})` : ''}`,
+            descBot: skillB.description || '',
+            disabled: bCd > 0,
+            act: 'skill',
+            skillId: skillB.id,
+            cdValue: bCd
+        }));
+    }
 
     hud.innerHTML = `
         <div class="mf-action-panel" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
@@ -1022,21 +1082,16 @@ function mfRenderBattleHud() {
                 <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
                 <button class="mf-action-panel-close" type="button" data-mf="close">×</button>
             </div>
-            <div class="mf-action-panel-row">
-                <div class="mf-action-panel-pts">
-                    <label>Pts</label>
-                    <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" />
+            <div class="mf-action-grid">
+                <div class="mf-action-left">
+                    <div class="mf-action-pts">
+                        <div class="mf-action-pts-label">Pts</div>
+                        <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" />
+                    </div>
                 </div>
-                <div class="mf-action-panel-hint">${escapeHtml(hint)}</div>
-            </div>
-            <div class="mf-action-panel-actions">
-                <button class="mf-action-btn" type="button" data-mf="act" data-act="attack" title="Attack">⚔️</button>
-                <button class="mf-action-btn ${skillA && aCd <= 0 ? '' : 'is-disabled'}" type="button" data-mf="act" data-act="skill" data-skill="${escapeHtml(String(skillA?.id || ''))}" title="${escapeHtml(String(skillA?.name || 'Skill'))}">
-                    ${escapeHtml(String(skillA?.emoji || '✨'))}${aCd > 0 ? `<span class="mf-action-cd">${aCd}</span>` : ''}
-                </button>
-                <button class="mf-action-btn ${skillB && bCd <= 0 ? '' : 'is-disabled'}" type="button" data-mf="act" data-act="skill" data-skill="${escapeHtml(String(skillB?.id || ''))}" title="${escapeHtml(String(skillB?.name || 'Skill'))}">
-                    ${escapeHtml(String(skillB?.emoji || '✨'))}${bCd > 0 ? `<span class="mf-action-cd">${bCd}</span>` : ''}
-                </button>
+                <div class="mf-action-right">
+                    ${rows.join('')}
+                </div>
             </div>
         </div>
     `;
@@ -1099,6 +1154,14 @@ function mfBindBattleCanvasInput() {
     };
 
     canvas.addEventListener('click', onCanvasClick);
+
+    canvas.addEventListener('mousemove', (ev) => {
+        const r = canvas.getBoundingClientRect();
+        const stageX = ev.clientX - r.left;
+        const stageY = ev.clientY - r.top;
+        const hit = mfHitTestUnit(stageX, stageY);
+        mfBattleUi.hoveredKey = hit ? hit.key : null;
+    }, { passive: true });
 
     // HUD interactions
     hud.addEventListener('click', (ev) => {
