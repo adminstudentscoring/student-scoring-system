@@ -74,12 +74,20 @@ body.mf-bg-image {
     top: 0;
     z-index: 2500;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px 12px;
     background: #ffffff;
     border-bottom: 1px solid #e5e7eb;
     margin: -20px -20px 18px;
+}
+
+.mf-topbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
 }
 
 .mf-topbar-left {
@@ -102,6 +110,49 @@ body.mf-bg-image {
     display: flex;
     justify-content: center;
     margin-top: 18px;
+}
+
+/* Top bar action-log bar (like screenshot) */
+.mf-topbar-bar {
+    width: 100%;
+    background: #4b5563;
+    color: rgba(255,255,255,0.95);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mf-topbar-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.mf-topbar-bar-title {
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.mf-topbar-bar-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.mf-topbar-logdrawer {
+    width: 100%;
+    margin-top: -6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(17, 24, 39, 0.78);
+    color: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(8px);
 }
 
 /* Character selection: make player cards wider */
@@ -412,7 +463,9 @@ body.mf-bg-image {
     position: relative;
     border-radius: 18px;
     overflow: hidden;
-    min-height: 520px;
+    width: min(1100px, calc(100vw - 40px));
+    height: clamp(520px, 62vh, 640px);
+    margin: 12px auto 0;
 }
 
 .mf-battle-canvas {

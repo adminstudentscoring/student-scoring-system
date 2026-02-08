@@ -2195,24 +2195,39 @@ function renderBattleMode() {
     container.innerHTML = `
         <div class="game-screen">
             <div class="mf-topbar">
-                <div class="mf-topbar-left">
-                    <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
-                    <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
-                </div>
-                <div class="mf-topbar-right">
-                    <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
-                </div>
-            </div>
-            <div class="battle-header">
-                <div class="battle-header-actions">
-                    <div class="turn-info">
-                        <span>Turn: ${gameState.currentTurn}</span>
-                        <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
-                            ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
-                        </span>
+                <div class="mf-topbar-row mf-topbar-row1">
+                    <div class="mf-topbar-left">
+                        <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
+                        <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
                     </div>
-                    <button class="btn btn-danger" onclick="terminateGame()">⛔ Terminate Game</button>
+                    <div class="mf-topbar-right">
+                        <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                    </div>
                 </div>
+
+                <div class="mf-topbar-bar">
+                    <div class="mf-topbar-bar-left">
+                        <div class="mf-topbar-bar-title">Action Log</div>
+                        <div class="mf-topbar-bar-controls">
+                            <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
+                                ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
+                            </span>
+                            <button class="btn btn-danger btn-sm" onclick="terminateGame()">⛔ Terminate Game</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-secondary" onclick="toggleActionLog()">${actionLogCollapsed ? 'Open' : 'Close'}</button>
+                </div>
+
+                ${!actionLogCollapsed ? `
+                    <div class="mf-topbar-logdrawer">
+                        ${(gameState.actionLog && gameState.actionLog.length > 0)
+                            ? gameState.actionLog.slice(-10).reverse().map(log => `
+                                <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
+                            `).join('')
+                            : '<div class="log-entry">No actions yet.</div>'
+                        }
+                    </div>
+                ` : ''}
             </div>
             
             <div class="mf-battle-stage">
@@ -2241,20 +2256,6 @@ function renderBattleMode() {
                 </div>
             ` : ''}
             
-            <div class="action-log ${actionLogCollapsed ? 'is-collapsed' : ''}">
-                <div class="action-log-header">
-                    <h3 style="margin:0;">Action Log</h3>
-                    <button class="btn btn-sm btn-secondary" onclick="toggleActionLog()">${actionLogCollapsed ? 'Open' : 'Minimize'}</button>
-                </div>
-                <div class="log-content" style="${actionLogCollapsed ? 'display:none;' : ''}">
-                    ${gameState.actionLog && gameState.actionLog.length > 0 
-                        ? gameState.actionLog.slice(-10).reverse().map(log => `
-                            <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
-                        `).join('')
-                        : '<p>No actions yet.</p>'
-                    }
-                </div>
-            </div>
         </div>
     `;
 
