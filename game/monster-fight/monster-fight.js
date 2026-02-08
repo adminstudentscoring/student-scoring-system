@@ -692,6 +692,19 @@ async function initMonsterFight() {
     }
 }
 
+function bindMonstersScrollIndicator() {
+    const host = document.querySelector('.monsters-section');
+    if (!host) return;
+    if (host.dataset.mfScrollBound === '1') return;
+    host.dataset.mfScrollBound = '1';
+    let t = null;
+    host.addEventListener('scroll', () => {
+        host.classList.add('is-scrolling');
+        if (t) clearTimeout(t);
+        t = setTimeout(() => host.classList.remove('is-scrolling'), 800);
+    }, { passive: true });
+}
+
 // Render game based on current phase
 let lastRenderPhase = null;
 let renderDebounceTimeout = null;
@@ -1742,6 +1755,9 @@ function renderBattleMode() {
             </div>
         </div>
     `;
+
+    // Bind scroll indicator for hidden scrollbar (monsters list).
+    setTimeout(bindMonstersScrollIndicator, 0);
 }
 
 // Render player card with all actions integrated (puzzle input + actions in player_turn)
@@ -1819,22 +1835,7 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
 
     return `
         <div class="player-card-full mf-player-card ${!player.isAlive ? 'defeated' : ''}">
-            <div class="mf-player-layout">
-                <div class="mf-skill-col" aria-label="Skills">
-                    ${allBtns.map((b) => `
-                        <button class="mf-skill-tile ${b.disabled ? 'is-disabled' : ''}"
-                                ${b.disabled ? 'disabled' : ''}
-                                ${b.onClick ? `onclick="${b.onClick}"` : ''}
-                                title="${escapeHtml(b.title)}">
-                            <span class="mf-skill-tile-icon">${escapeHtml(b.emoji || '')}</span>
-                            <span class="mf-skill-tile-name">${escapeHtml(b.name || '')}</span>
-                            ${b.cooldown > 0 ? `<span class="mf-skill-tile-cd">${escapeHtml(b.cooldown)}</span>` : ''}
-                            ${b.tip ? `<div class="mf-skill-tooltip">${b.tip.replace(/\n/g, '<br>')}</div>` : ''}
-                        </button>
-                    `).join('')}
-                </div>
-
-                <div class="mf-card-body">
+            <div class="mf-card-body">
                 <div class="mf-name">${escapeHtml(player.studentName)} ${renderStatusText(player)}</div>
 
                 <div class="mf-avatar-row">
@@ -1901,7 +1902,20 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
                         </div>
                     ` : ''}
                 </div>
-                </div>
+            </div>
+
+            <div class="mf-skill-rail-right" aria-label="Skills">
+                ${allBtns.map((b) => `
+                    <button class="mf-skill-tile mf-skill-side ${b.disabled ? 'is-disabled' : ''}"
+                            ${b.disabled ? 'disabled' : ''}
+                            ${b.onClick ? `onclick="${b.onClick}"` : ''}
+                            title="${escapeHtml(b.title)}">
+                        <span class="mf-skill-tile-icon">${escapeHtml(b.emoji || '')}</span>
+                        <span class="mf-skill-tile-name">${escapeHtml(b.name || '')}</span>
+                        ${b.cooldown > 0 ? `<span class="mf-skill-tile-cd">${escapeHtml(b.cooldown)}</span>` : ''}
+                        ${b.tip ? `<div class="mf-skill-tooltip">${b.tip.replace(/\n/g, '<br>')}</div>` : ''}
+                    </button>
+                `).join('')}
             </div>
         </div>
     `;
