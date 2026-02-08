@@ -115,10 +115,10 @@ body.mf-bg-image {
 /* Top bar action-log bar (like screenshot) */
 .mf-topbar-bar {
     width: 100%;
-    background: #4b5563;
-    color: rgba(255,255,255,0.95);
-    border-radius: 10px;
-    padding: 10px 12px;
+    background: transparent;
+    color: #111827;
+    border-radius: 12px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -132,11 +132,6 @@ body.mf-bg-image {
     min-width: 0;
 }
 
-.mf-topbar-bar-title {
-    font-weight: 900;
-    white-space: nowrap;
-}
-
 .mf-topbar-bar-controls {
     display: flex;
     align-items: center;
@@ -144,15 +139,45 @@ body.mf-bg-image {
     flex-wrap: wrap;
 }
 
-.mf-topbar-logdrawer {
-    width: 100%;
-    margin-top: -6px;
+.mf-topbar-pill {
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+    color: #111827;
+    border-radius: 999px;
+    height: 30px;
+    padding: 0 12px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.mf-topbar-pill:hover {
+    background: #e5e7eb;
+}
+
+/* Floating action log popover (scrollable) */
+.mf-topbar-logpopover {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: calc(100% - 10px);
     padding: 10px 12px;
-    border-radius: 12px;
-    background: rgba(17, 24, 39, 0.78);
+    border-radius: 14px;
+    background: rgba(17, 24, 39, 0.86);
     color: rgba(255,255,255,0.92);
     border: 1px solid rgba(255,255,255,0.14);
-    backdrop-filter: blur(8px);
+    box-shadow: 0 18px 36px rgba(0,0,0,0.30);
+    backdrop-filter: blur(10px);
+    max-height: 230px;
+    overflow: auto;
+    z-index: 2600;
+}
+
+.mf-topbar-logpopover .log-entry {
+    border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+
+.mf-topbar-logpopover .log-entry:last-child {
+    border-bottom: none;
 }
 
 /* Character selection: make player cards wider */
@@ -463,8 +488,10 @@ body.mf-bg-image {
     position: relative;
     border-radius: 18px;
     overflow: hidden;
-    width: min(1100px, calc(100vw - 40px));
-    height: clamp(520px, 62vh, 640px);
+    /* Target: 650px tall at 16:9 => 1156px wide. Shrink proportionally on smaller screens. */
+    width: min(1156px, calc(100vw - 40px));
+    aspect-ratio: 16 / 9;
+    height: auto;
     margin: 12px auto 0;
 }
 

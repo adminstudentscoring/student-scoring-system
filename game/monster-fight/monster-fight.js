@@ -127,7 +127,7 @@ let lastActionLogLength = 0;
 let actionQueue = [];
 let isShowingPopup = false;
 const POPUP_AUTO_CLOSE_MS = null;
-let actionLogCollapsed = false;
+let actionLogCollapsed = true; // default: hidden, open via topbar button
 let monsterTurnReplay = { active: false, pendingWsState: null, onDone: null };
 
 // Character selection UI state (client-only)
@@ -2207,19 +2207,18 @@ function renderBattleMode() {
 
                 <div class="mf-topbar-bar">
                     <div class="mf-topbar-bar-left">
-                        <div class="mf-topbar-bar-title">Action Log</div>
                         <div class="mf-topbar-bar-controls">
+                            <button class="mf-topbar-pill" type="button" onclick="toggleActionLog()">Action Log</button>
                             <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
                                 ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
                             </span>
                             <button class="btn btn-danger btn-sm" onclick="terminateGame()">⛔ Terminate Game</button>
                         </div>
                     </div>
-                    <button class="btn btn-sm btn-secondary" onclick="toggleActionLog()">${actionLogCollapsed ? 'Open' : 'Close'}</button>
                 </div>
 
                 ${!actionLogCollapsed ? `
-                    <div class="mf-topbar-logdrawer">
+                    <div class="mf-topbar-logpopover" role="dialog" aria-label="Action Log">
                         ${(gameState.actionLog && gameState.actionLog.length > 0)
                             ? gameState.actionLog.slice(-10).reverse().map(log => `
                                 <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
