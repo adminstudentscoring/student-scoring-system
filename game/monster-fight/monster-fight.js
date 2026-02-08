@@ -747,7 +747,8 @@ function getImgSync(src) {
 function layoutSide(list, baseX, sideSign, top, height) {
     const n = list.length;
     if (n === 0) return [];
-    const columns = n > 4 ? 2 : 1;
+    // Allow up to 5 units per side in one column. Split into 2 columns from 6+.
+    const columns = n > 5 ? 2 : 1;
     const rows = Math.ceil(n / columns);
     const yStep = height / (rows + 1);
     const colGap = 90;
@@ -786,8 +787,9 @@ function drawUnit(ctx, unit) {
         isMonster = false
     } = unit;
 
-    const w = 76;
-    const h = 76;
+    // +20% scale for sprites
+    const w = Math.round(76 * 1.2);
+    const h = Math.round(76 * 1.2);
     const img = getImgSync(imgSrc);
 
     ctx.save();
@@ -804,19 +806,19 @@ function drawUnit(ctx, unit) {
     }
 
     // name
-    ctx.font = '700 14px Segoe UI, sans-serif';
+    ctx.font = '700 15px Segoe UI, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 4;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    const nameY = y - h / 2 - 8;
+    const nameY = y - h / 2 - 10;
     ctx.strokeText(String(name || ''), x, nameY);
     ctx.fillText(String(name || ''), x, nameY);
 
     // hp
     const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
-    drawHpBar(ctx, x, y + h / 2 + 10, 86, 8, pct);
+    drawHpBar(ctx, x, y + h / 2 + 12, Math.round(86 * 1.2), 9, pct);
 
     ctx.restore();
 }
