@@ -713,6 +713,24 @@ let mfCanvasRaf = 0;
 let mfCanvasResizeHandler = null;
 const mfImgCache = new Map(); // src -> { img, ok }
 
+// Scene info for hit-testing + HUD anchoring (updated every draw)
+const mfScene = {
+    stageW: 0,
+    stageH: 0,
+    units: [] // [{ key, kind, id, x,y,w,h,isAlive,name }]
+};
+
+// Death visual FX state (alive -> dead: flash then grey/transparent)
+const mfLastAliveByKey = new Map(); // key -> boolean
+const mfDeathFxByKey = new Map();   // key -> { t0 }
+
+// Battle click UI state (canvas-driven)
+const mfBattleUi = {
+    selectedPlayerId: null,
+    targeting: null, // { actorId, action: 'attack'|'skill', skillId?, targetType: 'monster'|'ally_alive'|'ally_dead' }
+    ptsDraft: {} // studentId -> number
+};
+
 function loadImg(src) {
     const s = String(src || '').trim();
     if (!s) return Promise.resolve(null);
@@ -776,8 +794,9 @@ function drawHpBar(ctx, x, y, w, h, pct) {
     ctx.restore();
 }
 
-function drawUnit(ctx, unit) {
+function drawUnit(ctx, unit, now) {
     const {
+        key,
         x, y,
         imgSrc,
         name,
@@ -792,8 +811,35 @@ function drawUnit(ctx, unit) {
     const h = Math.round(76 * 1.2);
     const img = getImgSync(imgSrc);
 
+    // Track alive/dead transition for flash effect
+    if (key) {
+        const prevAlive = mfLastAliveByKey.get(key);
+        if (prevAlive === true && !isAlive) {
+            mfDeathFxByKey.set(key, { t0: now });
+        }
+        mfLastAliveByKey.set(key, !!isAlive);
+        if (isAlive) {
+            mfDeathFxByKey.delete(key);
+        }
+    }
+
     ctx.save();
-    if (!isAlive) ctx.globalAlpha = 0.45;
+
+    if (!isAlive) {
+        const fx = key ? mfDeathFxByKey.get(key) : null;
+        const age = fx ? (now - fx.t0) : 999999;
+        const flashMs = 520; // total flash window
+        if (fx && age < flashMs) {
+            // Flash a few times: alternate visibility
+            const t = Math.floor(age / 80);
+            ctx.globalAlpha = (t % 2 === 0) ? 1.0 : 0.15;
+        } else {
+            // Settled dead look
+            ctx.globalAlpha = 0.35;
+            // Canvas filter is supported in modern browsers; fallback is just alpha.
+            try { ctx.filter = 'grayscale(1)'; } catch {}
+        }
+    }
 
     // sprite
     if (img) {
@@ -825,8 +871,8 @@ function drawUnit(ctx, unit) {
 
 function drawBattleEntities(ctx, stageW, stageH) {
     if (!gameState) return;
-    const alivePlayers = Array.isArray(gameState.players) ? gameState.players.filter(p => p && p.isAlive) : [];
-    const aliveMonsters = Array.isArray(gameState.monsters) ? gameState.monsters.filter(m => m && m.isAlive) : [];
+    const playersAll = Array.isArray(gameState.players) ? gameState.players.filter(p => p) : [];
+    const monstersAll = Array.isArray(gameState.monsters) ? gameState.monsters.filter(m => m) : [];
 
     // Arena region: avoid top/bottom edges
     const top = 90;
@@ -837,9 +883,11 @@ function drawBattleEntities(ctx, stageW, stageH) {
     const playersBaseX = stageW * 0.66;
 
     const monsters = layoutSide(
-        aliveMonsters.map(m => ({
+        monstersAll.map(m => ({
+            key: `monster:${m.id}`,
             isMonster: true,
             isAlive: m.isAlive,
+            id: m.id,
             name: m.name,
             currentHP: m.currentHP,
             maxHP: m.maxHP,
@@ -852,9 +900,11 @@ function drawBattleEntities(ctx, stageW, stageH) {
     );
 
     const players = layoutSide(
-        alivePlayers.map(p => ({
+        playersAll.map(p => ({
+            key: `player:${p.studentId}`,
             isMonster: false,
             isAlive: p.isAlive,
+            id: p.studentId,
             name: p.studentName,
             currentHP: p.currentHP,
             maxHP: p.maxHP,
@@ -866,9 +916,249 @@ function drawBattleEntities(ctx, stageW, stageH) {
         arenaH
     );
 
+    // Save unit bounds for hit-testing/HUD anchoring (DOM coordinates)
+    const spriteW = Math.round(76 * 1.2);
+    const spriteH = Math.round(76 * 1.2);
+    mfScene.stageW = stageW;
+    mfScene.stageH = stageH;
+    mfScene.units = [
+        ...monsters.map(u => ({ ...u, kind: 'monster', w: spriteW, h: spriteH })),
+        ...players.map(u => ({ ...u, kind: 'player', w: spriteW, h: spriteH }))
+    ];
+
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     // Draw monsters then players (players on top)
-    monsters.forEach(u => drawUnit(ctx, u));
-    players.forEach(u => drawUnit(ctx, u));
+    monsters.forEach(u => drawUnit(ctx, u, now));
+    players.forEach(u => drawUnit(ctx, u, now));
+}
+
+function mfGetStageEl() {
+    return document.querySelector('.mf-battle-stage');
+}
+
+function mfGetHudEl() {
+    return document.getElementById('mfBattleHud');
+}
+
+function mfClamp(n, a, b) {
+    return Math.max(a, Math.min(b, n));
+}
+
+function mfHitTestUnit(stageX, stageY) {
+    // Prefer topmost (players drawn last), so iterate backwards.
+    const units = Array.isArray(mfScene.units) ? mfScene.units : [];
+    for (let i = units.length - 1; i >= 0; i--) {
+        const u = units[i];
+        const w = Number(u.w) || 0;
+        const h = Number(u.h) || 0;
+        if (!w || !h) continue;
+        if (stageX >= u.x - w / 2 && stageX <= u.x + w / 2 && stageY >= u.y - h / 2 && stageY <= u.y + h / 2) {
+            return u;
+        }
+    }
+    return null;
+}
+
+function mfSkillTargetType(skill) {
+    const e = skill && typeof skill === 'object' ? (skill.effect || {}) : {};
+    if (e && e.revive) return 'ally_dead';
+    if (e && (e.heal || e.teamHeal || e.healPercent)) return 'ally_alive';
+    return 'monster';
+}
+
+function mfRenderBattleHud() {
+    const hud = mfGetHudEl();
+    const stage = mfGetStageEl();
+    if (!hud || !stage || !gameState) return;
+
+    const selectedId = mfBattleUi.selectedPlayerId;
+    const player = selectedId ? (gameState.players || []).find(p => p && p.studentId === selectedId) : null;
+    const unit = selectedId ? (mfScene.units || []).find(u => u && u.kind === 'player' && u.id === selectedId) : null;
+
+    if (!player || !unit) {
+        hud.innerHTML = '';
+        stage.classList.remove('mf-targeting');
+        return;
+    }
+
+    const stageW = stage.clientWidth || 1;
+    const stageH = stage.clientHeight || 1;
+
+    const draftPts = mfBattleUi.ptsDraft[selectedId];
+    const ptsValue = Number.isFinite(Number(draftPts)) ? Number(draftPts) : (Number(player.puzzlePoints) || 0);
+
+    const activeSkills = Array.isArray(player.skills)
+        ? player.skills.filter(s => s && s.type === 'active')
+        : [];
+    const skillA = activeSkills[0] || null;
+    const skillB = activeSkills[1] || null;
+
+    const cd = (sid) => {
+        const v = player.skillCooldowns && sid ? player.skillCooldowns[sid] : 0;
+        return Number(v) || 0;
+    };
+
+    const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedId ? mfBattleUi.targeting : null;
+    const hint = targeting
+        ? (targeting.targetType === 'monster' ? 'Click a monster target' :
+            targeting.targetType === 'ally_alive' ? 'Click a living ally' :
+            'Click a fallen ally')
+        : 'Pick an action, then click a target';
+
+    // Panel position: near the selected player sprite (to the left, since players on right side)
+    const panelW = 240;
+    const panelH = 146;
+    const rawLeft = unit.x - (unit.w / 2) - 12 - panelW;
+    const rawTop = unit.y - (unit.h / 2) - 10;
+    const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
+    const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
+
+    const aCd = skillA ? cd(skillA.id) : 0;
+    const bCd = skillB ? cd(skillB.id) : 0;
+
+    hud.innerHTML = `
+        <div class="mf-action-panel" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
+            <div class="mf-action-panel-title">
+                <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
+                <button class="mf-action-panel-close" type="button" data-mf="close">×</button>
+            </div>
+            <div class="mf-action-panel-row">
+                <div class="mf-action-panel-pts">
+                    <label>Pts</label>
+                    <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" />
+                </div>
+                <div class="mf-action-panel-hint">${escapeHtml(hint)}</div>
+            </div>
+            <div class="mf-action-panel-actions">
+                <button class="mf-action-btn" type="button" data-mf="act" data-act="attack" title="Attack">⚔️</button>
+                <button class="mf-action-btn ${skillA && aCd <= 0 ? '' : 'is-disabled'}" type="button" data-mf="act" data-act="skill" data-skill="${escapeHtml(String(skillA?.id || ''))}" title="${escapeHtml(String(skillA?.name || 'Skill'))}">
+                    ${escapeHtml(String(skillA?.emoji || '✨'))}${aCd > 0 ? `<span class="mf-action-cd">${aCd}</span>` : ''}
+                </button>
+                <button class="mf-action-btn ${skillB && bCd <= 0 ? '' : 'is-disabled'}" type="button" data-mf="act" data-act="skill" data-skill="${escapeHtml(String(skillB?.id || ''))}" title="${escapeHtml(String(skillB?.name || 'Skill'))}">
+                    ${escapeHtml(String(skillB?.emoji || '✨'))}${bCd > 0 ? `<span class="mf-action-cd">${bCd}</span>` : ''}
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Toggle targeting cursor
+    if (targeting) stage.classList.add('mf-targeting');
+    else stage.classList.remove('mf-targeting');
+}
+
+function mfBindBattleCanvasInput() {
+    const canvas = document.getElementById('mfBattleCanvas');
+    const stage = mfGetStageEl();
+    const hud = mfGetHudEl();
+    if (!canvas || !stage || !hud) return;
+    if (canvas.dataset.mfInputBound === '1') return;
+    canvas.dataset.mfInputBound = '1';
+
+    const onCanvasClick = (ev) => {
+        const r = canvas.getBoundingClientRect();
+        const stageX = ev.clientX - r.left;
+        const stageY = ev.clientY - r.top;
+
+        const hit = mfHitTestUnit(stageX, stageY);
+        const targeting = mfBattleUi.targeting;
+
+        if (!targeting) {
+            if (hit && hit.kind === 'player') {
+                mfBattleUi.selectedPlayerId = hit.id;
+                mfRenderBattleHud();
+            } else {
+                // Click empty: close panel
+                mfBattleUi.selectedPlayerId = null;
+                mfBattleUi.targeting = null;
+                mfRenderBattleHud();
+            }
+            return;
+        }
+
+        // Targeting mode: click a valid target, else cancel targeting
+        if (!hit) {
+            mfBattleUi.targeting = null;
+            mfRenderBattleHud();
+            return;
+        }
+
+        const want = targeting.targetType;
+        if (want === 'monster') {
+            if (hit.kind !== 'monster' || !hit.isAlive) return;
+            playerAttack(targeting.actorId, { type: 'monster', id: hit.id });
+        } else if (want === 'ally_alive') {
+            if (hit.kind !== 'player' || !hit.isAlive) return;
+            playerUseSkill(targeting.actorId, targeting.skillId, { type: 'ally', id: hit.id });
+        } else if (want === 'ally_dead') {
+            if (hit.kind !== 'player' || hit.isAlive) return;
+            playerUseSkill(targeting.actorId, targeting.skillId, { type: 'ally_dead', id: hit.id });
+        }
+
+        mfBattleUi.targeting = null;
+        mfRenderBattleHud();
+    };
+
+    canvas.addEventListener('click', onCanvasClick);
+
+    // HUD interactions
+    hud.addEventListener('click', (ev) => {
+        const t = ev.target;
+        if (!(t instanceof HTMLElement)) return;
+
+        const btn = t.closest('[data-mf]') instanceof HTMLElement ? t.closest('[data-mf]') : null;
+        if (!btn) return;
+
+        const kind = btn.getAttribute('data-mf');
+        if (kind === 'close') {
+            mfBattleUi.selectedPlayerId = null;
+            mfBattleUi.targeting = null;
+            mfRenderBattleHud();
+            return;
+        }
+
+        if (kind === 'act') {
+            const actorId = mfBattleUi.selectedPlayerId;
+            if (!actorId) return;
+            const player = (gameState.players || []).find(p => p && p.studentId === actorId);
+            if (!player || !player.isAlive) return;
+
+            const act = btn.getAttribute('data-act');
+            if (act === 'attack') {
+                mfBattleUi.targeting = { actorId, action: 'attack', targetType: 'monster' };
+                mfRenderBattleHud();
+                return;
+            }
+            if (act === 'skill') {
+                const skillId = btn.getAttribute('data-skill') || '';
+                if (!skillId) return;
+                const skill = Array.isArray(player.skills) ? player.skills.find(s => s && s.id === skillId) : null;
+                if (!skill) return;
+
+                // Cooldown check (disable already, but guard)
+                const cd = player.skillCooldowns && player.skillCooldowns[skillId] ? Number(player.skillCooldowns[skillId]) : 0;
+                if (cd > 0) return;
+
+                mfBattleUi.targeting = { actorId, action: 'skill', skillId, targetType: mfSkillTargetType(skill) };
+                mfRenderBattleHud();
+            }
+        }
+    });
+
+    hud.addEventListener('input', (ev) => {
+        const t = ev.target;
+        if (!(t instanceof HTMLInputElement)) return;
+        if (t.getAttribute('data-mf') !== 'pts') return;
+        const actorId = mfBattleUi.selectedPlayerId;
+        if (!actorId) return;
+        mfBattleUi.ptsDraft[actorId] = Math.max(0, parseInt(t.value || '0', 10) || 0);
+    });
+
+    window.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') {
+            mfBattleUi.targeting = null;
+            mfRenderBattleHud();
+        }
+    }, { passive: true });
 }
 
 async function initBattleCanvas() {
@@ -1927,23 +2217,7 @@ function renderBattleMode() {
             
             <div class="mf-battle-stage">
                 <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
-
-                <div class="battle-layout-horizontal">
-                    <div class="monsters-section">
-                        <div class="monsters-grid">
-                            ${gameState.monsters && gameState.monsters.length > 0 
-                                ? gameState.monsters.map(monster => renderMonsterCard(monster)).join('')
-                                : '<p>No monsters yet. Initialize battle to start.</p>'
-                            }
-                        </div>
-                    </div>
-                    
-                    <div class="players-section-vertical">
-                        <div class="players-list-vertical">
-                            ${gameState.players.map(player => renderPlayerCardWithActions(player, isPlayerTurn)).join('')}
-                        </div>
-                    </div>
-                </div>
+                <div id="mfBattleHud" class="mf-battle-hud"></div>
             </div>
             
             ${isPlayerTurn ? `
@@ -1984,11 +2258,10 @@ function renderBattleMode() {
         </div>
     `;
 
-    // Bind scroll indicator for hidden scrollbar (monsters list).
-    setTimeout(bindMonstersScrollIndicator, 0);
-
     // Draw map background on canvas (step 1 of canvas battle scene).
     setTimeout(initBattleCanvas, 0);
+    setTimeout(mfBindBattleCanvasInput, 0);
+    setTimeout(mfRenderBattleHud, 0);
 }
 
 // Render player card with all actions integrated (puzzle input + actions in player_turn)
@@ -2320,10 +2593,28 @@ async function terminateGame() {
     }
 }
 
+function mfNormalizeTargetInput(v) {
+    if (!v) return { type: null, id: null };
+    if (typeof v === 'string') return parseTargetValue(v);
+    if (typeof v === 'object' && v.id) return { type: v.type || null, id: v.id };
+    return { type: null, id: null };
+}
+
+function mfGetCurrentPuzzlePoints(studentId) {
+    const draft = mfBattleUi && mfBattleUi.ptsDraft ? mfBattleUi.ptsDraft[studentId] : undefined;
+    if (draft !== undefined && draft !== null && Number.isFinite(Number(draft))) return Number(draft) || 0;
+    const puzzleInput = document.getElementById(`puzzle_${studentId}`);
+    if (puzzleInput) return parseInt(puzzleInput.value) || 0;
+    const player = gameState?.players?.find(p => p && p.studentId === studentId);
+    return Number(player?.puzzlePoints) || 0;
+}
+
 // Player attack
-async function playerAttack(studentId) {
-    const targetSelect = document.getElementById(`target_${studentId}`);
-    const parsedTarget = parseTargetValue(targetSelect?.value);
+async function playerAttack(studentId, explicitTarget) {
+    const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
+        const targetSelect = document.getElementById(`target_${studentId}`);
+        return parseTargetValue(targetSelect?.value);
+    })();
     
     if (!parsedTarget.id) {
         alert('Please select a target');
@@ -2335,9 +2626,8 @@ async function playerAttack(studentId) {
     }
     const targetId = parsedTarget.id;
     
-    // Get current Puzzle Points from input field (most up-to-date value)
-    const puzzleInput = document.getElementById(`puzzle_${studentId}`);
-    const currentPuzzlePoints = puzzleInput ? (parseInt(puzzleInput.value) || 0) : 0;
+    // Get current Puzzle Points (HUD draft > input > gameState)
+    const currentPuzzlePoints = mfGetCurrentPuzzlePoints(studentId);
     
     // Log before attack
     const player = gameState.players.find(p => p.studentId === studentId);
@@ -2348,6 +2638,7 @@ async function playerAttack(studentId) {
     console.log(`Target HP BEFORE: ${targetMonsterBefore?.currentHP}/${targetMonsterBefore?.maxHP}`);
     console.log(`Player Attack: ${player?.attack}`);
     console.log(`Puzzle Points from input: ${currentPuzzlePoints} (gameState: ${player?.puzzlePoints})`);
+    const puzzleInput = document.getElementById(`puzzle_${studentId}`);
     console.log(`Puzzle Input Element:`, puzzleInput ? `Found (value: ${puzzleInput.value})` : 'NOT FOUND');
     
     // Validate puzzle points
@@ -2434,7 +2725,7 @@ async function playerAttack(studentId) {
 }
 
 // Player use skill
-async function playerUseSkill(studentId, skillId) {
+async function playerUseSkill(studentId, skillId, explicitTarget) {
     const player = gameState.players.find(p => p.studentId === studentId);
     if (!player || !player.isAlive) {
         alert('Player not found or not alive');
@@ -2453,8 +2744,10 @@ async function playerUseSkill(studentId, skillId) {
         return;
     }
     
-    const targetSelect = document.getElementById(`target_${studentId}`);
-    const parsedTarget = parseTargetValue(targetSelect?.value);
+    const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
+        const targetSelect = document.getElementById(`target_${studentId}`);
+        return parseTargetValue(targetSelect?.value);
+    })();
     const requiredTargetType = getSkillTargetType(player, skill);
 
     let targetId = null;
@@ -2519,9 +2812,8 @@ async function playerUseSkill(studentId, skillId) {
         }
     }
     
-    // Get current Puzzle Points from input field (most up-to-date value)
-    const puzzleInput = document.getElementById(`puzzle_${studentId}`);
-    const currentPuzzlePoints = puzzleInput ? (parseInt(puzzleInput.value) || 0) : 0;
+    // Get current Puzzle Points (HUD draft > input > gameState)
+    const currentPuzzlePoints = mfGetCurrentPuzzlePoints(studentId);
     
     // Log before skill
     console.log('=== PLAYER USE SKILL ===');

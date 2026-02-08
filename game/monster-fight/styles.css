@@ -423,11 +423,128 @@ body.mf-bg-image {
     z-index: 0;
 }
 
-.mf-battle-stage .battle-layout-horizontal {
+/* Canvas HUD overlay (for click-to-act panel) */
+.mf-battle-hud {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.mf-battle-stage.mf-targeting,
+.mf-battle-stage.mf-targeting .mf-battle-canvas {
+    cursor: crosshair;
+}
+
+.mf-action-panel {
+    position: absolute;
+    width: 240px;
+    padding: 10px 10px 12px;
+    border-radius: 14px;
+    background: rgba(17, 24, 39, 0.78);
+    color: rgba(255,255,255,0.96);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 18px 36px rgba(0,0,0,0.28);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+}
+
+.mf-action-panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.mf-action-panel-name {
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mf-action-panel-close {
+    width: 26px;
+    height: 26px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.92);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.mf-action-panel-row {
+    display: grid;
+    grid-template-columns: 86px 1fr;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.mf-action-panel-pts label {
+    display: block;
+    font-size: 0.78rem;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.mf-action-panel-pts input {
+    width: 100%;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.20);
+    background: rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.96);
+    text-align: center;
+    font-weight: 800;
+    outline: none;
+}
+
+.mf-action-panel-hint {
+    font-size: 0.82rem;
+    line-height: 1.2;
+    opacity: 0.92;
+}
+
+.mf-action-panel-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.mf-action-btn {
     position: relative;
-    z-index: 1;
-    margin: 0;
-    padding: 18px 0;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(0,0,0,0.20);
+    color: rgba(255,255,255,0.96);
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.mf-action-btn.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.mf-action-cd {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.22);
+    font-size: 0.75rem;
+    font-weight: 900;
+    display: grid;
+    place-items: center;
 }
 
 .turn-info {
@@ -940,10 +1057,13 @@ body.mf-bg-image {
 .action-log {
     margin-top: 20px;
     padding: 15px;
-    background: #f9f9f9;
+    background: rgba(17, 24, 39, 0.70);
+    color: rgba(255,255,255,0.92);
     border-radius: 10px;
     max-height: 200px;
     overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(8px);
 }
 
 .action-log-header {
@@ -965,7 +1085,7 @@ body.mf-bg-image {
 
 .log-entry {
     padding: 5px 0;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid rgba(255,255,255,0.14);
 }
 
 .log-entry:last-child {
