@@ -503,6 +503,7 @@ body.mf-bg-image {
     gap: 15px;
     margin-top: 15px;
     overflow: visible;
+    align-items: center;
 }
 
 /* When viewport is narrower, reserve space on the right for the outside skill rail,
@@ -650,6 +651,8 @@ body.mf-bg-image {
 /* Player card: skills outside on the right */
 .mf-player-card {
     position: relative;
+    width: 100%;
+    max-width: 250px;
 }
 
 .mf-skill-rail-right {
