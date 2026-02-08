@@ -710,6 +710,7 @@ function bindMonstersScrollIndicator() {
 // ----------------------------
 let mfCanvasToken = 0;
 let mfCanvasRaf = 0;
+let mfCanvasResizeHandler = null;
 const mfImgCache = new Map(); // src -> { img, ok }
 
 function loadImg(src) {
@@ -729,6 +730,143 @@ function loadImg(src) {
         };
         img.src = s;
     });
+}
+
+function getImgSync(src) {
+    const s = String(src || '').trim();
+    if (!s) return null;
+    const cached = mfImgCache.get(s);
+    if (cached && cached.ok && cached.img?.complete) return cached.img;
+    if (!cached) {
+        // Kick off async load (fire and forget)
+        void loadImg(s);
+    }
+    return null;
+}
+
+function layoutSide(list, baseX, sideSign, top, height) {
+    const n = list.length;
+    if (n === 0) return [];
+    const columns = n > 4 ? 2 : 1;
+    const rows = Math.ceil(n / columns);
+    const yStep = height / (rows + 1);
+    const colGap = 90;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+        const col = i % columns;
+        const row = Math.floor(i / columns);
+        const x = baseX + sideSign * col * colGap;
+        const y = top + (row + 1) * yStep;
+        out.push({ ...list[i], x, y });
+    }
+    return out;
+}
+
+function drawHpBar(ctx, x, y, w, h, pct) {
+    const p = Math.max(0, Math.min(1, pct));
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(x - w / 2, y - h / 2, w, h);
+    ctx.fillStyle = 'rgba(90, 200, 90, 0.95)';
+    ctx.fillRect(x - w / 2, y - h / 2, w * p, h);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+    ctx.restore();
+}
+
+function drawUnit(ctx, unit) {
+    const {
+        x, y,
+        imgSrc,
+        name,
+        currentHP,
+        maxHP,
+        isAlive = true,
+        isMonster = false
+    } = unit;
+
+    const w = 76;
+    const h = 76;
+    const img = getImgSync(imgSrc);
+
+    ctx.save();
+    if (!isAlive) ctx.globalAlpha = 0.45;
+
+    // sprite
+    if (img) {
+        ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+    } else {
+        ctx.fillStyle = isMonster ? 'rgba(255,80,80,0.55)' : 'rgba(80,160,255,0.55)';
+        ctx.beginPath();
+        ctx.arc(x, y, 28, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // name
+    ctx.font = '700 14px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 4;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    const nameY = y - h / 2 - 8;
+    ctx.strokeText(String(name || ''), x, nameY);
+    ctx.fillText(String(name || ''), x, nameY);
+
+    // hp
+    const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
+    drawHpBar(ctx, x, y + h / 2 + 10, 86, 8, pct);
+
+    ctx.restore();
+}
+
+function drawBattleEntities(ctx, stageW, stageH) {
+    if (!gameState) return;
+    const alivePlayers = Array.isArray(gameState.players) ? gameState.players.filter(p => p && p.isAlive) : [];
+    const aliveMonsters = Array.isArray(gameState.monsters) ? gameState.monsters.filter(m => m && m.isAlive) : [];
+
+    // Arena region: avoid top/bottom edges
+    const top = 90;
+    const bottom = Math.max(top + 200, stageH - 90);
+    const arenaH = Math.max(240, bottom - top);
+
+    const monstersBaseX = stageW * 0.34;
+    const playersBaseX = stageW * 0.66;
+
+    const monsters = layoutSide(
+        aliveMonsters.map(m => ({
+            isMonster: true,
+            isAlive: m.isAlive,
+            name: m.name,
+            currentHP: m.currentHP,
+            maxHP: m.maxHP,
+            imgSrc: imageSrcForFile(monsterImageFileByType(m.type))
+        })),
+        monstersBaseX,
+        -1,
+        top,
+        arenaH
+    );
+
+    const players = layoutSide(
+        alivePlayers.map(p => ({
+            isMonster: false,
+            isAlive: p.isAlive,
+            name: p.studentName,
+            currentHP: p.currentHP,
+            maxHP: p.maxHP,
+            imgSrc: imageSrcForFile(classImageFileById(p.characterClass))
+        })),
+        playersBaseX,
+        +1,
+        top,
+        arenaH
+    );
+
+    // Draw monsters then players (players on top)
+    monsters.forEach(u => drawUnit(ctx, u));
+    players.forEach(u => drawUnit(ctx, u));
 }
 
 async function initBattleCanvas() {
@@ -755,7 +893,11 @@ async function initBattleCanvas() {
     };
 
     resize();
-    window.addEventListener('resize', resize, { passive: true });
+    if (mfCanvasResizeHandler) {
+        try { window.removeEventListener('resize', mfCanvasResizeHandler); } catch {}
+    }
+    mfCanvasResizeHandler = resize;
+    window.addEventListener('resize', mfCanvasResizeHandler, { passive: true });
 
     const draw = () => {
         if (token !== mfCanvasToken) return;
@@ -774,6 +916,9 @@ async function initBattleCanvas() {
             const dy = (h - dh) / 2;
             ctx.drawImage(mapImg, dx, dy, dw, dh);
         }
+
+        // entities
+        drawBattleEntities(ctx, w, h);
 
         mfCanvasRaf = requestAnimationFrame(draw);
     };
