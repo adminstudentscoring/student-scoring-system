@@ -1690,7 +1690,6 @@ function renderBattleMode() {
             
             <div class="battle-layout-horizontal">
                 <div class="monsters-section">
-                    <h3>Monsters</h3>
                     <div class="monsters-grid">
                         ${gameState.monsters && gameState.monsters.length > 0 
                             ? gameState.monsters.map(monster => renderMonsterCard(monster)).join('')
@@ -1700,7 +1699,6 @@ function renderBattleMode() {
                 </div>
                 
                 <div class="players-section-vertical">
-                    <h3>Players</h3>
                     <div class="players-list-vertical">
                         ${gameState.players.map(player => renderPlayerCardWithActions(player, isPlayerTurn)).join('')}
                     </div>
@@ -1796,19 +1794,28 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
     };
     const skillBtns = activeSkills.map((skill) => {
         const cooldown = (player.skillCooldowns && player.skillCooldowns[skill.id]) || 0;
+        const baseCd = (typeof skill.cooldown === 'number') ? skill.cooldown : 0;
+        const tipLines = [
+            `${skill.emoji || '⭐'} ${skill.name || 'Skill'}`,
+            `${skill.type || ''}${baseCd ? `  |  CD ${baseCd}` : ''}${cooldown > 0 ? `  (now CD ${cooldown})` : ''}`,
+            `${skill.description || ''}`
+        ].filter(Boolean);
+        const tip = escapeHtml(tipLines.join('\n'));
         return {
             kind: skill.id,
             emoji: skill.emoji || '⭐',
             title: `${skill.name}${cooldown > 0 ? ` (CD:${cooldown})` : ''}`,
             name: skill.name || 'Skill',
             cooldown,
+            tip,
             disabled: !canAct || cooldown > 0,
             onClick: `playerUseSkill('${player.studentId}', '${skill.id}')`
         };
     });
-    while (skillBtns.length < 2) skillBtns.push({ kind: `empty_${skillBtns.length}`, emoji: ' ', title: '', name: '', cooldown: 0, disabled: true, onClick: '' });
+    while (skillBtns.length < 2) skillBtns.push({ kind: `empty_${skillBtns.length}`, emoji: ' ', title: '', name: '', cooldown: 0, tip: '', disabled: true, onClick: '' });
 
-    const allBtns = [atkBtn, ...skillBtns];
+    const atkTip = escapeHtml(['⚔️ Attack', 'Basic attack', ''].filter(Boolean).join('\n'));
+    const allBtns = [{ ...atkBtn, tip: atkTip }, ...skillBtns];
 
     return `
         <div class="player-card-full mf-player-card ${!player.isAlive ? 'defeated' : ''}">
@@ -1822,6 +1829,7 @@ function renderPlayerCardWithActions(player, isPlayerTurn) {
                             <span class="mf-skill-tile-icon">${escapeHtml(b.emoji || '')}</span>
                             <span class="mf-skill-tile-name">${escapeHtml(b.name || '')}</span>
                             ${b.cooldown > 0 ? `<span class="mf-skill-tile-cd">${escapeHtml(b.cooldown)}</span>` : ''}
+                            ${b.tip ? `<div class="mf-skill-tooltip">${b.tip.replace(/\n/g, '<br>')}</div>` : ''}
                         </button>
                     `).join('')}
                 </div>
