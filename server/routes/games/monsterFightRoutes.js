@@ -787,13 +787,13 @@ function executeMonsterActiveSkill(monster, skill, gameState) {
     if (summaryDetails.length === 0) {
       return { used: false };
     }
-    gameState.actionLog.push({
+    const entry = {
       turn: gameState.currentTurn,
       phase: 'monster_turn',
       message: `${monster.name} casts ${skillName}, bathing allies in restorative energy.`,
       summaryDetails
-    });
-    return { used: true };
+    };
+    return { used: true, entry };
   }
 
   if (effect.areaDamage) {
@@ -821,13 +821,13 @@ function executeMonsterActiveSkill(monster, skill, gameState) {
       }
       summaryDetails.push(`${player.studentName}: -${finalDamage} HP (HP ${beforeHP} -> ${player.currentHP}${damageReduction > 0 ? ', reduced' : ''})`);
     });
-    gameState.actionLog.push({
+    const entry = {
       turn: gameState.currentTurn,
       phase: 'monster_turn',
       message: `${monster.name} engulfs the party with ${skillName}!`,
       summaryDetails
-    });
-    return { used: true };
+    };
+    return { used: true, entry };
   }
 
   if (effect.forcePlayerAttack) {
@@ -839,12 +839,12 @@ function executeMonsterActiveSkill(monster, skill, gameState) {
       return { used: false };
     }
     const result = forcePlayerToAttackAlly(target, monster, gameState);
-    gameState.actionLog.push({
+    const entry = {
       turn: gameState.currentTurn,
       phase: 'monster_turn',
       message: result.log
-    });
-    return { used: result.used };
+    };
+    return { used: result.used, entry: result.used ? entry : null };
   }
 
   if (effect.reduceRemainingHpFraction) {
@@ -861,12 +861,12 @@ function executeMonsterActiveSkill(monster, skill, gameState) {
     const newHP = Math.max(1, Math.ceil(before * remainingFraction));
     const damage = before - newHP;
     target.currentHP = newHP;
-    gameState.actionLog.push({
+    const entry = {
       turn: gameState.currentTurn,
       phase: 'monster_turn',
       message: `${monster.name}'s ${skillName} rends ${target.studentName}, ripping away ${damage} HP! (HP ${before} -> ${target.currentHP})`
-    });
-    return { used: true };
+    };
+    return { used: true, entry };
   }
 
   if (effect.damageMultiplier) {
@@ -904,12 +904,12 @@ function executeMonsterActiveSkill(monster, skill, gameState) {
       message += ` ${target.studentName} is silenced!`;
     }
 
-    gameState.actionLog.push({
+    const entry = {
       turn: gameState.currentTurn,
       phase: 'monster_turn',
       message
-    });
-    return { used: true };
+    };
+    return { used: true, entry };
   }
 
   return { used: false };
@@ -932,7 +932,7 @@ function attemptMonsterActiveSkill(monster, gameState) {
       const result = executeMonsterActiveSkill(monster, skill, gameState);
       if (result.used) {
         monster.skillCooldowns[skill.id] = skill.cooldown || 0;
-        return { used: true };
+        return { used: true, entry: result.entry || null };
       }
     }
   }
@@ -2460,6 +2460,9 @@ app.post('/api/game/monster-turn', async (req, res) => {
 
         const skillAttempt = attemptMonsterActiveSkill(monster, gameState);
         if (skillAttempt.used) {
+          if (skillAttempt.entry) {
+            pushLog(skillAttempt.entry);
+          }
           advanceMonsterStatuses(monster);
           return;
         }
