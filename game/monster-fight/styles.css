@@ -440,7 +440,7 @@ body.mf-bg-image {
 .battle-layout-horizontal {
     display: grid;
     grid-template-columns: 320px minmax(0, 1fr);
-    gap: 520px;
+    gap: 300px;
     margin: 20px 0;
     align-items: start;
 }
