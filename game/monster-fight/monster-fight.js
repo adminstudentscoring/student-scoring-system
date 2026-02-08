@@ -1160,7 +1160,7 @@ function mfRenderBattleHud() {
             <div class="mf-action-grid">
                 <div class="mf-action-left">
                     <div class="mf-action-pts">
-                        <div class="mf-action-pts-label">Pts</div>
+                        <div class="mf-action-pts-label">Puzzle Points</div>
                         <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
                     </div>
                 </div>

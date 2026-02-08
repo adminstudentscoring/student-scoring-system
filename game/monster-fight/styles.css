@@ -712,15 +712,18 @@ body.mf-bg-image {
 
 .mf-skill-row {
     display: grid;
-    grid-template-columns: 46px 1fr;
+    /* Icon grid width x2 (was 46px) */
+    grid-template-columns: 92px 1fr;
     gap: 10px;
     align-items: center;
+    min-height: 64px; /* keep consistent row height */
 }
 
 .mf-skill-desc {
     display: grid;
     gap: 2px;
     min-width: 0;
+    align-content: center; /* keep text vertically consistent */
 }
 
 .mf-skill-desc-top {
@@ -749,13 +752,15 @@ body.mf-bg-image {
 
 .mf-action-btn {
     position: relative;
-    height: 44px;
+    width: 56px;
+    height: 56px;
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.22);
     background: rgba(0,0,0,0.20);
     color: rgba(255,255,255,0.96);
     font-size: 1.1rem;
     cursor: pointer;
+    justify-self: center; /* center inside the 92px icon column */
 }
 
 .mf-action-btn.is-disabled {
