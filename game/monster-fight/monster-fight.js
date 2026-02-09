@@ -1162,9 +1162,21 @@ function mfRenderBattleHud() {
                 ${player.hasActed ? `<div class="mf-action-taken">✓ Action Taken</div>` : ''}
                 <div class="mf-action-grid3">
                     <div class="mf-action-left">
-                        <div class="mf-action-pts">
-                            <div class="mf-action-pts-label">Puzzle Points</div>
-                            <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
+                        <div class="mf-action-left-stack">
+                            <div class="mf-action-stats">
+                                <div class="mf-action-stat">
+                                    <span>HP</span>
+                                    <b>${escapeHtml(String(player.currentHP || 0))}/${escapeHtml(String(player.maxHP || 0))}</b>
+                                </div>
+                                <div class="mf-action-stat">
+                                    <span>ATK</span>
+                                    <b>${escapeHtml(String(player.attack || 0))}</b>
+                                </div>
+                            </div>
+                            <div class="mf-action-pts">
+                                <div class="mf-action-pts-label">Puzzle Points</div>
+                                <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
+                            </div>
                         </div>
                     </div>
                     <div class="mf-action-icons">
@@ -1189,6 +1201,16 @@ function mfRenderBattleHud() {
                 </div>
             ` : `
                 <div class="mf-revive-wrap">
+                    <div class="mf-action-stats">
+                        <div class="mf-action-stat">
+                            <span>HP</span>
+                            <b>0/${escapeHtml(String(player.maxHP || 0))}</b>
+                        </div>
+                        <div class="mf-action-stat">
+                            <span>ATK</span>
+                            <b>${escapeHtml(String(player.attack || 0))}</b>
+                        </div>
+                    </div>
                     <button class="btn btn-sm btn-warning" type="button" data-mf="reviveOpen">💫 Revive</button>
                     ${(() => {
                         const draft = mfBattleUi.reviveDraft[selectedPlayerId];
