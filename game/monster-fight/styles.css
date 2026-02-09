@@ -118,6 +118,50 @@ body.mf-battle-tight .mf-topbar {
     min-width: 0;
 }
 
+.mf-topbar-center {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+.mf-topbar-process.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.mf-battle-toast {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(980px, calc(100% - 24px));
+    height: 52px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.86);
+    border: 1px solid rgba(17, 24, 39, 0.14);
+    box-shadow: 0 16px 30px rgba(0,0,0,0.18);
+    backdrop-filter: blur(10px);
+    color: #111827;
+    font-weight: 900;
+    font-size: 0.98rem;
+    letter-spacing: 0.2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    z-index: 3;
+}
+
+.mf-battle-toast.is-show {
+    opacity: 1;
+}
+
 .mf-topbar-title {
     font-weight: 900;
     font-size: 1.1rem;

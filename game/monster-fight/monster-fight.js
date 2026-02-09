@@ -134,6 +134,63 @@ let monsterTurnReplay = { active: false, pendingWsState: null, onDone: null };
 const MF_DISABLE_ACTION_POPUPS = true;
 const MF_REPLAY_STEP_MS = 900; // base step delay (scaled by animation slow factor)
 
+// Canvas unit size scale (+10% from previous 1.2 => 1.32)
+const MF_UNIT_SCALE = 1.32;
+
+function mfGetBattleToastEl() {
+    return document.getElementById('mfBattleToast');
+}
+
+let mfToastTimer = null;
+function mfShowBattleToast(text, opts = {}) {
+    const el = mfGetBattleToastEl();
+    if (!el) return;
+    const msg = String(text || '').trim();
+    if (!msg) return;
+    el.textContent = msg;
+    el.classList.add('is-show');
+    if (mfToastTimer) clearTimeout(mfToastTimer);
+    const ms = Math.max(300, Number(opts.ms) || Math.round(900 * (MF_ANIM_SLOW_FACTOR || 1)));
+    mfToastTimer = setTimeout(() => {
+        el.classList.remove('is-show');
+    }, ms);
+}
+
+function mfStripHtml(s) {
+    return String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function mfToastTextFromRaw(raw) {
+    const msg = mfStripHtml(raw);
+    if (!msg) return '';
+    // A attacks B for N damage
+    let m = msg.match(/^(.+?)\s+attacks\s+(.+?)\s+for\s+(\d+)\s+damage/i);
+    if (m) {
+        const a = m[1].trim();
+        const b = m[2].trim();
+        const n = Number(m[3]) || 0;
+        return `${a} attacks ${b} -${n}`;
+    }
+    // A casts/uses Skill on B for N damage
+    m = msg.match(/^(.+?)\s+(?:casts|uses|unleashes|strikes|smashes|charges)\s+(.+?)\s+(?:on\s+)?(.+?)\s+for\s+(\d+)\s+damage/i);
+    if (m) {
+        const a = m[1].trim();
+        const skill = m[2].trim();
+        const b = m[3].trim();
+        const n = Number(m[4]) || 0;
+        return `${a} ${skill} ${b} -${n}`;
+    }
+    // heal
+    m = msg.match(/^(.+?)\s+.*heal(?:s|ing)?\s+(.+?)\s+for\s+(\d+)\s+HP/i);
+    if (m) {
+        const a = m[1].trim();
+        const b = m[2].trim();
+        const n = Number(m[3]) || 0;
+        return `${a} heals ${b} +${n}`;
+    }
+    return msg;
+}
+
 const MF_RANGED_MONSTER_TYPES = new Set(['shaman', 'dark_mage', 'evil_dragon']);
 
 function mfSnapshotHpMaps(state) {
@@ -396,6 +453,10 @@ async function processActionQueue() {
 
     // No more popup UI in battle; just advance automatically.
     if (MF_DISABLE_ACTION_POPUPS) {
+        try {
+            const raw = item?.context?.rawMessage || item?.message || '';
+            mfShowBattleToast(mfToastTextFromRaw(raw), { ms: Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)) });
+        } catch {}
         const delay = Math.max(0, Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)));
         setTimeout(() => {
             isShowingPopup = false;
@@ -857,7 +918,8 @@ const mfBattleUi = {
     targeting: null, // { actorId, action: 'attack'|'skill', skillId?, targetType: 'monster'|'ally_alive'|'ally_dead' }
     ptsDraft: {}, // studentId -> number
     hoveredKey: null,
-    reviveDraft: {} // studentId -> number
+    reviveDraft: {}, // studentId -> number
+    _lastHealToastAt: 0
 };
 
 // ----------------------------
@@ -1173,9 +1235,9 @@ function drawUnit(ctx, unit, now) {
     const ux = x + off.dx;
     const uy = y + off.dy;
 
-    // +20% scale for sprites
-    const w = Math.round(76 * 1.2);
-    const h = Math.round(76 * 1.2);
+    // sprite scale
+    const w = Math.round(76 * MF_UNIT_SCALE);
+    const h = Math.round(76 * MF_UNIT_SCALE);
     const img = getImgSync(imgSrc);
 
     // Track alive/dead transition for flash effect
@@ -1232,7 +1294,7 @@ function drawUnit(ctx, unit, now) {
     // hp
     const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
     // bring HP closer to sprite
-    const hpW = Math.round(72 * 1.2);
+    const hpW = Math.round(72 * MF_UNIT_SCALE);
     const hpH = 9;
     const hpX = ux;
     const hpY = uy + h / 2 + 6;
@@ -1313,8 +1375,8 @@ function drawBattleEntities(ctx, stageW, stageH) {
     );
 
     // Save unit bounds for hit-testing/HUD anchoring (DOM coordinates)
-    const spriteW = Math.round(76 * 1.2);
-    const spriteH = Math.round(76 * 1.2);
+    const spriteW = Math.round(76 * MF_UNIT_SCALE);
+    const spriteH = Math.round(76 * MF_UNIT_SCALE);
     mfScene.stageW = stageW;
     mfScene.stageH = stageH;
     mfScene.units = [
@@ -3023,6 +3085,10 @@ function renderBattleMode() {
     const container = document.getElementById('monsterFightGame');
     const isPlayerTurn = gameState.phase === 'player_turn';
     const isMonsterTurn = gameState.phase === 'monster_turn';
+
+    const alivePlayers = Array.isArray(gameState.players) ? gameState.players.filter(p => p && p.isAlive) : [];
+    const allPlayersActed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasActed);
+    const canProcessMonsterTurn = !!(isMonsterTurn || (isPlayerTurn && allPlayersActed));
     
     container.innerHTML = `
         <div class="game-screen mf-battle">
@@ -3031,6 +3097,14 @@ function renderBattleMode() {
                     <div class="mf-topbar-left">
                         <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
                         <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
+                    </div>
+                    <div class="mf-topbar-center">
+                        <button class="mf-topbar-pill mf-topbar-process ${canProcessMonsterTurn ? '' : 'is-disabled'}"
+                                type="button"
+                                onclick="processMonsterTurn()"
+                                ${canProcessMonsterTurn ? '' : 'disabled'}>
+                            ⚔️ Process Monster Turn
+                        </button>
                     </div>
                     <div class="mf-topbar-right">
                         <button class="mf-topbar-pill" type="button" onclick="toggleActionLog()">Action Log</button>
@@ -3057,31 +3131,10 @@ function renderBattleMode() {
             <div class="mf-battle-wrap">
                 <div class="mf-battle-stage">
                     <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
+                    <div id="mfBattleToast" class="mf-battle-toast" aria-live="polite"></div>
                 </div>
                 <div id="mfBattleHud" class="mf-battle-hud"></div>
             </div>
-            
-            ${isPlayerTurn ? `
-                ${(() => {
-                    const alivePlayers = gameState.players.filter(p => p.isAlive);
-                    const allPlayersActed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasActed);
-                    if (allPlayersActed) {
-                        return `
-                            <div class="battle-actions">
-                                <button class="btn btn-primary" onclick="processMonsterTurn()">⚔️ Process Monster Turn</button>
-                            </div>
-                        `;
-                    }
-                    return '';
-                })()}
-            ` : ''}
-            
-            ${isMonsterTurn ? `
-                <div class="battle-actions">
-                    <button class="btn btn-primary" onclick="processMonsterTurn()">⚔️ Process Monster Turn</button>
-                </div>
-            ` : ''}
-            
         </div>
     `;
 
@@ -3562,6 +3615,14 @@ async function playerAttack(studentId, explicitTarget) {
                 else mfAnimDash(attackerKey, targetKey, { dur: 340 });
                 mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
                 mfAnimAddFloatAtUnit(targetKey, `-${best.damage}`, 'rgba(255,60,60,0.95)', 4000);
+
+                try {
+                    const finalMonster = (gameState.monsters || []).find(m => m && m.id === actualTargetId) || targetMonsterBefore;
+                    const nameA = String(player?.studentName || 'Player');
+                    const nameB = String(finalMonster?.name || 'Monster');
+                    const tauntTag = (actualTargetId && actualTargetId !== targetId) ? ' (TAUNT)' : '';
+                    mfShowBattleToast(`${nameA} attacks ${nameB} -${best.damage}${tauntTag}`);
+                } catch {}
             }
         }
         
@@ -3790,6 +3851,12 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                         mfAnimHit(targetKey, { blinks: 2, dur: 320, amp: 5 });
                         mfAnimAddFloatAtUnit(targetKey, `-${ev.damage}`, 'rgba(255,60,60,0.95)', 4000);
                     });
+
+                    try {
+                        const total = hitEvents.reduce((s, ev) => s + (Number(ev.damage) || 0), 0);
+                        const count = hitEvents.length;
+                        mfShowBattleToast(`${player?.studentName || 'Player'} ${skill?.name || 'Skill'} -${total} (${count} targets)`);
+                    } catch {}
                 } else {
                     const best = hitEvents.reduce((a, b) => (b.damage > a.damage ? b : a), hitEvents[0]);
                     const targetKey = `monster:${best.id}`;
@@ -3797,6 +3864,11 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                     else mfAnimDash(attackerKey, targetKey, { dur: 340 });
                     mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
                     mfAnimAddFloatAtUnit(targetKey, `-${best.damage}`, 'rgba(255,60,60,0.95)', 4000);
+
+                    try {
+                        const m = (gameState.monsters || []).find(mm => mm && mm.id === best.id) || targetMonsterBefore;
+                        mfShowBattleToast(`${player?.studentName || 'Player'} ${skill?.name || 'Skill'} ${m?.name || 'Monster'} -${best.damage}`);
+                    } catch {}
                 }
             }
         }
@@ -3813,6 +3885,12 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                 if (delta > 0) {
                     mfAnimAddFloatAtUnit(key, `+${delta}`, 'rgba(34,197,94,0.95)', 4000);
                     mfAnimHit(key, { blinks: 2, dur: 260, amp: 2 });
+
+                    // toast for heals (show first heal only)
+                    if (!mfBattleUi._lastHealToastAt || (Date.now() - mfBattleUi._lastHealToastAt) > 400) {
+                        mfBattleUi._lastHealToastAt = Date.now();
+                        mfShowBattleToast(`${player?.studentName || 'Healer'} ${skill?.name || 'Heal'} ${p?.studentName || ''} +${delta}`.trim());
+                    }
                 } else {
                     mfAnimAddFloatAtUnit(key, `${delta}`, 'rgba(255,60,60,0.95)', 4000);
                     mfAnimHit(key, { blinks: 2, dur: 220, amp: 2 });
@@ -3889,7 +3967,7 @@ async function processMonsterTurn() {
                 const rawMessage = String(log.message || '');
                 if (!rawMessage) return;
                 const summary = Array.isArray(log.summaryDetails) ? decorateSummaryLines(log.summaryDetails) : null;
-                const context = derivePopupContext(rawMessage);
+                const context = { ...(derivePopupContext(rawMessage) || {}), rawMessage };
                 const decoratedMessage = decorateMessageWithIcons(rawMessage);
                 queueActionPopup(decoratedMessage, summary, context, {
                     beforeShow: () => {
