@@ -1049,6 +1049,20 @@ function drawStatusIcons(ctx, xRight, yCenter, statuses) {
     }
 }
 
+function mfRenderStatusIconsInline(entity) {
+    const statuses = mfExtractStatuses(entity);
+    if (!statuses.length) return '';
+    return `
+        <div class="mf-inline-statuses" aria-label="Statuses">
+            ${statuses.map(s => {
+                const ico = mfStatusIcon(s);
+                if (!ico) return '';
+                return `<span class="mf-inline-status" title="${escapeHtml(statusLabel(s) || String(s?.type || ''))}">${escapeHtml(String(ico.ch || ''))}</span>`;
+            }).join('')}
+        </div>
+    `;
+}
+
 function mfRenderBattleHud() {
     const hud = mfGetHudEl();
     const stage = mfGetStageEl();
@@ -1085,13 +1099,11 @@ function mfRenderBattleHud() {
 
         const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedPlayerId ? mfBattleUi.targeting : null;
 
-        // Panel position: near the selected player sprite (to the RIGHT, allow overflow past map)
-        const panelW = 520;
-        const panelH = 240;
-        const rawLeft = playerUnit.x + (playerUnit.w / 2) + 80;
-        const rawTop = playerUnit.y - (playerUnit.h / 2) - 8;
-        const left = Math.max(10, rawLeft);
-        const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
+        // Fixed panel position (same spot for all players): right-side empty area
+        const panelW = 380;
+        const panelH = 300;
+        const left = Math.round(stageW * 0.56);
+        const top = Math.round(stageH * 0.14);
 
         const aCd = skillA ? cd(skillA.id) : 0;
         const bCd = skillB ? cd(skillB.id) : 0;
@@ -1153,50 +1165,62 @@ function mfRenderBattleHud() {
         }
 
         parts.push(`
-        <div class="mf-action-panel mf-player-panel" data-mf-panel="player" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
-            <div class="mf-action-panel-title">
-                <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
-                <button class="mf-action-panel-close" type="button" data-mf="close">×</button>
+        <div class="mf-action-panel mf-player-panel" data-mf-panel="player" style="left:${escapeHtml(String(left))}px; top:${escapeHtml(String(top))}px;">
+            <div class="mf-player-panel-top">
+                <div class="mf-player-panel-top-row">
+                    <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
+                    <button class="mf-action-panel-close" type="button" data-mf="close">×</button>
+                </div>
+                <div class="mf-player-panel-top-main">
+                    <div class="mf-player-panel-avatar">
+                        ${renderIconWrap({
+                            imgSrc: imageSrcForFile(classImageFileById(player.characterClass)),
+                            fallbackEmoji: getPlayerClasses().find(c => c.id === player.characterClass)?.emoji || '❓',
+                            alt: 'Character',
+                            wrapClass: 'mf-player-panel-avatarwrap'
+                        })}
+                    </div>
+                    <div class="mf-player-panel-hp">
+                        <div class="mf-player-panel-hpbar">
+                            <div class="mf-player-panel-hpfill" style="width:${escapeHtml(String(player.maxHP > 0 ? Math.max(0, Math.min(100, (player.currentHP / player.maxHP) * 100)) : 0))}%"></div>
+                        </div>
+                        <div class="mf-player-panel-hptext">${escapeHtml(String(player.currentHP || 0))}/${escapeHtml(String(player.maxHP || 0))} HP</div>
+                        <div class="mf-player-panel-statline">
+                            <span><b>ATK</b> ${escapeHtml(String(player.attack || 0))}</span>
+                            ${mfRenderStatusIconsInline(player)}
+                        </div>
+                    </div>
+                </div>
             </div>
             ${player.isAlive ? `
                 ${player.hasActed ? `<div class="mf-action-taken">✓ Action Taken</div>` : ''}
-                <div class="mf-action-grid3">
-                    <div class="mf-action-left">
-                        <div class="mf-action-left-stack">
-                            <div class="mf-action-stats">
-                                <div class="mf-action-stat">
-                                    <span>HP</span>
-                                    <b>${escapeHtml(String(player.currentHP || 0))}/${escapeHtml(String(player.maxHP || 0))}</b>
-                                </div>
-                                <div class="mf-action-stat">
-                                    <span>ATK</span>
-                                    <b>${escapeHtml(String(player.attack || 0))}</b>
-                                </div>
-                            </div>
-                            <div class="mf-action-pts">
-                                <div class="mf-action-pts-label">Puzzle Points</div>
-                                <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
-                            </div>
+                <div class="mf-player-panel-mid">
+                    <div class="mf-action-pts">
+                        <div class="mf-action-pts-label">Puzzle Points</div>
+                        <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
+                    </div>
+                </div>
+                <div class="mf-player-panel-bot">
+                    <div class="mf-action-grid3">
+                        <div class="mf-action-icons">
+                            ${actions.map(a => `
+                                <button class="mf-action-btn ${a.disabled ? 'is-disabled' : ''}" type="button"
+                                        data-mf="act" data-act="${escapeHtml(a.act)}" ${a.skillId ? `data-skill="${escapeHtml(String(a.skillId))}"` : ''}
+                                        ${a.disabled ? 'disabled' : ''}>
+                                    ${escapeHtml(String(a.emoji || '✨'))}
+                                    ${a.cdValue > 0 ? `<span class="mf-action-cd">${escapeHtml(String(a.cdValue))}</span>` : ''}
+                                </button>
+                            `).join('')}
                         </div>
-                    </div>
-                    <div class="mf-action-icons">
-                        ${actions.map(a => `
-                            <button class="mf-action-btn ${a.disabled ? 'is-disabled' : ''}" type="button"
-                                    data-mf="act" data-act="${escapeHtml(a.act)}" ${a.skillId ? `data-skill="${escapeHtml(String(a.skillId))}"` : ''}
-                                    ${a.disabled ? 'disabled' : ''}>
-                                ${escapeHtml(String(a.emoji || '✨'))}
-                                ${a.cdValue > 0 ? `<span class="mf-action-cd">${escapeHtml(String(a.cdValue))}</span>` : ''}
-                            </button>
-                        `).join('')}
-                    </div>
-                    <div class="mf-action-desc">
-                        ${actions.map(a => `
-                            <div class="mf-skill-desc ${a.disabled ? 'is-disabled' : ''}">
-                                <div class="mf-skill-desc-top">${escapeHtml(String(a.title || a.kind || ''))}</div>
-                                <div class="mf-skill-desc-mid">${escapeHtml(String(a.descMid || ''))}</div>
-                                <div class="mf-skill-desc-bot">${escapeHtml(String(a.descBot || ''))}</div>
-                            </div>
-                        `).join('')}
+                        <div class="mf-action-desc">
+                            ${actions.map(a => `
+                                <div class="mf-skill-desc ${a.disabled ? 'is-disabled' : ''}">
+                                    <div class="mf-skill-desc-top">${escapeHtml(String(a.title || a.kind || ''))}</div>
+                                    <div class="mf-skill-desc-mid">${escapeHtml(String(a.descMid || ''))}</div>
+                                    <div class="mf-skill-desc-bot">${escapeHtml(String(a.descBot || ''))}</div>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
             ` : `
@@ -1524,6 +1548,14 @@ async function initBattleCanvas() {
 // Render game based on current phase
 let lastRenderPhase = null;
 let renderDebounceTimeout = null;
+
+function mfSetBattleTightMode(on) {
+    const b = document.body;
+    if (!b) return;
+    if (on) b.classList.add('mf-battle-tight');
+    else b.classList.remove('mf-battle-tight');
+}
+
 function renderGame() {
     ensureActionPopupContainer();
     const currentPhase = gameState?.phase;
@@ -1610,9 +1642,11 @@ function renderGame() {
     
     switch (gameState.phase) {
         case 'character_selection':
+            mfSetBattleTightMode(false);
             renderCharacterSelection();
             break;
         case 'level_complete':
+            mfSetBattleTightMode(false);
             renderLevelComplete();
             break;
         case 'puzzle_input':
@@ -1622,12 +1656,15 @@ function renderGame() {
             if (gameState.phase === 'puzzle_input') {
                 gameState.phase = 'player_turn';
             }
+            mfSetBattleTightMode(true);
             renderBattleMode();
             break;
         case 'game_over':
+            mfSetBattleTightMode(false);
             renderGameOver();
             break;
         default:
+            mfSetBattleTightMode(false);
             container.innerHTML = `<p>Unknown phase: ${gameState.phase}</p>`;
     }
     
@@ -2495,7 +2532,7 @@ function renderBattleMode() {
     const isMonsterTurn = gameState.phase === 'monster_turn';
     
     container.innerHTML = `
-        <div class="game-screen">
+        <div class="game-screen mf-battle">
             <div class="mf-topbar">
                 <div class="mf-topbar-row mf-topbar-row1">
                     <div class="mf-topbar-left">
