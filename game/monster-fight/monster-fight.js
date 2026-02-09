@@ -3617,6 +3617,7 @@ async function playerAttack(studentId, explicitTarget) {
         
         const data = await response.json();
         console.log('Server response:', JSON.stringify(data, null, 2));
+        const actionResult = data && typeof data === 'object' ? (data.actionResult || null) : null;
         
         // Preserve current monsters state - update only HP and alive status from server
         const currentMonsters = gameState.monsters ? [...gameState.monsters] : null;
@@ -3672,28 +3673,43 @@ async function playerAttack(studentId, explicitTarget) {
             })));
 
             // --- Canvas FX: ranged beam / melee dash + damage float ---
-            if (hitEvents.length) {
-                const best = hitEvents.reduce((a, b) => (b.damage > a.damage ? b : a), hitEvents[0]);
-                const actualTargetId = best?.id || targetId;
-                const targetKey = `monster:${actualTargetId}`;
-                const requestedKey = `monster:${targetId}`;
-                if (actualTargetId && actualTargetId !== targetId) {
-                    // taunt redirect: blocker slides to victim position before impact
-                    mfAnimBlock(targetKey, requestedKey);
-                }
-                if (isRanged) mfAnimAddBeam(attackerKey, targetKey, 'rgba(255,60,60,0.95)', 6, 280);
-                else mfAnimDash(attackerKey, targetKey, { dur: 340 });
-                mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
-                mfAnimAddFloatAtUnit(targetKey, `-${best.damage}`, 'rgba(255,60,60,0.95)', 4000);
+            const best = hitEvents.length
+                ? hitEvents.reduce((a, b) => (b.damage > a.damage ? b : a), hitEvents[0])
+                : null;
 
-                try {
-                    const finalMonster = (gameState.monsters || []).find(m => m && m.id === actualTargetId) || targetMonsterBefore;
-                    const nameA = String(player?.studentName || 'Player');
-                    const nameB = String(finalMonster?.name || 'Monster');
-                    const tauntTag = (actualTargetId && actualTargetId !== targetId) ? ' (TAUNT)' : '';
-                    mfShowBattleToast(`${nameA} attacks ${nameB} -${best.damage}${tauntTag}`);
-                } catch {}
+            // Even if damage is 0 (dodge / fully reduced), still animate the attempt using actionResult.
+            const arTargetName = String(actionResult?.targetName || '').trim();
+            const arMonster = arTargetName ? (gameState.monsters || []).find(m => String(m?.name || '').trim() === arTargetName) : null;
+            const actualTargetId = (best?.id || arMonster?.id || targetId);
+            const targetKey = actualTargetId ? `monster:${actualTargetId}` : `monster:${targetId}`;
+            const requestedKey = `monster:${targetId}`;
+
+            if (actualTargetId && actualTargetId !== targetId) {
+                // taunt redirect: blocker slides to requested position before impact
+                mfAnimBlock(targetKey, requestedKey);
             }
+
+            // beam/dash always, even on dodge
+            if (isRanged) mfAnimAddBeam(attackerKey, targetKey, 'rgba(255,60,60,0.95)', 6, 280);
+            else mfAnimDash(attackerKey, targetKey, { dur: 340 });
+            mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
+
+            const isDodged = !!actionResult?.dodged;
+            const dmg = Number(best?.damage ?? actionResult?.damage ?? 0) || 0;
+            if (isDodged) {
+                mfAnimAddFloatAtUnit(targetKey, 'DODGE', 'rgba(255,255,255,0.92)', 2000);
+            } else if (dmg > 0) {
+                mfAnimAddFloatAtUnit(targetKey, `-${dmg}`, 'rgba(255,60,60,0.95)', 4000);
+            }
+
+            try {
+                const finalMonster = (gameState.monsters || []).find(m => m && m.id === actualTargetId) || arMonster || targetMonsterBefore;
+                const nameA = String(player?.studentName || 'Player');
+                const nameB = String(finalMonster?.name || 'Monster');
+                const tauntTag = (actualTargetId && actualTargetId !== targetId) ? ' (TAUNT)' : '';
+                if (isDodged) mfShowBattleToast(`${nameA} attacks ${nameB} DODGE${tauntTag}`);
+                else mfShowBattleToast(`${nameA} attacks ${nameB} -${dmg}${tauntTag}`);
+            } catch {}
         }
         
         renderGame();
