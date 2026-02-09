@@ -130,6 +130,121 @@ const POPUP_AUTO_CLOSE_MS = null;
 let actionLogCollapsed = true; // default: hidden, open via topbar button
 let monsterTurnReplay = { active: false, pendingWsState: null, onDone: null };
 
+// Battle: disable popup UI, use timed replay steps instead.
+const MF_DISABLE_ACTION_POPUPS = true;
+const MF_REPLAY_STEP_MS = 900; // base step delay (scaled by animation slow factor)
+
+const MF_RANGED_MONSTER_TYPES = new Set(['shaman', 'dark_mage', 'evil_dragon']);
+
+function mfSnapshotHpMaps(state) {
+    const players = Array.isArray(state?.players) ? state.players : [];
+    const monsters = Array.isArray(state?.monsters) ? state.monsters : [];
+    const pHp = new Map(players.map(p => [String(p?.studentId || ''), Number(p?.currentHP || 0)]));
+    const mHp = new Map(monsters.map(m => [String(m?.id || ''), Number(m?.currentHP || 0)]));
+    return { pHp, mHp, players, monsters };
+}
+
+function mfFindMonsterByName(monsters, name) {
+    const n = String(name || '').trim();
+    if (!n) return null;
+    return (monsters || []).find(m => String(m?.name || '').trim() === n) || null;
+}
+
+function mfFindPlayerByName(players, name) {
+    const n = String(name || '').trim();
+    if (!n) return null;
+    return (players || []).find(p => String(p?.studentName || '').trim() === n) || null;
+}
+
+function mfDeriveMonsterAttackActorTarget(rawMessage, prevState, nextState) {
+    const msg = String(rawMessage || '');
+    // Example: "Brute 2 attacks Wong Sir for 14 damage ..."
+    const m = msg.match(/^(.+?)\s+attacks\s+(.+?)\s+for\s+(\d+)\s+damage/i);
+    if (m) {
+        const actorName = m[1];
+        const targetName = m[2];
+        const actor = mfFindMonsterByName(nextState?.monsters, actorName) || mfFindMonsterByName(prevState?.monsters, actorName);
+        const target = mfFindPlayerByName(nextState?.players, targetName) || mfFindPlayerByName(prevState?.players, targetName);
+        return { actor, target };
+    }
+    // Fallback: unknown; will use hp diffs only.
+    return { actor: null, target: null };
+}
+
+function mfReplayFxFromMonsterTurnStep(rawMessage, prevState, nextState) {
+    try {
+        const prev = mfSnapshotHpMaps(prevState);
+        const next = mfSnapshotHpMaps(nextState);
+
+        const deltas = [];
+        next.players.forEach(p => {
+            const id = String(p?.studentId || '');
+            if (!id) return;
+            const before = prev.pHp.get(id);
+            if (before === undefined) return;
+            const after = Number(p?.currentHP || 0);
+            const d = after - before;
+            if (d !== 0) deltas.push({ kind: 'player', id, name: p.studentName, delta: d });
+        });
+
+        // Only animate damage/heal to players for this request.
+        const dmgPlayers = deltas.filter(d => d.kind === 'player' && d.delta < 0);
+        const healPlayers = deltas.filter(d => d.kind === 'player' && d.delta > 0);
+
+        const { actor, target } = mfDeriveMonsterAttackActorTarget(rawMessage, prev, next);
+        const actorKey = actor?.id ? `monster:${actor.id}` : null;
+        const isRanged = !!(actor && MF_RANGED_MONSTER_TYPES.has(String(actor.type || '').trim()));
+
+        // Taunt block: if target is shield warrior and taunt appears in message, slide toward protected ally.
+        const tauntInMsg = /\(TAUNT\)|\(taunted\)|taunt/i.test(String(rawMessage || ''));
+        if (tauntInMsg && target && String(target.characterClass || '') === 'shield_warrior') {
+            const shieldKey = `player:${target.studentId}`;
+            const protectedAlly = (prev.players || [])
+                .filter(p => p && p.isAlive && p.studentId !== target.studentId)
+                .reduce((best, p) => {
+                    if (!best) return p;
+                    return (Number(p.currentHP || 0) < Number(best.currentHP || 0)) ? p : best;
+                }, null);
+            if (protectedAlly) {
+                mfAnimBlock(shieldKey, `player:${protectedAlly.studentId}`, { dur: 240 });
+            }
+        }
+
+        if (dmgPlayers.length) {
+            // Multi-target damage (AOE): big beam + shake, all targets jitter
+            if (dmgPlayers.length > 1) {
+                mfAnimShake(7, 260);
+                dmgPlayers.forEach(ev => {
+                    const tk = `player:${ev.id}`;
+                    if (actorKey) {
+                        mfAnimAddBeam(actorKey, tk, 'rgba(255,60,60,0.95)', isRanged ? 10 : 8, 320);
+                    }
+                    mfAnimHit(tk, { blinks: 2, dur: 320, amp: 5 });
+                    mfAnimAddFloatAtUnit(tk, `${ev.delta}`, 'rgba(255,60,60,0.95)', 4000);
+                });
+            } else {
+                const ev = dmgPlayers[0];
+                const tk = `player:${ev.id}`;
+                if (actorKey) {
+                    if (isRanged) mfAnimAddBeam(actorKey, tk, 'rgba(255,60,60,0.95)', 6, 280);
+                    else mfAnimDash(actorKey, tk, { dur: 340 });
+                }
+                mfAnimHit(tk, { blinks: 2, dur: 260, amp: 4 });
+                mfAnimAddFloatAtUnit(tk, `${ev.delta}`, 'rgba(255,60,60,0.95)', 4000);
+            }
+        }
+
+        // Heals to players (green floats)
+        healPlayers.forEach(ev => {
+            const tk = `player:${ev.id}`;
+            mfAnimAddFloatAtUnit(tk, `+${ev.delta}`, 'rgba(34,197,94,0.95)', 4000);
+            mfAnimHit(tk, { blinks: 2, dur: 260, amp: 2 });
+        });
+    } catch (e) {
+        console.warn('[mfReplayFx] failed', e);
+    }
+}
+
 // Character selection UI state (client-only)
 const charSelectUi = {};
 let hasAutoPickedDefaultCharacter = false;
@@ -278,6 +393,17 @@ async function processActionQueue() {
     } catch (e) {
         console.warn('[actionQueue] beforeShow failed', e);
     }
+
+    // No more popup UI in battle; just advance automatically.
+    if (MF_DISABLE_ACTION_POPUPS) {
+        const delay = Math.max(0, Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)));
+        setTimeout(() => {
+            isShowingPopup = false;
+            void processActionQueue();
+        }, delay);
+        return;
+    }
+
     showActionPopup(item.message, item.summary, item.context || {});
 }
 
@@ -748,8 +874,16 @@ const mfAnim = {
     shake: null // { t0, dur, amp }
 };
 
+// Slow down all FX (except floating numbers) by this factor.
+const MF_ANIM_SLOW_FACTOR = 3;
+
 function mfNow() {
     return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+function mfAnimMs(ms) {
+    const n = Number(ms) || 0;
+    return Math.max(0, Math.round(n * (MF_ANIM_SLOW_FACTOR || 1)));
 }
 
 function mfFindUnitByKey(key) {
@@ -791,13 +925,13 @@ function mfAnimAddFloatAtUnit(key, text, color, dur = 4000) {
 }
 
 function mfAnimAddBeam(fromKey, toKey, color = 'rgba(255,60,60,0.95)', width = 5, dur = 260) {
-    mfAnim.beams.push({ fromKey: String(fromKey || ''), toKey: String(toKey || ''), color, width, t0: mfNow(), dur });
+    mfAnim.beams.push({ fromKey: String(fromKey || ''), toKey: String(toKey || ''), color, width, t0: mfNow(), dur: mfAnimMs(dur) });
 }
 
 function mfAnimHit(targetKey, opts = {}) {
     const k = String(targetKey || '');
-    mfAnim.flashes.set(k, { t0: mfNow(), dur: opts.dur ?? 260, blinks: opts.blinks ?? 2 });
-    mfAnim.jitters.set(k, { t0: mfNow(), dur: opts.jitterDur ?? 260, amp: opts.amp ?? 3 });
+    mfAnim.flashes.set(k, { t0: mfNow(), dur: mfAnimMs(opts.dur ?? 260), blinks: opts.blinks ?? 2 });
+    mfAnim.jitters.set(k, { t0: mfNow(), dur: mfAnimMs(opts.jitterDur ?? 260), amp: opts.amp ?? 3 });
 }
 
 function mfAnimDash(attKey, toKey, opts = {}) {
@@ -806,7 +940,7 @@ function mfAnimDash(attKey, toKey, opts = {}) {
         fromKey: String(attKey || ''),
         toKey: String(toKey || ''),
         t0: mfNow(),
-        dur: opts.dur ?? 320,
+        dur: mfAnimMs(opts.dur ?? 320),
         reach: opts.reach ?? 0.55
     });
 }
@@ -816,17 +950,17 @@ function mfAnimBlock(blockerKey, victimKey, opts = {}) {
         blockerKey: String(blockerKey || ''),
         victimKey: String(victimKey || ''),
         t0: mfNow(),
-        dur: opts.dur ?? 240,
+        dur: mfAnimMs(opts.dur ?? 240),
         reach: opts.reach ?? 0.85
     });
 }
 
 function mfAnimFlip(key, flips = 3, dur = 420) {
-    mfAnim.flips.set(String(key || ''), { t0: mfNow(), dur, flips });
+    mfAnim.flips.set(String(key || ''), { t0: mfNow(), dur: mfAnimMs(dur), flips });
 }
 
 function mfAnimShake(amp = 6, dur = 240) {
-    mfAnim.shake = { t0: mfNow(), dur, amp };
+    mfAnim.shake = { t0: mfNow(), dur: mfAnimMs(dur), amp };
 }
 
 function mfAnimOffsetForKey(key, now) {
@@ -3759,7 +3893,17 @@ async function processMonsterTurn() {
                 const decoratedMessage = decorateMessageWithIcons(rawMessage);
                 queueActionPopup(decoratedMessage, summary, context, {
                     beforeShow: () => {
+                        const prevState = gameState ? {
+                            phase: gameState.phase,
+                            currentTurn: gameState.currentTurn,
+                            players: gameState.players,
+                            monsters: gameState.monsters,
+                            actionLog: gameState.actionLog
+                        } : null;
+
                         applyMonsterTurnSnapshot(snap);
+                        // Replay FX based on snapshot diffs
+                        try { mfReplayFxFromMonsterTurnStep(rawMessage, prevState, gameState); } catch {}
                         renderGame();
                     }
                 });
