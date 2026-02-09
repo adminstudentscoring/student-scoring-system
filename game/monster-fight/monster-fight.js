@@ -302,6 +302,8 @@ function mfReplayFxFromMonsterTurnStep(rawMessage, prevState, nextState) {
         const { actor, target } = mfDeriveMonsterAttackActorTarget(rawMessage, prev, next);
         const actorKey = actor?.id ? `monster:${actor.id}` : null;
         const isRanged = !!(actor && MF_RANGED_MONSTER_TYPES.has(String(actor.type || '').trim()));
+        const msg = String(rawMessage || '');
+        const isDodged = /dodges/i.test(msg) || /dodge/i.test(msg);
 
         // Taunt block: if target is shield warrior and taunt appears in message, slide toward protected ally.
         const tauntInMsg = /\(TAUNT\)|\(taunted\)|taunt/i.test(String(rawMessage || ''));
@@ -335,11 +337,18 @@ function mfReplayFxFromMonsterTurnStep(rawMessage, prevState, nextState) {
                 const tk = `player:${ev.id}`;
                 if (actorKey) {
                     if (isRanged) mfAnimAddBeam(actorKey, tk, 'rgba(255,60,60,0.95)', 6, 280);
-                    else mfAnimDash(actorKey, tk, { dur: 340 });
+                    else mfAnimDash(actorKey, tk, { dur: 340, gap: 12 });
                 }
                 mfAnimHit(tk, { blinks: 2, dur: 260, amp: 4 });
                 mfAnimAddFloatAtUnit(tk, `${ev.delta}`, 'rgba(255,60,60,0.95)', 4000);
             }
+        } else if (actorKey && target && target.studentId) {
+            // No HP delta (e.g. dodge/0 dmg) but still show attack animation
+            const tk = `player:${target.studentId}`;
+            if (isRanged) mfAnimAddBeam(actorKey, tk, 'rgba(255,60,60,0.95)', 6, 280);
+            else mfAnimDash(actorKey, tk, { dur: 340, gap: 12 });
+            mfAnimHit(tk, { blinks: 2, dur: 260, amp: 4 });
+            if (isDodged) mfAnimAddFloatAtUnit(tk, 'DODGE', 'rgba(255,255,255,0.92)', 2000);
         }
 
         // Heals to players (green floats)
@@ -1002,6 +1011,7 @@ const mfAnim = {
     flashes: new Map(), // key -> { t0, dur, blinks }
     jitters: new Map(), // key -> { t0, dur, amp }
     flips: new Map(),   // key -> { t0, dur, flips }
+    hpHold: new Map(),  // key -> { cur, until }
     shake: null // { t0, dur, amp }
 };
 
@@ -1042,6 +1052,9 @@ function mfAnimPurge(now) {
     for (const [k, v] of mfAnim.flips.entries()) {
         if ((now - v.t0) > v.dur) mfAnim.flips.delete(k);
     }
+    for (const [k, v] of mfAnim.hpHold.entries()) {
+        if (now > v.until) mfAnim.hpHold.delete(k);
+    }
     if (mfAnim.shake && (now - mfAnim.shake.t0) > mfAnim.shake.dur) mfAnim.shake = null;
 }
 
@@ -1049,10 +1062,19 @@ function mfAnimAddFloatAt(x, y, text, color = 'rgba(255,60,60,0.95)', dur = 4000
     mfAnim.floats.push({ x: Number(x) || 0, y: Number(y) || 0, text: String(text || ''), color, t0: mfNow(), dur, rise });
 }
 
-function mfAnimAddFloatAtUnit(key, text, color, dur = 4000) {
+function mfAnimAddFloatAtUnit(key, text, color, dur = 4000, opts = {}) {
     const c = mfUnitCenter(key);
     if (!c) return;
-    mfAnimAddFloatAt(c.x, c.y - 18, text, color, dur, 34);
+    const delayMs = Math.max(0, Number(opts?.delayMs) || 0);
+    mfAnim.floats.push({
+        x: Number(c.x) || 0,
+        y: Number(c.y - 18) || 0,
+        text: String(text || ''),
+        color: color || 'rgba(255,60,60,0.95)',
+        t0: mfNow() + delayMs,
+        dur,
+        rise: 34
+    });
 }
 
 function mfAnimAddBeam(fromKey, toKey, color = 'rgba(255,60,60,0.95)', width = 5, dur = 260) {
@@ -1062,8 +1084,10 @@ function mfAnimAddBeam(fromKey, toKey, color = 'rgba(255,60,60,0.95)', width = 5
 
 function mfAnimHit(targetKey, opts = {}) {
     const k = String(targetKey || '');
-    mfAnim.flashes.set(k, { t0: mfNow(), dur: mfAnimMs(opts.dur ?? 260), blinks: opts.blinks ?? 2 });
-    mfAnim.jitters.set(k, { t0: mfNow(), dur: mfAnimMs(opts.jitterDur ?? 260), amp: opts.amp ?? 3 });
+    const delayMs = Math.max(0, Number(opts?.delayMs) || 0);
+    const t0 = mfNow() + delayMs;
+    mfAnim.flashes.set(k, { t0, dur: mfAnimMs(opts.dur ?? 260), blinks: opts.blinks ?? 2 });
+    mfAnim.jitters.set(k, { t0, dur: mfAnimMs(opts.jitterDur ?? 260), amp: opts.amp ?? 3 });
 }
 
 function mfAnimDash(attKey, toKey, opts = {}) {
@@ -1073,7 +1097,8 @@ function mfAnimDash(attKey, toKey, opts = {}) {
         toKey: String(toKey || ''),
         t0: mfNow(),
         dur: mfAnimMs(opts.dur ?? 320),
-        reach: opts.reach ?? 0.55
+        reach: opts.reach ?? 1,
+        gap: opts.gap ?? 10
     });
 }
 
@@ -1083,7 +1108,8 @@ function mfAnimBlock(blockerKey, victimKey, opts = {}) {
         victimKey: String(victimKey || ''),
         t0: mfNow(),
         dur: mfAnimMs(opts.dur ?? 240),
-        reach: opts.reach ?? 0.85
+        reach: opts.reach ?? 1,
+        gap: opts.gap ?? 6
     });
 }
 
@@ -1102,31 +1128,47 @@ function mfAnimOffsetForKey(key, now) {
     // dash offsets (melee)
     for (const d of mfAnim.dashes) {
         if (d.attKey !== k) continue;
-        const from = mfUnitCenter(d.fromKey);
-        const to = mfUnitCenter(d.toKey);
+        const fromU = mfFindUnitByKey(d.fromKey);
+        const toU = mfFindUnitByKey(d.toKey);
+        const from = fromU ? { x: fromU.x, y: fromU.y } : null;
+        const to = toU ? { x: toU.x, y: toU.y } : null;
         if (!from || !to) continue;
         const t = (now - d.t0) / d.dur;
         if (t < 0 || t > 1) continue;
         const ease = (t < 0.5) ? (t / 0.5) : (1 - (t - 0.5) / 0.5);
         const vx = to.x - from.x;
         const vy = to.y - from.y;
-        dx += vx * d.reach * ease;
-        dy += vy * d.reach * ease;
+        const len = Math.max(1, Math.hypot(vx, vy));
+        const attW = Number(fromU?.w) || (76 * MF_UNIT_SCALE);
+        const tgtW = Number(toU?.w) || (76 * MF_UNIT_SCALE);
+        const gap = Number(d.gap) || 10;
+        const stop = Math.max(0, len - (attW / 2 + tgtW / 2 + gap));
+        const move = Math.min(len, stop) * (Number(d.reach) || 1) * ease;
+        dx += (vx / len) * move;
+        dy += (vy / len) * move;
     }
 
     // taunt block offsets (blocker slides toward victim quickly)
     for (const b of mfAnim.blocks) {
         if (b.blockerKey !== k) continue;
-        const from = mfUnitCenter(b.blockerKey);
-        const to = mfUnitCenter(b.victimKey);
+        const fromU = mfFindUnitByKey(b.blockerKey);
+        const toU = mfFindUnitByKey(b.victimKey);
+        const from = fromU ? { x: fromU.x, y: fromU.y } : null;
+        const to = toU ? { x: toU.x, y: toU.y } : null;
         if (!from || !to) continue;
         const t = (now - b.t0) / b.dur;
         if (t < 0 || t > 1) continue;
         const ease = Math.min(1, Math.max(0, t));
         const vx = to.x - from.x;
         const vy = to.y - from.y;
-        dx += vx * b.reach * ease;
-        dy += vy * b.reach * ease;
+        const len = Math.max(1, Math.hypot(vx, vy));
+        const blkW = Number(fromU?.w) || (76 * MF_UNIT_SCALE);
+        const vicW = Number(toU?.w) || (76 * MF_UNIT_SCALE);
+        const gap = Number(b.gap) || 6;
+        const stop = Math.max(0, len - (blkW / 2 + vicW / 2 + gap));
+        const move = Math.min(len, stop) * (Number(b.reach) || 1) * ease;
+        dx += (vx / len) * move;
+        dy += (vy / len) * move;
     }
 
     // jitter
@@ -1361,14 +1403,16 @@ function drawUnit(ctx, unit, now) {
         ctx.fill();
     }
 
-    // hp
-    const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
+    // hp (support delayed HP reveal for melee impacts)
+    const hold = key ? mfAnim.hpHold.get(String(key)) : null;
+    const hpCur = (hold && now < hold.until) ? hold.cur : currentHP;
+    const pct = (maxHP > 0) ? (Number(hpCur || 0) / Number(maxHP || 1)) : 0;
     // bring HP closer to sprite
     const hpW = Math.round(72 * MF_UNIT_SCALE);
     const hpH = 9;
     const hpX = ux;
     const hpY = uy + h / 2 + 6;
-    const hpText = `${escapeHtml(String(currentHP || 0))}/${escapeHtml(String(maxHP || 0))}`;
+    const hpText = `${escapeHtml(String(hpCur || 0))}/${escapeHtml(String(maxHP || 0))}`;
     drawHpBar(ctx, hpX, hpY, hpW, hpH, pct, hpText);
 
     // action taken tick (players only)
@@ -3681,25 +3725,41 @@ async function playerAttack(studentId, explicitTarget) {
             const arTargetName = String(actionResult?.targetName || '').trim();
             const arMonster = arTargetName ? (gameState.monsters || []).find(m => String(m?.name || '').trim() === arTargetName) : null;
             const actualTargetId = (best?.id || arMonster?.id || targetId);
-            const targetKey = actualTargetId ? `monster:${actualTargetId}` : `monster:${targetId}`;
-            const requestedKey = `monster:${targetId}`;
-
-            if (actualTargetId && actualTargetId !== targetId) {
-                // taunt redirect: blocker slides to requested position before impact
-                mfAnimBlock(targetKey, requestedKey);
-            }
-
-            // beam/dash always, even on dodge
-            if (isRanged) mfAnimAddBeam(attackerKey, targetKey, 'rgba(255,60,60,0.95)', 6, 280);
-            else mfAnimDash(attackerKey, targetKey, { dur: 340 });
-            mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
+            const actualKey = actualTargetId ? `monster:${actualTargetId}` : `monster:${targetId}`;
+            const requestedKey = `monster:${targetId}`; // original selected target
+            const aimKey = requestedKey; // keep aiming at original target, even if taunted
 
             const isDodged = !!actionResult?.dodged;
             const dmg = Number(best?.damage ?? actionResult?.damage ?? 0) || 0;
+
+            const meleeImpactDelayMs = isRanged ? 0 : Math.round(mfAnimMs(340) / 2);
+
+            // Taunt redirect: blocker moves in front of the original target before impact
+            if (actualTargetId && actualTargetId !== targetId) {
+                mfAnimBlock(actualKey, requestedKey, { dur: 180 });
+            }
+
+            // beam/dash always, even on dodge
+            if (isRanged) mfAnimAddBeam(attackerKey, aimKey, 'rgba(255,60,60,0.95)', 6, 280);
+            else mfAnimDash(attackerKey, aimKey, { dur: 340, gap: 12 });
+
+            // hit + numbers should happen at impact moment for melee
+            mfAnimHit(actualKey, { blinks: 2, dur: 260, amp: 4, delayMs: meleeImpactDelayMs });
+
+            // Hold HP display until impact (melee only)
+            if (!isRanged && best && typeof best.id !== 'undefined') {
+                const holdUntil = mfNow() + meleeImpactDelayMs;
+                // find pre-hit HP from currentMonsters snapshot
+                const old = (currentMonsters || []).find(m => m && m.id === best.id)?.currentHP;
+                if (typeof old === 'number') {
+                    mfAnim.hpHold.set(actualKey, { cur: old, until: holdUntil });
+                }
+            }
+
             if (isDodged) {
-                mfAnimAddFloatAtUnit(targetKey, 'DODGE', 'rgba(255,255,255,0.92)', 2000);
+                mfAnimAddFloatAtUnit(actualKey, 'DODGE', 'rgba(255,255,255,0.92)', 2000, { delayMs: meleeImpactDelayMs });
             } else if (dmg > 0) {
-                mfAnimAddFloatAtUnit(targetKey, `-${dmg}`, 'rgba(255,60,60,0.95)', 4000);
+                mfAnimAddFloatAtUnit(actualKey, `-${dmg}`, 'rgba(255,60,60,0.95)', 4000, { delayMs: meleeImpactDelayMs });
             }
 
             try {
