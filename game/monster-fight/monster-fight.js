@@ -506,9 +506,23 @@ async function processActionQueue() {
 
     // No more popup UI in battle; just advance automatically.
     if (MF_DISABLE_ACTION_POPUPS) {
+        const raw = item?.context?.rawMessage || item?.message || '';
+        const txt = mfToastTextFromRaw(raw);
+        const autoProceed = !!item?.context?.autoProceed;
+
+        if (autoProceed) {
+            // Auto-play first step, then require Next for the rest.
+            try { mfShowBattleToast(txt, { ms: Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)) }); } catch {}
+            const delay = Math.max(250, Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)));
+            setTimeout(() => {
+                isShowingPopup = false;
+                void processActionQueue();
+            }, delay);
+            return;
+        }
+
         try {
-            const raw = item?.context?.rawMessage || item?.message || '';
-            mfShowBattleToast(mfToastTextFromRaw(raw), {
+            mfShowBattleToast(txt, {
                 next: true,
                 onNext: () => {
                     isShowingPopup = false;
@@ -516,7 +530,7 @@ async function processActionQueue() {
                 }
             });
         } catch {}
-        // Wait for user to click Next.
+        // Wait for user to click Next for subsequent steps.
         return;
     }
 
@@ -3971,7 +3985,16 @@ async function processMonsterTurn() {
     console.log('=== PROCESS MONSTER TURN ===');
     if (monsterTurnReplay && monsterTurnReplay.active) {
         console.log('[monster-turn] replay in progress, ignoring.');
-        try { mfShowBattleToast('Replay in progress — click Next to continue.', { ms: 1200 }); } catch {}
+        // Provide a Next button to continue replay immediately.
+        try {
+            mfShowBattleToast('Replay in progress — click Next to continue.', {
+                next: true,
+                onNext: () => {
+                    isShowingPopup = false;
+                    void processActionQueue();
+                }
+            });
+        } catch {}
         return;
     }
     console.log('Players BEFORE monster turn:', gameState.players.map(p => ({
@@ -4018,13 +4041,13 @@ async function processMonsterTurn() {
             };
 
             // Queue popups with snapshot application before each popup appears.
-            data.turnEvents.forEach((evt) => {
+            data.turnEvents.forEach((evt, idx) => {
                 const log = evt?.log || {};
                 const snap = evt?.snapshot || null;
                 const rawMessage = String(log.message || '');
                 if (!rawMessage) return;
                 const summary = Array.isArray(log.summaryDetails) ? decorateSummaryLines(log.summaryDetails) : null;
-                const context = { ...(derivePopupContext(rawMessage) || {}), rawMessage };
+                const context = { ...(derivePopupContext(rawMessage) || {}), rawMessage, autoProceed: idx === 0 };
                 const decoratedMessage = decorateMessageWithIcons(rawMessage);
                 queueActionPopup(decoratedMessage, summary, context, {
                     beforeShow: () => {
