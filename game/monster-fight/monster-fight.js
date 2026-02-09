@@ -734,6 +734,220 @@ const mfBattleUi = {
     reviveDraft: {} // studentId -> number
 };
 
+// ----------------------------
+// Canvas battle animations (FX)
+// ----------------------------
+const mfAnim = {
+    beams: [],   // { fromKey, toKey, color, width, t0, dur }
+    floats: [],  // { x, y, text, color, t0, dur, rise }
+    dashes: [],  // { attKey, fromKey, toKey, t0, dur, reach }
+    blocks: [],  // { blockerKey, victimKey, t0, dur, reach }
+    flashes: new Map(), // key -> { t0, dur, blinks }
+    jitters: new Map(), // key -> { t0, dur, amp }
+    flips: new Map(),   // key -> { t0, dur, flips }
+    shake: null // { t0, dur, amp }
+};
+
+function mfNow() {
+    return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+function mfFindUnitByKey(key) {
+    const k = String(key || '');
+    return (mfScene.units || []).find(u => u && u.key === k) || null;
+}
+
+function mfUnitCenter(key) {
+    const u = mfFindUnitByKey(key);
+    if (!u) return null;
+    return { x: u.x, y: u.y };
+}
+
+function mfAnimPurge(now) {
+    mfAnim.beams = mfAnim.beams.filter(b => (now - b.t0) <= b.dur);
+    mfAnim.floats = mfAnim.floats.filter(f => (now - f.t0) <= f.dur);
+    mfAnim.dashes = mfAnim.dashes.filter(d => (now - d.t0) <= d.dur);
+    mfAnim.blocks = mfAnim.blocks.filter(d => (now - d.t0) <= d.dur);
+    for (const [k, v] of mfAnim.flashes.entries()) {
+        if ((now - v.t0) > v.dur) mfAnim.flashes.delete(k);
+    }
+    for (const [k, v] of mfAnim.jitters.entries()) {
+        if ((now - v.t0) > v.dur) mfAnim.jitters.delete(k);
+    }
+    for (const [k, v] of mfAnim.flips.entries()) {
+        if ((now - v.t0) > v.dur) mfAnim.flips.delete(k);
+    }
+    if (mfAnim.shake && (now - mfAnim.shake.t0) > mfAnim.shake.dur) mfAnim.shake = null;
+}
+
+function mfAnimAddFloatAt(x, y, text, color = 'rgba(255,60,60,0.95)', dur = 4000, rise = 28) {
+    mfAnim.floats.push({ x: Number(x) || 0, y: Number(y) || 0, text: String(text || ''), color, t0: mfNow(), dur, rise });
+}
+
+function mfAnimAddFloatAtUnit(key, text, color, dur = 4000) {
+    const c = mfUnitCenter(key);
+    if (!c) return;
+    mfAnimAddFloatAt(c.x, c.y - 18, text, color, dur, 34);
+}
+
+function mfAnimAddBeam(fromKey, toKey, color = 'rgba(255,60,60,0.95)', width = 5, dur = 260) {
+    mfAnim.beams.push({ fromKey: String(fromKey || ''), toKey: String(toKey || ''), color, width, t0: mfNow(), dur });
+}
+
+function mfAnimHit(targetKey, opts = {}) {
+    const k = String(targetKey || '');
+    mfAnim.flashes.set(k, { t0: mfNow(), dur: opts.dur ?? 260, blinks: opts.blinks ?? 2 });
+    mfAnim.jitters.set(k, { t0: mfNow(), dur: opts.jitterDur ?? 260, amp: opts.amp ?? 3 });
+}
+
+function mfAnimDash(attKey, toKey, opts = {}) {
+    mfAnim.dashes.push({
+        attKey: String(attKey || ''),
+        fromKey: String(attKey || ''),
+        toKey: String(toKey || ''),
+        t0: mfNow(),
+        dur: opts.dur ?? 320,
+        reach: opts.reach ?? 0.55
+    });
+}
+
+function mfAnimBlock(blockerKey, victimKey, opts = {}) {
+    mfAnim.blocks.push({
+        blockerKey: String(blockerKey || ''),
+        victimKey: String(victimKey || ''),
+        t0: mfNow(),
+        dur: opts.dur ?? 240,
+        reach: opts.reach ?? 0.85
+    });
+}
+
+function mfAnimFlip(key, flips = 3, dur = 420) {
+    mfAnim.flips.set(String(key || ''), { t0: mfNow(), dur, flips });
+}
+
+function mfAnimShake(amp = 6, dur = 240) {
+    mfAnim.shake = { t0: mfNow(), dur, amp };
+}
+
+function mfAnimOffsetForKey(key, now) {
+    const k = String(key || '');
+    let dx = 0, dy = 0;
+
+    // dash offsets (melee)
+    for (const d of mfAnim.dashes) {
+        if (d.attKey !== k) continue;
+        const from = mfUnitCenter(d.fromKey);
+        const to = mfUnitCenter(d.toKey);
+        if (!from || !to) continue;
+        const t = (now - d.t0) / d.dur;
+        if (t < 0 || t > 1) continue;
+        const ease = (t < 0.5) ? (t / 0.5) : (1 - (t - 0.5) / 0.5);
+        const vx = to.x - from.x;
+        const vy = to.y - from.y;
+        dx += vx * d.reach * ease;
+        dy += vy * d.reach * ease;
+    }
+
+    // taunt block offsets (blocker slides toward victim quickly)
+    for (const b of mfAnim.blocks) {
+        if (b.blockerKey !== k) continue;
+        const from = mfUnitCenter(b.blockerKey);
+        const to = mfUnitCenter(b.victimKey);
+        if (!from || !to) continue;
+        const t = (now - b.t0) / b.dur;
+        if (t < 0 || t > 1) continue;
+        const ease = Math.min(1, Math.max(0, t));
+        const vx = to.x - from.x;
+        const vy = to.y - from.y;
+        dx += vx * b.reach * ease;
+        dy += vy * b.reach * ease;
+    }
+
+    // jitter
+    const jit = mfAnim.jitters.get(k);
+    if (jit) {
+        const t = (now - jit.t0) / jit.dur;
+        if (t >= 0 && t <= 1) {
+            const a = (1 - t) * (Number(jit.amp) || 3);
+            dx += Math.sin(now / 18) * a;
+            dy += Math.cos(now / 22) * a;
+        }
+    }
+
+    return { dx, dy };
+}
+
+function mfAnimFlashAlpha(key, now) {
+    const fx = mfAnim.flashes.get(String(key || ''));
+    if (!fx) return 1;
+    const t = (now - fx.t0) / fx.dur;
+    if (t < 0 || t > 1) return 1;
+    const blinks = Math.max(1, Number(fx.blinks) || 2);
+    const phase = Math.floor(t * blinks * 2);
+    return (phase % 2 === 0) ? 1.0 : 0.35;
+}
+
+function mfAnimIsFlipped(key, now) {
+    const fx = mfAnim.flips.get(String(key || ''));
+    if (!fx) return false;
+    const t = (now - fx.t0) / fx.dur;
+    if (t < 0 || t > 1) return false;
+    const flips = Math.max(1, Number(fx.flips) || 3);
+    const phase = Math.floor(t * flips * 2);
+    return (phase % 2 === 1);
+}
+
+function mfDrawAnim(ctx, now) {
+    mfAnimPurge(now);
+
+    // beams
+    for (const b of mfAnim.beams) {
+        const from = mfUnitCenter(b.fromKey);
+        const to = mfUnitCenter(b.toKey);
+        if (!from || !to) continue;
+        const age = now - b.t0;
+        const t = Math.max(0, Math.min(1, age / b.dur));
+        const a = (1 - t) * 0.95;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = b.width;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+        // inner bright core
+        ctx.globalAlpha = a * 0.75;
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = Math.max(1, b.width - 2);
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // float numbers
+    for (const f of mfAnim.floats) {
+        const age = now - f.t0;
+        const t = Math.max(0, Math.min(1, age / f.dur));
+        const a = (1 - t);
+        const y = f.y - (Number(f.rise) || 28) * t;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.font = '900 14px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillStyle = f.color;
+        ctx.strokeText(String(f.text), f.x, y);
+        ctx.fillText(String(f.text), f.x, y);
+        ctx.restore();
+    }
+}
+
 function loadImg(src) {
     const s = String(src || '').trim();
     if (!s) return Promise.resolve(null);
@@ -821,6 +1035,10 @@ function drawUnit(ctx, unit, now) {
         isMonster = false
     } = unit;
 
+    const off = mfAnimOffsetForKey(key, now);
+    const ux = x + off.dx;
+    const uy = y + off.dy;
+
     // +20% scale for sprites
     const w = Math.round(76 * 1.2);
     const h = Math.round(76 * 1.2);
@@ -858,11 +1076,22 @@ function drawUnit(ctx, unit, now) {
 
     // sprite
     if (img) {
-        ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+        // hit flash alpha (stacked on top of death alpha)
+        ctx.globalAlpha *= mfAnimFlashAlpha(key, now);
+        const flipped = mfAnimIsFlipped(key, now);
+        if (flipped) {
+            ctx.save();
+            ctx.translate(ux, uy);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            ctx.restore();
+        } else {
+            ctx.drawImage(img, ux - w / 2, uy - h / 2, w, h);
+        }
     } else {
         ctx.fillStyle = isMonster ? 'rgba(255,80,80,0.55)' : 'rgba(80,160,255,0.55)';
         ctx.beginPath();
-        ctx.arc(x, y, 28, 0, Math.PI * 2);
+        ctx.arc(ux, uy, 28, 0, Math.PI * 2);
         ctx.fill();
     }
 
@@ -871,8 +1100,8 @@ function drawUnit(ctx, unit, now) {
     // bring HP closer to sprite
     const hpW = Math.round(72 * 1.2);
     const hpH = 9;
-    const hpX = x;
-    const hpY = y + h / 2 + 6;
+    const hpX = ux;
+    const hpY = uy + h / 2 + 6;
     const hpText = `${escapeHtml(String(currentHP || 0))}/${escapeHtml(String(maxHP || 0))}`;
     drawHpBar(ctx, hpX, hpY, hpW, hpH, pct, hpText);
 
@@ -892,7 +1121,7 @@ function drawUnit(ctx, unit, now) {
     }
 
     // statuses to the right of HP bar
-    const statuses = mfExtractStatuses(unit.raw || unit);
+    const statuses = mfExtractStatusesWithPassives(unit.raw || unit);
     drawStatusIcons(ctx, hpX + hpW / 2 + 6, hpY, statuses);
 
     ctx.restore();
@@ -1034,6 +1263,7 @@ function mfIsAoeSkill(player, skill) {
 function mfStatusIcon(status) {
     const t = String(status?.type || '').trim().toLowerCase();
     if (!t) return null;
+    if (t === 'taunt') return { key: 'taunt', ch: '🛡️' };
     if (t === 'poison') return { key: 'poison', ch: '☠️' };
     if (t === 'bleed' || t === 'bleeding_claw') return { key: 'bleed', ch: '🩸' };
     if (t === 'silence') return { key: 'silence', ch: '🤫' };
@@ -1065,6 +1295,22 @@ function mfHasStatus(entity, type) {
     if (!want) return false;
     const arr = Array.isArray(entity?.statuses) ? entity.statuses : [];
     return arr.some(s => String(s?.type || '').trim().toLowerCase() === want);
+}
+
+function mfHasPassiveFlag(entity, flag) {
+    const want = String(flag || '').trim();
+    if (!want) return false;
+    const skills = Array.isArray(entity?.skills) ? entity.skills : [];
+    return skills.some(s => s && s.type === 'passive' && s.effect && typeof s.effect === 'object' && !!s.effect[want]);
+}
+
+function mfExtractStatusesWithPassives(entity) {
+    const out = mfExtractStatuses(entity);
+    // Show always-on taunt passive as a visible icon
+    if (mfHasPassiveFlag(entity, 'tauntMonsters') || mfHasPassiveFlag(entity, 'tauntPlayers')) {
+        out.unshift({ type: 'taunt' });
+    }
+    return out.slice(0, 6);
 }
 
 function drawStatusIcons(ctx, xRight, yCenter, statuses) {
@@ -1619,7 +1865,19 @@ async function initBattleCanvas() {
         if (token !== mfCanvasToken) return;
         const w = stage.clientWidth;
         const h = stage.clientHeight;
+        const now = mfNow();
+        const shake = mfAnim.shake;
+        let sx = 0, sy = 0;
+        if (shake) {
+            const t = Math.max(0, Math.min(1, (now - shake.t0) / shake.dur));
+            const a = (1 - t) * (Number(shake.amp) || 6);
+            sx = Math.sin(now / 16) * a;
+            sy = Math.cos(now / 19) * a;
+        }
+
         ctx.clearRect(0, 0, w, h);
+        ctx.save();
+        ctx.translate(sx, sy);
 
         if (mapImg) {
             // cover draw
@@ -1635,7 +1893,10 @@ async function initBattleCanvas() {
 
         // entities
         drawBattleEntities(ctx, w, h);
+        // FX overlays
+        mfDrawAnim(ctx, now);
 
+        ctx.restore();
         mfCanvasRaf = requestAnimationFrame(draw);
     };
 
@@ -3063,6 +3324,9 @@ async function playerAttack(studentId, explicitTarget) {
     
     // Log before attack
     const player = gameState.players.find(p => p.studentId === studentId);
+    const attackerKey = `player:${studentId}`;
+    const attackerClass = String(player?.characterClass || '').toLowerCase();
+    const isRanged = (attackerClass === 'archer' || attackerClass === 'wizard');
     const targetMonsterBefore = gameState.monsters?.find(m => m.id === targetId);
     console.log('=== PLAYER ATTACK ===');
     console.log(`Player: ${player?.studentName} (ID: ${studentId})`);
@@ -3103,6 +3367,7 @@ async function playerAttack(studentId, explicitTarget) {
         
         // Update monster HP from server response, but preserve the array structure
         if (currentMonsters && currentMonsters.length > 0 && gameState.monsters) {
+            const hitEvents = []; // { id, damage }
             console.log('=== UPDATING MONSTER HP ===');
             console.log('Current monsters (before update):', currentMonsters.map(m => ({
                 id: m.id,
@@ -3123,6 +3388,7 @@ async function playerAttack(studentId, explicitTarget) {
                     const oldHP = currentMonster.currentHP;
                     const newHP = serverMonster.currentHP;
                     const damage = oldHP - newHP;
+                    if (damage > 0) hitEvents.push({ id: currentMonster.id, damage });
                     
                     console.log(`Monster ${currentMonster.name} (${currentMonster.id}):`);
                     console.log(`  HP: ${oldHP} -> ${newHP} (damage: ${damage})`);
@@ -3147,12 +3413,28 @@ async function playerAttack(studentId, explicitTarget) {
                 hp: `${m.currentHP}/${m.maxHP}`,
                 alive: m.isAlive
             })));
+
+            // --- Canvas FX: ranged beam / melee dash + damage float ---
+            if (hitEvents.length) {
+                const best = hitEvents.reduce((a, b) => (b.damage > a.damage ? b : a), hitEvents[0]);
+                const actualTargetId = best?.id || targetId;
+                const targetKey = `monster:${actualTargetId}`;
+                const requestedKey = `monster:${targetId}`;
+                if (actualTargetId && actualTargetId !== targetId) {
+                    // taunt redirect: blocker slides to victim position before impact
+                    mfAnimBlock(targetKey, requestedKey);
+                }
+                if (isRanged) mfAnimAddBeam(attackerKey, targetKey, 'rgba(255,60,60,0.95)', 6, 280);
+                else mfAnimDash(attackerKey, targetKey, { dur: 340 });
+                mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
+                mfAnimAddFloatAtUnit(targetKey, `-${best.damage}`, 'rgba(255,60,60,0.95)', 4000);
+            }
         }
         
         renderGame();
     } catch (error) {
         console.error('Error processing attack:', error);
-        alert('Failed to process attack');
+        alert(String(error?.message || 'Failed to process attack'));
     }
 }
 
@@ -3171,6 +3453,13 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
     }
 
     const isAoe = mfIsAoeSkill(player, skill);
+    const attackerKey = `player:${studentId}`;
+    const attackerClass = String(player?.characterClass || '').toLowerCase();
+    const isRanged = (attackerClass === 'archer' || attackerClass === 'wizard');
+
+    // snapshots for delta-based FX
+    const beforeMonsterHp = new Map((gameState.monsters || []).map(m => [m.id, Number(m.currentHP || 0)]));
+    const beforePlayerHp = new Map((gameState.players || []).map(p => [p.studentId, Number(p.currentHP || 0)]));
     
     // Check cooldown
     if (player.skillCooldowns && player.skillCooldowns[skillId] > 0) {
@@ -3322,13 +3611,16 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
             if (sp && baseCd > 0) {
                 if (!sp.skillCooldowns || typeof sp.skillCooldowns !== 'object') sp.skillCooldowns = {};
                 const sv = Number(sp.skillCooldowns[skillId] || 0);
-                if (!(sv > 0)) sp.skillCooldowns[skillId] = baseCd;
-                else sp.skillCooldowns[skillId] = Math.max(sv, baseCd);
+                // Server stores cooldown as base+1 (ticks down per full round)
+                const want = baseCd + 1;
+                if (!(sv > 0)) sp.skillCooldowns[skillId] = want;
+                else sp.skillCooldowns[skillId] = Math.max(sv, want);
             }
         } catch {}
         
         // Update monster HP from server response, but preserve the array structure
         if (currentMonsters && currentMonsters.length > 0 && gameState.monsters) {
+            const hitEvents = []; // { id, damage }
             console.log('=== UPDATING MONSTER HP (SKILL) ===');
             currentMonsters.forEach((currentMonster) => {
                 const serverMonster = gameState.monsters.find(m => m.id === currentMonster.id);
@@ -3336,6 +3628,7 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                     const oldHP = currentMonster.currentHP;
                     const newHP = serverMonster.currentHP;
                     const damage = oldHP - newHP;
+                    if (damage > 0) hitEvents.push({ id: currentMonster.id, damage });
                     
                     console.log(`Monster ${currentMonster.name} (${currentMonster.id}):`);
                     console.log(`  HP: ${oldHP} -> ${newHP} (damage: ${damage})`);
@@ -3351,12 +3644,57 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                 }
             });
             gameState.monsters = currentMonsters;
+
+            // --- Canvas FX for monster HP changes (skills) ---
+            if (hitEvents.length) {
+                if (isAoe) {
+                    // Big beam + shake, all targets jitter
+                    mfAnimShake(7, 260);
+                    hitEvents.forEach(ev => {
+                        const targetKey = `monster:${ev.id}`;
+                        mfAnimAddBeam(attackerKey, targetKey, 'rgba(255,60,60,0.95)', 10, 320);
+                        mfAnimHit(targetKey, { blinks: 2, dur: 320, amp: 5 });
+                        mfAnimAddFloatAtUnit(targetKey, `-${ev.damage}`, 'rgba(255,60,60,0.95)', 4000);
+                    });
+                } else {
+                    const best = hitEvents.reduce((a, b) => (b.damage > a.damage ? b : a), hitEvents[0]);
+                    const targetKey = `monster:${best.id}`;
+                    if (isRanged) mfAnimAddBeam(attackerKey, targetKey, 'rgba(255,60,60,0.95)', 6, 280);
+                    else mfAnimDash(attackerKey, targetKey, { dur: 340 });
+                    mfAnimHit(targetKey, { blinks: 2, dur: 260, amp: 4 });
+                    mfAnimAddFloatAtUnit(targetKey, `-${best.damage}`, 'rgba(255,60,60,0.95)', 4000);
+                }
+            }
+        }
+
+        // --- Canvas FX for player HP changes (heal/self-cost/etc) ---
+        try {
+            (gameState.players || []).forEach(p => {
+                const before = beforePlayerHp.get(p.studentId);
+                if (before === undefined) return;
+                const after = Number(p.currentHP || 0);
+                const delta = after - before;
+                if (!delta) return;
+                const key = `player:${p.studentId}`;
+                if (delta > 0) {
+                    mfAnimAddFloatAtUnit(key, `+${delta}`, 'rgba(34,197,94,0.95)', 4000);
+                    mfAnimHit(key, { blinks: 2, dur: 260, amp: 2 });
+                } else {
+                    mfAnimAddFloatAtUnit(key, `${delta}`, 'rgba(255,60,60,0.95)', 4000);
+                    mfAnimHit(key, { blinks: 2, dur: 220, amp: 2 });
+                }
+            });
+        } catch {}
+
+        // Healer flip (visual cue)
+        if (requiredTargetType === 'ally_alive') {
+            mfAnimFlip(attackerKey, 3, 520);
         }
         
         renderGame();
     } catch (error) {
         console.error('Error using skill:', error);
-        alert('Failed to use skill');
+        alert(String(error?.message || 'Failed to use skill'));
     }
 }
 

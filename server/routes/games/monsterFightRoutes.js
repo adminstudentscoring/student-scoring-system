@@ -2511,6 +2511,12 @@ app.post('/api/game/monster-turn', async (req, res) => {
             ? Math.max(1, Math.round(damageBeforeReduction * (1 - damageReduction)))
             : damageBeforeReduction;
 
+          const tauntTriggered = !!(
+            target.characterClass === 'shield_warrior' &&
+            getPlayerPassiveEffect(target)?.tauntMonsters &&
+            alivePlayers.some(p => p && p.isAlive && p.studentId !== target.studentId)
+          );
+
           target.currentHP = Math.max(0, target.currentHP - damage);
           if (target.currentHP <= 0) {
             target.isAlive = false;
@@ -2518,10 +2524,11 @@ app.post('/api/game/monster-turn', async (req, res) => {
 
           const critNote = isCrit ? ' (CRITICAL!)' : '';
           const reductionNote = damageReduction > 0 ? ' (reduced by shield)' : '';
+          const tauntNote = tauntTriggered ? ' (TAUNT)' : '';
           pushLog({
             turn: gameState.currentTurn,
             phase: 'monster_turn',
-            message: `${monster.name} attacks ${target.studentName} for ${damage} damage${critNote}${reductionNote}${!target.isAlive ? ' - DEFEATED!' : ''}`
+            message: `${monster.name} attacks ${target.studentName} for ${damage} damage${critNote}${reductionNote}${tauntNote}${!target.isAlive ? ' - DEFEATED!' : ''}`
           });
 
           if (passive.applyBleed) {
