@@ -142,18 +142,34 @@ function mfGetBattleToastEl() {
 }
 
 let mfToastTimer = null;
+let mfToastNextHandler = null;
 function mfShowBattleToast(text, opts = {}) {
     const el = mfGetBattleToastEl();
     if (!el) return;
     const msg = String(text || '').trim();
     if (!msg) return;
-    el.textContent = msg;
+    const textEl = el.querySelector('.mf-battle-toast-text') || el;
+    const nextBtn = el.querySelector('.mf-battle-toast-next');
+    if (textEl) textEl.textContent = msg;
     el.classList.add('is-show');
+    const wantNext = !!opts.next;
+    if (nextBtn) {
+        nextBtn.style.display = wantNext ? 'inline-flex' : 'none';
+        nextBtn.disabled = !wantNext;
+        if (mfToastNextHandler) {
+            try { nextBtn.removeEventListener('click', mfToastNextHandler); } catch {}
+        }
+        mfToastNextHandler = typeof opts.onNext === 'function' ? opts.onNext : null;
+        if (mfToastNextHandler) nextBtn.addEventListener('click', mfToastNextHandler);
+    }
+
     if (mfToastTimer) clearTimeout(mfToastTimer);
-    const ms = Math.max(300, Number(opts.ms) || Math.round(900 * (MF_ANIM_SLOW_FACTOR || 1)));
-    mfToastTimer = setTimeout(() => {
-        el.classList.remove('is-show');
-    }, ms);
+    if (!wantNext) {
+        const ms = Math.max(300, Number(opts.ms) || Math.round(900 * (MF_ANIM_SLOW_FACTOR || 1)));
+        mfToastTimer = setTimeout(() => {
+            el.classList.remove('is-show');
+        }, ms);
+    }
 }
 
 function mfStripHtml(s) {
@@ -455,13 +471,15 @@ async function processActionQueue() {
     if (MF_DISABLE_ACTION_POPUPS) {
         try {
             const raw = item?.context?.rawMessage || item?.message || '';
-            mfShowBattleToast(mfToastTextFromRaw(raw), { ms: Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)) });
+            mfShowBattleToast(mfToastTextFromRaw(raw), {
+                next: true,
+                onNext: () => {
+                    isShowingPopup = false;
+                    void processActionQueue();
+                }
+            });
         } catch {}
-        const delay = Math.max(0, Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)));
-        setTimeout(() => {
-            isShowingPopup = false;
-            void processActionQueue();
-        }, delay);
+        // Wait for user to click Next.
         return;
     }
 
@@ -987,7 +1005,8 @@ function mfAnimAddFloatAtUnit(key, text, color, dur = 4000) {
 }
 
 function mfAnimAddBeam(fromKey, toKey, color = 'rgba(255,60,60,0.95)', width = 5, dur = 260) {
-    mfAnim.beams.push({ fromKey: String(fromKey || ''), toKey: String(toKey || ''), color, width, t0: mfNow(), dur: mfAnimMs(dur) });
+    const w = Math.max(1, Math.round((Number(width) || 5) * 3));
+    mfAnim.beams.push({ fromKey: String(fromKey || ''), toKey: String(toKey || ''), color, width: w, t0: mfNow(), dur: mfAnimMs(dur) });
 }
 
 function mfAnimHit(targetKey, opts = {}) {
@@ -3131,7 +3150,10 @@ function renderBattleMode() {
             <div class="mf-battle-wrap">
                 <div class="mf-battle-stage">
                     <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
-                    <div id="mfBattleToast" class="mf-battle-toast" aria-live="polite"></div>
+                    <div id="mfBattleToast" class="mf-battle-toast" aria-live="polite">
+                        <div class="mf-battle-toast-text"></div>
+                        <button class="mf-battle-toast-next" type="button">Next</button>
+                    </div>
                 </div>
                 <div id="mfBattleHud" class="mf-battle-hud"></div>
             </div>

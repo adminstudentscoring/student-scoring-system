@@ -141,7 +141,7 @@ body.mf-battle-tight .mf-topbar {
     padding: 0 14px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     text-align: center;
     border-radius: 16px;
     background: rgba(255,255,255,0.86);
@@ -160,6 +160,33 @@ body.mf-battle-tight .mf-topbar {
 
 .mf-battle-toast.is-show {
     opacity: 1;
+    pointer-events: auto;
+}
+
+.mf-battle-toast-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 10px;
+}
+
+.mf-battle-toast-next {
+    flex: 0 0 auto;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(17, 24, 39, 0.14);
+    background: rgba(99, 102, 241, 0.95);
+    color: #fff;
+    font-weight: 900;
+    cursor: pointer;
+    display: none; /* only shown for replay mode */
+}
+
+.mf-battle-toast-next:hover {
+    filter: brightness(1.05);
 }
 
 .mf-topbar-title {
@@ -605,7 +632,7 @@ body.mf-battle-tight .mf-topbar {
 
 /* Narrower player panel */
 .mf-player-panel {
-    width: 360px;
+    width: 270px; /* -25% */
 }
 
 .mf-player-panel-top {
@@ -625,14 +652,14 @@ body.mf-battle-tight .mf-topbar {
 
 .mf-player-panel-top-main {
     display: grid;
-    grid-template-columns: 130px 1fr;
+    grid-template-columns: 98px 1fr; /* -25% */
     gap: 10px;
     align-items: center;
 }
 
 .mf-player-panel-avatarwrap {
-    width: 130px;
-    height: 130px;
+    width: 98px;
+    height: 98px;
     border-radius: 14px;
     display: inline-flex;
     align-items: center;
@@ -984,8 +1011,8 @@ body.mf-battle-tight .mf-topbar {
 
 .mf-action-btn {
     position: relative;
-    width: 56px;
-    height: 56px;
+    width: 42px;  /* -25% */
+    height: 42px; /* -25% */
     border-radius: 12px;
     border: 1px solid rgba(17, 24, 39, 0.14);
     background: rgba(255,255,255,0.85);

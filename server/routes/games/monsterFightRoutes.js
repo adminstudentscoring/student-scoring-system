@@ -741,17 +741,18 @@ function selectPlayerTargetForMonster(alivePlayers, options = {}) {
   const ignoreTaunt = !!options.ignoreTaunt;
   const preferNonShield = !!options.preferNonShield;
 
+  // Taunt should override "preferNonShield" unless ignoreTaunt is set.
+  if (!ignoreTaunt) {
+    const taunter = alivePlayers.find(p => p.isAlive && getPlayerPassiveEffect(p)?.tauntMonsters);
+    if (taunter) return taunter;
+  }
+
   let candidates = alivePlayers;
   if (preferNonShield) {
     const nonShield = alivePlayers.filter(p => p.characterClass !== 'shield_warrior');
     if (nonShield.length > 0) {
       candidates = nonShield;
     }
-  }
-
-  if (!ignoreTaunt) {
-    const taunter = candidates.find(p => p.isAlive && getPlayerPassiveEffect(p)?.tauntMonsters);
-    if (taunter) return taunter;
   }
 
   return candidates.reduce((lowest, player) => (
@@ -2041,6 +2042,7 @@ app.post('/api/game/player-action', async (req, res) => {
         if (actualHeal > 0) {
           ensurePlayerStats(player).healing += actualHeal;
         }
+        applyCooldown();
         actionResult = {
           type: 'skill',
           playerName: player.studentName,
@@ -2064,6 +2066,7 @@ app.post('/api/game/player-action', async (req, res) => {
         targetPlayer.currentHP = Math.max(1, Math.floor(targetPlayer.maxHP * 0.5));
         targetPlayer.statuses = [];
         targetPlayer.accumulatedReviveRate = 0;
+        applyCooldown();
         actionResult = {
           type: 'skill',
           playerName: player.studentName,
