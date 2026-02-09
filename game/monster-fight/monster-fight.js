@@ -784,7 +784,7 @@ function layoutSide(list, baseX, sideSign, top, height) {
     return out;
 }
 
-function drawHpBar(ctx, x, y, w, h, pct) {
+function drawHpBar(ctx, x, y, w, h, pct, text) {
     const p = Math.max(0, Math.min(1, pct));
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -794,6 +794,18 @@ function drawHpBar(ctx, x, y, w, h, pct) {
     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 1;
     ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+
+    if (text) {
+        ctx.font = '900 9px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        const s = String(text);
+        ctx.strokeText(s, x, y + 0.5);
+        ctx.fillText(s, x, y + 0.5);
+    }
     ctx.restore();
 }
 
@@ -857,14 +869,31 @@ function drawUnit(ctx, unit, now) {
     // hp
     const pct = (maxHP > 0) ? (Number(currentHP || 0) / Number(maxHP || 1)) : 0;
     // bring HP closer to sprite
-    const hpW = Math.round(86 * 1.2);
+    const hpW = Math.round(72 * 1.2);
     const hpH = 9;
     const hpX = x;
     const hpY = y + h / 2 + 6;
-    drawHpBar(ctx, hpX, hpY, hpW, hpH, pct);
+    const hpText = `${escapeHtml(String(currentHP || 0))}/${escapeHtml(String(maxHP || 0))}`;
+    drawHpBar(ctx, hpX, hpY, hpW, hpH, pct, hpText);
+
+    // action taken tick (players only)
+    const acted = !!(!isMonster && (unit?.raw?.hasActed));
+    if (acted) {
+        ctx.save();
+        ctx.font = '900 12px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
+        ctx.strokeText('✓', hpX - hpW / 2 - 10, hpY);
+        ctx.fillText('✓', hpX - hpW / 2 - 10, hpY);
+        ctx.restore();
+    }
+
     // statuses to the right of HP bar
     const statuses = mfExtractStatuses(unit.raw || unit);
-    drawStatusIcons(ctx, hpX + hpW / 2 + 8, hpY, statuses);
+    drawStatusIcons(ctx, hpX + hpW / 2 + 6, hpY, statuses);
 
     ctx.restore();
 }

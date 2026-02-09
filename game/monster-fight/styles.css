@@ -580,15 +580,33 @@ body.mf-battle-tight .mf-topbar {
 
 .mf-player-panel-top-main {
     display: grid;
-    grid-template-columns: 64px 1fr;
+    grid-template-columns: 130px 1fr;
     gap: 10px;
     align-items: center;
 }
 
 .mf-player-panel-avatarwrap {
-    width: 64px;
-    height: 64px;
+    width: 130px;
+    height: 130px;
     border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(0,0,0,0.04);
+    border: 1px solid rgba(17, 24, 39, 0.10);
+}
+
+.mf-player-panel-avatarwrap .mf-icon-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.mf-player-panel-avatarwrap .mf-emoji-fallback {
+    font-size: 64px;
+    line-height: 1;
 }
 
 .mf-player-panel-hpbar {
