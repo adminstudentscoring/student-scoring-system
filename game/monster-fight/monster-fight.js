@@ -1060,6 +1060,13 @@ function mfExtractStatuses(entity) {
     return out;
 }
 
+function mfHasStatus(entity, type) {
+    const want = String(type || '').trim().toLowerCase();
+    if (!want) return false;
+    const arr = Array.isArray(entity?.statuses) ? entity.statuses : [];
+    return arr.some(s => String(s?.type || '').trim().toLowerCase() === want);
+}
+
 function drawStatusIcons(ctx, xRight, yCenter, statuses) {
     const list = Array.isArray(statuses) ? statuses : [];
     if (!list.length) return;
@@ -1128,6 +1135,7 @@ function mfRenderBattleHud() {
     // Player panel (actions / revive)
     if (player && playerUnit) {
         const canAct = !!(gameState.phase === 'player_turn' && player.isAlive && !player.hasActed);
+        const isSilenced = mfHasStatus(player, 'silence');
         const draftPts = mfBattleUi.ptsDraft[selectedPlayerId];
         const ptsValue = Number.isFinite(Number(draftPts)) ? Number(draftPts) : (Number(player.puzzlePoints) || 0);
 
@@ -1191,7 +1199,7 @@ function mfRenderBattleHud() {
                 title: skillA.name || 'Skill',
                 descMid: `${skillA.type || 'active'}${baseCd(skillA) ? `  |  CD ${baseCd(skillA)}` : ''}${aCd > 0 ? `  (now ${aCd})` : ''}`,
                 descBot: skillA.description || '',
-                disabled: !canAct || aCd > 0,
+                disabled: !canAct || aCd > 0 || isSilenced,
                 act: 'skill',
                 skillId: skillA.id,
                 cdValue: aCd
@@ -1204,7 +1212,7 @@ function mfRenderBattleHud() {
                 title: skillB.name || 'Skill',
                 descMid: `${skillB.type || 'active'}${baseCd(skillB) ? `  |  CD ${baseCd(skillB)}` : ''}${bCd > 0 ? `  (now ${bCd})` : ''}`,
                 descBot: skillB.description || '',
-                disabled: !canAct || bCd > 0,
+                disabled: !canAct || bCd > 0 || isSilenced,
                 act: 'skill',
                 skillId: skillB.id,
                 cdValue: bCd
@@ -3287,7 +3295,17 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
         });
         
         if (!response.ok) {
-            throw new Error('Failed to use skill');
+            let msg = `Failed to use skill (HTTP ${response.status})`;
+            try {
+                const err = await response.json();
+                if (err && typeof err === 'object' && err.error) msg = String(err.error);
+            } catch {
+                try {
+                    const t = await response.text();
+                    if (t) msg = t;
+                } catch {}
+            }
+            throw new Error(msg);
         }
         
         const data = await response.json();
