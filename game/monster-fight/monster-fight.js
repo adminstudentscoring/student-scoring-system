@@ -138,11 +138,46 @@ const MF_REPLAY_STEP_MS = 900; // base step delay (scaled by animation slow fact
 const MF_UNIT_SCALE = 1.32;
 
 function mfGetBattleToastEl() {
-    return document.getElementById('mfBattleToast');
+    const el = document.getElementById('mfBattleToast');
+    if (!el) return null;
+    // Ensure structure exists even if DOM wasn't refreshed.
+    if (!el.querySelector('.mf-battle-toast-text')) {
+        const t = document.createElement('div');
+        t.className = 'mf-battle-toast-text';
+        // preserve any existing text
+        const existing = el.textContent;
+        if (existing) t.textContent = existing;
+        el.textContent = '';
+        el.appendChild(t);
+    }
+    if (!el.querySelector('.mf-battle-toast-next')) {
+        const b = document.createElement('button');
+        b.className = 'mf-battle-toast-next';
+        b.type = 'button';
+        b.textContent = 'Next';
+        el.appendChild(b);
+    }
+    return el;
 }
 
 let mfToastTimer = null;
 let mfToastNextHandler = null;
+function mfHideBattleToast() {
+    const el = document.getElementById('mfBattleToast');
+    if (!el) return;
+    el.classList.remove('is-show');
+    const nextBtn = el.querySelector('.mf-battle-toast-next');
+    if (nextBtn) {
+        nextBtn.style.display = 'none';
+        nextBtn.disabled = true;
+        if (mfToastNextHandler) {
+            try { nextBtn.removeEventListener('click', mfToastNextHandler); } catch {}
+        }
+    }
+    mfToastNextHandler = null;
+    if (mfToastTimer) clearTimeout(mfToastTimer);
+    mfToastTimer = null;
+}
 function mfShowBattleToast(text, opts = {}) {
     const el = mfGetBattleToastEl();
     if (!el) return;
@@ -451,6 +486,8 @@ async function processActionQueue() {
     if (isShowingPopup) return;
     const item = actionQueue.shift();
     if (!item) {
+        // No more events: hide toast bar.
+        try { mfHideBattleToast(); } catch {}
         // If a monster-turn replay just finished, apply any pending WS sync now.
         if (monsterTurnReplay?.active && typeof monsterTurnReplay.onDone === 'function') {
             try { monsterTurnReplay.onDone(); } catch {}
