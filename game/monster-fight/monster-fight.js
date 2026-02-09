@@ -765,14 +765,14 @@ function getImgSync(src) {
     return null;
 }
 
-function layoutSide(list, baseX, sideSign, top, height) {
+function layoutSide(list, baseX, sideSign, top, height, opts = {}) {
     const n = list.length;
     if (n === 0) return [];
     // Allow up to 5 units per side in one column. Split into 2 columns from 6+.
     const columns = n > 5 ? 2 : 1;
     const rows = Math.ceil(n / columns);
     const yStep = height / (rows + 1);
-    const colGap = 90;
+    const colGap = Number(opts?.colGap) || 90;
     const out = [];
     for (let i = 0; i < n; i++) {
         const col = i % columns;
@@ -944,7 +944,8 @@ function drawBattleEntities(ctx, stageW, stageH) {
         playersBaseX,
         +1,
         top,
-        arenaH
+        arenaH,
+        { colGap: 100 } // +10px between left/right player columns
     );
 
     // Save unit bounds for hit-testing/HUD anchoring (DOM coordinates)
@@ -1013,6 +1014,20 @@ function mfSkillTargetType(skill) {
     if (e && e.revive) return 'ally_dead';
     if (e && (e.heal || e.teamHeal || e.healPercent)) return 'ally_alive';
     return 'monster';
+}
+
+function mfIsAoeSkill(player, skill) {
+    if (!skill || typeof skill !== 'object') return false;
+    const e = (skill.effect && typeof skill.effect === 'object') ? skill.effect : {};
+    // Prefer explicit effect flags if present
+    if (e.aoe || e.allEnemies || e.area || e.teamDamage || e.damageAll || e.hitAll || e.areaDamage) return true;
+    // Fallback: detect from name/description for Wizard Fireball
+    const cls = String(player?.characterClass || '').toLowerCase();
+    const nm = String(skill.name || skill.id || '').toLowerCase();
+    const desc = String(skill.description || '').toLowerCase();
+    if (cls === 'wizard' && (nm.includes('fireball') || desc.includes('fireball'))) return true;
+    if (desc.includes('all enemies') || desc.includes('all enemy') || desc.includes('area damage')) return true;
+    return false;
 }
 
 function mfStatusIcon(status) {
@@ -1128,11 +1143,12 @@ function mfRenderBattleHud() {
 
         const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedPlayerId ? mfBattleUi.targeting : null;
 
-        // Fixed panel position (same spot for all players): right-side empty area
+        // Fixed panel position (same spot for all players): inside-map, far-right
         const panelW = 380;
         const panelH = 300;
-        const left = Math.round(stageW * 0.56);
-        const top = Math.round(stageH * 0.14);
+        const margin = 10;
+        const left = mfClamp(Math.round(stageW - panelW - margin), margin, Math.max(margin, stageW - panelW - margin));
+        const top = margin;
 
         const aCd = skillA ? cd(skillA.id) : 0;
         const bCd = skillB ? cd(skillB.id) : 0;
@@ -1154,7 +1170,7 @@ function mfRenderBattleHud() {
         `;
         };
 
-        const baseCd = (s) => (s && typeof s.cooldown === 'number') ? s.cooldown : 0;
+        const baseCd = (s) => Math.max(0, Number(s?.cooldown) || 0);
         const actions = [];
         actions.push({
             kind: 'attack',
@@ -1287,46 +1303,76 @@ function mfRenderBattleHud() {
         else stage.classList.remove('mf-targeting');
     }
 
-    // Monster panel (info)
-    if (monster && monsterUnit) {
-        const panelW = 220;
-        const panelH = 240;
-        const rawLeft = monsterUnit.x - (monsterUnit.w / 2) - 24 - panelW;
-        const rawTop = monsterUnit.y - (monsterUnit.h / 2) - 8;
-        const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
-        const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
+    // Monster panel (info) - fixed inside-map, far-left, same style as player panel
+    if (monster) {
+        const panelW = 380;
+        const panelH = 360;
+        const margin = 10;
+        const left = margin;
+        const top = margin;
 
-        // skills from instance fallback to type template
+        // skills from instance fallback to type template (include passive)
         const mt = (typeof getMonsterTypes === 'function') ? (getMonsterTypes().find(t => t && t.id === monster.type) || null) : null;
         const skills = Array.isArray(monster.skills) && monster.skills.length ? monster.skills : (Array.isArray(mt?.skills) ? mt.skills : []);
-        const actives = Array.isArray(skills) ? skills.filter(s => s && s.type === 'active') : [];
+        const sortedSkills = Array.isArray(skills)
+            ? [...skills].filter(Boolean).sort((a, b) => {
+                const ta = String(a?.type || '');
+                const tb = String(b?.type || '');
+                if (ta === tb) return 0;
+                if (ta === 'passive') return -1;
+                if (tb === 'passive') return 1;
+                return 0;
+            })
+            : [];
 
-        const rows = actives.slice(0, 2).map(s => {
-            const base = (typeof s.cooldown === 'number') ? s.cooldown : 0;
+        const rows = sortedSkills.map(s => {
+            const base = Math.max(0, Number(s?.cooldown) || 0);
+            const typ = String(s.type || '');
             return `
                 <div class="mf-monster-skill">
-                    <div class="mf-monster-skill-icon">${escapeHtml(String(s.emoji || '✨'))}</div>
+                    <div class="mf-monster-skill-icon">${escapeHtml(String(s.emoji || (typ === 'passive' ? '🛡️' : '✨')))}</div>
                     <div class="mf-monster-skill-body">
-                        <div class="mf-monster-skill-name">${escapeHtml(String(s.name || 'Skill'))}</div>
-                        <div class="mf-monster-skill-meta">${escapeHtml(`${s.type || 'active'}${base ? `  |  CD ${base}` : ''}`)}</div>
+                        <div class="mf-monster-skill-name">${escapeHtml(String(s.name || (typ === 'passive' ? 'Passive' : 'Skill')))}</div>
+                        <div class="mf-monster-skill-meta">${escapeHtml(`${typ}${base ? `  |  CD ${base}` : ''}`)}</div>
                         <div class="mf-monster-skill-desc">${escapeHtml(String(s.description || ''))}</div>
                     </div>
                 </div>
             `;
         }).join('');
 
+        const hpPct = monster.maxHP > 0 ? Math.max(0, Math.min(100, (monster.currentHP / monster.maxHP) * 100)) : 0;
         parts.push(`
             <div class="mf-action-panel mf-monster-panel" data-mf-panel="monster" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
-                <div class="mf-action-panel-title">
-                    <div class="mf-action-panel-name">${escapeHtml(String(monster.name || 'Monster'))}</div>
-                    <button class="mf-action-panel-close" type="button" data-mf="closeMonster">×</button>
+                <div class="mf-player-panel-top">
+                    <div class="mf-player-panel-top-row">
+                        <div class="mf-action-panel-name">${escapeHtml(String(monster.name || 'Monster'))}</div>
+                        <button class="mf-action-panel-close" type="button" data-mf="closeMonster">×</button>
+                    </div>
+                    <div class="mf-player-panel-top-main">
+                        <div class="mf-player-panel-avatar">
+                            ${renderIconWrap({
+                                imgSrc: imageSrcForFile(monsterImageFileByType(monster.type)),
+                                fallbackEmoji: (mt && mt.emoji) ? mt.emoji : '👾',
+                                alt: 'Monster',
+                                wrapClass: 'mf-player-panel-avatarwrap'
+                            })}
+                        </div>
+                        <div class="mf-player-panel-hp">
+                            <div class="mf-player-panel-hpbar">
+                                <div class="mf-player-panel-hpfill" style="width:${escapeHtml(String(hpPct))}%"></div>
+                            </div>
+                            <div class="mf-player-panel-hptext">${escapeHtml(String(monster.currentHP || 0))}/${escapeHtml(String(monster.maxHP || 0))} HP</div>
+                            <div class="mf-player-panel-statline">
+                                <span><b>ATK</b> ${escapeHtml(String(monster.attack || 0))}</span>
+                                ${mfRenderStatusIconsInline(monster)}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="mf-monster-stats">
-                    <div class="mf-monster-stat"><span>ATK</span><b>${escapeHtml(String(monster.attack || 0))}</b></div>
-                    <div class="mf-monster-stat"><span>HP</span><b>${escapeHtml(String(monster.currentHP || 0))}/${escapeHtml(String(monster.maxHP || 0))}</b></div>
-                </div>
-                <div class="mf-monster-skill-list">
-                    ${rows || '<div class="mf-monster-skill-empty">No skills</div>'}
+                <div class="mf-player-panel-bot">
+                    <div class="mf-monster-skill-list">
+                        ${rows || '<div class="mf-monster-skill-empty">No skills</div>'}
+                    </div>
                 </div>
             </div>
         `);
@@ -1465,6 +1511,14 @@ function mfBindBattleCanvasInput() {
                 // Cooldown check (disable already, but guard)
                 const cd = player.skillCooldowns && player.skillCooldowns[skillId] ? Number(player.skillCooldowns[skillId]) : 0;
                 if (cd > 0) return;
+
+                // AOE skills: cast immediately (no targeting)
+                if (mfIsAoeSkill(player, skill)) {
+                    void playerUseSkill(actorId, skillId, null);
+                    mfBattleUi.targeting = null;
+                    mfRenderBattleHud();
+                    return;
+                }
 
                 mfBattleUi.targeting = { actorId, action: 'skill', skillId, targetType: mfSkillTargetType(skill) };
                 mfRenderBattleHud();
@@ -3100,6 +3154,8 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
         alert('Invalid skill');
         return;
     }
+
+    const isAoe = mfIsAoeSkill(player, skill);
     
     // Check cooldown
     if (player.skillCooldowns && player.skillCooldowns[skillId] > 0) {
@@ -3107,16 +3163,19 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
         return;
     }
     
-    const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
-        const targetSelect = document.getElementById(`target_${studentId}`);
-        return parseTargetValue(targetSelect?.value);
-    })();
     const requiredTargetType = getSkillTargetType(player, skill);
 
     let targetId = null;
     let targetMonsterBefore = null;
     let targetPlayerBefore = null;
-    if (requiredTargetType === 'monster') {
+    if (requiredTargetType === 'monster' && isAoe) {
+        // AOE skills don't require a target
+        targetId = null;
+    } else if (requiredTargetType === 'monster') {
+        const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
+            const targetSelect = document.getElementById(`target_${studentId}`);
+            return parseTargetValue(targetSelect?.value);
+        })();
         if (!parsedTarget.id) {
             alert('Please select a monster target');
             return;
@@ -3132,6 +3191,10 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
             return;
         }
     } else if (requiredTargetType === 'ally_alive') {
+        const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
+            const targetSelect = document.getElementById(`target_${studentId}`);
+            return parseTargetValue(targetSelect?.value);
+        })();
         if (!parsedTarget.id) {
             alert('Please select an ally to target');
             return;
@@ -3147,6 +3210,10 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
             return;
         }
     } else if (requiredTargetType === 'ally_dead') {
+        const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
+            const targetSelect = document.getElementById(`target_${studentId}`);
+            return parseTargetValue(targetSelect?.value);
+        })();
         if (!parsedTarget.id) {
             alert('Please select a fallen ally');
             return;
@@ -3162,6 +3229,10 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
             return;
         }
     } else {
+        const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
+            const targetSelect = document.getElementById(`target_${studentId}`);
+            return parseTargetValue(targetSelect?.value);
+        })();
         // Default behaviour: require some target id
         if (!parsedTarget.id) {
             alert('Please select a target');
@@ -3195,6 +3266,7 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
     console.log(`Puzzle Points from input: ${currentPuzzlePoints} (gameState: ${player?.puzzlePoints})`);
     
     try {
+        const sendTargetId = isAoe ? null : targetId;
         const response = await fetch(`${GAME_API_BASE}/game/player-action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3202,7 +3274,7 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                 studentId, 
                 action: 'skill', 
                 skillId, 
-                targetId,
+                targetId: sendTargetId,
                 puzzlePoints: currentPuzzlePoints  // Send current Puzzle Points from input
             })
         });
@@ -3217,6 +3289,18 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
         // Preserve current monsters state - update only HP and alive status from server
         const currentMonsters = gameState.monsters ? [...gameState.monsters] : null;
         gameState = data.gameState;
+
+        // Ensure cooldown is applied client-side if server didn't set it
+        try {
+            const sp = (gameState.players || []).find(p => p && p.studentId === studentId);
+            const baseCd = Math.max(0, Number(skill.cooldown) || 0);
+            if (sp && baseCd > 0) {
+                if (!sp.skillCooldowns || typeof sp.skillCooldowns !== 'object') sp.skillCooldowns = {};
+                const sv = Number(sp.skillCooldowns[skillId] || 0);
+                if (!(sv > 0)) sp.skillCooldowns[skillId] = baseCd;
+                else sp.skillCooldowns[skillId] = Math.max(sv, baseCd);
+            }
+        } catch {}
         
         // Update monster HP from server response, but preserve the array structure
         if (currentMonsters && currentMonsters.length > 0 && gameState.monsters) {

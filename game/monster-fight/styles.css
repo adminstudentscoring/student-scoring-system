@@ -767,7 +767,17 @@ body.mf-battle-tight .mf-topbar {
 }
 
 .mf-monster-panel {
-    width: 220px;
+    width: 360px;
+}
+
+.mf-monster-panel .mf-player-panel-bot {
+    margin-top: 10px;
+}
+
+.mf-monster-panel .mf-monster-skill-list {
+    max-height: 210px;
+    overflow: auto;
+    padding-right: 2px;
 }
 
 .mf-monster-stats {
@@ -812,6 +822,10 @@ body.mf-battle-tight .mf-topbar {
     align-items: start;
 }
 
+.mf-monster-skill-body {
+    min-width: 0;
+}
+
 .mf-monster-skill-icon {
     width: 34px;
     height: 34px;
@@ -845,7 +859,7 @@ body.mf-battle-tight .mf-topbar {
     white-space: normal;
     overflow: hidden;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
 }
 
