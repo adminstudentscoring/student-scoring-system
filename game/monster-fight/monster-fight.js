@@ -1613,11 +1613,9 @@ function mfRenderBattleHud() {
 
         const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedPlayerId ? mfBattleUi.targeting : null;
 
-        // Fixed panel position (same spot for all players): inside-map, far-right
-        const panelW = 380;
+        // Fixed panel position (same spot for all players): inside-map, far-right (stick to edge)
         const panelH = 300;
         const margin = 10;
-        const left = mfClamp(Math.round(stageW - panelW - margin), margin, Math.max(margin, stageW - panelW - margin));
         // Move panel down by +200px (keep inside map)
         const top = mfClamp(margin + 200, margin, Math.max(margin, stageH - panelH - margin));
 
@@ -1681,7 +1679,7 @@ function mfRenderBattleHud() {
         }
 
         parts.push(`
-        <div class="mf-action-panel mf-player-panel" data-mf-panel="player" style="left:${escapeHtml(String(left))}px; top:${escapeHtml(String(top))}px;">
+        <div class="mf-action-panel mf-player-panel" data-mf-panel="player" style="right:${escapeHtml(String(margin))}px; left:auto; top:${escapeHtml(String(top))}px;">
             <div class="mf-player-panel-top">
                 <div class="mf-player-panel-top-row">
                     <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
@@ -1776,7 +1774,6 @@ function mfRenderBattleHud() {
 
     // Monster panel (info) - fixed inside-map, far-left, same style as player panel
     if (monster) {
-        const panelW = 380;
         const panelH = 360;
         const margin = 10;
         const left = margin;
@@ -3107,7 +3104,7 @@ function renderBattleMode() {
 
     const alivePlayers = Array.isArray(gameState.players) ? gameState.players.filter(p => p && p.isAlive) : [];
     const allPlayersActed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasActed);
-    const canProcessMonsterTurn = !!(isMonsterTurn || (isPlayerTurn && allPlayersActed));
+    const canProcessMonsterTurn = !!(!monsterTurnReplay?.active && (isMonsterTurn || (isPlayerTurn && allPlayersActed)));
     
     container.innerHTML = `
         <div class="game-screen mf-battle">
@@ -3937,6 +3934,7 @@ async function processMonsterTurn() {
     console.log('=== PROCESS MONSTER TURN ===');
     if (monsterTurnReplay && monsterTurnReplay.active) {
         console.log('[monster-turn] replay in progress, ignoring.');
+        try { mfShowBattleToast('Replay in progress — click Next to continue.', { ms: 1200 }); } catch {}
         return;
     }
     console.log('Players BEFORE monster turn:', gameState.players.map(p => ({

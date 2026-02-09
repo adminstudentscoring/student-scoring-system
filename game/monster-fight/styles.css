@@ -839,7 +839,7 @@ body.mf-battle-tight .mf-topbar {
 }
 
 .mf-monster-panel {
-    width: 360px;
+    width: 252px; /* -30% */
 }
 
 .mf-monster-panel .mf-player-panel-bot {

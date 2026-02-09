@@ -1556,9 +1556,8 @@ app.post('/api/game/player-action', async (req, res) => {
       player.turnSkillsUsed[gameState.currentTurn] = skillsThisTurn;
 
       const applyCooldown = () => {
-        // Cooldown ticks down once per full round; store +1 so next player-turn doesn't instantly drop.
         const base = Math.max(0, Number(skill.cooldown) || 0);
-        player.skillCooldowns[skillId] = base > 0 ? (base + 1) : 0;
+        player.skillCooldowns[skillId] = base;
         skillsThisTurn.add(skillId);
       };
 
@@ -1583,7 +1582,7 @@ app.post('/api/game/player-action', async (req, res) => {
         }
         ensurePlayerStats(player).totalDamage += damage;
         player.lastAttackDamage = damage;
-        player.skillCooldowns[skillId] = 4; // 3 + 1 (see applyCooldown note)
+        player.skillCooldowns[skillId] = 3;
         skillsThisTurn.add(skillId);
         actionResult = {
           type: 'skill',
@@ -1665,7 +1664,7 @@ app.post('/api/game/player-action', async (req, res) => {
           actionDetails.push(`${target.name}: -${finalDamage} HP (HP ${beforeHP} -> ${target.currentHP}${reduction > 0 ? ', reduced' : ''}${target !== originalTarget ? ' | redirected by taunt' : ''})`);
         });
 
-        player.skillCooldowns[skillId] = (Math.max(0, Number(skill.cooldown) || 4)) + 1;
+        player.skillCooldowns[skillId] = Math.max(0, Number(skill.cooldown) || 4);
         skillsThisTurn.add(skillId);
 
         actionResult = {
@@ -1761,7 +1760,7 @@ app.post('/api/game/player-action', async (req, res) => {
         }
         ensurePlayerStats(player).totalDamage += finalDamage;
         player.lastAttackDamage = finalDamage;
-        player.skillCooldowns[skillId] = (Math.max(0, Number(skill.cooldown) || 3)) + 1;
+        player.skillCooldowns[skillId] = Math.max(0, Number(skill.cooldown) || 3);
         skillsThisTurn.add(skillId);
 
         addStatusToMonster(target, {
@@ -1829,7 +1828,7 @@ app.post('/api/game/player-action', async (req, res) => {
         }
         ensurePlayerStats(player).totalDamage += finalDamage;
         player.lastAttackDamage = finalDamage;
-        player.skillCooldowns[skillId] = (Math.max(0, Number(skill.cooldown) || 4)) + 1;
+        player.skillCooldowns[skillId] = Math.max(0, Number(skill.cooldown) || 4);
         skillsThisTurn.add(skillId);
 
         const freezeChance = skill.effect?.freezeChance ?? 0.4;
@@ -1929,7 +1928,7 @@ app.post('/api/game/player-action', async (req, res) => {
         }
         ensurePlayerStats(player).totalDamage += finalDamage;
         player.lastAttackDamage = finalDamage;
-        player.skillCooldowns[skillId] = (Math.max(0, Number(skill.cooldown) || 4)) + 1;
+        player.skillCooldowns[skillId] = Math.max(0, Number(skill.cooldown) || 4);
         skillsThisTurn.add(skillId);
 
         const dotTurns = Math.max(1, skill.effect?.dotTurns || 3);
@@ -2001,7 +2000,7 @@ app.post('/api/game/player-action', async (req, res) => {
           damageSummary.push(`${monster.name}: -${finalDamage} HP (HP ${beforeHP} -> ${monster.currentHP}${monsterReduction > 0 ? ', reduced' : ''})`);
         });
 
-        player.skillCooldowns[skillId] = (Math.max(0, Number(skill.cooldown) || 3)) + 1;
+        player.skillCooldowns[skillId] = Math.max(0, Number(skill.cooldown) || 3);
         skillsThisTurn.add(skillId);
 
         actionResult = {
@@ -2100,7 +2099,7 @@ app.post('/api/game/player-action', async (req, res) => {
         target.attack = Math.max(1, Math.floor(target.attack * 0.8));
         target.debuffs = target.debuffs || {};
         target.debuffs.attackReducedUntilTurn = gameState.currentTurn + 1;
-        player.skillCooldowns[skillId] = 4; // 3 + 1 (see applyCooldown note)
+        player.skillCooldowns[skillId] = 3;
         skillsThisTurn.add(skillId);
         actionResult = {
           type: 'skill',
@@ -2144,7 +2143,7 @@ app.post('/api/game/player-action', async (req, res) => {
         }
         ensurePlayerStats(player).totalDamage += finalDamage;
         player.lastAttackDamage = finalDamage;
-        player.skillCooldowns[skillId] = (Math.max(0, Number(skill.cooldown) || 4)) + 1;
+        player.skillCooldowns[skillId] = Math.max(0, Number(skill.cooldown) || 4);
         skillsThisTurn.add(skillId);
 
         let stunApplied = false;
@@ -2343,6 +2342,30 @@ app.post('/api/game/monster-turn', async (req, res) => {
       if (!allPlayersActed) {
         return res.status(400).json({ error: 'Not all players have acted yet' });
       }
+
+      // Cooldowns tick down once after the FULL player turn finishes.
+      // (So a skill used this turn shows its full cooldown during the next player turn.)
+      gameState.players.forEach(player => {
+        if (player && player.skillCooldowns) {
+          Object.keys(player.skillCooldowns).forEach(skillId => {
+            const currentValue = Number(player.skillCooldowns[skillId]) || 0;
+            if (currentValue > 0) {
+              player.skillCooldowns[skillId] = Math.max(0, currentValue - 1);
+            }
+          });
+        }
+      });
+      gameState.monsters.forEach(monster => {
+        if (monster && monster.skillCooldowns) {
+          Object.keys(monster.skillCooldowns).forEach(skillId => {
+            const currentValue = Number(monster.skillCooldowns[skillId]) || 0;
+            if (currentValue > 0) {
+              monster.skillCooldowns[skillId] = Math.max(0, currentValue - 1);
+            }
+          });
+        }
+      });
+
       // Switch to monster turn
       gameState.phase = 'monster_turn';
       // Reset player action flags for next turn
@@ -2598,15 +2621,6 @@ app.post('/api/game/monster-turn', async (req, res) => {
       : null;
 
     gameState.players.forEach(player => {
-      if (player && player.skillCooldowns) {
-        Object.keys(player.skillCooldowns).forEach(skillId => {
-          const currentValue = Number(player.skillCooldowns[skillId]) || 0;
-          if (currentValue > 0) {
-            player.skillCooldowns[skillId] = Math.max(0, currentValue - 1);
-          }
-        });
-      }
-
       if (player && player.turnSkillsUsed && normalizedTurnIndex !== null) {
         if (player.turnSkillsUsed[normalizedTurnIndex] !== undefined) {
           delete player.turnSkillsUsed[normalizedTurnIndex];
@@ -2614,17 +2628,6 @@ app.post('/api/game/monster-turn', async (req, res) => {
         if (Object.keys(player.turnSkillsUsed).length === 0) {
           delete player.turnSkillsUsed;
         }
-      }
-    });
-
-    gameState.monsters.forEach(monster => {
-      if (monster && monster.skillCooldowns) {
-        Object.keys(monster.skillCooldowns).forEach(skillId => {
-          const currentValue = Number(monster.skillCooldowns[skillId]) || 0;
-          if (currentValue > 0) {
-            monster.skillCooldowns[skillId] = Math.max(0, currentValue - 1);
-          }
-        });
       }
     });
     
