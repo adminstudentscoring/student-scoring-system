@@ -727,9 +727,11 @@ const mfDeathFxByKey = new Map();   // key -> { t0 }
 // Battle click UI state (canvas-driven)
 const mfBattleUi = {
     selectedPlayerId: null,
+    selectedMonsterId: null,
     targeting: null, // { actorId, action: 'attack'|'skill', skillId?, targetType: 'monster'|'ally_alive'|'ally_dead' }
     ptsDraft: {}, // studentId -> number
-    hoveredKey: null
+    hoveredKey: null,
+    reviveDraft: {} // studentId -> number
 };
 
 function loadImg(src) {
@@ -1064,7 +1066,7 @@ function mfRenderBattleHud() {
 
     const parts = [];
 
-    // Player panel (actions)
+    // Player panel (actions / revive)
     if (player && playerUnit) {
         const canAct = !!(gameState.phase === 'player_turn' && player.isAlive && !player.hasActed);
         const draftPts = mfBattleUi.ptsDraft[selectedPlayerId];
@@ -1083,12 +1085,12 @@ function mfRenderBattleHud() {
 
         const targeting = mfBattleUi.targeting && mfBattleUi.targeting.actorId === selectedPlayerId ? mfBattleUi.targeting : null;
 
-        // Panel position: near the selected player sprite (to the RIGHT)
-        const panelW = 420;
-        const panelH = 220;
-        const rawLeft = playerUnit.x + (playerUnit.w / 2) + 12;
+        // Panel position: near the selected player sprite (to the RIGHT, allow overflow past map)
+        const panelW = 520;
+        const panelH = 240;
+        const rawLeft = playerUnit.x + (playerUnit.w / 2) + 80;
         const rawTop = playerUnit.y - (playerUnit.h / 2) - 8;
-        const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
+        const left = Math.max(10, rawLeft);
         const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
 
         const aCd = skillA ? cd(skillA.id) : 0;
@@ -1112,8 +1114,8 @@ function mfRenderBattleHud() {
         };
 
         const baseCd = (s) => (s && typeof s.cooldown === 'number') ? s.cooldown : 0;
-        const rows = [];
-        rows.push(renderSkillRow({
+        const actions = [];
+        actions.push({
             kind: 'attack',
             emoji: '⚔️',
             title: 'Attack',
@@ -1122,9 +1124,9 @@ function mfRenderBattleHud() {
             disabled: !canAct,
             act: 'attack',
             cdValue: 0
-        }));
+        });
         if (skillA) {
-            rows.push(renderSkillRow({
+            actions.push({
                 kind: skillA.id,
                 emoji: skillA.emoji || '✨',
                 title: skillA.name || 'Skill',
@@ -1134,10 +1136,10 @@ function mfRenderBattleHud() {
                 act: 'skill',
                 skillId: skillA.id,
                 cdValue: aCd
-            }));
+            });
         }
         if (skillB) {
-            rows.push(renderSkillRow({
+            actions.push({
                 kind: skillB.id,
                 emoji: skillB.emoji || '✨',
                 title: skillB.name || 'Skill',
@@ -1147,27 +1149,61 @@ function mfRenderBattleHud() {
                 act: 'skill',
                 skillId: skillB.id,
                 cdValue: bCd
-            }));
+            });
         }
 
         parts.push(`
-        <div class="mf-action-panel" data-mf-panel="player" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
+        <div class="mf-action-panel mf-player-panel" data-mf-panel="player" style="left:${Math.round(left)}px; top:${Math.round(top)}px;">
             <div class="mf-action-panel-title">
                 <div class="mf-action-panel-name">${escapeHtml(String(player.studentName || ''))}</div>
                 <button class="mf-action-panel-close" type="button" data-mf="close">×</button>
             </div>
-            ${player.hasActed ? `<div class="mf-action-taken">✓ Action Taken</div>` : ''}
-            <div class="mf-action-grid">
-                <div class="mf-action-left">
-                    <div class="mf-action-pts">
-                        <div class="mf-action-pts-label">Puzzle Points</div>
-                        <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
+            ${player.isAlive ? `
+                ${player.hasActed ? `<div class="mf-action-taken">✓ Action Taken</div>` : ''}
+                <div class="mf-action-grid3">
+                    <div class="mf-action-left">
+                        <div class="mf-action-pts">
+                            <div class="mf-action-pts-label">Puzzle Points</div>
+                            <input type="number" min="0" max="999" value="${escapeHtml(String(ptsValue))}" data-mf="pts" ${canAct ? '' : 'disabled'} />
+                        </div>
+                    </div>
+                    <div class="mf-action-icons">
+                        ${actions.map(a => `
+                            <button class="mf-action-btn ${a.disabled ? 'is-disabled' : ''}" type="button"
+                                    data-mf="act" data-act="${escapeHtml(a.act)}" ${a.skillId ? `data-skill="${escapeHtml(String(a.skillId))}"` : ''}
+                                    ${a.disabled ? 'disabled' : ''}>
+                                ${escapeHtml(String(a.emoji || '✨'))}
+                                ${a.cdValue > 0 ? `<span class="mf-action-cd">${escapeHtml(String(a.cdValue))}</span>` : ''}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <div class="mf-action-desc">
+                        ${actions.map(a => `
+                            <div class="mf-skill-desc ${a.disabled ? 'is-disabled' : ''}">
+                                <div class="mf-skill-desc-top">${escapeHtml(String(a.title || a.kind || ''))}</div>
+                                <div class="mf-skill-desc-mid">${escapeHtml(String(a.descMid || ''))}</div>
+                                <div class="mf-skill-desc-bot">${escapeHtml(String(a.descBot || ''))}</div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
-                <div class="mf-action-right">
-                    ${rows.join('')}
+            ` : `
+                <div class="mf-revive-wrap">
+                    <button class="btn btn-sm btn-warning" type="button" data-mf="reviveOpen">💫 Revive</button>
+                    ${(() => {
+                        const draft = mfBattleUi.reviveDraft[selectedPlayerId];
+                        const v = Number.isFinite(Number(draft)) ? Number(draft) : 1;
+                        const max = Math.max(1, Number(player.puzzlePoints || 0));
+                        return `
+                            <div class="mf-revive-inline ${mfBattleUi.reviveOpenFor === selectedPlayerId ? '' : 'is-hidden'}">
+                                <div class="mf-revive-label">Puzzle Points</div>
+                                <input type="number" min="1" max="${escapeHtml(String(max))}" value="${escapeHtml(String(v))}" data-mf="revivePts" />
+                                <button class="btn btn-primary btn-sm" type="button" data-mf="reviveAttempt">Attempt</button>
+                            </div>
+                        `;
+                    })()}
                 </div>
-            </div>
+            `}
         </div>
         `);
 
@@ -1178,9 +1214,9 @@ function mfRenderBattleHud() {
 
     // Monster panel (info)
     if (monster && monsterUnit) {
-        const panelW = 420;
+        const panelW = 220;
         const panelH = 240;
-        const rawLeft = monsterUnit.x - (monsterUnit.w / 2) - 12 - panelW;
+        const rawLeft = monsterUnit.x - (monsterUnit.w / 2) - 24 - panelW;
         const rawTop = monsterUnit.y - (monsterUnit.h / 2) - 8;
         const left = mfClamp(rawLeft, 10, Math.max(10, stageW - panelW - 10));
         const top = mfClamp(rawTop, 10, Math.max(10, stageH - panelH - 10));
@@ -1190,7 +1226,7 @@ function mfRenderBattleHud() {
         const skills = Array.isArray(monster.skills) && monster.skills.length ? monster.skills : (Array.isArray(mt?.skills) ? mt.skills : []);
         const actives = Array.isArray(skills) ? skills.filter(s => s && s.type === 'active') : [];
 
-        const rows = actives.slice(0, 3).map(s => {
+        const rows = actives.slice(0, 2).map(s => {
             const base = (typeof s.cooldown === 'number') ? s.cooldown : 0;
             return `
                 <div class="mf-monster-skill">
@@ -1308,12 +1344,27 @@ function mfBindBattleCanvasInput() {
         if (kind === 'close') {
             mfBattleUi.selectedPlayerId = null;
             mfBattleUi.targeting = null;
+            mfBattleUi.reviveOpenFor = null;
             mfRenderBattleHud();
             return;
         }
         if (kind === 'closeMonster') {
             mfBattleUi.selectedMonsterId = null;
             mfRenderBattleHud();
+            return;
+        }
+        if (kind === 'reviveOpen') {
+            const actorId = mfBattleUi.selectedPlayerId;
+            if (!actorId) return;
+            mfBattleUi.reviveOpenFor = (mfBattleUi.reviveOpenFor === actorId) ? null : actorId;
+            mfRenderBattleHud();
+            return;
+        }
+        if (kind === 'reviveAttempt') {
+            const actorId = mfBattleUi.selectedPlayerId;
+            if (!actorId) return;
+            const pts = Math.max(1, parseInt(String(mfBattleUi.reviveDraft[actorId] ?? '1'), 10) || 1);
+            void mfAttemptReviveInline(actorId, pts);
             return;
         }
 
@@ -1355,12 +1406,39 @@ function mfBindBattleCanvasInput() {
         mfBattleUi.ptsDraft[actorId] = Math.max(0, parseInt(t.value || '0', 10) || 0);
     });
 
+    hud.addEventListener('input', (ev) => {
+        const t = ev.target;
+        if (!(t instanceof HTMLInputElement)) return;
+        if (t.getAttribute('data-mf') !== 'revivePts') return;
+        const actorId = mfBattleUi.selectedPlayerId;
+        if (!actorId) return;
+        mfBattleUi.reviveDraft[actorId] = Math.max(1, parseInt(t.value || '1', 10) || 1);
+    });
+
     window.addEventListener('keydown', (ev) => {
         if (ev.key === 'Escape') {
             mfBattleUi.targeting = null;
             mfRenderBattleHud();
         }
     }, { passive: true });
+}
+
+async function mfAttemptReviveInline(studentId, puzzlePoints) {
+    try {
+        const response = await fetch(`${GAME_API_BASE}/game/revive`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ studentId, puzzlePoints })
+        });
+        if (!response.ok) throw new Error('Failed to attempt revive');
+        const data = await response.json();
+        if (data && data.gameState) gameState = data.gameState;
+        mfBattleUi.reviveOpenFor = null;
+        renderGame();
+    } catch (e) {
+        console.error('Revive failed:', e);
+        alert('Failed to attempt revive');
+    }
 }
 
 async function initBattleCanvas() {
@@ -2403,19 +2481,12 @@ function renderBattleMode() {
                         <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
                     </div>
                     <div class="mf-topbar-right">
+                        <button class="mf-topbar-pill" type="button" onclick="toggleActionLog()">Action Log</button>
+                        <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
+                            ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
+                        </span>
+                        <button class="btn btn-danger btn-sm" onclick="terminateGame()">⛔ Terminate Game</button>
                         <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
-                    </div>
-                </div>
-
-                <div class="mf-topbar-bar">
-                    <div class="mf-topbar-bar-left">
-                        <div class="mf-topbar-bar-controls">
-                            <button class="mf-topbar-pill" type="button" onclick="toggleActionLog()">Action Log</button>
-                            <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
-                                ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
-                            </span>
-                            <button class="btn btn-danger btn-sm" onclick="terminateGame()">⛔ Terminate Game</button>
-                        </div>
                     </div>
                 </div>
 
@@ -2431,8 +2502,10 @@ function renderBattleMode() {
                 ` : ''}
             </div>
             
-            <div class="mf-battle-stage">
-                <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
+            <div class="mf-battle-wrap">
+                <div class="mf-battle-stage">
+                    <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
+                </div>
                 <div id="mfBattleHud" class="mf-battle-hud"></div>
             </div>
             

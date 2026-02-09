@@ -90,6 +90,13 @@ body.mf-bg-image {
     width: 100%;
 }
 
+.mf-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .mf-topbar-left {
     display: flex;
     align-items: center;
@@ -484,15 +491,20 @@ body.mf-bg-image {
 }
 
 /* Canvas battle stage */
+.mf-battle-wrap {
+    position: relative;
+    width: min(1689px, calc(100vw - 40px)); /* 16:9 at 950px tall */
+    margin: 12px auto 0;
+    overflow: visible;
+}
+
 .mf-battle-stage {
     position: relative;
     border-radius: 18px;
     overflow: hidden;
-    /* Target: 650px tall at 16:9 => 1156px wide. Shrink proportionally on smaller screens. */
-    width: min(1156px, calc(100vw - 40px));
-    aspect-ratio: 16 / 9;
+    width: 100%;
+    aspect-ratio: 16 / 9; /* 950px tall at max width */
     height: auto;
-    margin: 12px auto 0;
 }
 
 .mf-battle-canvas {
@@ -509,6 +521,7 @@ body.mf-bg-image {
     inset: 0;
     z-index: 2;
     pointer-events: none;
+    overflow: visible; /* allow panels to extend outside map */
 }
 
 .mf-battle-stage.mf-targeting,
@@ -518,7 +531,7 @@ body.mf-bg-image {
 
 .mf-action-panel {
     position: absolute;
-    width: 420px;
+    width: 520px;
     padding: 10px 10px 12px;
     border-radius: 14px;
     background: rgba(17, 24, 39, 0.78);
@@ -576,16 +589,29 @@ body.mf-bg-image {
     font-size: 0.85rem;
 }
 
-/* New HUD layout: left pts, right skills+descriptions */
-.mf-action-grid {
+/* Player HUD layout: 3 parts (points | icons | descriptions) */
+.mf-action-grid3 {
     display: grid;
-    grid-template-columns: 130px 1fr;
+    grid-template-columns: 150px 92px 1fr;
     gap: 12px;
     align-items: stretch;
 }
 
+.mf-action-icons {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    justify-items: center;
+}
+
+.mf-action-desc {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+}
+
 .mf-monster-panel {
-    width: 420px;
+    width: 220px;
 }
 
 .mf-monster-stats {
@@ -660,9 +686,11 @@ body.mf-bg-image {
 .mf-monster-skill-desc {
     font-size: 0.82rem;
     opacity: 0.92;
-    white-space: nowrap;
+    white-space: normal;
     overflow: hidden;
-    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .mf-monster-skill-empty {
@@ -704,26 +732,15 @@ body.mf-bg-image {
     outline: none;
 }
 
-.mf-action-right {
-    display: grid;
-    gap: 10px;
-    align-content: start;
-}
-
-.mf-skill-row {
-    display: grid;
-    /* Icon grid width x2 (was 46px) */
-    grid-template-columns: 92px 1fr;
-    gap: 10px;
-    align-items: center;
-    min-height: 64px; /* keep consistent row height */
-}
-
 .mf-skill-desc {
     display: grid;
     gap: 2px;
     min-width: 0;
     align-content: center; /* keep text vertically consistent */
+}
+
+.mf-skill-desc.is-disabled {
+    opacity: 0.55;
 }
 
 .mf-skill-desc-top {
@@ -761,6 +778,43 @@ body.mf-bg-image {
     font-size: 1.1rem;
     cursor: pointer;
     justify-self: center; /* center inside the 92px icon column */
+}
+
+/* Revive inline controls */
+.mf-revive-wrap {
+    display: grid;
+    gap: 10px;
+}
+
+.mf-revive-inline {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.16);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+.mf-revive-inline.is-hidden {
+    display: none;
+}
+
+.mf-revive-label {
+    font-weight: 900;
+    font-size: 0.85rem;
+    opacity: 0.92;
+}
+
+.mf-revive-inline input {
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.20);
+    background: rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.96);
+    text-align: center;
+    font-weight: 900;
+    outline: none;
 }
 
 .mf-action-btn.is-disabled {
