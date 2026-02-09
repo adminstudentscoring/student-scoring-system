@@ -908,8 +908,9 @@ function drawBattleEntities(ctx, stageW, stageH) {
     const bottom = Math.max(top + 200, stageH - 90);
     const arenaH = Math.max(240, bottom - top);
 
-    const monstersBaseX = stageW * 0.34;
-    const playersBaseX = stageW * 0.66;
+    // Bring both sides closer together
+    const monstersBaseX = stageW * 0.38;
+    const playersBaseX = stageW * 0.62;
 
     const monsters = layoutSide(
         monstersAll.map(m => ({
@@ -1148,7 +1149,8 @@ function mfRenderBattleHud() {
         const panelH = 300;
         const margin = 10;
         const left = mfClamp(Math.round(stageW - panelW - margin), margin, Math.max(margin, stageW - panelW - margin));
-        const top = margin;
+        // Move panel down by +200px (keep inside map)
+        const top = mfClamp(margin + 200, margin, Math.max(margin, stageH - panelH - margin));
 
         const aCd = skillA ? cd(skillA.id) : 0;
         const bCd = skillB ? cd(skillB.id) : 0;
@@ -1309,7 +1311,8 @@ function mfRenderBattleHud() {
         const panelH = 360;
         const margin = 10;
         const left = margin;
-        const top = margin;
+        // Move panel down by +200px (keep inside map)
+        const top = mfClamp(margin + 200, margin, Math.max(margin, stageH - panelH - margin));
 
         // skills from instance fallback to type template (include passive)
         const mt = (typeof getMonsterTypes === 'function') ? (getMonsterTypes().find(t => t && t.id === monster.type) || null) : null;
@@ -1430,7 +1433,11 @@ function mfBindBattleCanvasInput() {
         const want = targeting.targetType;
         if (want === 'monster') {
             if (hit.kind !== 'monster' || !hit.isAlive) return;
-            playerAttack(targeting.actorId, { type: 'monster', id: hit.id });
+            if (targeting.action === 'skill') {
+                playerUseSkill(targeting.actorId, targeting.skillId, { type: 'monster', id: hit.id });
+            } else {
+                playerAttack(targeting.actorId, { type: 'monster', id: hit.id });
+            }
         } else if (want === 'ally_alive') {
             if (hit.kind !== 'player' || !hit.isAlive) return;
             playerUseSkill(targeting.actorId, targeting.skillId, { type: 'ally', id: hit.id });
