@@ -19,6 +19,39 @@ const ChessPalPages = (() => {
     try { localStorage.setItem('chessPalPreset', JSON.stringify(preset)); } catch {}
   }
 
+  function getGeneralSettings() {
+    const base = { jewelAlpha: 0.22, appBg: '#060912' };
+    try {
+      const raw = localStorage.getItem('chessPalGeneralSettings');
+      if (!raw) return base;
+      const v = JSON.parse(raw);
+      const jewelAlpha = Number(v?.jewelAlpha);
+      const appBg = String(v?.appBg || '').trim();
+      return {
+        jewelAlpha: Number.isFinite(jewelAlpha) ? Math.max(0.08, Math.min(0.45, jewelAlpha)) : base.jewelAlpha,
+        appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg
+      };
+    } catch {
+      return base;
+    }
+  }
+
+  function applyGeneralSettings(s) {
+    try {
+      const root = document.documentElement;
+      if (!root) return;
+      root.style.setProperty('--cp-jewel-alpha', String(s?.jewelAlpha ?? 0.22));
+      root.style.setProperty('--cp-app-bg', String(s?.appBg ?? '#060912'));
+    } catch {}
+  }
+
+  function saveGeneralSettings(s) {
+    try { localStorage.setItem('chessPalGeneralSettings', JSON.stringify(s)); } catch {}
+  }
+
+  // Apply once on load (so it affects all pages)
+  applyGeneralSettings(getGeneralSettings());
+
   function HomePage() {}
   HomePage.title = 'Home';
   HomePage.render = () => {
@@ -98,7 +131,64 @@ const ChessPalPages = (() => {
   const PalPage = PlaceholderPage('Pal', 'Your companion system will live here.');
   const StoragePage = PlaceholderPage('Storage', 'Inventory / saves will live here.');
   const ShopPage = PlaceholderPage('Shop', 'Shop will live here.');
-  const SettingsPage = PlaceholderPage('Setting', 'Settings will live here.');
+  function SettingsPage() {}
+  SettingsPage.title = 'Setting';
+  SettingsPage.render = () => {
+    const s = getGeneralSettings();
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Setting</div>
+        <div class="cp-muted">General Setting</div>
+
+        <div class="cp-setting-grid" style="margin-top:12px;">
+          <div class="cp-setting-item">
+            <div class="cp-setting-label">寶石顏色光暗</div>
+            <div class="cp-setting-help">調整寶石底色的亮暗（透明度）。</div>
+            <input id="cpSettingJewelAlpha" type="range" min="0.08" max="0.45" step="0.01" value="${String(s.jewelAlpha)}">
+            <div class="cp-setting-value"><span id="cpSettingJewelAlphaVal">${Math.round(s.jewelAlpha * 100)}%</span></div>
+          </div>
+
+          <div class="cp-setting-item">
+            <div class="cp-setting-label">App 背景顏色</div>
+            <div class="cp-setting-help">整個 Chess Pal 的背景底色。</div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <input id="cpSettingAppBg" type="color" value="${String(s.appBg)}" style="width:60px; height:44px; padding:0; border:0; background:transparent;">
+              <div class="cp-setting-value"><span id="cpSettingAppBgVal">${esc(s.appBg)}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+  SettingsPage.init = () => {
+    const s0 = getGeneralSettings();
+    const alpha = document.getElementById('cpSettingJewelAlpha');
+    const alphaVal = document.getElementById('cpSettingJewelAlphaVal');
+    const bg = document.getElementById('cpSettingAppBg');
+    const bgVal = document.getElementById('cpSettingAppBgVal');
+
+    if (alpha) {
+      alpha.value = String(s0.jewelAlpha);
+      alpha.addEventListener('input', () => {
+        const next = getGeneralSettings();
+        next.jewelAlpha = Math.max(0.08, Math.min(0.45, Number(alpha.value) || 0.22));
+        applyGeneralSettings(next);
+        saveGeneralSettings(next);
+        if (alphaVal) alphaVal.textContent = `${Math.round(next.jewelAlpha * 100)}%`;
+      }, { passive: true });
+    }
+
+    if (bg) {
+      bg.value = String(s0.appBg);
+      bg.addEventListener('input', () => {
+        const next = getGeneralSettings();
+        next.appBg = String(bg.value || '#060912');
+        applyGeneralSettings(next);
+        saveGeneralSettings(next);
+        if (bgVal) bgVal.textContent = next.appBg;
+      }, { passive: true });
+    }
+  };
 
   return {
     routes: {
