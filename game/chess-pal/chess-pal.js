@@ -1,7 +1,9 @@
 const ELEMENTS = ['light', 'dark', 'fire', 'water', 'wind', 'heart'];
-const BOARD_ROWS = 8;
-const BOARD_COLS = 8;
+const BOARD_ROWS = 6;
+const BOARD_COLS = 6;
 const TURN_TIME_MS = 20000;
+const CELL_PX = 66;
+const GAP_PX = 8;
 
 const ChessPal = (() => {
   const state = {
@@ -81,6 +83,24 @@ const ChessPal = (() => {
     updateTimerDisplay(1);
     updateStartButtonState();
     pushLog('Board initialized. Select a starting position for the knight.');
+  }
+
+  function destroy() {
+    try { clearInterval(state.actionTimerId); } catch {}
+    state.actionTimerId = null;
+    state.boardEl = null;
+    state.timerTextEl = null;
+    state.timerFillEl = null;
+    state.logEl = null;
+    state.moveListEl = null;
+    state.cascadeListEl = null;
+    state.startButtonEl = null;
+    state.isPlayerTurn = false;
+    state.isAnimating = false;
+    state.selectedPosition = null;
+    state.startingKnight = null;
+    state.knightPosition = null;
+    state.validMoves = [];
   }
 
   function generateInitialBoard() {
@@ -562,7 +582,7 @@ const ChessPal = (() => {
       const element = state.boardEl?.querySelector(`[data-id="${fall.jewel.id}"]`);
       if (element) {
         element.animate([
-          { transform: `translateY(${-(fall.distance * 70)}px)` },
+          { transform: `translateY(${-(fall.distance * (CELL_PX + GAP_PX))}px)` },
           { transform: 'translateY(0px)' }
         ], { duration: 180, easing: 'ease-in' });
       }
@@ -589,11 +609,16 @@ const ChessPal = (() => {
   }
 
   return {
-    init
+    init,
+    destroy,
+    BOARD_ROWS,
+    BOARD_COLS
   };
 })();
 
 function initChessPal() {
   ChessPal.init();
 }
+
+try { window.ChessPal = ChessPal; } catch {}
 

@@ -1,12 +1,16 @@
-/* Chess Pal styles (board + side panel) */
+/* Chess Pal styles (iPad-first + dark) */
 
 :root{
-  --cp-bg: #0b1220;
+  --cp-bg: #060912;
+  --cp-bg2: #0b1220;
   --cp-panel: rgba(255,255,255,0.06);
   --cp-border: rgba(255,255,255,0.10);
   --cp-text: rgba(255,255,255,0.92);
-  --cp-muted: rgba(255,255,255,0.70);
+  --cp-muted: rgba(255,255,255,0.72);
   --cp-accent: #7c3aed;
+  --cp-side-w: 260px;
+  --cp-cell: 66px;
+  --cp-gap: 8px;
 }
 
 html, body {
@@ -21,36 +25,82 @@ body {
     radial-gradient(1000px 700px at 70% 20%, rgba(124,58,237,0.25), transparent 55%),
     radial-gradient(900px 650px at 10% 80%, rgba(59,130,246,0.18), transparent 55%),
     var(--cp-bg);
+  -webkit-font-smoothing: antialiased;
 }
 
-.cp-page{
-  min-height: 100%;
+.cp-lock{
+  overflow: hidden;
+}
+
+.cp-app{
+  display: flex;
+  min-height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.cp-sidebar{
+  width: var(--cp-side-w);
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, rgba(10, 15, 28, 0.98) 0%, rgba(6, 9, 18, 0.96) 100%);
+  border-right: 1px solid rgba(255,255,255,0.08);
+  padding: 18px 14px;
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  position: relative;
+  z-index: 20;
 }
 
-.cp-topbar{
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  background: rgba(0,0,0,0.28);
-  border-bottom: 1px solid var(--cp-border);
-  backdrop-filter: blur(10px);
-}
-
-.cp-title{
-  font-weight: 900;
+.cp-side-title{
+  font-size: 18px;
+  font-weight: 950;
   letter-spacing: 0.2px;
+}
+.cp-side-sub{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.78);
+}
+
+.cp-nav{
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cp-nav-btn{
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  padding: 12px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+  touch-action: manipulation;
+}
+.cp-nav-btn:active{
+  transform: translateY(1px);
+}
+.cp-nav-btn.is-active{
+  background: rgba(124, 58, 237, 0.26);
+  border-color: rgba(124, 58, 237, 0.45);
+  box-shadow: 0 16px 26px rgba(124, 58, 237, 0.14);
+}
+
+.cp-sidebar-bottom{
+  margin-top: auto;
 }
 
 .cp-status{
   font-size: 12px;
-  padding: 6px 10px;
+  padding: 8px 10px;
   border-radius: 999px;
   border: 1px solid var(--cp-border);
   background: rgba(255,255,255,0.06);
@@ -65,14 +115,145 @@ body {
   border-color: rgba(239,68,68,0.35);
 }
 
-.cp-loading{
-  padding: 18px;
-  color: var(--cp-muted);
+.cp-main{
+  flex: 1 1 auto;
+  min-width: 0;
+  background: radial-gradient(1000px 600px at 30% 0%, rgba(59,130,246,0.14), transparent 60%), var(--cp-bg2);
 }
 
+.cp-main-topbar{
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.24);
+  backdrop-filter: blur(10px);
+}
+.cp-main-title{
+  font-weight: 950;
+  letter-spacing: 0.2px;
+}
+.cp-hamburger{
+  display:none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-size: 18px;
+  cursor:pointer;
+  touch-action: manipulation;
+}
+
+.cp-container{
+  padding: 14px 14px 22px;
+  transition: opacity 0.22s ease;
+}
+
+.cp-overlay{
+  display:none;
+}
+
+@media (max-width: 980px){
+  .cp-hamburger{ display:inline-flex; align-items:center; justify-content:center; }
+  .cp-sidebar{
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+  }
+  .cp-sidebar.is-open{
+    transform: translateX(0);
+  }
+  .cp-overlay{
+    display:block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.50);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+    z-index: 18;
+  }
+  .cp-overlay.is-show{
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.cp-page-card{
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 18px 38px rgba(0,0,0,0.28);
+}
+.cp-h1{
+  font-size: 20px;
+  font-weight: 1000;
+}
+.cp-muted{
+  color: var(--cp-muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+.cp-row{
+  margin-top: 14px;
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cp-primary{
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(124,58,237,0.45);
+  background: rgba(124,58,237,0.92);
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cp-preset-grid{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 980px){
+  .cp-preset-grid{ grid-template-columns: 1fr; }
+}
+.cp-preset{
+  text-align:left;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 12px;
+  cursor: pointer;
+  color: var(--cp-text);
+  min-height: 84px;
+  touch-action: manipulation;
+}
+.cp-preset.is-active{
+  border-color: rgba(124,58,237,0.55);
+  box-shadow: 0 18px 30px rgba(124,58,237,0.14);
+}
+.cp-preset-title{ font-weight: 1000; }
+.cp-preset-desc{ margin-top: 4px; color: var(--cp-muted); font-size: 13px; }
+.cp-preset-meta{ margin-top: 8px; color: rgba(255,255,255,0.65); font-size: 12px; }
+
 .pmf-wrapper{
-  width: min(1200px, calc(100vw - 24px));
-  margin: 14px auto 22px;
+  width: min(1200px, calc(100vw - 28px));
+  margin: 12px auto 16px;
   display: grid;
   grid-template-columns: 1fr 320px;
   gap: 14px;
@@ -128,16 +309,16 @@ body {
 
 .pmf-board{
   display:grid;
-  grid-template-columns: repeat(8, 66px);
-  grid-template-rows: repeat(8, 66px);
-  gap: 8px;
+  grid-template-columns: repeat(6, var(--cp-cell));
+  grid-template-rows: repeat(6, var(--cp-cell));
+  gap: var(--cp-gap);
   padding: 10px;
   border-radius: 14px;
   border: 1px solid var(--cp-border);
   background: rgba(0,0,0,0.22);
 }
 @media (max-width: 520px){
-  .pmf-board{ grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); gap:6px; }
+  :root{ --cp-cell: 44px; --cp-gap: 6px; }
 }
 
 .pmf-cell{
