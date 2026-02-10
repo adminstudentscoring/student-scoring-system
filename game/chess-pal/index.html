@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Pal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="cp-page">
+        <div class="cp-topbar">
+            <div class="cp-title">Chess Pal</div>
+            <div id="cpApiStatus" class="cp-status">Checking connection...</div>
+        </div>
+        <div id="chessPalGame" class="puzzle-monster-root">
+            <div class="cp-loading">Loading...</div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="chess-pal.js"></script>
+    <script>
+        async function checkApiConnection() {
+            const statusEl = document.getElementById('cpApiStatus');
+            if (!statusEl) return;
+            try {
+                const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.getStudents}`);
+                if (response.ok) {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'cp-status is-ok';
+                } else {
+                    throw new Error('API response error');
+                }
+            } catch (error) {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'cp-status is-bad';
+                console.error('API connection error:', error);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            try { if (typeof initChessPal === 'function') initChessPal(); } catch {}
+            checkApiConnection();
+        });
+    </script>
+</body>
+</html>
+

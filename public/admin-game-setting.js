@@ -190,7 +190,7 @@
       runningQueen: 'adminGameSettingRunningQueenPanel',
       royalExchange: 'adminGameSettingRoyalExchangePanel',
       monsterFight: 'adminGameSettingMonsterFightPanel',
-      puzzleMonsterFight: 'adminGameSettingPuzzleMonsterFightPanel',
+      chessPal: 'adminGameSettingChessPalPanel',
       tacticsFighter: 'adminGameSettingTacticsFighterPanel',
       chessCom: 'adminGameSettingChessComPanel',
       noBlunder: 'adminGameSettingNoBlunderPanel',

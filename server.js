@@ -197,8 +197,8 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 // Serve game directory (all game-related files)
 app.use('/game', express.static(path.join(__dirname, 'game')));
-// Serve standalone project puzzle-monster-fight (now in game directory)
-app.use('/game/puzzle-monster-fight', express.static(path.join(__dirname, 'game/puzzle-monster-fight')));
+// Serve standalone project chess-pal (now in game directory)
+app.use('/game/chess-pal', express.static(path.join(__dirname, 'game/chess-pal')));
 // Serve standalone project monster-fight (now in game directory)
 app.use('/game/monster-fight', express.static(path.join(__dirname, 'game/monster-fight')));
 

@@ -3,7 +3,7 @@ const BOARD_ROWS = 8;
 const BOARD_COLS = 8;
 const TURN_TIME_MS = 20000;
 
-const PuzzleMonsterFight = (() => {
+const ChessPal = (() => {
   const state = {
     board: [],
     boardEl: null,
@@ -26,9 +26,9 @@ const PuzzleMonsterFight = (() => {
   };
 
   function init() {
-    const container = document.getElementById('puzzleMonsterFightGame');
+    const container = document.getElementById('chessPalGame');
     if (!container) {
-      console.error('Puzzle Monster Fight container not found');
+      console.error('Chess Pal container not found');
       return;
     }
 
@@ -157,12 +157,10 @@ const PuzzleMonsterFight = (() => {
         cell.innerHTML = '';
         if (isKnight) {
           const img = document.createElement('img');
-          // 圖片路徑：從主系統的 public 目錄訪問
           img.src = '/assets/pieces/white_Knight.png';
           img.alt = 'Knight';
           img.className = 'pmf-knight-image';
           img.onerror = function() {
-            // 如果圖片載入失敗，使用文字符號替代
             this.style.display = 'none';
             const text = document.createTextNode('♘');
             this.parentElement.appendChild(text);
@@ -595,7 +593,7 @@ const PuzzleMonsterFight = (() => {
   };
 })();
 
-function initPuzzleMonsterFight() {
-  PuzzleMonsterFight.init();
+function initChessPal() {
+  ChessPal.init();
 }
 

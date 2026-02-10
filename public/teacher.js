@@ -1185,7 +1185,7 @@ function openApplicationStudentPicker(gameKey) {
 
 window.openApplicationStudentPicker = openApplicationStudentPicker;
 
-function openPuzzleMonsterFightAsMe() {
+function openChessPalAsMe() {
     if (!currentUser || !currentUser.id) {
         showNotification('Missing teacher identity. Please refresh and try again.', 'error');
         return;
@@ -1196,22 +1196,22 @@ function openPuzzleMonsterFightAsMe() {
         studentId: String(currentUser.teacherId || currentUser.id)
     };
     try {
-        localStorage.setItem('puzzleMonsterFightPlayers', JSON.stringify([player]));
+        localStorage.setItem('chessPalPlayers', JSON.stringify([player]));
     } catch (error) {
-        console.warn('Unable to persist puzzle monster fight players to localStorage:', error);
+        console.warn('Unable to persist chess pal players to localStorage:', error);
     }
 
-    const gameUrl = '/game/puzzle-monster-fight/index.html';
-    const gameWindow = window.open(gameUrl, 'PuzzleMonsterFight', 'width=1200,height=800,resizable=yes,scrollbars=yes');
+    const gameUrl = '/game/chess-pal/index.html';
+    const gameWindow = window.open(gameUrl, 'ChessPal', 'width=1200,height=800,resizable=yes,scrollbars=yes');
     if (!gameWindow) {
         showNotification('Popup blocked. Opening in current window...', 'warning');
         window.location.href = gameUrl;
         return;
     }
-    showNotification('Puzzle Monster Fight opened in new window', 'success');
+    showNotification('Chess Pal opened in new window', 'success');
 }
 
-window.openPuzzleMonsterFightAsMe = openPuzzleMonsterFightAsMe;
+window.openChessPalAsMe = openChessPalAsMe;
 
 function openTacticsFighterAsMe() {
     if (!currentUser || !currentUser.id) {
@@ -1526,10 +1526,10 @@ function showGameSelection() {
                     <p>Swap chess pieces without breaking safety</p>
                 </div>
             </div>
-            <div class="game-item" onclick="startPuzzleMonsterFight()">
+            <div class="game-item" onclick="startChessPal()">
                 <div class="game-icon">🧩</div>
                 <div class="game-info">
-                    <h4>Puzzle Monster Fight</h4>
+                    <h4>Chess Pal</h4>
                     <p>Knight-based jewel puzzle with elemental monsters</p>
                 </div>
             </div>
@@ -2030,7 +2030,7 @@ async function startVChessPlatform() {
 
 window.startVChessPlatform = startVChessPlatform;
 
-async function startPuzzleMonsterFight() {
+async function startChessPal() {
     if (selectedGameStudents.length === 0) {
         showNotification('Please select at least one student', 'error');
         return;
@@ -2047,19 +2047,19 @@ async function startPuzzleMonsterFight() {
 
     // 儲存玩家資料到 localStorage（供獨立遊戲使用）
     try {
-        localStorage.setItem('puzzleMonsterFightPlayers', JSON.stringify(playerDetails));
+        localStorage.setItem('chessPalPlayers', JSON.stringify(playerDetails));
     } catch (error) {
-        console.warn('Unable to persist puzzle monster fight players to localStorage:', error);
+        console.warn('Unable to persist chess pal players to localStorage:', error);
     }
 
     // 打開獨立專案的頁面
     // 使用伺服器提供的路徑訪問獨立專案
-    const gameUrl = '/game/puzzle-monster-fight/index.html';
+    const gameUrl = '/game/chess-pal/index.html';
     
     // 嘗試在新視窗中打開
     const gameWindow = window.open(
         gameUrl,
-        'PuzzleMonsterFight',
+        'ChessPal',
         'width=1200,height=800,resizable=yes,scrollbars=yes'
     );
     
@@ -2068,11 +2068,11 @@ async function startPuzzleMonsterFight() {
         showNotification('Popup blocked. Opening in current window...', 'warning');
         window.location.href = gameUrl;
     } else {
-        showNotification('Puzzle Monster Fight opened in new window', 'success');
+        showNotification('Chess Pal opened in new window', 'success');
     }
 }
 
-window.startPuzzleMonsterFight = startPuzzleMonsterFight;
+window.startChessPal = startChessPal;
 
 function showGameArea() {
     document.getElementById('gameSelectionSection').style.display = 'none';

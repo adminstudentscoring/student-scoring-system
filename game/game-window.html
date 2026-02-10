@@ -179,26 +179,26 @@
                     } else {
                         showError('Royal Exchange script loaded but init function missing.');
                     }
-                } else if (gameKey === 'puzzleMonsterFight') {
+                } else if (gameKey === 'chessPal') {
                     content.innerHTML = `
-                        <div id="puzzleMonsterFightGame" class="puzzle-monster-root">
-                            <h2>🧩 Puzzle Monster Fight</h2>
+                        <div id="chessPalGame" class="puzzle-monster-root">
+                            <h2>♞ Chess Pal</h2>
                             <p>Loading game...</p>
                         </div>
                     `;
                     try {
-                        const storedPlayers = localStorage.getItem('puzzleMonsterFightPlayers');
+                        const storedPlayers = localStorage.getItem('chessPalPlayers');
                         if (storedPlayers) {
-                            window.puzzleMonsterFightPlayers = JSON.parse(storedPlayers);
+                            window.chessPalPlayers = JSON.parse(storedPlayers);
                         }
                     } catch (error) {
-                        console.warn('Unable to restore puzzle monster fight players from storage:', error);
+                        console.warn('Unable to restore chess pal players from storage:', error);
                     }
-                    await loadScript('/game/puzzle-monster-fight.js');
-                    if (window.initPuzzleMonsterFight) {
-                        window.initPuzzleMonsterFight();
+                    await loadScript('/game/chess-pal/chess-pal.js');
+                    if (window.initChessPal) {
+                        window.initChessPal();
                     } else {
-                        showError('Puzzle Monster Fight script loaded but init function missing.');
+                        showError('Chess Pal script loaded but init function missing.');
                     }
                 } else if (gameKey === 'noBlunder') {
                     content.innerHTML = `
