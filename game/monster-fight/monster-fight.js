@@ -933,7 +933,7 @@ async function loadGameConfig() {
         window.playerClasses = playerClasses;
         window.monsterTypes = monsterTypes;
         // Apply background theme from config (defaults to white)
-        applyBackgroundTheme(gameConfig?.backgroundTheme || 'white');
+        applyBackgroundTheme(gameConfig?.backgroundTheme || 'image');
         console.log('Game config loaded successfully');
         console.log(`Loaded ${playerClasses.length} player classes and ${monsterTypes.length} monster types`);
     } catch (error) {
@@ -2257,7 +2257,10 @@ async function initBattleCanvas() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const mapSrc = imageSrcForFile('Battle/Map.jpg') || 'images/Battle/Map.jpg';
+    const mapFile =
+        String(gameState?.gameConfig?.battleMap || gameConfig?.battleMap || 'Battle/Map.jpg').trim() ||
+        'Battle/Map.jpg';
+    const mapSrc = imageSrcForFile(mapFile) || 'images/Battle/Map.jpg';
     const mapImg = await loadImg(mapSrc);
     if (token !== mfCanvasToken) return; // cancelled by re-render
 
@@ -2691,7 +2694,8 @@ function renderGlobalSettings() {
         baseReviveRate: 0.01,
         reviveRateDecay: 0.95,
         maxReviveRate: 0.66,
-        backgroundTheme: 'white'
+        backgroundTheme: 'image',
+        battleMap: 'Battle/Map.jpg'
     };
     
     return `
@@ -2740,6 +2744,15 @@ function renderGlobalSettings() {
                     <option value="image" ${String(config.backgroundTheme || '') === 'image' ? 'selected' : ''}>Background (Background.jpg)</option>
                 </select>
                 <small>Preset: white or \`game/monster-fight/images/Background/Background.jpg\`</small>
+            </div>
+
+            <div class="form-group">
+                <label>Battle Map:</label>
+                <select id="setting_battleMap">
+                    <option value="Battle/Map.jpg" ${String(config.battleMap || 'Battle/Map.jpg') === 'Battle/Map.jpg' ? 'selected' : ''}>Map.jpg</option>
+                    <option value="Battle/Map-2.jpg" ${String(config.battleMap || '') === 'Battle/Map-2.jpg' ? 'selected' : ''}>Map-2.jpg</option>
+                </select>
+                <small>Maps in \`game/monster-fight/images/Battle/\`</small>
             </div>
         </div>
     `;
@@ -2791,6 +2804,12 @@ function renderPlayerClassesSettings() {
                                                        value="${(skill.cooldown ?? '')}"
                                                        placeholder="-">
                                             </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Effect (JSON):</label>
+                                            <textarea id="player_${index}_skill_${skillIndex}_effect" rows="3"
+                                                      placeholder='{"damageMultiplier":1.2}'>${escapeHtml(JSON.stringify(skill.effect ?? {}, null, 2))}</textarea>
+                                            <small>Edit numeric values here (damageMultiplier/heal/etc). Leave as {} if none.</small>
                                         </div>
                                         <p>${skill.description}</p>
                                     </div>
@@ -3093,7 +3112,8 @@ async function saveGameSettings() {
             baseReviveRate: (parseFloat(document.getElementById('setting_baseReviveRate').value) || 1) / 100,
             reviveRateDecay: parseFloat(document.getElementById('setting_reviveRateDecay').value) || 0.95,
             maxReviveRate: (parseFloat(document.getElementById('setting_maxReviveRate').value) || 66) / 100,
-            backgroundTheme: String(document.getElementById('setting_backgroundTheme')?.value || 'white')
+            backgroundTheme: String(document.getElementById('setting_backgroundTheme')?.value || 'image'),
+            battleMap: String(document.getElementById('setting_battleMap')?.value || 'Battle/Map.jpg')
         };
         
         // Collect player classes settings
@@ -3104,15 +3124,25 @@ async function saveGameSettings() {
             if (originalClass) {
                 const nextSkills = (originalClass.skills || []).map((s, skillIndex) => {
                     const input = document.getElementById(`player_${index}_skill_${skillIndex}_cd`);
+                    const effInput = document.getElementById(`player_${index}_skill_${skillIndex}_effect`);
                     if (!input) return s;
                     const raw = String(input.value ?? '').trim();
+                    let nextEffect = s?.effect;
+                    if (effInput) {
+                        const effRaw = String(effInput.value ?? '').trim();
+                        try {
+                            nextEffect = effRaw ? JSON.parse(effRaw) : (s?.effect ?? {});
+                        } catch (e) {
+                            throw new Error(`Invalid JSON in ${originalClass.name} → ${s?.name || s?.id || 'skill'} effect`);
+                        }
+                    }
                     if (raw === '') {
                         const { cooldown, ...rest } = s || {};
-                        return { ...rest };
+                        return { ...rest, effect: nextEffect };
                     }
                     const cd = parseInt(raw, 10);
-                    if (Number.isFinite(cd) && cd >= 0) return { ...(s || {}), cooldown: cd };
-                    return s;
+                    if (Number.isFinite(cd) && cd >= 0) return { ...(s || {}), cooldown: cd, effect: nextEffect };
+                    return { ...(s || {}), effect: nextEffect };
                 });
                 playerClasses.push({
                     ...originalClass,
@@ -3201,6 +3231,8 @@ async function saveGameSettings() {
             Object.assign(gameConfig, config);
         }
         applyBackgroundTheme(config.backgroundTheme || 'white');
+        // Refresh battle canvas map if in battle mode
+        try { if (gameState && (gameState.phase === 'player_turn' || gameState.phase === 'monster_turn')) initBattleCanvas(); } catch {}
         if (playerClasses.length > 0) window.playerClasses = playerClasses;
         if (monsterTypes.length > 0) window.monsterTypes = monsterTypes;
         

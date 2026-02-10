@@ -44,6 +44,10 @@ const GAME_CONFIG = {
   baseReviveRate: 0.01, // 1%
   reviveRateDecay: 0.95, // 0.95 multiplier per point
   maxReviveRate: 0.66, // 66% max
+
+  // Presets
+  backgroundTheme: 'image', // use Background/Background.jpg
+  battleMap: 'Battle/Map.jpg',
   
   // Difficulty curve
   difficultyCurve: {
@@ -52,6 +56,29 @@ const GAME_CONFIG = {
     3: { monstersPerStudent: 2.0, strengthMultiplier: 1.5 }
   }
 };
+
+// Default Level Config preset: Easy
+const DEFAULT_LEVEL_CONFIG_EASY = [
+  { level: 1, monsters: [
+    { type: 'slime', count: 1 },
+    { type: 'goblin', count: 1 },
+    { type: 'brute', count: 1 },
+    { type: 'shaman', count: 1 }
+  ]},
+  { level: 2, monsters: [
+    { type: 'goblin', count: 2 },
+    { type: 'dark_mage', count: 1 },
+    { type: 'brute', count: 2 },
+    { type: 'shaman', count: 2 }
+  ]},
+  { level: 3, monsters: [
+    { type: 'goblin', count: 4 },
+    { type: 'dark_mage', count: 2 },
+    { type: 'brute', count: 2 },
+    { type: 'shaman', count: 2 },
+    { type: 'tiger', count: 1 }
+  ]}
+];
 
 // Player Character Classes
 const PLAYER_CLASSES = [
@@ -138,7 +165,7 @@ const PLAYER_CLASSES = [
     baseAttack: 9,
     baseHP: 120,
     skills: [
-      { id: 'passive_1', name: 'Shield Block', type: 'passive', description: 'Reduce damage by 30% and taunt monsters', effect: { damageReduction: 0.3, tauntMonsters: true } },
+      { id: 'passive_1', name: 'Shield Block', type: 'passive', description: 'Reduce damage by 30% and taunt monsters (redirect attacks to you)', effect: { damageReduction: 0.3, tauntMonsters: true } },
       { id: 'active_1', name: 'Shield Bash', type: 'active', cooldown: 3, description: 'Attack and reduce enemy attack', emoji: '🔰', effect: { debuff: 'attack', damageMultiplier: 1.1 } },
       { id: 'active_2', name: 'Shield Smash', type: 'active', cooldown: 4, description: 'Attack with 30% chance to stun', emoji: '🥊', effect: { damageMultiplier: 1.2, stunChance: 0.3, stunTurns: 1 } }
     ]
@@ -1167,6 +1194,11 @@ app.post('/api/game/init', async (req, res) => {
     // Get settings from data file
     const settingsConfig = data.gameSettings?.config || GAME_CONFIG;
     
+    // Default difficulty preset: Easy (if not provided)
+    const resolvedLevelConfig = (Array.isArray(levelConfig) && levelConfig.length)
+      ? levelConfig
+      : DEFAULT_LEVEL_CONFIG_EASY;
+
     // Initialize game state
     const gameState = {
       currentLevel: 1,
@@ -1193,7 +1225,7 @@ app.post('/api/game/init', async (req, res) => {
       })),
       monsters: [],
       actionLog: [],
-      levelConfig: levelConfig || [],
+      levelConfig: resolvedLevelConfig,
       gameConfig: { ...settingsConfig },
       monsterSequence: 0
     };
