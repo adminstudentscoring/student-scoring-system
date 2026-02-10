@@ -99,6 +99,48 @@ const ChessPalPages = (() => {
     if (goBtn) goBtn.addEventListener('click', () => Router.goTo('/practice'), { passive: true });
   };
 
+  function ModePage() {}
+  ModePage.title = 'Mode';
+  ModePage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Mode</div>
+        <div class="cp-muted">Quick entry.</div>
+
+        <div class="cp-mode-grid" style="margin-top:12px;">
+          <button class="cp-mode" type="button" data-cp-go="/practice">
+            <div class="cp-mode-title">Practice</div>
+            <div class="cp-mode-desc">Play the 6×6 knight board.</div>
+          </button>
+          <button class="cp-mode" type="button" data-cp-go="/pal">
+            <div class="cp-mode-title">Pal</div>
+            <div class="cp-mode-desc">Companion (coming soon).</div>
+          </button>
+          <button class="cp-mode" type="button" data-cp-go="/storage">
+            <div class="cp-mode-title">Storage</div>
+            <div class="cp-mode-desc">Inventory / saves (coming soon).</div>
+          </button>
+          <button class="cp-mode" type="button" data-cp-go="/shop">
+            <div class="cp-mode-title">Shop</div>
+            <div class="cp-mode-desc">Shop (coming soon).</div>
+          </button>
+          <button class="cp-mode" type="button" data-cp-go="/settings">
+            <div class="cp-mode-title">Setting</div>
+            <div class="cp-mode-desc">General settings.</div>
+          </button>
+        </div>
+      </div>
+    `;
+  };
+  ModePage.init = () => {
+    document.querySelectorAll('[data-cp-go]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const r = btn.getAttribute('data-cp-go') || '/home';
+        Router.goTo(r);
+      }, { passive: true });
+    });
+  };
+
   function PracticePage() {}
   PracticePage.title = 'Practice';
   PracticePage.render = () => {
@@ -193,6 +235,7 @@ const ChessPalPages = (() => {
   return {
     routes: {
       '/home': HomePage,
+      '/mode': ModePage,
       '/practice': PracticePage,
       '/pal': PalPage,
       '/storage': StoragePage,

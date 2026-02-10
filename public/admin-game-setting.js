@@ -209,6 +209,15 @@
       initHopeMatePanel();
     }
   };
+
+  // Admin-only: open Chess Pal directly.
+  window.openChessPalAdmin = function openChessPalAdmin() {
+    const url = '/game/chess-pal/index.html?role=admin';
+    const win = window.open(url, 'ChessPalAdmin', 'width=1200,height=800,resizable=yes,scrollbars=yes');
+    if (!win) {
+      window.location.href = url;
+    }
+  };
 })();
 
 

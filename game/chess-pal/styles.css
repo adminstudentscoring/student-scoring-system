@@ -340,6 +340,29 @@ body {
   font-size: 13px;
 }
 
+.cp-mode-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 980px){
+  .cp-mode-grid{ grid-template-columns: 1fr; }
+}
+.cp-mode{
+  text-align:left;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 12px;
+  cursor: pointer;
+  color: var(--cp-text);
+  min-height: 84px;
+  touch-action: manipulation;
+}
+.cp-mode:active{ transform: translateY(1px); }
+.cp-mode-title{ font-weight: 1000; }
+.cp-mode-desc{ margin-top: 6px; color: var(--cp-muted); font-size: 13px; }
+
 .pmf-wrapper{
   width: min(1200px, calc(100vw - 28px));
   margin: 12px auto 16px;
