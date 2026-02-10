@@ -3310,66 +3310,123 @@ function renderBattleMode() {
     const alivePlayers = Array.isArray(gameState.players) ? gameState.players.filter(p => p && p.isAlive) : [];
     const allPlayersActed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasActed);
     const canProcessMonsterTurn = !!(!monsterTurnReplay?.active && (isMonsterTurn || (isPlayerTurn && allPlayersActed)));
-    
-    container.innerHTML = `
-        <div class="game-screen mf-battle">
-            <div class="mf-topbar">
-                <div class="mf-topbar-row mf-topbar-row1">
-                    <div class="mf-topbar-left">
-                        <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
-                        <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
-                    </div>
-                    <div class="mf-topbar-center">
-                        <button class="mf-topbar-pill mf-topbar-process ${canProcessMonsterTurn ? '' : 'is-disabled'}"
-                                type="button"
-                                onclick="processMonsterTurn()"
-                                ${canProcessMonsterTurn ? '' : 'disabled'}>
-                            ⚔️ Process Monster Turn
-                        </button>
-                    </div>
-                    <div class="mf-topbar-right">
-                        <button class="mf-topbar-pill" type="button" onclick="toggleActionLog()">Action Log</button>
-                        <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
-                            ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
-                        </span>
-                        <button class="btn btn-danger btn-sm" onclick="terminateGame()">⛔ Terminate Game</button>
-                        <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
-                    </div>
-                </div>
 
-                ${!actionLogCollapsed ? `
-                    <div class="mf-topbar-logpopover" role="dialog" aria-label="Action Log">
-                        ${(gameState.actionLog && gameState.actionLog.length > 0)
-                            ? gameState.actionLog.slice(-10).reverse().map(log => `
-                                <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
-                            `).join('')
-                            : '<div class="log-entry">No actions yet.</div>'
-                        }
-                    </div>
-                ` : ''}
-            </div>
-            
-            <div class="mf-battle-wrap">
-                <div class="mf-battle-stage">
-                    <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
-                    <div id="mfBattleToast" class="mf-battle-toast" aria-live="polite">
-                        <div class="mf-battle-toast-text"></div>
-                        <button class="mf-battle-toast-next" type="button">Next</button>
-                    </div>
-                </div>
-                <div id="mfBattleHud" class="mf-battle-hud"></div>
-            </div>
-        </div>
-    `;
+    if (!container) return;
 
-    // Re-apply last toast after DOM rebuild (toast is persisted via mfPendingToast).
+    // IMPORTANT: Avoid rebuilding the battle DOM every action (it causes a full-screen "flash").
+    // Only build the shell once; subsequent calls update the topbar + HUD in-place.
+    const existingBattle = container.querySelector('.game-screen.mf-battle');
+    if (!existingBattle) {
+        container.innerHTML = `
+            <div class="game-screen mf-battle">
+                <div class="mf-topbar">
+                    <div class="mf-topbar-row mf-topbar-row1">
+                        <div class="mf-topbar-left">
+                            <img class="mf-logo" src="${escapeHtml(imageSrcForFile('Logo.png') || 'images/Logo.png')}" alt="Monster Fight">
+                            <div class="mf-topbar-title">Monster Fight - Level ${gameState.currentLevel}</div>
+                        </div>
+                        <div class="mf-topbar-center">
+                            <button class="mf-topbar-pill mf-topbar-process ${canProcessMonsterTurn ? '' : 'is-disabled'}"
+                                    type="button"
+                                    onclick="processMonsterTurn()"
+                                    ${canProcessMonsterTurn ? '' : 'disabled'}>
+                                ⚔️ Process Monster Turn
+                            </button>
+                        </div>
+                        <div class="mf-topbar-right">
+                            <button class="mf-topbar-pill" type="button" onclick="toggleActionLog()">Action Log</button>
+                            <span class="phase-badge ${isPlayerTurn ? 'player-turn' : 'monster-turn'}">
+                                ${isPlayerTurn ? 'Player Turn' : 'Monster Turn'}
+                            </span>
+                            <button class="btn btn-danger btn-sm" onclick="terminateGame()">⛔ Terminate Game</button>
+                            <button class="btn btn-secondary" onclick="openGameSettings()">⚙️ Settings</button>
+                        </div>
+                    </div>
+
+                    ${!actionLogCollapsed ? `
+                        <div class="mf-topbar-logpopover" role="dialog" aria-label="Action Log">
+                            ${(gameState.actionLog && gameState.actionLog.length > 0)
+                                ? gameState.actionLog.slice(-10).reverse().map(log => `
+                                    <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
+                                `).join('')
+                                : '<div class="log-entry">No actions yet.</div>'
+                            }
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="mf-battle-wrap">
+                    <div class="mf-battle-stage">
+                        <canvas id="mfBattleCanvas" class="mf-battle-canvas"></canvas>
+                        <div id="mfBattleToast" class="mf-battle-toast" aria-live="polite">
+                            <div class="mf-battle-toast-text"></div>
+                            <button class="mf-battle-toast-next" type="button">Next</button>
+                        </div>
+                    </div>
+                    <div id="mfBattleHud" class="mf-battle-hud"></div>
+                </div>
+            </div>
+        `;
+
+        // Re-apply last toast after DOM rebuild (toast is persisted via mfPendingToast).
+        if (mfPendingToast && mfPendingToast.text) {
+            try { mfShowBattleToast(mfPendingToast.text, mfPendingToast.opts || {}); } catch {}
+        }
+
+        // Draw map background on canvas (step 1 of canvas battle scene).
+        setTimeout(initBattleCanvas, 0);
+        setTimeout(mfBindBattleCanvasInput, 0);
+        setTimeout(mfRenderBattleHud, 0);
+        return;
+    }
+
+    // In-place updates (no DOM rebuild)
+    try {
+        const titleEl = existingBattle.querySelector('.mf-topbar-title');
+        if (titleEl) titleEl.textContent = `Monster Fight - Level ${gameState.currentLevel}`;
+
+        const badge = existingBattle.querySelector('.phase-badge');
+        if (badge) {
+            badge.textContent = isPlayerTurn ? 'Player Turn' : 'Monster Turn';
+            badge.classList.toggle('player-turn', !!isPlayerTurn);
+            badge.classList.toggle('monster-turn', !!isMonsterTurn);
+        }
+
+        const btn = existingBattle.querySelector('.mf-topbar-process');
+        if (btn) {
+            btn.classList.toggle('is-disabled', !canProcessMonsterTurn);
+            if (canProcessMonsterTurn) btn.removeAttribute('disabled');
+            else btn.setAttribute('disabled', 'disabled');
+        }
+
+        const topbar = existingBattle.querySelector('.mf-topbar');
+        if (topbar) {
+            let pop = existingBattle.querySelector('.mf-topbar-logpopover');
+            if (actionLogCollapsed) {
+                if (pop) pop.remove();
+            } else {
+                if (!pop) {
+                    pop = document.createElement('div');
+                    pop.className = 'mf-topbar-logpopover';
+                    pop.setAttribute('role', 'dialog');
+                    pop.setAttribute('aria-label', 'Action Log');
+                    topbar.appendChild(pop);
+                }
+                pop.innerHTML = (gameState.actionLog && gameState.actionLog.length > 0)
+                    ? gameState.actionLog.slice(-10).reverse().map(log => `
+                        <div class="log-entry">[Turn ${log.turn}] ${log.message}</div>
+                    `).join('')
+                    : '<div class="log-entry">No actions yet.</div>';
+            }
+        }
+    } catch {}
+
+    // Ensure toast stays visible after any updates
     if (mfPendingToast && mfPendingToast.text) {
         try { mfShowBattleToast(mfPendingToast.text, mfPendingToast.opts || {}); } catch {}
     }
 
-    // Draw map background on canvas (step 1 of canvas battle scene).
-    setTimeout(initBattleCanvas, 0);
-    setTimeout(mfBindBattleCanvasInput, 0);
+    // Update floating panels / targeting UI without recreating the battle scene
     setTimeout(mfRenderBattleHud, 0);
 }
 
