@@ -27,6 +27,65 @@ const Router = (() => {
     try { document.title = `Chess Pal · ${title}`; } catch {}
   }
 
+  function closeAllPopovers() {
+    document.querySelectorAll('.cp-popover').forEach((p) => p.classList.remove('is-open'));
+  }
+
+  function setTopToolsForPath(path) {
+    const tools = document.getElementById('cpTopTools');
+    const pops = document.getElementById('cpTopPopovers');
+    if (!tools || !pops) return;
+
+    if (path !== '/practice') {
+      tools.innerHTML = '';
+      pops.innerHTML = '';
+      return;
+    }
+
+    tools.innerHTML = `
+      <button class="cp-tool-btn" type="button" data-pop="moves">Move Summary</button>
+      <button class="cp-tool-btn" type="button" data-pop="cascades">Cascades</button>
+      <button class="cp-tool-btn" type="button" data-pop="logs">Action Log</button>
+    `;
+
+    pops.innerHTML = `
+      <div class="cp-popover" data-popover="moves">
+        <div class="cp-popover-head">Move Summary</div>
+        <div class="cp-popover-body">
+          <ul id="pmfMoveList" class="pmf-move-list"></ul>
+        </div>
+      </div>
+      <div class="cp-popover" data-popover="cascades">
+        <div class="cp-popover-head">Cascades</div>
+        <div class="cp-popover-body">
+          <ul id="pmfCascadeList" class="pmf-cascade-list"></ul>
+        </div>
+      </div>
+      <div class="cp-popover" data-popover="logs">
+        <div class="cp-popover-head">Action Log</div>
+        <div class="cp-popover-body">
+          <div id="pmfLog" class="pmf-log"></div>
+        </div>
+      </div>
+    `;
+
+    tools.querySelectorAll('[data-pop]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const key = String(btn.getAttribute('data-pop') || '');
+        if (!key) return;
+        const pop = pops.querySelector(`.cp-popover[data-popover="${CSS.escape(key)}"]`);
+        if (!pop) return;
+        const open = pop.classList.contains('is-open');
+        closeAllPopovers();
+        if (!open) pop.classList.add('is-open');
+      });
+    });
+
+    // Click inside popovers shouldn't close them
+    pops.addEventListener('click', (e) => e.stopPropagation());
+  }
+
   function setActiveNav(path) {
     document.querySelectorAll('.cp-nav-btn').forEach(btn => {
       const r = normalize(btn.getAttribute('data-route') || '');
@@ -48,6 +107,7 @@ const Router = (() => {
 
     setTitleForPath(p);
     setActiveNav(p);
+    setTopToolsForPath(p);
 
     container.style.opacity = '0';
     setTimeout(() => {

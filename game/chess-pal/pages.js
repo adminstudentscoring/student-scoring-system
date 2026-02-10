@@ -70,10 +70,6 @@ const ChessPalPages = (() => {
   PracticePage.title = 'Practice';
   PracticePage.render = () => {
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Practice</div>
-        <div class="cp-muted">Tap a jewel to set the knight start. Then press Start Turn.</div>
-      </div>
       <div id="chessPalGame" class="puzzle-monster-root"></div>
     `;
   };

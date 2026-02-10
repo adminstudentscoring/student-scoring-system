@@ -50,29 +50,16 @@ const ChessPal = (() => {
             <button id="pmfStartTurn" class="pmf-primary hidden" disabled>Start Turn</button>
           </div>
         </div>
-        <aside class="pmf-side">
-          <section class="pmf-card">
-            <h3>Move Summary</h3>
-            <ul id="pmfMoveList" class="pmf-move-list"></ul>
-          </section>
-          <section class="pmf-card">
-            <h3>Cascades</h3>
-            <ul id="pmfCascadeList" class="pmf-cascade-list"></ul>
-          </section>
-          <section class="pmf-card">
-            <h3>Action Log</h3>
-            <div class="pmf-log" id="pmfLog"></div>
-          </section>
-        </aside>
       </div>
     `;
 
     state.boardEl = container.querySelector('#pmfBoard');
     state.timerTextEl = container.querySelector('#pmfTimerText');
     state.timerFillEl = container.querySelector('#pmfTimerFill');
-    state.logEl = container.querySelector('#pmfLog');
-    state.moveListEl = container.querySelector('#pmfMoveList');
-    state.cascadeListEl = container.querySelector('#pmfCascadeList');
+    // These live in the top bar popovers (outside the board container)
+    state.logEl = document.getElementById('pmfLog');
+    state.moveListEl = document.getElementById('pmfMoveList');
+    state.cascadeListEl = document.getElementById('pmfCascadeList');
     state.startButtonEl = container.querySelector('#pmfStartTurn');
     state.startButtonEl.addEventListener('click', startPlayerTurn);
 
