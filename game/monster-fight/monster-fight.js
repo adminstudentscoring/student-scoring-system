@@ -137,6 +137,19 @@ const MF_REPLAY_STEP_MS = 900; // base step delay (scaled by animation slow fact
 // Canvas unit size scale (+10% from previous 1.2 => 1.32)
 const MF_UNIT_SCALE = 1.32;
 
+// Ensure toast always appears even if DOM re-renders mid-action.
+let mfPendingToast = null; // { text, opts }
+function mfToast(text, opts = {}) {
+    const msg = String(text || '').trim();
+    if (!msg) return;
+    const el = document.getElementById('mfBattleToast');
+    if (!el) {
+        mfPendingToast = { text: msg, opts };
+        return;
+    }
+    mfShowBattleToast(msg, opts);
+}
+
 function mfGetBattleToastEl() {
     const el = document.getElementById('mfBattleToast');
     if (!el) return null;
@@ -177,12 +190,15 @@ function mfHideBattleToast() {
     mfToastNextHandler = null;
     if (mfToastTimer) clearTimeout(mfToastTimer);
     mfToastTimer = null;
+    mfPendingToast = null;
 }
 function mfShowBattleToast(text, opts = {}) {
     const el = mfGetBattleToastEl();
     if (!el) return;
     const msg = String(text || '').trim();
     if (!msg) return;
+    // Persist so battle re-render can re-apply the toast.
+    mfPendingToast = { text: msg, opts };
     const textEl = el.querySelector('.mf-battle-toast-text') || el;
     const nextBtn = el.querySelector('.mf-battle-toast-next');
     if (textEl) textEl.textContent = msg;
@@ -203,6 +219,7 @@ function mfShowBattleToast(text, opts = {}) {
         const ms = Math.max(300, Number(opts.ms) || Math.round(900 * (MF_ANIM_SLOW_FACTOR || 1)));
         mfToastTimer = setTimeout(() => {
             el.classList.remove('is-show');
+            mfPendingToast = null;
         }, ms);
     }
 }
@@ -295,9 +312,22 @@ function mfReplayFxFromMonsterTurnStep(rawMessage, prevState, nextState) {
             if (d !== 0) deltas.push({ kind: 'player', id, name: p.studentName, delta: d });
         });
 
-        // Only animate damage/heal to players for this request.
+        // Also track heals to monsters (e.g., Shaman healing allies).
+        const monsterDeltas = [];
+        next.monsters.forEach(m => {
+            const id = String(m?.id || '');
+            if (!id) return;
+            const before = prev.mHp.get(id);
+            if (before === undefined) return;
+            const after = Number(m?.currentHP || 0);
+            const d = after - before;
+            if (d !== 0) monsterDeltas.push({ kind: 'monster', id, name: m.name, delta: d, type: m.type });
+        });
+
+        // Animate damage/heal to players.
         const dmgPlayers = deltas.filter(d => d.kind === 'player' && d.delta < 0);
         const healPlayers = deltas.filter(d => d.kind === 'player' && d.delta > 0);
+        const healMonsters = monsterDeltas.filter(d => d.kind === 'monster' && d.delta > 0);
 
         const { actor, target } = mfDeriveMonsterAttackActorTarget(rawMessage, prev, next);
         const actorKey = actor?.id ? `monster:${actor.id}` : null;
@@ -356,7 +386,30 @@ function mfReplayFxFromMonsterTurnStep(rawMessage, prevState, nextState) {
             const tk = `player:${ev.id}`;
             mfAnimAddFloatAtUnit(tk, `+${ev.delta}`, 'rgba(34,197,94,0.95)', 4000);
             mfAnimHit(tk, { blinks: 2, dur: 260, amp: 2 });
+            mfAnimHealGlow(tk, { dur: 520 });
         });
+
+        // Heals to monsters (e.g., Shaman) - add healer sway + target glow.
+        if (healMonsters.length) {
+            // Determine if this heal is from Shaman (best-effort from log text).
+            let healerKey = null;
+            const msg = String(rawMessage || '');
+            const isShamanHeal = /shaman/i.test(msg);
+            if (isShamanHeal) {
+                const monsters = Array.isArray(nextState?.monsters) ? nextState.monsters : [];
+                const sh = monsters.find(m => m && (String(m.type || '').toLowerCase() === 'shaman' || /shaman/i.test(String(m.name || ''))) && m.isAlive);
+                if (sh?.id) healerKey = `monster:${sh.id}`;
+            }
+            if (healerKey) {
+                mfAnimSway(healerKey, { dur: 620, amp: 7 });
+            }
+            healMonsters.forEach(ev => {
+                const tk = `monster:${ev.id}`;
+                if (healerKey) mfAnimAddBeam(healerKey, tk, 'rgba(34,197,94,0.92)', 7, 360);
+                mfAnimAddFloatAtUnit(tk, `+${ev.delta}`, 'rgba(34,197,94,0.95)', 4000);
+                mfAnimHealGlow(tk, { dur: 620 });
+            });
+        }
     } catch (e) {
         console.warn('[mfReplayFx] failed', e);
     }
@@ -521,7 +574,7 @@ async function processActionQueue() {
 
         if (autoProceed) {
             // Auto-play first step, then require Next for the rest.
-            try { mfShowBattleToast(txt, { ms: Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)) }); } catch {}
+            try { mfToast(txt, { ms: Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)) }); } catch {}
             const delay = Math.max(250, Math.round(MF_REPLAY_STEP_MS * (MF_ANIM_SLOW_FACTOR || 1)));
             setTimeout(() => {
                 isShowingPopup = false;
@@ -531,7 +584,7 @@ async function processActionQueue() {
         }
 
         try {
-            mfShowBattleToast(txt, {
+            mfToast(txt, {
                 next: true,
                 onNext: () => {
                     isShowingPopup = false;
@@ -800,7 +853,11 @@ function initGameWebSocket() {
                         const summary = Array.isArray(log.summaryDetails) ? decorateSummaryLines(log.summaryDetails) : null;
                         const context = derivePopupContext(log.message);
                         const decoratedMessage = decorateMessageWithIcons(log.message);
-                        queueActionPopup(decoratedMessage, summary, context);
+                        // In toast mode, we do NOT enqueue WS logs as replay/popups.
+                        // This prevents "player actions" showing up before monster-turn replay steps.
+                        if (!MF_DISABLE_ACTION_POPUPS) {
+                            queueActionPopup(decoratedMessage, summary, context);
+                        }
                     }
                 });
             }
@@ -1011,6 +1068,8 @@ const mfAnim = {
     flashes: new Map(), // key -> { t0, dur, blinks }
     jitters: new Map(), // key -> { t0, dur, amp }
     flips: new Map(),   // key -> { t0, dur, flips }
+    sways: new Map(),   // key -> { t0, dur, amp } (horizontal sway)
+    healGlows: new Map(), // key -> { t0, dur } (green glow)
     hpHold: new Map(),  // key -> { cur, until }
     shake: null // { t0, dur, amp }
 };
@@ -1051,6 +1110,12 @@ function mfAnimPurge(now) {
     }
     for (const [k, v] of mfAnim.flips.entries()) {
         if ((now - v.t0) > v.dur) mfAnim.flips.delete(k);
+    }
+    for (const [k, v] of mfAnim.sways.entries()) {
+        if ((now - v.t0) > v.dur) mfAnim.sways.delete(k);
+    }
+    for (const [k, v] of mfAnim.healGlows.entries()) {
+        if ((now - v.t0) > v.dur) mfAnim.healGlows.delete(k);
     }
     for (const [k, v] of mfAnim.hpHold.entries()) {
         if (now > v.until) mfAnim.hpHold.delete(k);
@@ -1117,6 +1182,20 @@ function mfAnimFlip(key, flips = 3, dur = 420) {
     mfAnim.flips.set(String(key || ''), { t0: mfNow(), dur: mfAnimMs(dur), flips });
 }
 
+function mfAnimSway(key, opts = {}) {
+    const k = String(key || '');
+    mfAnim.sways.set(k, {
+        t0: mfNow(),
+        dur: mfAnimMs(opts.dur ?? 520),
+        amp: Number(opts.amp ?? 6) || 6
+    });
+}
+
+function mfAnimHealGlow(key, opts = {}) {
+    const k = String(key || '');
+    mfAnim.healGlows.set(k, { t0: mfNow(), dur: mfAnimMs(opts.dur ?? 520) });
+}
+
 function mfAnimShake(amp = 6, dur = 240) {
     mfAnim.shake = { t0: mfNow(), dur: mfAnimMs(dur), amp };
 }
@@ -1179,6 +1258,16 @@ function mfAnimOffsetForKey(key, now) {
             const a = (1 - t) * (Number(jit.amp) || 3);
             dx += Math.sin(now / 18) * a;
             dy += Math.cos(now / 22) * a;
+        }
+    }
+
+    // sway (horizontal only) - for healer animation (e.g., Shaman)
+    const sway = mfAnim.sways.get(k);
+    if (sway) {
+        const t = (now - sway.t0) / sway.dur;
+        if (t >= 0 && t <= 1) {
+            const a = (1 - t) * (Number(sway.amp) || 6);
+            dx += Math.sin(now / 70) * a;
         }
     }
 
@@ -1379,6 +1468,27 @@ function drawUnit(ctx, unit, now) {
             ctx.globalAlpha = 0.35;
             // Canvas filter is supported in modern browsers; fallback is just alpha.
             try { ctx.filter = 'grayscale(1)'; } catch {}
+        }
+    }
+
+    // heal glow (behind sprite)
+    const hg = mfAnim.healGlows.get(String(key || ''));
+    if (hg) {
+        const t = (now - hg.t0) / hg.dur;
+        if (t >= 0 && t <= 1) {
+            const a = (1 - t) * 0.55;
+            ctx.save();
+            ctx.globalAlpha *= a;
+            ctx.fillStyle = 'rgba(34,197,94,0.35)';
+            try {
+                ctx.shadowColor = 'rgba(34,197,94,0.8)';
+                ctx.shadowBlur = Math.max(6, Math.round(18 * MF_UNIT_SCALE));
+            } catch {}
+            const r = Math.max(18, Math.round((w * 0.55)));
+            ctx.beginPath();
+            ctx.arc(ux, uy, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         }
     }
 
@@ -3252,6 +3362,11 @@ function renderBattleMode() {
         </div>
     `;
 
+    // Re-apply last toast after DOM rebuild (toast is persisted via mfPendingToast).
+    if (mfPendingToast && mfPendingToast.text) {
+        try { mfShowBattleToast(mfPendingToast.text, mfPendingToast.opts || {}); } catch {}
+    }
+
     // Draw map background on canvas (step 1 of canvas battle scene).
     setTimeout(initBattleCanvas, 0);
     setTimeout(mfBindBattleCanvasInput, 0);
@@ -3767,8 +3882,8 @@ async function playerAttack(studentId, explicitTarget) {
                 const nameA = String(player?.studentName || 'Player');
                 const nameB = String(finalMonster?.name || 'Monster');
                 const tauntTag = (actualTargetId && actualTargetId !== targetId) ? ' (TAUNT)' : '';
-                if (isDodged) mfShowBattleToast(`${nameA} attacks ${nameB} DODGE${tauntTag}`);
-                else mfShowBattleToast(`${nameA} attacks ${nameB} -${dmg}${tauntTag}`);
+                if (isDodged) mfToast(`${nameA} attacks ${nameB} DODGE${tauntTag}`);
+                else mfToast(`${nameA} attacks ${nameB} -${dmg}${tauntTag}`);
             } catch {}
         }
         
@@ -4001,7 +4116,7 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                     try {
                         const total = hitEvents.reduce((s, ev) => s + (Number(ev.damage) || 0), 0);
                         const count = hitEvents.length;
-                        mfShowBattleToast(`${player?.studentName || 'Player'} ${skill?.name || 'Skill'} -${total} (${count} targets)`);
+                        mfToast(`${player?.studentName || 'Player'} ${skill?.name || 'Skill'} -${total} (${count} targets)`);
                     } catch {}
                 } else {
                     const best = hitEvents.reduce((a, b) => (b.damage > a.damage ? b : a), hitEvents[0]);
@@ -4013,7 +4128,7 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
 
                     try {
                         const m = (gameState.monsters || []).find(mm => mm && mm.id === best.id) || targetMonsterBefore;
-                        mfShowBattleToast(`${player?.studentName || 'Player'} ${skill?.name || 'Skill'} ${m?.name || 'Monster'} -${best.damage}`);
+                        mfToast(`${player?.studentName || 'Player'} ${skill?.name || 'Skill'} ${m?.name || 'Monster'} -${best.damage}`);
                     } catch {}
                 }
             }
@@ -4035,7 +4150,7 @@ async function playerUseSkill(studentId, skillId, explicitTarget) {
                     // toast for heals (show first heal only)
                     if (!mfBattleUi._lastHealToastAt || (Date.now() - mfBattleUi._lastHealToastAt) > 400) {
                         mfBattleUi._lastHealToastAt = Date.now();
-                        mfShowBattleToast(`${player?.studentName || 'Healer'} ${skill?.name || 'Heal'} ${p?.studentName || ''} +${delta}`.trim());
+                        mfToast(`${player?.studentName || 'Healer'} ${skill?.name || 'Heal'} ${p?.studentName || ''} +${delta}`.trim());
                     }
                 } else {
                     mfAnimAddFloatAtUnit(key, `${delta}`, 'rgba(255,60,60,0.95)', 4000);
@@ -4063,7 +4178,7 @@ async function processMonsterTurn() {
         console.log('[monster-turn] replay in progress, ignoring.');
         // Provide a Next button to continue replay immediately.
         try {
-            mfShowBattleToast('Replay in progress — click Next to continue.', {
+            mfToast('Replay in progress — click Next to continue.', {
                 next: true,
                 onNext: () => {
                     isShowingPopup = false;
@@ -4090,6 +4205,14 @@ async function processMonsterTurn() {
         monsterTurnReplay.active = true;
         monsterTurnReplay.pendingWsState = null;
         monsterTurnReplay.onDone = null;
+
+        // Clear any leftover player popups/toasts before starting monster replay.
+        actionQueue = [];
+        isShowingPopup = false;
+        mfPendingToast = null;
+        try { mfHideBattleToast(); } catch {}
+        // Prevent previously-added actionLog entries from re-queueing as popups now.
+        lastActionLogLength = Array.isArray(gameState.actionLog) ? gameState.actionLog.length : lastActionLogLength;
 
         const response = await fetch(`${GAME_API_BASE}/game/monster-turn`, {
             method: 'POST',
