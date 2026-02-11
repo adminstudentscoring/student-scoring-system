@@ -232,6 +232,8 @@ const ChessPalPages = (() => {
       }, { passive: true });
     });
   };
+
+  const TeamPage = PlaceholderPage('Team', 'Team builder coming next.');
   const StoragePage = PlaceholderPage('Storage', 'Inventory / saves will live here.');
   const ShopPage = PlaceholderPage('Shop', 'Shop will live here.');
   function SettingsPage() {}
@@ -298,6 +300,7 @@ const ChessPalPages = (() => {
       '/home': HomePage,
       '/mode': ModePage,
       '/practice': PracticePage,
+      '/team': TeamPage,
       '/pal': PalPage,
       '/storage': StoragePage,
       '/shop': ShopPage,
