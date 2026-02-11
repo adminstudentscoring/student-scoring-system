@@ -5,6 +5,7 @@ const Router = (() => {
   let container = null;
   let currentPath = '';
   let currentPage = null;
+  let coinsListenerBound = false;
 
   function normalize(path) {
     const p = String(path || '').trim();
@@ -97,6 +98,36 @@ const Router = (() => {
     try { currentPage?.destroy?.(); } catch {}
   }
 
+  function getCoinTotalsFromStorage() {
+    try {
+      const raw = localStorage.getItem('chessPalStorage');
+      if (!raw) return { gold: 0, silver: 0 };
+      const v = JSON.parse(raw);
+      const slots = Array.isArray(v?.slots) ? v.slots : [];
+      let gold = 0;
+      let silver = 0;
+      for (const s of slots) {
+        if (!s || typeof s !== 'object') continue;
+        const id = String(s.itemId || '').trim().toLowerCase();
+        const qty = Math.max(0, Math.floor(Number(s.qty) || 0));
+        if (id === 'gold_coin') gold += qty;
+        if (id === 'silver_coin') silver += qty;
+      }
+      return { gold, silver };
+    } catch {
+      return { gold: 0, silver: 0 };
+    }
+  }
+
+  function updateSidebarCoins() {
+    const goldEl = document.getElementById('cpGoldCoinVal');
+    const silverEl = document.getElementById('cpSilverCoinVal');
+    if (!goldEl && !silverEl) return;
+    const t = getCoinTotalsFromStorage();
+    if (goldEl) goldEl.textContent = String(t.gold || 0);
+    if (silverEl) silverEl.textContent = String(t.silver || 0);
+  }
+
   function renderPath(path) {
     if (!container) return;
     const p = normalize(path);
@@ -108,11 +139,13 @@ const Router = (() => {
     setTitleForPath(p);
     setActiveNav(p);
     setTopToolsForPath(p);
+    updateSidebarCoins();
 
     container.style.opacity = '0';
     setTimeout(() => {
       container.innerHTML = page?.render?.() || '';
       try { page?.init?.(); } catch {}
+      updateSidebarCoins();
       setTimeout(() => { container.style.opacity = '1'; }, 10);
     }, 80);
   }
@@ -176,6 +209,12 @@ const Router = (() => {
     window.closeSidebarIfOverlay = closeSidebarIfOverlay;
 
     window.addEventListener('hashchange', renderCurrent);
+    if (!coinsListenerBound) {
+      coinsListenerBound = true;
+      window.addEventListener('cpStorageChanged', updateSidebarCoins);
+      window.addEventListener('storage', updateSidebarCoins);
+    }
+    updateSidebarCoins();
 
     if (!window.location.hash || window.location.hash === '#') {
       window.location.hash = '#/home';

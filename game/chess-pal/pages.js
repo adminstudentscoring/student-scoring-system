@@ -1198,6 +1198,17 @@ const ChessPalPages = (() => {
   // ----------------------------
   const STORAGE_SLOT_COUNT = 20;
   const STORAGE_KEY = 'chessPalStorage';
+  const FREE_SILVER_CLAIM_KEY = 'chessPalFreeSilverClaimDate';
+
+  const STORAGE_ITEM_DEFS = {
+    silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/Silver-Coin.png' },
+    gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/Gold-Coin.png' },
+  };
+
+  function getStorageItemDef(itemId) {
+    const key = String(itemId || '').trim().toLowerCase();
+    return STORAGE_ITEM_DEFS[key] || null;
+  }
 
   function normalizeStorageSlots(slots) {
     const out = Array.isArray(slots) ? slots.slice(0, STORAGE_SLOT_COUNT) : [];
@@ -1227,6 +1238,57 @@ const ChessPalPages = (() => {
   function saveStorage(slots) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ slots: normalizeStorageSlots(slots) }));
+    } catch {}
+    try {
+      window.dispatchEvent(new Event('cpStorageChanged'));
+    } catch {}
+  }
+
+  function addItemToStorage(slots, itemId, qty) {
+    const id = String(itemId || '').trim().toLowerCase();
+    if (!id) return slots;
+    const count = Math.max(1, Math.floor(Number(qty) || 1));
+    const def = getStorageItemDef(id);
+    const name = def?.name || id;
+
+    // Stack into existing slot first
+    const idx = slots.findIndex(s => s && s.itemId === id);
+    if (idx >= 0) {
+      const next = slots.slice();
+      next[idx] = { ...next[idx], name, qty: Math.max(1, (Number(next[idx].qty) || 1) + count) };
+      return next;
+    }
+    // Otherwise put into first empty slot
+    const empty = slots.findIndex(s => !s);
+    if (empty >= 0) {
+      const next = slots.slice();
+      next[empty] = { itemId: id, name, qty: count };
+      return next;
+    }
+    return slots; // full
+  }
+
+  function localDateKey(d) {
+    const x = d instanceof Date ? d : new Date();
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, '0');
+    const day = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function canClaimFreeSilverToday() {
+    try {
+      const last = String(localStorage.getItem(FREE_SILVER_CLAIM_KEY) || '').trim();
+      const today = localDateKey(new Date());
+      return last !== today;
+    } catch {
+      return true;
+    }
+  }
+
+  function markClaimedFreeSilverToday() {
+    try {
+      localStorage.setItem(FREE_SILVER_CLAIM_KEY, localDateKey(new Date()));
     } catch {}
   }
 
@@ -1271,11 +1333,12 @@ const ChessPalPages = (() => {
       host.innerHTML = slots.map((s, i) => {
         const isSel = i === selectedIdx;
         const title = s ? `${s.name} ×${s.qty}` : `Empty (Slot ${i + 1})`;
+        const def = s ? getStorageItemDef(s.itemId) : null;
         return `
           <button class="cp-storage-slot ${isSel ? 'is-selected' : ''}" type="button" data-slot="${i}" aria-label="${esc(title)}">
             ${s ? `
               <div class="cp-storage-icon">
-                <span>${esc(String(s.name || s.itemId).slice(0, 1).toUpperCase())}</span>
+                ${def?.img ? `<img class="cp-storage-itemimg" src="${esc(def.img)}" alt="${esc(def.name || s.name || s.itemId)}">` : `<span>${esc(String(s.name || s.itemId).slice(0, 1).toUpperCase())}</span>`}
               </div>
               <div class="cp-storage-name">${esc(s.name)}</div>
               <div class="cp-storage-qtybadge">×${esc(s.qty)}</div>
@@ -1325,7 +1388,115 @@ const ChessPalPages = (() => {
     });
   };
 
-  const ShopPage = PlaceholderPage('Shop', 'Shop will live here.');
+  function ShopPage() {}
+  ShopPage.title = 'Shop';
+  ShopPage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Shop</div>
+        <div class="cp-muted">Choose a section.</div>
+
+        <div class="cp-shop-grid" style="margin-top:12px;">
+          <button class="cp-mode" type="button" id="cpShopGetCoins">
+            <div class="cp-mode-title">Get Coins</div>
+            <div class="cp-mode-desc">Daily free coins and rewards.</div>
+          </button>
+          <button class="cp-mode" type="button" id="cpShopMall">
+            <div class="cp-mode-title">Mall</div>
+            <div class="cp-mode-desc">Coming soon.</div>
+          </button>
+        </div>
+
+        <div id="cpShopSub" style="margin-top:12px;"></div>
+      </div>
+    `;
+  };
+  ShopPage.init = () => {
+    const sub = document.getElementById('cpShopSub');
+    const btnGet = document.getElementById('cpShopGetCoins');
+    const btnMall = document.getElementById('cpShopMall');
+    if (!sub) return;
+
+    const renderGetCoins = () => {
+      const canClaim = canClaimFreeSilverToday();
+      sub.innerHTML = `
+        <div class="cp-page-card" style="padding:12px; background: rgba(255,255,255,0.03);">
+          <div class="cp-h1" style="font-size:16px;">Get Coins</div>
+          <div class="cp-muted" style="margin-top:6px;">Daily rewards (UI first).</div>
+
+          <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
+            <div class="cp-setting-item">
+              <div class="cp-setting-label">Free Coin Today</div>
+              <div class="cp-setting-help">每日點擊一次可獲得 10 個 Silver Coin。</div>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+                <button class="cp-primary" type="button" id="cpClaimFreeSilver" ${canClaim ? '' : 'disabled'}>${canClaim ? 'Claim 10 Silver' : 'Claimed Today'}</button>
+                <div class="cp-muted" id="cpClaimMsg"></div>
+              </div>
+            </div>
+
+            <div class="cp-setting-item" style="opacity:0.65;">
+              <div class="cp-setting-label">Reward #2</div>
+              <div class="cp-setting-help">Coming soon.</div>
+            </div>
+
+            <div class="cp-setting-item" style="opacity:0.65;">
+              <div class="cp-setting-label">Reward #3</div>
+              <div class="cp-setting-help">Coming soon.</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const msg = document.getElementById('cpClaimMsg');
+      const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+
+      const claimBtn = document.getElementById('cpClaimFreeSilver');
+      if (claimBtn) {
+        claimBtn.addEventListener('click', () => {
+          try {
+            setMsg('');
+            if (!canClaimFreeSilverToday()) {
+              setMsg('Already claimed today.');
+              return;
+            }
+            let slots = loadStorage();
+            const before = JSON.stringify(slots);
+            slots = addItemToStorage(slots, 'silver_coin', 10);
+            if (JSON.stringify(slots) === before) {
+              setMsg('Storage is full.');
+              return;
+            }
+            saveStorage(slots);
+            markClaimedFreeSilverToday();
+            setMsg('Received 10 Silver Coin.');
+            // Re-render to disable button
+            renderGetCoins();
+          } catch (e) {
+            setMsg(String(e?.message || e || 'Failed'));
+          }
+        }, { passive: true });
+      }
+    };
+
+    const renderMall = () => {
+      sub.innerHTML = `
+        <div class="cp-page-card" style="padding:12px; background: rgba(255,255,255,0.03);">
+          <div class="cp-h1" style="font-size:16px;">Mall</div>
+          <div class="cp-muted" style="margin-top:6px;">Coming soon.</div>
+        </div>
+      `;
+    };
+
+    const select = (key) => {
+      if (key === 'mall') renderMall();
+      else renderGetCoins();
+    };
+
+    if (btnGet) btnGet.addEventListener('click', () => select('get'), { passive: true });
+    if (btnMall) btnMall.addEventListener('click', () => select('mall'), { passive: true });
+    select('get');
+  };
+
   function SettingsPage() {}
   SettingsPage.title = 'Setting';
   SettingsPage.render = () => {
