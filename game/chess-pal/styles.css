@@ -322,6 +322,34 @@ body {
   border-radius: 16px;
   padding: 12px;
 }
+
+.cp-select{
+  width: 100%;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+  padding: 0 12px;
+  outline: none;
+}
+
+.cp-jewel-preview{
+  margin-top: 10px;
+}
+.cp-jewel-preview-grid{
+  display:grid;
+  grid-template-columns: repeat(3, 44px);
+  grid-template-rows: repeat(2, 44px);
+  gap: 10px;
+}
+.cp-jewel-preview-grid .pmf-cell{
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
 .cp-setting-label{
   font-weight: 1000;
 }
@@ -722,6 +750,19 @@ body {
 .pmf-wood{ background: rgba(16,185,129,var(--cp-jewel-alpha)); }
 .pmf-heart{ background: rgba(236,72,153,var(--cp-jewel-alpha)); }
 .pmf-empty-cell{ background: rgba(255,255,255,0.02); }
+
+[data-cp-jewel-set="set_a"] .pmf-cell{
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-fire{ background-image: url("images/Jewel/Set_A/Set_A-Fire.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-water{ background-image: url("images/Jewel/Set_A/Set_A-Water.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-wood{ background-image: url("images/Jewel/Set_A/Set_A-Wood.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-light{ background-image: url("images/Jewel/Set_A/Set_A-Light.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-dark{ background-image: url("images/Jewel/Set_A/Set_A-Dark.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-heart{ background-image: url("images/Jewel/Set_A/Set_A-Heart.png"); }
 
 .pmf-controls{
   margin-top: 12px;

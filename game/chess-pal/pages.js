@@ -20,16 +20,19 @@ const ChessPalPages = (() => {
   }
 
   function getGeneralSettings() {
-    const base = { jewelAlpha: 0.22, appBg: '#060912' };
+    const base = { jewelAlpha: 0.22, appBg: '#060912', jewelSet: 'set_a' };
     try {
       const raw = localStorage.getItem('chessPalGeneralSettings');
       if (!raw) return base;
       const v = JSON.parse(raw);
       const jewelAlpha = Number(v?.jewelAlpha);
       const appBg = String(v?.appBg || '').trim();
+      const jewelSetRaw = String(v?.jewelSet || '').trim().toLowerCase();
+      const jewelSet = (jewelSetRaw === 'set_a' || jewelSetRaw === 'none') ? jewelSetRaw : base.jewelSet;
       return {
         jewelAlpha: Number.isFinite(jewelAlpha) ? Math.max(0.08, Math.min(0.45, jewelAlpha)) : base.jewelAlpha,
-        appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg
+        appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg,
+        jewelSet
       };
     } catch {
       return base;
@@ -42,6 +45,8 @@ const ChessPalPages = (() => {
       if (!root) return;
       root.style.setProperty('--cp-jewel-alpha', String(s?.jewelAlpha ?? 0.22));
       root.style.setProperty('--cp-app-bg', String(s?.appBg ?? '#060912'));
+      const nextSet = String(s?.jewelSet || 'set_a').trim().toLowerCase();
+      root.setAttribute('data-cp-jewel-set', (nextSet === 'none' || nextSet === 'set_a') ? nextSet : 'set_a');
     } catch {}
   }
 
@@ -1200,6 +1205,27 @@ const ChessPalPages = (() => {
 
         <div class="cp-setting-grid" style="margin-top:12px;">
           <div class="cp-setting-item">
+            <div class="cp-setting-label">Jewel 系列</div>
+            <div class="cp-setting-help">選擇棋盤寶石的美術系列（即時預覽）。</div>
+            <select id="cpSettingJewelSet" class="cp-select">
+              <option value="set_a" ${s.jewelSet === 'set_a' ? 'selected' : ''}>Set_A</option>
+              <option value="none" ${s.jewelSet === 'none' ? 'selected' : ''}>No Style</option>
+            </select>
+            <div class="cp-setting-value"><span id="cpSettingJewelSetVal">${s.jewelSet === 'set_a' ? 'Set_A' : 'No Style'}</span></div>
+
+            <div class="cp-jewel-preview" aria-label="Jewel preview">
+              <div class="cp-jewel-preview-grid">
+                <div class="pmf-cell pmf-fire" aria-label="Fire preview"></div>
+                <div class="pmf-cell pmf-water" aria-label="Water preview"></div>
+                <div class="pmf-cell pmf-wood" aria-label="Wood preview"></div>
+                <div class="pmf-cell pmf-light" aria-label="Light preview"></div>
+                <div class="pmf-cell pmf-dark" aria-label="Dark preview"></div>
+                <div class="pmf-cell pmf-heart" aria-label="Heart preview"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cp-setting-item">
             <div class="cp-setting-label">寶石顏色光暗</div>
             <div class="cp-setting-help">調整寶石底色的亮暗（透明度）。</div>
             <input id="cpSettingJewelAlpha" type="range" min="0.08" max="0.45" step="0.01" value="${String(s.jewelAlpha)}">
@@ -1220,10 +1246,24 @@ const ChessPalPages = (() => {
   };
   SettingsPage.init = () => {
     const s0 = getGeneralSettings();
+    const jewelSet = document.getElementById('cpSettingJewelSet');
+    const jewelSetVal = document.getElementById('cpSettingJewelSetVal');
     const alpha = document.getElementById('cpSettingJewelAlpha');
     const alphaVal = document.getElementById('cpSettingJewelAlphaVal');
     const bg = document.getElementById('cpSettingAppBg');
     const bgVal = document.getElementById('cpSettingAppBgVal');
+
+    if (jewelSet) {
+      jewelSet.value = String(s0.jewelSet || 'set_a');
+      jewelSet.addEventListener('change', () => {
+        const next = getGeneralSettings();
+        const v = String(jewelSet.value || 'set_a').trim().toLowerCase();
+        next.jewelSet = (v === 'none' || v === 'set_a') ? v : 'set_a';
+        applyGeneralSettings(next);
+        saveGeneralSettings(next);
+        if (jewelSetVal) jewelSetVal.textContent = next.jewelSet === 'set_a' ? 'Set_A' : 'No Style';
+      }, { passive: true });
+    }
 
     if (alpha) {
       alpha.value = String(s0.jewelAlpha);
