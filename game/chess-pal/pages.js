@@ -1199,19 +1199,6 @@ const ChessPalPages = (() => {
   const STORAGE_SLOT_COUNT = 20;
   const STORAGE_KEY = 'chessPalStorage';
 
-  // Minimal starter items (for testing / future Shop integration)
-  const ITEM_DB = [
-    { id: 'potion', name: 'Potion', tone: 'rgba(236,72,153,0.95)' },
-    { id: 'key', name: 'Key', tone: 'rgba(250,204,21,0.95)' },
-    { id: 'scroll', name: 'Scroll', tone: 'rgba(59,130,246,0.95)' },
-    { id: 'gem', name: 'Gem', tone: 'rgba(124,58,237,0.95)' },
-  ];
-
-  function getItemDef(itemId) {
-    const key = String(itemId || '').trim().toLowerCase();
-    return ITEM_DB.find(x => x.id === key) || null;
-  }
-
   function normalizeStorageSlots(slots) {
     const out = Array.isArray(slots) ? slots.slice(0, STORAGE_SLOT_COUNT) : [];
     while (out.length < STORAGE_SLOT_COUNT) out.push(null);
@@ -1222,7 +1209,7 @@ const ChessPalPages = (() => {
       const name = String(s.name || '').trim();
       const qty = Math.max(1, Math.floor(Number(s.qty) || 1));
       if (!itemId) return null;
-      return { itemId, name: name || (getItemDef(itemId)?.name || itemId), qty };
+      return { itemId, name: name || itemId, qty };
     });
   }
 
@@ -1243,29 +1230,6 @@ const ChessPalPages = (() => {
     } catch {}
   }
 
-  function addItemToStorage(slots, itemId, name, qty) {
-    const id = String(itemId || '').trim().toLowerCase();
-    if (!id) return slots;
-    const count = Math.max(1, Math.floor(Number(qty) || 1));
-    const displayName = String(name || '').trim() || (getItemDef(id)?.name || id);
-
-    // Stack into existing slot first
-    const idx = slots.findIndex(s => s && s.itemId === id);
-    if (idx >= 0) {
-      const next = slots.slice();
-      next[idx] = { ...next[idx], qty: Math.max(1, (Number(next[idx].qty) || 1) + count) };
-      return next;
-    }
-    // Otherwise put into first empty slot
-    const empty = slots.findIndex(s => !s);
-    if (empty >= 0) {
-      const next = slots.slice();
-      next[empty] = { itemId: id, name: displayName, qty: count };
-      return next;
-    }
-    return slots; // full
-  }
-
   function swapOrStackSlots(slots, fromIdx, toIdx) {
     const a = slots[fromIdx] || null;
     const b = slots[toIdx] || null;
@@ -1281,118 +1245,13 @@ const ChessPalPages = (() => {
     return next;
   }
 
-  function showStorageSlotModal(opts) {
-    const {
-      slotIndex,
-      slot,
-      onAdd,
-      onSetQty,
-      onRemove1,
-      onRemoveAll
-    } = opts || {};
-
-    const old = document.getElementById('cpStorageModalOverlay');
-    if (old) old.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'cpStorageModalOverlay';
-    overlay.className = 'cp-modal-overlay';
-    overlay.innerHTML = `
-      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Storage slot">
-        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
-        <div class="cp-modal-body">
-          <div class="cp-h1" style="font-size:18px;">Storage · Slot ${esc(slotIndex + 1)}</div>
-          <div class="cp-muted" style="margin-top:6px;">Each slot holds one item type; same type stacks.</div>
-
-          ${slot ? `
-            <div class="cp-storage-modal-item" style="margin-top:12px;">
-              <div class="cp-storage-item-chip">
-                <span class="cp-storage-dot" style="background:${esc(getItemDef(slot.itemId)?.tone || 'rgba(255,255,255,0.55)')};"></span>
-                <b>${esc(slot.name || slot.itemId)}</b>
-                <span class="cp-muted">(${esc(slot.itemId)})</span>
-              </div>
-              <div class="cp-storage-qty">Qty: <b>${esc(slot.qty)}</b></div>
-            </div>
-          ` : `
-            <div class="cp-muted" style="margin-top:12px;">Empty slot.</div>
-          `}
-
-          <div class="cp-admin-grid" style="margin-top:12px;">
-            <label class="cp-admin-field">
-              <span>Item</span>
-              <select id="cpStorageItemPick" class="cp-select">
-                ${ITEM_DB.map(it => `<option value="${esc(it.id)}">${esc(it.name)}</option>`).join('')}
-              </select>
-            </label>
-            <label class="cp-admin-field">
-              <span>Qty</span>
-              <input type="number" id="cpStorageQty" value="1" min="1" step="1">
-            </label>
-          </div>
-
-          <div class="cp-admin-actions" style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="cp-primary" type="button" id="cpStorageAdd">Add / Stack</button>
-            ${slot ? `
-              <button class="cp-tool-btn" type="button" id="cpStorageRemove1">Remove 1</button>
-              <button class="cp-tool-btn" type="button" id="cpStorageRemoveAll">Clear Slot</button>
-              <button class="cp-tool-btn" type="button" id="cpStorageSetQty">Set Qty</button>
-            ` : ''}
-          </div>
-
-          <div class="cp-muted" id="cpStorageMsg" style="margin-top:10px;"></div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    const msg = overlay.querySelector('#cpStorageMsg');
-    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-
-    const close = () => {
-      try { overlay.remove(); } catch {}
-      try { window.removeEventListener('keydown', onKey); } catch {}
-    };
-    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
-    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
-    window.addEventListener('keydown', onKey);
-
-    overlay.querySelector('#cpStorageAdd')?.addEventListener('click', () => {
-      try {
-        setMsg('');
-        const itemId = String(overlay.querySelector('#cpStorageItemPick')?.value || '').trim().toLowerCase();
-        const def = getItemDef(itemId);
-        const qty = Math.max(1, Math.floor(Number(overlay.querySelector('#cpStorageQty')?.value) || 1));
-        if (!itemId) return;
-        onAdd && onAdd(itemId, def?.name || itemId, qty);
-        close();
-      } catch (e) {
-        setMsg(String(e?.message || e || 'Failed'));
-      }
-    });
-
-    overlay.querySelector('#cpStorageRemove1')?.addEventListener('click', () => {
-      try { onRemove1 && onRemove1(); close(); } catch {}
-    });
-    overlay.querySelector('#cpStorageRemoveAll')?.addEventListener('click', () => {
-      try { onRemoveAll && onRemoveAll(); close(); } catch {}
-    });
-    overlay.querySelector('#cpStorageSetQty')?.addEventListener('click', () => {
-      try {
-        const qty = Math.max(1, Math.floor(Number(overlay.querySelector('#cpStorageQty')?.value) || 1));
-        onSetQty && onSetQty(qty);
-        close();
-      } catch {}
-    });
-  }
-
   function StoragePage() {}
   StoragePage.title = 'Storage';
   StoragePage.render = () => {
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Storage</div>
-        <div class="cp-muted">Click a slot to add items. Click one slot then another to move / swap / stack.</div>
+        <div class="cp-muted">Inventory grid (layout first). Each slot holds one item type; same type stacks.</div>
 
         <div class="cp-storage-grid" id="cpStorageGrid" style="margin-top:12px;"></div>
         <div class="cp-muted" id="cpStorageHint" style="margin-top:10px;"></div>
@@ -1411,18 +1270,17 @@ const ChessPalPages = (() => {
     const render = () => {
       host.innerHTML = slots.map((s, i) => {
         const isSel = i === selectedIdx;
-        const def = s ? getItemDef(s.itemId) : null;
         const title = s ? `${s.name} ×${s.qty}` : `Empty (Slot ${i + 1})`;
         return `
           <button class="cp-storage-slot ${isSel ? 'is-selected' : ''}" type="button" data-slot="${i}" aria-label="${esc(title)}">
             ${s ? `
-              <div class="cp-storage-icon" style="background:${esc(def?.tone || 'rgba(255,255,255,0.12)')}">
+              <div class="cp-storage-icon">
                 <span>${esc(String(s.name || s.itemId).slice(0, 1).toUpperCase())}</span>
               </div>
               <div class="cp-storage-name">${esc(s.name)}</div>
               <div class="cp-storage-qtybadge">×${esc(s.qty)}</div>
             ` : `
-              <div class="cp-storage-empty">+</div>
+              <div class="cp-storage-empty"></div>
             `}
           </button>
         `;
@@ -1463,59 +1321,6 @@ const ChessPalPages = (() => {
           refresh();
           return;
         }
-
-        // Empty slot: open modal to add
-        showStorageSlotModal({
-          slotIndex: idx,
-          slot,
-          onAdd: (itemId, name, qty) => {
-            // Try stack into existing slot first; if it stacks elsewhere we still allow (slot remains empty)
-            const before = slots.slice();
-            slots = addItemToStorage(slots, itemId, name, qty);
-            if (JSON.stringify(before) === JSON.stringify(slots)) {
-              // Storage full or no-op, then place into this slot if empty and no stack existed
-              if (!slots[idx]) {
-                slots[idx] = { itemId, name, qty };
-              }
-            }
-            selectedIdx = -1;
-            setHint('');
-            refresh();
-          }
-        });
-      }, { passive: true });
-
-      // Long-press / context style: double click to open slot modal (edit qty / remove)
-      btn.addEventListener('dblclick', () => {
-        const idx = Number(btn.getAttribute('data-slot'));
-        if (!Number.isFinite(idx)) return;
-        const slot = slots[idx] || null;
-        showStorageSlotModal({
-          slotIndex: idx,
-          slot,
-          onAdd: (itemId, name, qty) => {
-            slots = addItemToStorage(slots, itemId, name, qty);
-            selectedIdx = -1;
-            setHint('');
-            refresh();
-          },
-          onSetQty: (qty) => {
-            if (!slots[idx]) return;
-            slots[idx] = { ...slots[idx], qty: Math.max(1, Math.floor(Number(qty) || 1)) };
-            refresh();
-          },
-          onRemove1: () => {
-            if (!slots[idx]) return;
-            const q = Math.max(1, Math.floor(Number(slots[idx].qty) || 1));
-            if (q <= 1) slots[idx] = null;
-            else slots[idx] = { ...slots[idx], qty: q - 1 };
-            refresh();
-          },
-          onRemoveAll: () => {
-            slots[idx] = null;
-            refresh();
-          }
-        });
       }, { passive: true });
     });
   };
