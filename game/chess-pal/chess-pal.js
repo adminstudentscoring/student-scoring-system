@@ -1,4 +1,5 @@
-const ELEMENTS = ['light', 'dark', 'fire', 'water', 'wind', 'heart'];
+// Elements: Light/Dark/Fire/Water/Wood + Heart (healing)
+const ELEMENTS = ['light', 'dark', 'fire', 'water', 'wood', 'heart'];
 const BOARD_ROWS = 6;
 const BOARD_COLS = 6;
 const TURN_TIME_MS = 20000;

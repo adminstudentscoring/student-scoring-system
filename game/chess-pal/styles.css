@@ -459,7 +459,7 @@ body {
 .pmf-water{ background: rgba(59,130,246,var(--cp-jewel-alpha)); }
 .pmf-light{ background: rgba(250,204,21,var(--cp-jewel-alpha)); }
 .pmf-dark{ background: rgba(99,102,241,var(--cp-jewel-alpha)); }
-.pmf-wind{ background: rgba(16,185,129,var(--cp-jewel-alpha)); }
+.pmf-wood{ background: rgba(16,185,129,var(--cp-jewel-alpha)); }
 .pmf-heart{ background: rgba(236,72,153,var(--cp-jewel-alpha)); }
 .pmf-empty-cell{ background: rgba(255,255,255,0.02); }
 
@@ -546,6 +546,6 @@ body {
 .pmf-move-item .color.water{ background: rgba(59,130,246,0.95); }
 .pmf-move-item .color.light{ background: rgba(250,204,21,0.95); }
 .pmf-move-item .color.dark{ background: rgba(99,102,241,0.95); }
-.pmf-move-item .color.wind{ background: rgba(16,185,129,0.95); }
+.pmf-move-item .color.wood{ background: rgba(16,185,129,0.95); }
 .pmf-move-item .color.heart{ background: rgba(236,72,153,0.95); }
 
