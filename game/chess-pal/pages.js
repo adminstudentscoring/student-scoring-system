@@ -843,10 +843,10 @@ const ChessPalPages = (() => {
       mini: 'images/Monsters/M005-Solar_Idol/M005-Solar_Idol-mini.png'
     },
 
-    // Boss series (006-010) - images pending
+    // Boss series (006-010)
     {
       id: '006',
-      name: 'Boss · Abyss Monarch',
+      name: 'Abyss Monarch',
       element: 'dark',
       rarity: 6,
       level: 1,
@@ -856,12 +856,12 @@ const ChessPalPages = (() => {
       rcv: 0,
       passiveSkill: { name: 'Abyssal Dominion', text: 'Start each battle with +1 cascade chain (placeholder).', params: { startCascadeBonus: 1 } },
       activeSkill: { name: 'Void Eclipse', cd: 9, text: 'Convert 3 tiles to Dark; deal heavy dark damage (placeholder).', params: { convert: { count: 3, to: 'dark' }, dmg: 360 } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M006-Abyss_Monarch/M006-Abyss_Monarch.png',
+      mini: 'images/Monsters/M006-Abyss_Monarch/M006-Abyss_Monarch-mini.png'
     },
     {
       id: '007',
-      name: 'Boss · Crimson Warlord',
+      name: 'Crimson Warlord',
       element: 'fire',
       rarity: 6,
       level: 1,
@@ -871,12 +871,12 @@ const ChessPalPages = (() => {
       rcv: 0,
       passiveSkill: { name: 'War Drums', text: 'Fire damage +15% (placeholder).', params: { fireDmgBonus: 0.15 } },
       activeSkill: { name: 'Blood Furnace', cd: 9, text: 'Convert 4 tiles to Fire (placeholder).', params: { convert: { count: 4, to: 'fire' } } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M007-Crimson_Warlord/M007-Crimson_Warlord.png',
+      mini: 'images/Monsters/M007-Crimson_Warlord/M007-Crimson_Warlord-mini.png'
     },
     {
       id: '008',
-      name: 'Boss · Leviathan Prime',
+      name: 'Leviathan Prime',
       element: 'water',
       rarity: 6,
       level: 1,
@@ -886,12 +886,12 @@ const ChessPalPages = (() => {
       rcv: 0,
       passiveSkill: { name: 'Deep Pressure', text: 'Enemies take +10% damage after cascades (placeholder).', params: { postCascadeVulnerability: 0.10 } },
       activeSkill: { name: 'Tsunami Break', cd: 10, text: 'Convert 3 tiles to Water; +1s time this turn (placeholder).', params: { convert: { count: 3, to: 'water' }, extraTimeSec: 1 } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M008-Leviathan_Prime/M008-Leviathan_Prime.png',
+      mini: 'images/Monsters/M008-Leviathan_Prime/M008-Leviathan_Prime-mini.png'
     },
     {
       id: '009',
-      name: 'Boss · Worldroot Colossus',
+      name: 'Worldroot Colossus',
       element: 'wood',
       rarity: 6,
       level: 1,
@@ -901,12 +901,12 @@ const ChessPalPages = (() => {
       rcv: 0,
       passiveSkill: { name: 'Ancient Bark', text: 'Take -15% damage (placeholder).', params: { damageReduction: 0.15 } },
       activeSkill: { name: 'Thorn Cathedral', cd: 10, text: 'Convert 2 tiles to Wood + 2 to Heart (placeholder).', params: { convert: [{ count: 2, to: 'wood' }, { count: 2, to: 'heart' }] } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M009-Worldroot_Colossus/M009-Worldroot_Colossus.png',
+      mini: 'images/Monsters/M009-Worldroot_Colossus/M009-Worldroot_Colossus-mini.png'
     },
     {
       id: '010',
-      name: 'Boss · Dawn Seraph',
+      name: 'Dawn Seraph',
       element: 'light',
       rarity: 6,
       level: 1,
@@ -916,8 +916,8 @@ const ChessPalPages = (() => {
       rcv: 0,
       passiveSkill: { name: 'Radiant Shield', text: 'Heal +2% max HP each turn (placeholder).', params: { healMaxHpPctPerTurn: 0.02 } },
       activeSkill: { name: 'Solar Judgement', cd: 10, text: 'Convert 4 tiles to Light; deal light damage (placeholder).', params: { convert: { count: 4, to: 'light' }, dmg: 340 } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png',
+      mini: 'images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph-mini.png'
     }
   ];
 
