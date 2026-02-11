@@ -167,24 +167,6 @@ const Router = (() => {
     if (overlay) overlay.addEventListener('click', closeSidebar, { passive: true });
     window.closeSidebarIfOverlay = closeSidebarIfOverlay;
 
-    // API status badge
-    (async () => {
-      const statusEl = document.getElementById('cpApiStatus');
-      if (!statusEl) return;
-      try {
-        const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.getStudents}`);
-        if (response.ok) {
-          statusEl.textContent = 'Connected';
-          statusEl.className = 'cp-status is-ok';
-        } else {
-          throw new Error('API response error');
-        }
-      } catch (e) {
-        statusEl.textContent = 'Disconnected';
-        statusEl.className = 'cp-status is-bad';
-      }
-    })();
-
     window.addEventListener('hashchange', renderCurrent);
 
     if (!window.location.hash || window.location.hash === '#') {

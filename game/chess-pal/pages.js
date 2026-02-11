@@ -105,38 +105,54 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Mode</div>
-        <div class="cp-muted">Quick entry.</div>
+        <div class="cp-muted">Choose your mode.</div>
 
         <div class="cp-mode-grid" style="margin-top:12px;">
-          <button class="cp-mode" type="button" data-cp-go="/practice">
-            <div class="cp-mode-title">Practice</div>
-            <div class="cp-mode-desc">Play the 6×6 knight board.</div>
+          <button class="cp-mode" type="button" data-cp-mode="story">
+            <div class="cp-mode-title">Story Mode</div>
+            <div class="cp-mode-desc">Preset story stages (UI first).</div>
           </button>
-          <button class="cp-mode" type="button" data-cp-go="/pal">
-            <div class="cp-mode-title">Pal</div>
-            <div class="cp-mode-desc">Companion (coming soon).</div>
+          <button class="cp-mode" type="button" data-cp-mode="challenge">
+            <div class="cp-mode-title">Challenge Mode</div>
+            <div class="cp-mode-desc">Hard puzzles & quests (UI first).</div>
           </button>
-          <button class="cp-mode" type="button" data-cp-go="/storage">
-            <div class="cp-mode-title">Storage</div>
-            <div class="cp-mode-desc">Inventory / saves (coming soon).</div>
-          </button>
-          <button class="cp-mode" type="button" data-cp-go="/shop">
-            <div class="cp-mode-title">Shop</div>
-            <div class="cp-mode-desc">Shop (coming soon).</div>
-          </button>
-          <button class="cp-mode" type="button" data-cp-go="/settings">
-            <div class="cp-mode-title">Setting</div>
-            <div class="cp-mode-desc">General settings.</div>
-          </button>
+        </div>
+
+        <div class="cp-mode-sub" id="cpModeSub" style="margin-top:12px;">
+          <div class="cp-muted">Select a mode above.</div>
         </div>
       </div>
     `;
   };
   ModePage.init = () => {
-    document.querySelectorAll('[data-cp-go]').forEach((btn) => {
+    const sub = document.getElementById('cpModeSub');
+    const setSub = (key) => {
+      if (!sub) return;
+      if (key === 'story') {
+        sub.innerHTML = `
+          <div class="cp-page-card" style="margin-top:10px;">
+            <div class="cp-h1" style="font-size:16px;">Story Mode</div>
+            <div class="cp-muted">Coming soon: chapters, dialogue, stage presets.</div>
+          </div>
+        `;
+        return;
+      }
+      if (key === 'challenge') {
+        sub.innerHTML = `
+          <div class="cp-page-card" style="margin-top:10px;">
+            <div class="cp-h1" style="font-size:16px;">Challenge Mode</div>
+            <div class="cp-muted">Coming soon: daily challenges, ranked tasks.</div>
+          </div>
+        `;
+        return;
+      }
+      sub.innerHTML = `<div class="cp-muted">Select a mode above.</div>`;
+    };
+
+    document.querySelectorAll('[data-cp-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const r = btn.getAttribute('data-cp-go') || '/home';
-        Router.goTo(r);
+        const key = String(btn.getAttribute('data-cp-mode') || '');
+        setSub(key);
       }, { passive: true });
     });
   };
@@ -170,7 +186,52 @@ const ChessPalPages = (() => {
     };
   }
 
-  const PalPage = PlaceholderPage('Pal', 'Your companion system will live here.');
+  function PalPage() {}
+  PalPage.title = 'Pal';
+  PalPage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Pal</div>
+        <div class="cp-muted">Build your collection.</div>
+
+        <div class="cp-mode-grid" style="margin-top:12px;">
+          <button class="cp-mode" type="button" data-cp-pal="hero">
+            <div class="cp-mode-title">Hero</div>
+            <div class="cp-mode-desc">Create / manage heroes (UI first).</div>
+          </button>
+          <button class="cp-mode" type="button" data-cp-pal="monster">
+            <div class="cp-mode-title">Monster</div>
+            <div class="cp-mode-desc">Create / manage monsters (UI first).</div>
+          </button>
+        </div>
+
+        <div class="cp-mode-sub" id="cpPalSub" style="margin-top:12px;">
+          <div class="cp-muted">Choose Hero or Monster.</div>
+        </div>
+      </div>
+    `;
+  };
+  PalPage.init = () => {
+    const sub = document.getElementById('cpPalSub');
+    const setSub = (key) => {
+      if (!sub) return;
+      if (key === 'hero') {
+        sub.innerHTML = `<div class="cp-muted">Hero UI coming next.</div>`;
+        return;
+      }
+      if (key === 'monster') {
+        sub.innerHTML = `<div class="cp-muted">Monster UI coming next.</div>`;
+        return;
+      }
+      sub.innerHTML = `<div class="cp-muted">Choose Hero or Monster.</div>`;
+    };
+    document.querySelectorAll('[data-cp-pal]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = String(btn.getAttribute('data-cp-pal') || '');
+        setSub(key);
+      }, { passive: true });
+    });
+  };
   const StoragePage = PlaceholderPage('Storage', 'Inventory / saves will live here.');
   const ShopPage = PlaceholderPage('Shop', 'Shop will live here.');
   function SettingsPage() {}
