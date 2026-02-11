@@ -186,6 +186,169 @@ const ChessPalPages = (() => {
     };
   }
 
+  // ----------------------------
+  // Hero database (001-005)
+  // ----------------------------
+  const HERO_DB = [
+    {
+      id: '001',
+      name: 'Aurex',
+      element: 'light',
+      rarity: 5,
+      level: 1,
+      maxLevel: 99,
+      hp: 320,
+      atk: 145,
+      rcv: 60,
+      leaderSkill: 'Light heroes ATK ×1.6; heal +3% max HP each turn.',
+      activeSkill: 'Radiant Guard (CD 7): reduce damage -25% this turn; convert 2 random tiles to Light.',
+      img: 'images/Heros/001-Aurex/001-Aurex.png',
+      mini: 'images/Heros/001-Aurex/001-Aurex-mini.png'
+    },
+    {
+      id: '002',
+      name: 'Nyxblade',
+      element: 'dark',
+      rarity: 5,
+      level: 1,
+      maxLevel: 99,
+      hp: 280,
+      atk: 175,
+      rcv: 45,
+      leaderSkill: 'Dark heroes ATK ×1.7; each cascade adds +10% ATK (cap +40%).',
+      activeSkill: 'Shadow Cut (CD 6): Dark ATK ×1.3 this turn; convert 1 random tile to Dark.',
+      img: 'images/Heros/002-Nyxblade/002-Nyxblade.png',
+      mini: 'images/Heros/002-Nyxblade/002-Nyxblade-mini.png'
+    },
+    {
+      id: '003',
+      name: 'Rivenhart',
+      element: 'water',
+      rarity: 5,
+      level: 1,
+      maxLevel: 99,
+      hp: 300,
+      atk: 140,
+      rcv: 75,
+      leaderSkill: 'Water heroes RCV ×1.6; +1s action time each turn.',
+      activeSkill: 'Tide Reset (CD 7): clear 1 negative effect after cascades (placeholder); convert 2 random tiles to Water.',
+      img: 'images/Heros/003-Rivenhart/003-Rivenhart.png',
+      mini: 'images/Heros/003-Rivenhart/003-Rivenhart-mini.png'
+    },
+    {
+      id: '004',
+      name: 'Seraphix',
+      element: 'wood',
+      rarity: 5,
+      level: 1,
+      maxLevel: 99,
+      hp: 360,
+      atk: 130,
+      rcv: 55,
+      leaderSkill: 'Wood heroes HP ×1.4; heal +5% max HP each turn.',
+      activeSkill: 'Verdant Bloom (CD 8): convert 2 random tiles to Wood and 1 tile to Heart.',
+      img: 'images/Heros/004-Seraphix/004-Seraphix.png',
+      mini: 'images/Heros/004-Seraphix/004-Seraphix-mini.png'
+    },
+    {
+      id: '005',
+      name: 'Valkor',
+      element: 'fire',
+      rarity: 5,
+      level: 1,
+      maxLevel: 99,
+      hp: 340,
+      atk: 160,
+      rcv: 35,
+      leaderSkill: 'Fire heroes HP ×1.3 and ATK ×1.5.',
+      activeSkill: 'Inferno Rally (CD 8): convert 3 random tiles to Fire; Fire ATK ×1.2 this turn.',
+      img: 'images/Heros/005-Valkor/005-Valkor.png',
+      mini: 'images/Heros/005-Valkor/005-Valkor-mini.png'
+    }
+  ];
+
+  function elementLabel(el) {
+    const e = String(el || '').toLowerCase();
+    if (e === 'light') return 'Light';
+    if (e === 'dark') return 'Dark';
+    if (e === 'fire') return 'Fire';
+    if (e === 'water') return 'Water';
+    if (e === 'wood') return 'Wood';
+    if (e === 'heart') return 'Heart';
+    return e || '-';
+  }
+
+  function renderStars(n) {
+    const k = Math.max(1, Math.min(8, Number(n) || 5));
+    return '★'.repeat(k);
+  }
+
+  function showHeroModal(hero) {
+    const h = hero || null;
+    if (!h) return;
+
+    // Remove existing
+    const old = document.getElementById('cpHeroModalOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpHeroModalOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Hero details">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-hero-modal-grid">
+            <div class="cp-hero-modal-art">
+              <img src="${esc(h.img)}" alt="${esc(h.name)}" />
+            </div>
+            <div class="cp-hero-modal-info">
+              <div class="cp-hero-modal-title">
+                <div class="cp-hero-id">#${esc(h.id)}</div>
+                <div class="cp-hero-name">${esc(h.name)}</div>
+              </div>
+              <div class="cp-hero-meta">
+                <span class="cp-chip">${esc(elementLabel(h.element))}</span>
+                <span class="cp-chip">${esc(renderStars(h.rarity))}</span>
+                <span class="cp-chip">Lv ${esc(h.level)} / ${esc(h.maxLevel)}</span>
+              </div>
+              <div class="cp-hero-stats">
+                <div class="cp-stat"><b>HP</b> ${esc(h.hp)}</div>
+                <div class="cp-stat"><b>ATK</b> ${esc(h.atk)}</div>
+                <div class="cp-stat"><b>RCV</b> ${esc(h.rcv)}</div>
+              </div>
+              <div class="cp-hero-skill">
+                <div class="cp-skill-title">Leader Skill</div>
+                <div class="cp-skill-desc">${esc(h.leaderSkill)}</div>
+              </div>
+              <div class="cp-hero-skill">
+                <div class="cp-skill-title">Active Skill</div>
+                <div class="cp-skill-desc">${esc(h.activeSkill)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => {
+      if (ev.key === 'Escape') close();
+    };
+
+    overlay.addEventListener('click', (ev) => {
+      if (ev.target === overlay) close();
+    });
+    const closeBtn = overlay.querySelector('.cp-modal-close');
+    if (closeBtn) closeBtn.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+  }
+
   function PalPage() {}
   PalPage.title = 'Pal';
   PalPage.render = () => {
@@ -216,7 +379,29 @@ const ChessPalPages = (() => {
     const setSub = (key) => {
       if (!sub) return;
       if (key === 'hero') {
-        sub.innerHTML = `<div class="cp-muted">Hero UI coming next.</div>`;
+        sub.innerHTML = `
+          <div class="cp-hero-grid" role="list">
+            ${HERO_DB.map(h => `
+              <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" role="listitem">
+                <div class="cp-hero-mini">
+                  <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+                </div>
+                <div class="cp-hero-mini-meta">
+                  <div class="cp-hero-mini-name">${esc(h.name)}</div>
+                  <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
+                </div>
+              </button>
+            `).join('')}
+          </div>
+        `;
+        // Bind clicks
+        sub.querySelectorAll('[data-hero-id]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = String(btn.getAttribute('data-hero-id') || '');
+            const hero = HERO_DB.find(x => x.id === id);
+            if (hero) showHeroModal(hero);
+          });
+        });
         return;
       }
       if (key === 'monster') {
