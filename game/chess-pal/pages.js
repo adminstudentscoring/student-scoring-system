@@ -721,6 +721,51 @@ const ChessPalPages = (() => {
   // ----------------------------
   // Monster database (UI first)
   // ----------------------------
+  let monsterOverrides = {};
+  let monsterOverridesLoaded = false;
+  let monsterOverridesLoading = null;
+
+  async function loadMonsterOverrides() {
+    if (monsterOverridesLoaded) return monsterOverrides;
+    if (monsterOverridesLoading) return monsterOverridesLoading;
+    monsterOverridesLoading = (async () => {
+      try {
+        const resp = await fetch('/api/chess-pal/monsters', { method: 'GET' });
+        if (!resp.ok) throw new Error('Failed to load monster overrides');
+        const data = await resp.json();
+        const ov = data && data.overrides && typeof data.overrides === 'object' ? data.overrides : {};
+        monsterOverrides = ov;
+      } catch {
+        monsterOverrides = monsterOverrides || {};
+      } finally {
+        monsterOverridesLoaded = true;
+      }
+      return monsterOverrides;
+    })();
+    return monsterOverridesLoading;
+  }
+
+  async function saveMonsterOverridesToServer() {
+    if (!isAdminMode()) throw new Error('Not in admin mode');
+    if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') {
+      throw new Error('authUtils not available');
+    }
+    const resp = await window.authUtils.authenticatedFetch('/admin/chess-pal/monsters', {
+      method: 'PUT',
+      body: JSON.stringify({ overrides: monsterOverrides })
+    });
+    if (!resp) throw new Error('Not authenticated');
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      throw new Error(t || 'Failed to save');
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (data && data.overrides && typeof data.overrides === 'object') {
+      monsterOverrides = data.overrides;
+    }
+    return monsterOverrides;
+  }
+
   const MONSTER_DB = [
     {
       id: '001',
@@ -732,10 +777,10 @@ const ChessPalPages = (() => {
       hp: 420,
       atk: 120,
       rcv: 0,
-      leaderSkill: { text: 'Monsters: HP ×1.2 (placeholder).', params: { hpMult: 1.2 } },
+      passiveSkill: { name: 'Predator Instinct', text: 'ATK +10% when HP below 50% (placeholder).', params: { lowHpAtkBonus: 0.10 } },
       activeSkill: { name: 'Night Rend', cd: 6, text: 'Deal dark damage (placeholder).', params: { dmg: 120 } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M001-Grimjaw/M001-Grimjaw.png',
+      mini: 'images/Monsters/M001-Grimjaw/M001-Grimjaw-mini.png'
     },
     {
       id: '002',
@@ -747,10 +792,10 @@ const ChessPalPages = (() => {
       hp: 480,
       atk: 135,
       rcv: 0,
-      leaderSkill: { text: 'Monsters: ATK ×1.1 (placeholder).', params: { atkMult: 1.1 } },
+      passiveSkill: { name: 'Heat Armor', text: 'Take -10% damage (placeholder).', params: { damageReduction: 0.10 } },
       activeSkill: { name: 'Ash Slam', cd: 7, text: 'Convert 2 tiles to Fire (placeholder).', params: { convert: { count: 2, to: 'fire' } } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M002-Cinder_Brute/M002-Cinder_Brute.png',
+      mini: 'images/Monsters/M002-Cinder_Brute/M002-Cinder_Brute-mini.png'
     },
     {
       id: '003',
@@ -762,10 +807,10 @@ const ChessPalPages = (() => {
       hp: 400,
       atk: 128,
       rcv: 0,
-      leaderSkill: { text: 'Monsters: RCV ×1.0 (placeholder).', params: {} },
+      passiveSkill: { name: 'Cold Mist', text: '10% chance to slow enemies (placeholder).', params: { slowChance: 0.10 } },
       activeSkill: { name: 'Undertow', cd: 6, text: 'Convert 1 tile to Water (placeholder).', params: { convert: { count: 1, to: 'water' } } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M003-Tide_Wraith/M003-Tide_Wraith.png',
+      mini: 'images/Monsters/M003-Tide_Wraith/M003-Tide_Wraith-mini.png'
     },
     {
       id: '004',
@@ -777,10 +822,10 @@ const ChessPalPages = (() => {
       hp: 520,
       atk: 110,
       rcv: 0,
-      leaderSkill: { text: 'Monsters: HP ×1.25 (placeholder).', params: { hpMult: 1.25 } },
+      passiveSkill: { name: 'Regrowth', text: 'Heal +2% max HP each turn (placeholder).', params: { healMaxHpPctPerTurn: 0.02 } },
       activeSkill: { name: 'Root Bind', cd: 8, text: 'Convert 1 tile to Wood + 1 to Heart (placeholder).', params: { convert: [{ count: 1, to: 'wood' }, { count: 1, to: 'heart' }] } },
-      img: '',
-      mini: ''
+      img: 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png',
+      mini: 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw-mini.png'
     },
     {
       id: '005',
@@ -792,16 +837,128 @@ const ChessPalPages = (() => {
       hp: 390,
       atk: 140,
       rcv: 0,
-      leaderSkill: { text: 'Monsters: ATK ×1.15 (placeholder).', params: { atkMult: 1.15 } },
+      passiveSkill: { name: 'Blinding Aura', text: 'Enemies miss +5% (placeholder).', params: { enemyMissChance: 0.05 } },
       activeSkill: { name: 'Radiant Pulse', cd: 7, text: 'Convert 2 tiles to Light (placeholder).', params: { convert: { count: 2, to: 'light' } } },
+      img: 'images/Monsters/M005-Solar_Idol/M005-Solar_Idol.png',
+      mini: 'images/Monsters/M005-Solar_Idol/M005-Solar_Idol-mini.png'
+    },
+
+    // Boss series (006-010) - images pending
+    {
+      id: '006',
+      name: 'Boss · Abyss Monarch',
+      element: 'dark',
+      rarity: 6,
+      level: 1,
+      maxLevel: 99,
+      hp: 880,
+      atk: 210,
+      rcv: 0,
+      passiveSkill: { name: 'Abyssal Dominion', text: 'Start each battle with +1 cascade chain (placeholder).', params: { startCascadeBonus: 1 } },
+      activeSkill: { name: 'Void Eclipse', cd: 9, text: 'Convert 3 tiles to Dark; deal heavy dark damage (placeholder).', params: { convert: { count: 3, to: 'dark' }, dmg: 360 } },
+      img: '',
+      mini: ''
+    },
+    {
+      id: '007',
+      name: 'Boss · Crimson Warlord',
+      element: 'fire',
+      rarity: 6,
+      level: 1,
+      maxLevel: 99,
+      hp: 920,
+      atk: 225,
+      rcv: 0,
+      passiveSkill: { name: 'War Drums', text: 'Fire damage +15% (placeholder).', params: { fireDmgBonus: 0.15 } },
+      activeSkill: { name: 'Blood Furnace', cd: 9, text: 'Convert 4 tiles to Fire (placeholder).', params: { convert: { count: 4, to: 'fire' } } },
+      img: '',
+      mini: ''
+    },
+    {
+      id: '008',
+      name: 'Boss · Leviathan Prime',
+      element: 'water',
+      rarity: 6,
+      level: 1,
+      maxLevel: 99,
+      hp: 860,
+      atk: 220,
+      rcv: 0,
+      passiveSkill: { name: 'Deep Pressure', text: 'Enemies take +10% damage after cascades (placeholder).', params: { postCascadeVulnerability: 0.10 } },
+      activeSkill: { name: 'Tsunami Break', cd: 10, text: 'Convert 3 tiles to Water; +1s time this turn (placeholder).', params: { convert: { count: 3, to: 'water' }, extraTimeSec: 1 } },
+      img: '',
+      mini: ''
+    },
+    {
+      id: '009',
+      name: 'Boss · Worldroot Colossus',
+      element: 'wood',
+      rarity: 6,
+      level: 1,
+      maxLevel: 99,
+      hp: 980,
+      atk: 200,
+      rcv: 0,
+      passiveSkill: { name: 'Ancient Bark', text: 'Take -15% damage (placeholder).', params: { damageReduction: 0.15 } },
+      activeSkill: { name: 'Thorn Cathedral', cd: 10, text: 'Convert 2 tiles to Wood + 2 to Heart (placeholder).', params: { convert: [{ count: 2, to: 'wood' }, { count: 2, to: 'heart' }] } },
+      img: '',
+      mini: ''
+    },
+    {
+      id: '010',
+      name: 'Boss · Dawn Seraph',
+      element: 'light',
+      rarity: 6,
+      level: 1,
+      maxLevel: 99,
+      hp: 840,
+      atk: 235,
+      rcv: 0,
+      passiveSkill: { name: 'Radiant Shield', text: 'Heal +2% max HP each turn (placeholder).', params: { healMaxHpPctPerTurn: 0.02 } },
+      activeSkill: { name: 'Solar Judgement', cd: 10, text: 'Convert 4 tiles to Light; deal light damage (placeholder).', params: { convert: { count: 4, to: 'light' }, dmg: 340 } },
       img: '',
       mini: ''
     }
   ];
 
+  function getMonsterById(id) {
+    const key = String(id || '').trim();
+    return MONSTER_DB.find(m => String(m.id) === key) || null;
+  }
+
+  function mergeMonster(base) {
+    const b = base || {};
+    const o = (monsterOverrides && b.id && monsterOverrides[b.id]) ? monsterOverrides[b.id] : {};
+    const active = b.activeSkill && typeof b.activeSkill === 'object' ? b.activeSkill : { name: 'Skill', cd: 0, text: '', params: {} };
+    const passive = b.passiveSkill && typeof b.passiveSkill === 'object' ? b.passiveSkill : { name: 'Passive', text: '', params: {} };
+    return {
+      ...b,
+      rarity: (o.rarity != null) ? Number(o.rarity) : b.rarity,
+      level: (o.level != null) ? Number(o.level) : b.level,
+      maxLevel: (o.maxLevel != null) ? Number(o.maxLevel) : b.maxLevel,
+      hp: (o.hp != null) ? Number(o.hp) : b.hp,
+      atk: (o.atk != null) ? Number(o.atk) : b.atk,
+      rcv: (o.rcv != null) ? Number(o.rcv) : b.rcv,
+      activeSkill: {
+        ...active,
+        cd: (o.activeCd != null) ? Number(o.activeCd) : active.cd,
+        params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
+      },
+      passiveSkill: {
+        ...passive,
+        params: (o.passiveParams && typeof o.passiveParams === 'object') ? o.passiveParams : passive.params
+      }
+    };
+  }
+
+  function getAllMonsters() {
+    return MONSTER_DB.map(m => mergeMonster(m));
+  }
+
   function showMonsterModal(monster) {
     const m = monster || null;
     if (!m) return;
+    const admin = isAdminMode();
     const old = document.getElementById('cpMonsterModalOverlay');
     if (old) old.remove();
 
@@ -833,9 +990,9 @@ const ChessPalPages = (() => {
               </div>
               <div class="cp-hero-skill">
                 <div class="cp-skill-head">
-                  <div class="cp-skill-title">Leader Skill</div>
+                  <div class="cp-skill-title">Passive Skill · ${esc(m.passiveSkill?.name || '')}</div>
                 </div>
-                <div class="cp-skill-desc">${esc(m.leaderSkill?.text || '')}</div>
+                <div class="cp-skill-desc">${esc(m.passiveSkill?.text || '')}</div>
               </div>
               <div class="cp-hero-skill">
                 <div class="cp-skill-head">
@@ -844,6 +1001,16 @@ const ChessPalPages = (() => {
                 </div>
                 <div class="cp-skill-desc">${esc(m.activeSkill?.text || '')}</div>
               </div>
+
+              ${admin ? `
+                <div class="cp-hero-skill cp-admin-box">
+                  <div class="cp-skill-head">
+                    <div class="cp-skill-title">Admin</div>
+                    <button class="cp-tool-btn" type="button" id="cpOpenMonsterAdminEdit">Admin Edit</button>
+                  </div>
+                  <div class="cp-muted" style="margin-top:8px;">Edit HP/ATK/RCV, skill CD, and skill values.</div>
+                </div>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -855,6 +1022,133 @@ const ChessPalPages = (() => {
     overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
     overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
     window.addEventListener('keydown', onKey);
+
+    if (admin) {
+      const openBtn = overlay.querySelector('#cpOpenMonsterAdminEdit');
+      if (openBtn) {
+        openBtn.addEventListener('click', () => {
+          showMonsterAdminEditModal(m.id);
+        });
+      }
+    }
+  }
+
+  function showMonsterAdminEditModal(monsterId) {
+    const base = getMonsterById(monsterId);
+    if (!base) return;
+    const merged = mergeMonster(base);
+
+    const old = document.getElementById('cpMonsterAdminEditOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpMonsterAdminEditOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Admin edit monster">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Admin Edit · #${esc(merged.id)} ${esc(merged.name)}</div>
+          <div class="cp-muted" style="margin-top:6px;">Changes are saved to server and apply to all users.</div>
+
+          <div class="cp-admin-grid" style="margin-top:12px;">
+            <label class="cp-admin-field">
+              <span>Rarity</span>
+              <input type="number" id="cpAdminRarity" value="${esc(merged.rarity)}" min="1" step="1">
+            </label>
+            <label class="cp-admin-field">
+              <span>Level</span>
+              <input type="number" id="cpAdminLevel" value="${esc(merged.level)}" min="1" step="1">
+            </label>
+            <label class="cp-admin-field">
+              <span>Max Level</span>
+              <input type="number" id="cpAdminMaxLevel" value="${esc(merged.maxLevel)}" min="1" step="1">
+            </label>
+            <label class="cp-admin-field">
+              <span>HP</span>
+              <input type="number" id="cpAdminHp" value="${esc(merged.hp)}" min="1" step="1">
+            </label>
+            <label class="cp-admin-field">
+              <span>ATK</span>
+              <input type="number" id="cpAdminAtk" value="${esc(merged.atk)}" min="1" step="1">
+            </label>
+            <label class="cp-admin-field">
+              <span>RCV</span>
+              <input type="number" id="cpAdminRcv" value="${esc(merged.rcv)}" min="0" step="1">
+            </label>
+            <label class="cp-admin-field">
+              <span>Active Skill CD</span>
+              <input type="number" id="cpAdminActiveCd" value="${esc(merged.activeSkill?.cd ?? 0)}" min="0" step="1">
+            </label>
+          </div>
+
+          <div class="cp-admin-json">
+            <div class="cp-admin-json-title">Passive Skill Values (JSON)</div>
+            <textarea id="cpAdminPassiveParams" rows="7">${esc(JSON.stringify(merged.passiveSkill?.params ?? {}, null, 2))}</textarea>
+          </div>
+          <div class="cp-admin-json">
+            <div class="cp-admin-json-title">Active Skill Values (JSON)</div>
+            <textarea id="cpAdminActiveParams" rows="7">${esc(JSON.stringify(merged.activeSkill?.params ?? {}, null, 2))}</textarea>
+          </div>
+
+          <div class="cp-admin-actions">
+            <button class="cp-primary" type="button" id="cpAdminSaveMonster">Save</button>
+          </div>
+          <div class="cp-muted" id="cpAdminMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    const msg = overlay.querySelector('#cpAdminMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+
+    overlay.querySelector('#cpAdminSaveMonster')?.addEventListener('click', async () => {
+      try {
+        setMsg('');
+        const rarity = Number(overlay.querySelector('#cpAdminRarity')?.value);
+        const level = Number(overlay.querySelector('#cpAdminLevel')?.value);
+        const maxLevel = Number(overlay.querySelector('#cpAdminMaxLevel')?.value);
+        const hp = Number(overlay.querySelector('#cpAdminHp')?.value);
+        const atk = Number(overlay.querySelector('#cpAdminAtk')?.value);
+        const rcv = Number(overlay.querySelector('#cpAdminRcv')?.value);
+        const cd = Number(overlay.querySelector('#cpAdminActiveCd')?.value);
+        const passiveRaw = String(overlay.querySelector('#cpAdminPassiveParams')?.value || '{}');
+        const activeRaw = String(overlay.querySelector('#cpAdminActiveParams')?.value || '{}');
+        const passiveParams = JSON.parse(passiveRaw || '{}');
+        const activeParams = JSON.parse(activeRaw || '{}');
+
+        if (!monsterOverridesLoaded) await loadMonsterOverrides();
+        if (!monsterOverrides[merged.id]) monsterOverrides[merged.id] = {};
+        monsterOverrides[merged.id].rarity = Number.isFinite(rarity) ? Math.max(1, Math.floor(rarity)) : merged.rarity;
+        monsterOverrides[merged.id].level = Number.isFinite(level) ? Math.max(1, Math.floor(level)) : merged.level;
+        monsterOverrides[merged.id].maxLevel = Number.isFinite(maxLevel) ? Math.max(1, Math.floor(maxLevel)) : merged.maxLevel;
+        monsterOverrides[merged.id].hp = Number.isFinite(hp) ? Math.max(1, Math.floor(hp)) : merged.hp;
+        monsterOverrides[merged.id].atk = Number.isFinite(atk) ? Math.max(1, Math.floor(atk)) : merged.atk;
+        monsterOverrides[merged.id].rcv = Number.isFinite(rcv) ? Math.max(0, Math.floor(rcv)) : merged.rcv;
+        monsterOverrides[merged.id].activeCd = Number.isFinite(cd) ? Math.max(0, Math.floor(cd)) : (merged.activeSkill?.cd ?? 0);
+        monsterOverrides[merged.id].passiveParams = passiveParams;
+        monsterOverrides[merged.id].activeParams = activeParams;
+
+        await saveMonsterOverridesToServer();
+        setMsg('Saved.');
+
+        const refreshed = mergeMonster(getMonsterById(merged.id));
+        close();
+        showMonsterModal(refreshed);
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Save failed'));
+      }
+    });
   }
 
   function MonstersPage() {}
@@ -866,10 +1160,13 @@ const ChessPalPages = (() => {
       </div>
     `;
   };
-  MonstersPage.init = () => {
+  MonstersPage.init = async () => {
     const host = document.getElementById('cpMonstersGrid');
     if (!host) return;
-    host.innerHTML = MONSTER_DB.map(m => `
+    host.innerHTML = `<div class="cp-muted">Loading monsters...</div>`;
+    await loadMonsterOverrides();
+    const list = getAllMonsters();
+    host.innerHTML = list.map(m => `
       <button class="cp-hero-card" type="button" data-monster-id="${esc(m.id)}">
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
@@ -883,7 +1180,7 @@ const ChessPalPages = (() => {
     host.querySelectorAll('[data-monster-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = String(btn.getAttribute('data-monster-id') || '');
-        const m = MONSTER_DB.find(x => x.id === id);
+        const m = getAllMonsters().find(x => x.id === id);
         if (m) showMonsterModal(m);
       });
     });

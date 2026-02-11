@@ -252,6 +252,52 @@ app.put('/api/admin/chess-pal/heroes', authenticateUser, authorizeRole('admin'),
   }
 });
 
+app.get('/api/chess-pal/monsters', async (req, res) => {
+  try {
+    const data = await readData();
+    const overrides = (data && data.chessPal && data.chessPal.monsterOverrides && typeof data.chessPal.monsterOverrides === 'object')
+      ? data.chessPal.monsterOverrides
+      : {};
+    res.json({ overrides });
+  } catch (e) {
+    console.error('[chess-pal] GET /api/chess-pal/monsters failed:', e);
+    res.status(500).json({ error: 'Failed to load Chess Pal monsters' });
+  }
+});
+
+app.put('/api/admin/chess-pal/monsters', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const overrides = req.body && req.body.overrides;
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      return res.status(400).json({ error: 'Invalid overrides' });
+    }
+
+    const cleaned = {};
+    const keys = Object.keys(overrides);
+    if (keys.length > 1000) {
+      return res.status(400).json({ error: 'Too many monster overrides' });
+    }
+    for (const k of keys) {
+      const id = String(k || '').trim();
+      if (!/^\d{3}$/.test(id)) continue;
+      const v = overrides[k];
+      if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+      cleaned[id] = v;
+    }
+
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    data.chessPal.monsterOverrides = cleaned;
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+
+    res.json({ success: true, overrides: cleaned });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/monsters failed:', e);
+    res.status(500).json({ error: 'Failed to save Chess Pal monsters' });
+  }
+});
+
 // Log whether level-badge assets exist at startup (helps diagnose production 404s).
 (async () => {
   try {
