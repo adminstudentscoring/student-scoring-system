@@ -189,6 +189,65 @@ const ChessPalPages = (() => {
   // ----------------------------
   // Hero database (001-005)
   // ----------------------------
+  let heroOverrides = {};
+  let heroOverridesLoaded = false;
+  let heroOverridesLoading = null;
+
+  function isAdminMode() {
+    try {
+      const role = new URLSearchParams(window.location.search || '').get('role');
+      if (String(role) !== 'admin') return false;
+      // Best-effort: require admin token when in admin mode
+      if (window.authUtils && typeof window.authUtils.hasRole === 'function') {
+        return !!window.authUtils.hasRole('admin');
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function loadHeroOverrides() {
+    if (heroOverridesLoaded) return heroOverrides;
+    if (heroOverridesLoading) return heroOverridesLoading;
+    heroOverridesLoading = (async () => {
+      try {
+        const resp = await fetch('/api/chess-pal/heroes', { method: 'GET' });
+        if (!resp.ok) throw new Error('Failed to load hero overrides');
+        const data = await resp.json();
+        const ov = data && data.overrides && typeof data.overrides === 'object' ? data.overrides : {};
+        heroOverrides = ov;
+      } catch {
+        heroOverrides = heroOverrides || {};
+      } finally {
+        heroOverridesLoaded = true;
+      }
+      return heroOverrides;
+    })();
+    return heroOverridesLoading;
+  }
+
+  async function saveHeroOverridesToServer() {
+    if (!isAdminMode()) throw new Error('Not in admin mode');
+    if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') {
+      throw new Error('authUtils not available');
+    }
+    const resp = await window.authUtils.authenticatedFetch('/admin/chess-pal/heroes', {
+      method: 'PUT',
+      body: JSON.stringify({ overrides: heroOverrides })
+    });
+    if (!resp) throw new Error('Not authenticated');
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      throw new Error(t || 'Failed to save');
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (data && data.overrides && typeof data.overrides === 'object') {
+      heroOverrides = data.overrides;
+    }
+    return heroOverrides;
+  }
+
   const HERO_DB = [
     {
       id: '001',
@@ -200,8 +259,16 @@ const ChessPalPages = (() => {
       hp: 320,
       atk: 145,
       rcv: 60,
-      leaderSkill: 'Light heroes ATK ×1.6; heal +3% max HP each turn.',
-      activeSkill: 'Radiant Guard (CD 7): reduce damage -25% this turn; convert 2 random tiles to Light.',
+      leaderSkill: {
+        text: 'Light heroes ATK ×1.6; heal +3% max HP each turn.',
+        params: { atkMult: 1.6, healMaxHpPctPerTurn: 0.03 }
+      },
+      activeSkill: {
+        name: 'Radiant Guard',
+        cd: 7,
+        text: 'Reduce damage -25% this turn; convert 2 random tiles to Light.',
+        params: { damageReduction: 0.25, convert: { count: 2, to: 'light' } }
+      },
       img: 'images/Heros/001-Aurex/001-Aurex.png',
       mini: 'images/Heros/001-Aurex/001-Aurex-mini.png'
     },
@@ -215,8 +282,16 @@ const ChessPalPages = (() => {
       hp: 280,
       atk: 175,
       rcv: 45,
-      leaderSkill: 'Dark heroes ATK ×1.7; each cascade adds +10% ATK (cap +40%).',
-      activeSkill: 'Shadow Cut (CD 6): Dark ATK ×1.3 this turn; convert 1 random tile to Dark.',
+      leaderSkill: {
+        text: 'Dark heroes ATK ×1.7; each cascade adds +10% ATK (cap +40%).',
+        params: { atkMult: 1.7, cascadeAtkBonusPer: 0.10, cascadeAtkBonusCap: 0.40 }
+      },
+      activeSkill: {
+        name: 'Shadow Cut',
+        cd: 6,
+        text: 'Dark ATK ×1.3 this turn; convert 1 random tile to Dark.',
+        params: { atkMultThisTurn: 1.3, convert: { count: 1, to: 'dark' } }
+      },
       img: 'images/Heros/002-Nyxblade/002-Nyxblade.png',
       mini: 'images/Heros/002-Nyxblade/002-Nyxblade-mini.png'
     },
@@ -230,8 +305,16 @@ const ChessPalPages = (() => {
       hp: 300,
       atk: 140,
       rcv: 75,
-      leaderSkill: 'Water heroes RCV ×1.6; +1s action time each turn.',
-      activeSkill: 'Tide Reset (CD 7): clear 1 negative effect after cascades (placeholder); convert 2 random tiles to Water.',
+      leaderSkill: {
+        text: 'Water heroes RCV ×1.6; +1s action time each turn.',
+        params: { rcvMult: 1.6, extraTimeSec: 1 }
+      },
+      activeSkill: {
+        name: 'Tide Reset',
+        cd: 7,
+        text: 'Clear 1 negative effect after cascades (placeholder); convert 2 random tiles to Water.',
+        params: { clearNegativeCount: 1, convert: { count: 2, to: 'water' } }
+      },
       img: 'images/Heros/003-Rivenhart/003-Rivenhart.png',
       mini: 'images/Heros/003-Rivenhart/003-Rivenhart-mini.png'
     },
@@ -245,8 +328,16 @@ const ChessPalPages = (() => {
       hp: 360,
       atk: 130,
       rcv: 55,
-      leaderSkill: 'Wood heroes HP ×1.4; heal +5% max HP each turn.',
-      activeSkill: 'Verdant Bloom (CD 8): convert 2 random tiles to Wood and 1 tile to Heart.',
+      leaderSkill: {
+        text: 'Wood heroes HP ×1.4; heal +5% max HP each turn.',
+        params: { hpMult: 1.4, healMaxHpPctPerTurn: 0.05 }
+      },
+      activeSkill: {
+        name: 'Verdant Bloom',
+        cd: 8,
+        text: 'Convert 2 random tiles to Wood and 1 tile to Heart.',
+        params: { convert: [{ count: 2, to: 'wood' }, { count: 1, to: 'heart' }] }
+      },
       img: 'images/Heros/004-Seraphix/004-Seraphix.png',
       mini: 'images/Heros/004-Seraphix/004-Seraphix-mini.png'
     },
@@ -260,12 +351,46 @@ const ChessPalPages = (() => {
       hp: 340,
       atk: 160,
       rcv: 35,
-      leaderSkill: 'Fire heroes HP ×1.3 and ATK ×1.5.',
-      activeSkill: 'Inferno Rally (CD 8): convert 3 random tiles to Fire; Fire ATK ×1.2 this turn.',
+      leaderSkill: {
+        text: 'Fire heroes HP ×1.3 and ATK ×1.5.',
+        params: { hpMult: 1.3, atkMult: 1.5 }
+      },
+      activeSkill: {
+        name: 'Inferno Rally',
+        cd: 8,
+        text: 'Convert 3 random tiles to Fire; Fire ATK ×1.2 this turn.',
+        params: { convert: { count: 3, to: 'fire' }, atkMultThisTurn: 1.2 }
+      },
       img: 'images/Heros/005-Valkor/005-Valkor.png',
       mini: 'images/Heros/005-Valkor/005-Valkor-mini.png'
     }
   ];
+
+  function mergeHero(base) {
+    const b = base || {};
+    const o = (heroOverrides && b.id && heroOverrides[b.id]) ? heroOverrides[b.id] : {};
+    const active = b.activeSkill && typeof b.activeSkill === 'object' ? b.activeSkill : { name: 'Skill', cd: 0, text: '', params: {} };
+    const leader = b.leaderSkill && typeof b.leaderSkill === 'object' ? b.leaderSkill : { text: '', params: {} };
+    return {
+      ...b,
+      hp: (o.hp != null) ? Number(o.hp) : b.hp,
+      atk: (o.atk != null) ? Number(o.atk) : b.atk,
+      rcv: (o.rcv != null) ? Number(o.rcv) : b.rcv,
+      activeSkill: {
+        ...active,
+        cd: (o.activeCd != null) ? Number(o.activeCd) : active.cd,
+        params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
+      },
+      leaderSkill: {
+        ...leader,
+        params: (o.leaderParams && typeof o.leaderParams === 'object') ? o.leaderParams : leader.params
+      }
+    };
+  }
+
+  function getAllHeroes() {
+    return HERO_DB.map(h => mergeHero(h));
+  }
 
   function elementLabel(el) {
     const e = String(el || '').toLowerCase();
@@ -286,6 +411,7 @@ const ChessPalPages = (() => {
   function showHeroModal(hero) {
     const h = hero || null;
     if (!h) return;
+    const admin = isAdminMode();
 
     // Remove existing
     const old = document.getElementById('cpHeroModalOverlay');
@@ -318,13 +444,59 @@ const ChessPalPages = (() => {
                 <div class="cp-stat"><b>RCV</b> ${esc(h.rcv)}</div>
               </div>
               <div class="cp-hero-skill">
-                <div class="cp-skill-title">Leader Skill</div>
-                <div class="cp-skill-desc">${esc(h.leaderSkill)}</div>
+                <div class="cp-skill-head">
+                  <div class="cp-skill-title">Leader Skill</div>
+                </div>
+                <div class="cp-skill-desc">${esc(h.leaderSkill?.text || '')}</div>
               </div>
               <div class="cp-hero-skill">
-                <div class="cp-skill-title">Active Skill</div>
-                <div class="cp-skill-desc">${esc(h.activeSkill)}</div>
+                <div class="cp-skill-head">
+                  <div class="cp-skill-title">Active Skill · ${esc(h.activeSkill?.name || '')}</div>
+                  <div class="cp-skill-cdchip">CD ${esc(h.activeSkill?.cd ?? 0)}</div>
+                </div>
+                <div class="cp-skill-desc">${esc(h.activeSkill?.text || '')}</div>
               </div>
+
+              ${admin ? `
+                <div class="cp-hero-skill cp-admin-box">
+                  <div class="cp-skill-head">
+                    <div class="cp-skill-title">Admin Edit</div>
+                  </div>
+
+                  <div class="cp-admin-grid">
+                    <label class="cp-admin-field">
+                      <span>HP</span>
+                      <input type="number" id="cpAdminHp" value="${esc(h.hp)}" min="1" step="1">
+                    </label>
+                    <label class="cp-admin-field">
+                      <span>ATK</span>
+                      <input type="number" id="cpAdminAtk" value="${esc(h.atk)}" min="1" step="1">
+                    </label>
+                    <label class="cp-admin-field">
+                      <span>RCV</span>
+                      <input type="number" id="cpAdminRcv" value="${esc(h.rcv)}" min="0" step="1">
+                    </label>
+                    <label class="cp-admin-field">
+                      <span>Active CD</span>
+                      <input type="number" id="cpAdminActiveCd" value="${esc(h.activeSkill?.cd ?? 0)}" min="0" step="1">
+                    </label>
+                  </div>
+
+                  <div class="cp-admin-json">
+                    <div class="cp-admin-json-title">Leader Skill Values (JSON)</div>
+                    <textarea id="cpAdminLeaderParams" rows="6">${esc(JSON.stringify(h.leaderSkill?.params ?? {}, null, 2))}</textarea>
+                  </div>
+                  <div class="cp-admin-json">
+                    <div class="cp-admin-json-title">Active Skill Values (JSON)</div>
+                    <textarea id="cpAdminActiveParams" rows="6">${esc(JSON.stringify(h.activeSkill?.params ?? {}, null, 2))}</textarea>
+                  </div>
+
+                  <div class="cp-admin-actions">
+                    <button class="cp-primary" type="button" id="cpAdminSaveHero">Save</button>
+                  </div>
+                  <div class="cp-muted" id="cpAdminMsg" style="margin-top:8px;"></div>
+                </div>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -347,6 +519,44 @@ const ChessPalPages = (() => {
     const closeBtn = overlay.querySelector('.cp-modal-close');
     if (closeBtn) closeBtn.addEventListener('click', close, { passive: true });
     window.addEventListener('keydown', onKey);
+
+    if (admin) {
+      const saveBtn = overlay.querySelector('#cpAdminSaveHero');
+      const msg = overlay.querySelector('#cpAdminMsg');
+      const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          try {
+            setMsg('');
+            const hp = Number(overlay.querySelector('#cpAdminHp')?.value);
+            const atk = Number(overlay.querySelector('#cpAdminAtk')?.value);
+            const rcv = Number(overlay.querySelector('#cpAdminRcv')?.value);
+            const cd = Number(overlay.querySelector('#cpAdminActiveCd')?.value);
+            const leaderRaw = String(overlay.querySelector('#cpAdminLeaderParams')?.value || '{}');
+            const activeRaw = String(overlay.querySelector('#cpAdminActiveParams')?.value || '{}');
+            const leaderParams = JSON.parse(leaderRaw || '{}');
+            const activeParams = JSON.parse(activeRaw || '{}');
+
+            if (!heroOverridesLoaded) await loadHeroOverrides();
+            if (!heroOverrides[h.id]) heroOverrides[h.id] = {};
+            heroOverrides[h.id].hp = Number.isFinite(hp) ? Math.max(1, Math.floor(hp)) : h.hp;
+            heroOverrides[h.id].atk = Number.isFinite(atk) ? Math.max(1, Math.floor(atk)) : h.atk;
+            heroOverrides[h.id].rcv = Number.isFinite(rcv) ? Math.max(0, Math.floor(rcv)) : h.rcv;
+            heroOverrides[h.id].activeCd = Number.isFinite(cd) ? Math.max(0, Math.floor(cd)) : (h.activeSkill?.cd ?? 0);
+            heroOverrides[h.id].leaderParams = leaderParams;
+            heroOverrides[h.id].activeParams = activeParams;
+
+            await saveHeroOverridesToServer();
+            setMsg('Saved.');
+            // Update CD chip immediately
+            const chip = overlay.querySelector('.cp-skill-cdchip');
+            if (chip) chip.textContent = `CD ${heroOverrides[h.id].activeCd}`;
+          } catch (e) {
+            setMsg(String(e?.message || e || 'Save failed'));
+          }
+        });
+      }
+    }
   }
 
   function PalPage() {}
@@ -376,32 +586,40 @@ const ChessPalPages = (() => {
   };
   PalPage.init = () => {
     const sub = document.getElementById('cpPalSub');
+    const renderHeroGridInto = async () => {
+      if (!sub) return;
+      sub.innerHTML = `<div class="cp-muted">Loading heroes...</div>`;
+      await loadHeroOverrides();
+      const list = getAllHeroes();
+      sub.innerHTML = `
+        <div class="cp-hero-grid" role="list">
+          ${list.map(h => `
+            <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" role="listitem">
+              <div class="cp-hero-mini">
+                <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+              </div>
+              <div class="cp-hero-mini-meta">
+                <div class="cp-hero-mini-name">${esc(h.name)}</div>
+                <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      // Bind clicks
+      sub.querySelectorAll('[data-hero-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = String(btn.getAttribute('data-hero-id') || '');
+          const hero = getAllHeroes().find(x => x.id === id);
+          if (hero) showHeroModal(hero);
+        });
+      });
+    };
+
     const setSub = (key) => {
       if (!sub) return;
       if (key === 'hero') {
-        sub.innerHTML = `
-          <div class="cp-hero-grid" role="list">
-            ${HERO_DB.map(h => `
-              <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" role="listitem">
-                <div class="cp-hero-mini">
-                  <img src="${esc(h.mini)}" alt="${esc(h.name)}">
-                </div>
-                <div class="cp-hero-mini-meta">
-                  <div class="cp-hero-mini-name">${esc(h.name)}</div>
-                  <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
-                </div>
-              </button>
-            `).join('')}
-          </div>
-        `;
-        // Bind clicks
-        sub.querySelectorAll('[data-hero-id]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const id = String(btn.getAttribute('data-hero-id') || '');
-            const hero = HERO_DB.find(x => x.id === id);
-            if (hero) showHeroModal(hero);
-          });
-        });
+        void renderHeroGridInto();
         return;
       }
       if (key === 'monster') {

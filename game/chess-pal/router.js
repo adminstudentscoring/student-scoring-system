@@ -129,6 +129,14 @@ const Router = (() => {
     container = document.getElementById('cpPageContainer');
     if (!container) return;
 
+    // If opened as admin, enforce admin role.
+    try {
+      const role = new URLSearchParams(window.location.search || '').get('role');
+      if (String(role) === 'admin' && window.authUtils && typeof window.authUtils.requireRole === 'function') {
+        if (!window.authUtils.requireRole('admin')) return;
+      }
+    } catch {}
+
     // Nav click
     document.querySelectorAll('.cp-nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {

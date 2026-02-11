@@ -533,6 +533,74 @@ body {
   line-height: 1.4;
 }
 
+.cp-skill-head{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cp-skill-cdchip{
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.88);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.cp-admin-box{
+  border-color: rgba(124,58,237,0.28);
+}
+.cp-admin-grid{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 520px){
+  .cp-admin-grid{ grid-template-columns: 1fr; }
+}
+.cp-admin-field{
+  display:grid;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.78);
+}
+.cp-admin-field input{
+  width: 100%;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  font-weight: 900;
+}
+.cp-admin-json{
+  margin-top: 12px;
+}
+.cp-admin-json-title{
+  font-weight: 1000;
+  font-size: 12px;
+  color: rgba(255,255,255,0.78);
+}
+.cp-admin-json textarea{
+  margin-top: 8px;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+.cp-admin-actions{
+  margin-top: 12px;
+}
+
 .pmf-wrapper{
   width: min(1200px, calc(100vw - 28px));
   margin: 12px auto 16px;

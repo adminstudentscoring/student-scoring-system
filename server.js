@@ -202,6 +202,56 @@ app.use('/game/chess-pal', express.static(path.join(__dirname, 'game/chess-pal')
 // Serve standalone project monster-fight (now in game directory)
 app.use('/game/monster-fight', express.static(path.join(__dirname, 'game/monster-fight')));
 
+// ----------------------------
+// Chess Pal (admin-editable hero config)
+// ----------------------------
+app.get('/api/chess-pal/heroes', async (req, res) => {
+  try {
+    const data = await readData();
+    const overrides = (data && data.chessPal && data.chessPal.heroOverrides && typeof data.chessPal.heroOverrides === 'object')
+      ? data.chessPal.heroOverrides
+      : {};
+    res.json({ overrides });
+  } catch (e) {
+    console.error('[chess-pal] GET /api/chess-pal/heroes failed:', e);
+    res.status(500).json({ error: 'Failed to load Chess Pal heroes' });
+  }
+});
+
+app.put('/api/admin/chess-pal/heroes', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const overrides = req.body && req.body.overrides;
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      return res.status(400).json({ error: 'Invalid overrides' });
+    }
+
+    // Basic validation: keys like "001".."999", values are objects.
+    const cleaned = {};
+    const keys = Object.keys(overrides);
+    if (keys.length > 500) {
+      return res.status(400).json({ error: 'Too many hero overrides' });
+    }
+    for (const k of keys) {
+      const id = String(k || '').trim();
+      if (!/^\d{3}$/.test(id)) continue;
+      const v = overrides[k];
+      if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+      cleaned[id] = v;
+    }
+
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    data.chessPal.heroOverrides = cleaned;
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+
+    res.json({ success: true, overrides: cleaned });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/heroes failed:', e);
+    res.status(500).json({ error: 'Failed to save Chess Pal heroes' });
+  }
+});
+
 // Log whether level-badge assets exist at startup (helps diagnose production 404s).
 (async () => {
   try {
