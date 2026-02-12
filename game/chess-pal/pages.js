@@ -292,16 +292,62 @@ const ChessPalPages = (() => {
   PracticePage.title = 'Practice';
   PracticePage.render = () => {
     return `
-      <div id="chessPalGame" class="puzzle-monster-root"></div>
+      <div class="cp-practice">
+        <div class="cp-practice-left">
+          <div class="cp-practice-boss" aria-label="Boss preview">
+            <img class="cp-practice-bossimg" src="images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png" alt="Verdant Maw">
+          </div>
+          <div class="cp-practice-team" aria-label="Team preview">
+            <div class="cp-practice-teamrow" id="cpPracticeTeamRow"></div>
+          </div>
+        </div>
+
+        <div class="cp-practice-right">
+          <div id="chessPalGame" class="puzzle-monster-root"></div>
+        </div>
+      </div>
     `;
   };
   PracticePage.init = () => {
     // Ensure any old timers are cleared first
     try { window.ChessPal?.destroy?.(); } catch {}
     try { window.initChessPal?.(); } catch {}
+
+    const row = document.getElementById('cpPracticeTeamRow');
+    const renderTeam = async () => {
+      if (!row) return;
+      row.innerHTML = '';
+      try { await loadHeroOverrides(); } catch {}
+      const state = loadTeams();
+      const team = (state && Array.isArray(state.teams) && Array.isArray(state.teams[state.active])) ? state.teams[state.active] : [null, null, null, null];
+      const heroes = getAllHeroes();
+      for (let i = 0; i < 4; i += 1) {
+        const id = team[i];
+        const hero = id ? heroes.find(h => h.id === String(id)) : null;
+        const slot = document.createElement('div');
+        slot.className = `cp-practice-slot ${i === 0 ? 'is-leader' : ''}`;
+        slot.innerHTML = hero
+          ? `<img src="${esc(hero.mini)}" alt="${esc(hero.name)}">`
+          : `<div class="cp-practice-slot-empty"></div>`;
+        row.appendChild(slot);
+      }
+    };
+    renderTeam();
+    try {
+      if (window.__cpPracticeTeamListener) {
+        window.removeEventListener('cpTeamsChanged', window.__cpPracticeTeamListener);
+      }
+    } catch {}
+    window.__cpPracticeTeamListener = renderTeam;
+    try { window.addEventListener('cpTeamsChanged', window.__cpPracticeTeamListener); } catch {}
   };
   PracticePage.destroy = () => {
     try { window.ChessPal?.destroy?.(); } catch {}
+    try {
+      if (window.__cpPracticeTeamListener) {
+        window.removeEventListener('cpTeamsChanged', window.__cpPracticeTeamListener);
+      }
+    } catch {}
   };
 
   function PlaceholderPage(title, desc) {
