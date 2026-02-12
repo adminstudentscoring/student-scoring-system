@@ -833,6 +833,7 @@ const ChessPalPages = (() => {
       <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+          <span class="cp-hero-jewel cp-hero-jewel--${esc(String(h.element || '').toLowerCase())}" aria-hidden="true"></span>
         </div>
         <div class="cp-hero-mini-meta">
           <div class="cp-hero-mini-name">${(!admin && owned && !owned.has(h.id)) ? '' : esc(h.name)}</div>
@@ -1413,6 +1414,7 @@ const ChessPalPages = (() => {
         <button class="cp-hero-card" type="button" data-pick-hero="${esc(h.id)}">
           <div class="cp-hero-mini">
             <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+            <span class="cp-hero-jewel cp-hero-jewel--${esc(String(h.element || '').toLowerCase())}" aria-hidden="true"></span>
           </div>
           <div class="cp-hero-mini-meta">
             <div class="cp-hero-mini-name">${esc(h.name)}</div>

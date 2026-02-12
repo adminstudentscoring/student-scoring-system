@@ -730,12 +730,32 @@ body {
   display:flex;
   align-items:center;
   justify-content:center;
+  position: relative;
 }
 .cp-hero-mini img{
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
+.cp-hero-jewel{
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.25);
+  box-shadow: 0 6px 10px rgba(0,0,0,0.35);
+  opacity: 0.95;
+  pointer-events: none;
+}
+.cp-hero-jewel--fire{ background: rgba(239,68,68,0.98); }
+.cp-hero-jewel--water{ background: rgba(59,130,246,0.98); }
+.cp-hero-jewel--light{ background: rgba(250,204,21,0.98); }
+.cp-hero-jewel--dark{ background: rgba(99,102,241,0.98); }
+.cp-hero-jewel--wood{ background: rgba(16,185,129,0.98); }
+.cp-hero-jewel--heart{ background: rgba(236,72,153,0.98); }
 .cp-mini-placeholder{
   padding: 10px;
   font-weight: 950;
@@ -1222,6 +1242,10 @@ body {
   display:flex;
   flex-direction: column;
   gap: 8px;
+}
+.pmf-score-total{
+  font-weight: 1000;
+  color: rgba(255,255,255,0.92);
 }
 .pmf-move-item, .pmf-cascade-item, .pmf-empty{
   font-size: 12px;

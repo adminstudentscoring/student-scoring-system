@@ -46,6 +46,7 @@ const Router = (() => {
     tools.innerHTML = `
       <button class="cp-tool-btn" type="button" data-pop="moves">Move Summary</button>
       <button class="cp-tool-btn" type="button" data-pop="cascades">Cascades</button>
+      <button class="cp-tool-btn" type="button" data-pop="score">Score</button>
       <button class="cp-tool-btn" type="button" data-pop="logs">Action Log</button>
     `;
 
@@ -60,6 +61,13 @@ const Router = (() => {
         <div class="cp-popover-head">Cascades</div>
         <div class="cp-popover-body">
           <ul id="pmfCascadeList" class="pmf-cascade-list"></ul>
+        </div>
+      </div>
+      <div class="cp-popover" data-popover="score">
+        <div class="cp-popover-head">Score Breakdown</div>
+        <div class="cp-popover-body">
+          <div id="pmfScoreTotal" class="pmf-score-total">No score yet.</div>
+          <ul id="pmfScoreList" class="pmf-cascade-list" style="margin-top:10px;"></ul>
         </div>
       </div>
       <div class="cp-popover" data-popover="logs">

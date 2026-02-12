@@ -15,6 +15,8 @@ const ChessPal = (() => {
     logEl: null,
     moveListEl: null,
     cascadeListEl: null,
+    scoreListEl: null,
+    scoreTotalEl: null,
     startButtonEl: null,
     selectedPosition: null,
     startingKnight: null,
@@ -24,6 +26,7 @@ const ChessPal = (() => {
     timeRemaining: TURN_TIME_MS,
     moveHistory: [],
     cascades: [],
+    lastScore: null,
     isPlayerTurn: false,
     isAnimating: false
   };
@@ -61,6 +64,8 @@ const ChessPal = (() => {
     state.logEl = document.getElementById('pmfLog');
     state.moveListEl = document.getElementById('pmfMoveList');
     state.cascadeListEl = document.getElementById('pmfCascadeList');
+    state.scoreListEl = document.getElementById('pmfScoreList');
+    state.scoreTotalEl = document.getElementById('pmfScoreTotal');
     state.startButtonEl = container.querySelector('#pmfStartTurn');
     state.startButtonEl.addEventListener('click', startPlayerTurn);
 
@@ -68,6 +73,7 @@ const ChessPal = (() => {
     renderBoard();
     renderMoveHistory();
     renderCascades([]);
+    renderScoreBreakdown(null);
     updateTimerDisplay(1);
     updateStartButtonState();
     pushLog('Board initialized. Select a starting position for the knight.');
@@ -82,6 +88,8 @@ const ChessPal = (() => {
     state.logEl = null;
     state.moveListEl = null;
     state.cascadeListEl = null;
+    state.scoreListEl = null;
+    state.scoreTotalEl = null;
     state.startButtonEl = null;
     state.isPlayerTurn = false;
     state.isAnimating = false;
@@ -89,6 +97,72 @@ const ChessPal = (() => {
     state.startingKnight = null;
     state.knightPosition = null;
     state.validMoves = [];
+    state.lastScore = null;
+  }
+
+  function computeScoreBreakdown(moveHistory, cascades, timeLeftMs) {
+    const moves = Array.isArray(moveHistory) ? moveHistory : [];
+    const cas = Array.isArray(cascades) ? cascades : [];
+    const timeMs = Math.max(0, Math.floor(Number(timeLeftMs) || 0));
+
+    const pathJewels = moves.length;
+    const base = pathJewels * 10;
+
+    let matchedJewels = 0;
+    let combos = 0;
+    for (const c of cas) {
+      const matches = Array.isArray(c?.matches) ? c.matches : [];
+      combos += matches.length;
+      for (const m of matches) {
+        matchedJewels += Math.max(0, Math.floor(Number(m?.count) || 0));
+      }
+    }
+    const matchPoints = matchedJewels * 6;
+
+    const subtotal = base + matchPoints;
+    const comboBonus = Math.floor(subtotal * 0.10 * Math.max(0, combos - 1));
+    const chainBonus = Math.floor(subtotal * 0.05 * Math.max(0, cas.length));
+    const timeBonus = Math.floor((timeMs / 1000) * 2);
+    const total = Math.max(0, base + matchPoints + comboBonus + chainBonus + timeBonus);
+
+    return {
+      total,
+      lines: [
+        { label: `Base`, detail: `${pathJewels} × 10`, value: base },
+        { label: `Matches`, detail: `${matchedJewels} × 6`, value: matchPoints },
+        { label: `Combo Bonus`, detail: `combos ${combos}`, value: comboBonus },
+        { label: `Cascade Bonus`, detail: `chains ${cas.length}`, value: chainBonus },
+        { label: `Time Bonus`, detail: `${(timeMs / 1000).toFixed(1)}s × 2`, value: timeBonus },
+      ]
+    };
+  }
+
+  function renderScoreBreakdown(breakdown) {
+    if (state.scoreTotalEl) {
+      if (!breakdown) state.scoreTotalEl.textContent = 'No score yet.';
+      else state.scoreTotalEl.textContent = `Total: ${breakdown.total}`;
+    }
+    if (!state.scoreListEl) return;
+    if (!breakdown) {
+      state.scoreListEl.innerHTML = '<li class="pmf-empty">No breakdown available.</li>';
+      return;
+    }
+    state.scoreListEl.innerHTML = breakdown.lines.map((l) => `
+      <li class="pmf-cascade-item">
+        <b>${escapeHtml(l.label)}</b>
+        <span style="opacity:0.72;">· ${escapeHtml(l.detail)}</span>
+        <span style="float:right; font-weight:1000;">+${escapeHtml(l.value)}</span>
+      </li>
+    `).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function generateInitialBoard() {
@@ -275,6 +349,9 @@ const ChessPal = (() => {
     state.validMoves = getKnightMoves(state.knightPosition.row, state.knightPosition.col)
       .filter(pos => isInsideBoard(pos.row, pos.col) && state.board[pos.row][pos.col]);
     state.moveHistory = [];
+    state.cascades = [];
+    state.lastScore = null;
+    renderScoreBreakdown(null);
     clearInterval(state.actionTimerId);
     state.actionTimerId = setInterval(handleTimerTick, 100);
     pushLog('Turn started. Use knight moves to consume jewels.');
@@ -295,11 +372,13 @@ const ChessPal = (() => {
   function endPlayerTurn() {
     if (!state.isPlayerTurn) return;
 
+    const timeLeftMs = state.timeRemaining;
     clearInterval(state.actionTimerId);
     state.actionTimerId = null;
     state.isPlayerTurn = false;
     state.selectedPosition = null;
     state.validMoves = [];
+    state.timeRemaining = 0;
     updateTimerDisplay(0);
 
     if (state.moveHistory.length === 0) {
@@ -315,12 +394,18 @@ const ChessPal = (() => {
     state.isAnimating = true;
     collapseBoardAnimated().then(() => {
       resolveCascades().then(cascades => {
+        state.cascades = cascades || [];
         if (cascades.length > 0) {
           pushLog(`Cascades triggered: ${cascades.map(cascade => cascade.matches.map(match => `${match.element.toUpperCase()}×${match.count}`).join(', ')).join(' | ')}`);
           renderCascades(cascades);
         } else {
           renderCascades([]);
         }
+
+        const breakdown = computeScoreBreakdown(state.moveHistory, cascades, timeLeftMs);
+        state.lastScore = breakdown;
+        renderScoreBreakdown(breakdown);
+
         renderBoard();
         state.startingKnight = null;
         state.knightPosition = null;
