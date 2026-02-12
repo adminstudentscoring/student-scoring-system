@@ -1510,14 +1510,43 @@ const ChessPalPages = (() => {
   const FREE_SILVER_CLAIM_KEY = 'chessPalFreeSilverClaimDate';
 
   const STORAGE_ITEM_DEFS = {
-    silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/Silver-Coin.png' },
-    gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/Gold-Coin.png' },
-    exp_soldier: { id: 'exp_soldier', name: 'EXP Soldier', img: 'images/Storage/Exp-Soldier.svg' },
+    // Prefer numbered asset filenames; keep fallback variants for older filenames.
+    silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S001-Silver-Coin.png' },
+    gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S002-Gold-Coin.png' },
+    exp_soldier: { id: 'exp_soldier', name: 'EXP Soldier', img: 'images/Storage/S003-Exp-Soldier.png' },
   };
 
   function getStorageItemDef(itemId) {
     const key = String(itemId || '').trim().toLowerCase();
     return STORAGE_ITEM_DEFS[key] || null;
+  }
+
+  function getStorageImgFallbacks(primarySrc) {
+    const src = String(primarySrc || '').trim();
+    if (!src) return [];
+    // Try common legacy variants
+    const base = src.replace(/^images\/Storage\//, '');
+    const legacy = [];
+    if (base.includes('S001-Silver-Coin')) legacy.push('images/Storage/Silver-Coin.png');
+    if (base.includes('S002-Gold-Coin')) legacy.push('images/Storage/Gold-Coin.png');
+    if (base.includes('S003-Exp-Soldier')) {
+      legacy.push('images/Storage/Exp-Soldier.png');
+    }
+    return legacy;
+  }
+
+  function renderImgWithFallback(src, alt, cls) {
+    const s = String(src || '').trim();
+    const a = String(alt || '').trim() || '';
+    const c = String(cls || '').trim() || '';
+    const fallbacks = getStorageImgFallbacks(s);
+    // Inline fallback chain (safe, simple)
+    // eslint-disable-next-line no-useless-escape
+    let onerr = '';
+    for (const fb of fallbacks) {
+      onerr += `if(this.src.indexOf('${fb}')===-1){this.onerror=null;this.src='${fb}';return;}`;
+    }
+    return `<img class="${esc(c)}" src="${esc(s)}" alt="${esc(a)}" ${onerr ? `onerror="${esc(onerr)}"` : ''}>`;
   }
 
   function normalizeStorageSlots(slots) {
@@ -1720,10 +1749,10 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-square-grid" aria-label="Shop">
         <button class="cp-square-tile" type="button" data-cp-shop="get-coins" aria-label="Get Coins">
-          <img class="cp-square-img" src="images/Storage/Silver-Coin.png" alt="Get Coins">
+          ${renderImgWithFallback('images/Storage/S001-Silver-Coin.png', 'Get Coins', 'cp-square-img')}
         </button>
         <button class="cp-square-tile" type="button" data-cp-shop="mall" aria-label="Mall">
-          <img class="cp-square-img" src="images/Storage/Gold-Coin.png" alt="Mall">
+          ${renderImgWithFallback('images/Storage/S002-Gold-Coin.png', 'Mall', 'cp-square-img')}
         </button>
       </div>
     `;
@@ -1808,13 +1837,13 @@ const ChessPalPages = (() => {
         <div class="cp-mall-grid" style="margin-top:12px;">
           <div class="cp-mall-item">
             <div class="cp-mall-icon">
-              <img src="images/Storage/Exp-Soldier.svg" alt="EXP Soldier">
+              ${renderImgWithFallback('images/Storage/S003-Exp-Soldier.png', 'EXP Soldier', '')}
             </div>
             <div class="cp-mall-meta">
               <div class="cp-setting-label">EXP Soldier</div>
               <div class="cp-setting-help">Gives a small amount of EXP to one hero.</div>
               <div class="cp-mall-price" aria-label="Price">
-                <img class="cp-mall-coin" src="images/Storage/Silver-Coin.png" alt="Silver coin">
+                ${renderImgWithFallback('images/Storage/S001-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
                 <span class="cp-mall-x">×5</span>
               </div>
             </div>
