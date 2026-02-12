@@ -150,7 +150,25 @@ const ChessPalPages = (() => {
   // ----------------------------
   const HERO_PROGRESS_KEY = 'chessPalHeroProgress';
   const HERO_MAX_LEVEL = 110; // supports up to 10★ max level
-  const HERO_EXP_CURVE = 50; // reference curve; adjust later per hero/rarity if needed
+  const HERO_EXP_CURVE = 50; // baseline reference curve (≈5★); rarity scales this
+
+  const HERO_RARITY_EXP_CURVE = {
+    // Higher rarity => more EXP per level (slower leveling, like PAD)
+    1: 34,
+    2: 38,
+    3: 42,
+    4: 46,
+    5: 50,
+    6: 56,
+    7: 62,
+    8: 70,
+    9: 80,
+    10: 92,
+  };
+  function heroExpCurveForRarity(rarity) {
+    const r = Math.max(1, Math.min(10, Math.floor(Number(rarity) || 1)));
+    return HERO_RARITY_EXP_CURVE[r] || HERO_EXP_CURVE;
+  }
 
   function totalExpForLevel(level, curve = HERO_EXP_CURVE, maxLevel = HERO_MAX_LEVEL) {
     const cap = Math.max(1, Math.floor(Number(maxLevel) || HERO_MAX_LEVEL));
@@ -1008,12 +1026,14 @@ const ChessPalPages = (() => {
     const leader = b.leaderSkill && typeof b.leaderSkill === 'object' ? b.leaderSkill : { text: '', params: {} };
     const totalExp = b.id ? getHeroTotalExp(b.id) : 0;
     const cap = heroMaxLevelForRarity(b.rarity);
-    const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, HERO_EXP_CURVE, cap)));
+    const curve = heroExpCurveForRarity(b.rarity);
+    const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, curve, cap)));
     const scaled = heroStatsAtLevel(b, derivedLevel, cap);
     return {
       ...b,
       level: derivedLevel,
       maxLevel: cap,
+      expCurve: curve,
       hp: (o.hp != null) ? Number(o.hp) : scaled.hp,
       atk: (o.atk != null) ? Number(o.atk) : scaled.atk,
       rcv: (o.rcv != null) ? Number(o.rcv) : scaled.rcv,
