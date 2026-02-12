@@ -507,6 +507,130 @@ body {
 /* (legacy) */
 .cp-shop-grid{ display:none; }
 
+/* Square tiles (Pal / Shop quick menu) */
+.cp-square-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.cp-square-tile{
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cp-square-tile:active{ transform: translateY(1px); }
+.cp-square-img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+  filter: saturate(1.05);
+}
+
+/* Team */
+.cp-team-head{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cp-team-title{
+  font-weight: 1000;
+  letter-spacing: 0.2px;
+}
+.cp-team-arrow{
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-size: 22px;
+  font-weight: 1000;
+  cursor:pointer;
+  touch-action: manipulation;
+}
+.cp-team-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.cp-team-slot{
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 0;
+  overflow:hidden;
+  position: relative;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cp-team-slot.is-leader{
+  border-color: rgba(250,204,21,0.35);
+  box-shadow: 0 0 0 3px rgba(250,204,21,0.10);
+}
+.cp-team-img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+}
+.cp-team-empty{
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.18);
+}
+
+/* Mall */
+.cp-mall-grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.cp-mall-item{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
+.cp-mall-icon{
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.cp-mall-icon img{ width: 100%; height: 100%; object-fit: cover; display:block; }
+.cp-mall-meta{ flex: 1 1 auto; min-width: 0; }
+.cp-mall-price{
+  margin-top: 8px;
+  display:flex;
+  align-items:center;
+  gap: 8px;
+}
+.cp-mall-coin{
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+.cp-mall-x{
+  font-weight: 1000;
+  color: rgba(255,255,255,0.85);
+}
+
 /* Hero grid (Pal -> Hero) */
 .cp-hero-grid{
   margin-top: 6px;

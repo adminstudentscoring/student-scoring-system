@@ -121,6 +121,68 @@ const ChessPalPages = (() => {
   // For future battle integration
   try { window.cpMarkMonsterSeen = addSeenMonsterId; } catch {}
 
+  // ----------------------------
+  // Hero progression (per-user): total EXP -> level
+  // PAD-style curve (approx): totalExp(level) = floor((level-1)^2.5 * curve)
+  // ----------------------------
+  const HERO_PROGRESS_KEY = 'chessPalHeroProgress';
+  const HERO_MAX_LEVEL = 99;
+  const HERO_EXP_CURVE = 50; // reference curve; adjust later per hero/rarity if needed
+
+  function totalExpForLevel(level, curve = HERO_EXP_CURVE) {
+    const lv = Math.max(1, Math.min(HERO_MAX_LEVEL, Math.floor(Number(level) || 1)));
+    const c = Math.max(1, Number(curve) || HERO_EXP_CURVE);
+    if (lv <= 1) return 0;
+    return Math.floor(Math.pow(lv - 1, 2.5) * c);
+  }
+
+  function levelFromTotalExp(totalExp, curve = HERO_EXP_CURVE) {
+    const t = Math.max(0, Math.floor(Number(totalExp) || 0));
+    let lo = 1;
+    let hi = HERO_MAX_LEVEL;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (totalExpForLevel(mid, curve) <= t) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
+
+  function loadHeroProgress() {
+    try {
+      const raw = localStorage.getItem(HERO_PROGRESS_KEY);
+      if (!raw) return {};
+      const v = JSON.parse(raw);
+      return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveHeroProgress(p) {
+    try { localStorage.setItem(HERO_PROGRESS_KEY, JSON.stringify(p || {})); } catch {}
+    try { window.dispatchEvent(new Event('cpHeroProgressChanged')); } catch {}
+  }
+
+  function getHeroTotalExp(heroId) {
+    const id = String(heroId || '').trim();
+    const p = loadHeroProgress();
+    const t = p && p[id] && p[id].totalExp != null ? Number(p[id].totalExp) : 0;
+    return Math.max(0, Math.floor(Number(t) || 0));
+  }
+
+  function addHeroExp(heroId, deltaExp) {
+    const id = String(heroId || '').trim();
+    if (!id) return;
+    const add = Math.max(0, Math.floor(Number(deltaExp) || 0));
+    if (add <= 0) return;
+    const p = loadHeroProgress();
+    const cur = (p && p[id] && p[id].totalExp != null) ? Number(p[id].totalExp) : 0;
+    const next = Math.max(0, Math.floor((Number(cur) || 0) + add));
+    p[id] = { ...(p[id] || {}), totalExp: next };
+    saveHeroProgress(p);
+  }
+
   function HomePage() {}
   HomePage.title = 'Home';
   HomePage.render = () => {
@@ -445,11 +507,15 @@ const ChessPalPages = (() => {
     const o = (heroOverrides && b.id && heroOverrides[b.id]) ? heroOverrides[b.id] : {};
     const active = b.activeSkill && typeof b.activeSkill === 'object' ? b.activeSkill : { name: 'Skill', cd: 0, text: '', params: {} };
     const leader = b.leaderSkill && typeof b.leaderSkill === 'object' ? b.leaderSkill : { text: '', params: {} };
+    const totalExp = b.id ? getHeroTotalExp(b.id) : 0;
+    const derivedLevel = levelFromTotalExp(totalExp);
     return {
       ...b,
+      level: derivedLevel,
       hp: (o.hp != null) ? Number(o.hp) : b.hp,
       atk: (o.atk != null) ? Number(o.atk) : b.atk,
       rcv: (o.rcv != null) ? Number(o.rcv) : b.rcv,
+      totalExp,
       activeSkill: {
         ...active,
         cd: (o.activeCd != null) ? Number(o.activeCd) : active.cd,
@@ -678,76 +744,22 @@ const ChessPalPages = (() => {
   PalPage.title = 'Pal';
   PalPage.render = () => {
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Pal</div>
-        <div class="cp-muted">Build your collection.</div>
-
-        <div class="cp-mode-grid" style="margin-top:12px;">
-          <button class="cp-mode" type="button" data-cp-pal="hero">
-            <div class="cp-mode-title">Hero</div>
-            <div class="cp-mode-desc">Create / manage heroes (UI first).</div>
-          </button>
-          <button class="cp-mode" type="button" data-cp-pal="monster">
-            <div class="cp-mode-title">Monster</div>
-            <div class="cp-mode-desc">Create / manage monsters (UI first).</div>
-          </button>
-        </div>
-
-        <div class="cp-mode-sub" id="cpPalSub" style="margin-top:12px;">
-          <div class="cp-muted">Choose Hero or Monster.</div>
-        </div>
+      <div class="cp-square-grid" aria-label="Pal">
+        <button class="cp-square-tile" type="button" data-cp-pal="hero" aria-label="Hero">
+          <img class="cp-square-img" src="images/Heros/002-Nyxblade/002-Nyxblade-mini.png" alt="Hero">
+        </button>
+        <button class="cp-square-tile" type="button" data-cp-pal="monster" aria-label="Monster">
+          <img class="cp-square-img" src="images/Monsters/M001-Grimjaw/M001-Grimjaw-mini.png" alt="Monster">
+        </button>
       </div>
     `;
   };
   PalPage.init = () => {
-    const sub = document.getElementById('cpPalSub');
-    const renderHeroGridInto = async () => {
-      if (!sub) return;
-      sub.innerHTML = `<div class="cp-muted">Loading heroes...</div>`;
-      await loadHeroOverrides();
-      const list = getAllHeroes();
-      sub.innerHTML = `
-        <div class="cp-hero-grid" role="list">
-          ${list.map(h => `
-            <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" role="listitem">
-              <div class="cp-hero-mini">
-                <img src="${esc(h.mini)}" alt="${esc(h.name)}">
-              </div>
-              <div class="cp-hero-mini-meta">
-                <div class="cp-hero-mini-name">${esc(h.name)}</div>
-                <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
-              </div>
-            </button>
-          `).join('')}
-        </div>
-      `;
-      // Bind clicks
-      sub.querySelectorAll('[data-hero-id]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = String(btn.getAttribute('data-hero-id') || '');
-          const hero = getAllHeroes().find(x => x.id === id);
-          if (hero) showHeroModal(hero);
-        });
-      });
-    };
-
-    const setSub = (key) => {
-      if (!sub) return;
-      if (key === 'hero') {
-        // Full-screen hero grid page
-        Router.goTo('/heroes');
-        return;
-      }
-      if (key === 'monster') {
-        Router.goTo('/monsters');
-        return;
-      }
-      sub.innerHTML = `<div class="cp-muted">Choose Hero or Monster.</div>`;
-    };
     document.querySelectorAll('[data-cp-pal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = String(btn.getAttribute('data-cp-pal') || '');
-        setSub(key);
+        if (key === 'monster') Router.goTo('/monsters');
+        else Router.goTo('/heroes');
       }, { passive: true });
     });
   };
@@ -1267,7 +1279,228 @@ const ChessPalPages = (() => {
     });
   };
 
-  const TeamPage = PlaceholderPage('Team', 'Team builder coming next.');
+  // ----------------------------
+  // Team (up to 5 teams, 4 members)
+  // ----------------------------
+  const TEAM_KEY = 'chessPalTeams';
+
+  function defaultTeams() {
+    const owned = Array.from(getOwnedHeroSet());
+    const t0 = [owned.includes('002') ? '002' : (owned[0] || null), owned.includes('003') ? '003' : (owned[1] || null), owned.includes('004') ? '004' : (owned[2] || null), null];
+    return {
+      active: 0,
+      teams: [t0, [null, null, null, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]]
+    };
+  }
+
+  function normalizeTeamState(v) {
+    const base = defaultTeams();
+    const active = Math.max(0, Math.min(4, Math.floor(Number(v?.active) || 0)));
+    const teamsIn = Array.isArray(v?.teams) ? v.teams : base.teams;
+    const teams = [];
+    for (let i = 0; i < 5; i += 1) {
+      const row = Array.isArray(teamsIn[i]) ? teamsIn[i] : [null, null, null, null];
+      const slots = [];
+      for (let j = 0; j < 4; j += 1) {
+        const id = row[j] == null ? null : String(row[j]).padStart(3, '0');
+        slots.push(/^\d{3}$/.test(String(id || '')) ? id : null);
+      }
+      teams.push(slots);
+    }
+    return { active, teams };
+  }
+
+  function loadTeams() {
+    try {
+      const raw = localStorage.getItem(TEAM_KEY);
+      if (!raw) return defaultTeams();
+      return normalizeTeamState(JSON.parse(raw));
+    } catch {
+      return defaultTeams();
+    }
+  }
+
+  function saveTeams(s) {
+    try { localStorage.setItem(TEAM_KEY, JSON.stringify(normalizeTeamState(s))); } catch {}
+    try { window.dispatchEvent(new Event('cpTeamsChanged')); } catch {}
+  }
+
+  function showPickHeroModal(opts) {
+    const { title, allowIds, onPick, onClear } = opts || {};
+    const old = document.getElementById('cpPickHeroOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpPickHeroOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Pick hero">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Hero')}</div>
+          <div class="cp-muted" style="margin-top:6px;">Owned heroes only.</div>
+          <div class="cp-hero-grid" style="margin-top:12px;" id="cpPickHeroGrid"></div>
+          <div class="cp-row" style="margin-top:12px;">
+            <button class="cp-tool-btn" type="button" id="cpPickHeroClear">Clear Slot</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    const grid = overlay.querySelector('#cpPickHeroGrid');
+    const ids = Array.isArray(allowIds) ? allowIds : [];
+    if (grid) {
+      const list = getAllHeroes().filter(h => ids.includes(h.id));
+      grid.innerHTML = list.map(h => `
+        <button class="cp-hero-card" type="button" data-pick-hero="${esc(h.id)}">
+          <div class="cp-hero-mini">
+            <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+          </div>
+          <div class="cp-hero-mini-meta">
+            <div class="cp-hero-mini-name">${esc(h.name)}</div>
+            <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
+          </div>
+        </button>
+      `).join('');
+      grid.querySelectorAll('[data-pick-hero]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = String(btn.getAttribute('data-pick-hero') || '');
+          try { onPick && onPick(id); } catch {}
+          close();
+        }, { passive: true });
+      });
+    }
+
+    overlay.querySelector('#cpPickHeroClear')?.addEventListener('click', () => {
+      try { onClear && onClear(); } catch {}
+      close();
+    }, { passive: true });
+  }
+
+  function TeamPage() {}
+  TeamPage.title = 'Team';
+  TeamPage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-team-head">
+          <button class="cp-team-arrow" type="button" id="cpTeamPrev" aria-label="Previous team">‹</button>
+          <div class="cp-team-title" id="cpTeamTitle">Team</div>
+          <button class="cp-team-arrow" type="button" id="cpTeamNext" aria-label="Next team">›</button>
+        </div>
+
+        <div class="cp-team-grid" id="cpTeamGrid" style="margin-top:12px;"></div>
+        <div class="cp-team-skill" id="cpTeamSkill" style="margin-top:12px;"></div>
+      </div>
+    `;
+  };
+  TeamPage.init = async () => {
+    await loadHeroOverrides();
+    const host = document.getElementById('cpTeamGrid');
+    const title = document.getElementById('cpTeamTitle');
+    const skill = document.getElementById('cpTeamSkill');
+    const prev = document.getElementById('cpTeamPrev');
+    const next = document.getElementById('cpTeamNext');
+    if (!host) return;
+
+    let state = loadTeams();
+
+    const ownedSet = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
+    const ownedIds = Array.from(ownedSet);
+
+    const render = () => {
+      const idx = Math.max(0, Math.min(4, Number(state.active) || 0));
+      const team = state.teams[idx] || [null, null, null, null];
+      if (title) title.textContent = `Team ${idx + 1} / 5`;
+
+      host.innerHTML = team.map((hid, slotIdx) => {
+        const hero = hid ? getAllHeroes().find(h => h.id === hid) : null;
+        const isLeader = slotIdx === 0;
+        return `
+          <button class="cp-team-slot ${isLeader ? 'is-leader' : ''}" type="button" data-team-slot="${slotIdx}" aria-label="${isLeader ? 'Leader slot' : 'Member slot'}">
+            ${hero ? `<img class="cp-team-img" src="${esc(hero.mini)}" alt="${esc(hero.name)}">` : `<div class="cp-team-empty"></div>`}
+          </button>
+        `;
+      }).join('');
+
+      const leaderId = team[0];
+      const leader = leaderId ? getAllHeroes().find(h => h.id === leaderId) : null;
+      const memberSkills = team
+        .map(id => id ? getAllHeroes().find(h => h.id === id) : null)
+        .filter(Boolean)
+        .map(h => `${esc(h.name)} · ${esc(h.activeSkill?.name || '')} (CD ${esc(h.activeSkill?.cd ?? 0)})`);
+      if (skill) {
+        skill.innerHTML = leader ? `
+          <div class="cp-setting-item" style="background: rgba(255,255,255,0.03);">
+            <div class="cp-setting-label">Leader Skill</div>
+            <div class="cp-setting-help">${esc(leader.leaderSkill?.text || '')}</div>
+          </div>
+          <div class="cp-setting-item" style="margin-top:10px; background: rgba(255,255,255,0.03);">
+            <div class="cp-setting-label">Team Skills</div>
+            <div class="cp-setting-help">${memberSkills.length ? memberSkills.join('<br>') : '—'}</div>
+          </div>
+        ` : `
+          <div class="cp-muted">Pick a leader to see team skills.</div>
+        `;
+      }
+
+      host.querySelectorAll('[data-team-slot]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const slotIdx = Number(btn.getAttribute('data-team-slot'));
+          const idx2 = Math.max(0, Math.min(4, Number(state.active) || 0));
+          const team2 = state.teams[idx2] || [null, null, null, null];
+
+          showPickHeroModal({
+            title: slotIdx === 0 ? 'Pick Leader' : 'Pick Hero',
+            allowIds: ownedIds,
+            onPick: (heroId) => {
+              const id = String(heroId || '').padStart(3, '0');
+              // Prevent duplicates in the same team
+              if (team2.includes(id)) return;
+              const nextState = loadTeams();
+              nextState.active = idx2;
+              nextState.teams[idx2][slotIdx] = id;
+              state = nextState;
+              saveTeams(state);
+              render();
+            },
+            onClear: () => {
+              const nextState = loadTeams();
+              nextState.active = idx2;
+              nextState.teams[idx2][slotIdx] = null;
+              // If clearing leader, clear whole team
+              if (slotIdx === 0) nextState.teams[idx2] = [null, null, null, null];
+              state = nextState;
+              saveTeams(state);
+              render();
+            }
+          });
+        }, { passive: true });
+      });
+    };
+
+    const go = (delta) => {
+      const idx = Math.max(0, Math.min(4, Number(state.active) || 0));
+      const nextIdx = (idx + delta + 5) % 5;
+      state.active = nextIdx;
+      saveTeams(state);
+      render();
+    };
+
+    if (prev) prev.addEventListener('click', () => go(-1), { passive: true });
+    if (next) next.addEventListener('click', () => go(1), { passive: true });
+
+    render();
+  };
 
   // ----------------------------
   // Storage (inventory) - 20 slots, stack same items
@@ -1279,6 +1512,7 @@ const ChessPalPages = (() => {
   const STORAGE_ITEM_DEFS = {
     silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/Silver-Coin.png' },
     gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/Gold-Coin.png' },
+    exp_soldier: { id: 'exp_soldier', name: 'EXP Soldier', img: 'images/Storage/Exp-Soldier.svg' },
   };
 
   function getStorageItemDef(itemId) {
@@ -1444,6 +1678,29 @@ const ChessPalPages = (() => {
         // Toggle selection if clicking same slot with item
         const slot = slots[idx] || null;
         if (slot) {
+          // Use item (UI first): EXP Soldier
+          if (String(slot.itemId || '').toLowerCase() === 'exp_soldier') {
+            const owned = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
+            const ids = Array.from(owned);
+            showPickHeroModal({
+              title: 'Use EXP Soldier',
+              allowIds: ids,
+              onPick: (heroId) => {
+                // Consume 1 item
+                const q = Math.max(1, Math.floor(Number(slot.qty) || 1));
+                slots[idx] = (q <= 1) ? null : { ...slot, qty: q - 1 };
+                saveStorage(slots);
+                // Add small EXP
+                addHeroExp(heroId, 500);
+                try { Router.renderCurrent(); } catch {}
+                const hero = getAllHeroes().find(h => h.id === String(heroId || ''));
+                if (hero) showHeroModal(hero);
+              },
+              onClear: () => {}
+            });
+            return;
+          }
+
           if (selectedIdx === idx) {
             selectedIdx = -1;
             refresh();
@@ -1461,20 +1718,13 @@ const ChessPalPages = (() => {
   ShopPage.title = 'Shop';
   ShopPage.render = () => {
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Shop</div>
-        <div class="cp-muted">Choose a section.</div>
-
-        <div class="cp-mode-grid" style="margin-top:12px;">
-          <button class="cp-mode" type="button" data-cp-shop="get-coins">
-            <div class="cp-mode-title">Get Coins</div>
-            <div class="cp-mode-desc">Daily free coins and rewards.</div>
-          </button>
-          <button class="cp-mode" type="button" data-cp-shop="mall">
-            <div class="cp-mode-title">Mall</div>
-            <div class="cp-mode-desc">Coming soon.</div>
-          </button>
-        </div>
+      <div class="cp-square-grid" aria-label="Shop">
+        <button class="cp-square-tile" type="button" data-cp-shop="get-coins" aria-label="Get Coins">
+          <img class="cp-square-img" src="images/Storage/Silver-Coin.png" alt="Get Coins">
+        </button>
+        <button class="cp-square-tile" type="button" data-cp-shop="mall" aria-label="Mall">
+          <img class="cp-square-img" src="images/Storage/Gold-Coin.png" alt="Mall">
+        </button>
       </div>
     `;
   };
@@ -1555,15 +1805,55 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Mall</div>
-        <div class="cp-muted">Coming soon.</div>
+        <div class="cp-mall-grid" style="margin-top:12px;">
+          <div class="cp-mall-item">
+            <div class="cp-mall-icon">
+              <img src="images/Storage/Exp-Soldier.svg" alt="EXP Soldier">
+            </div>
+            <div class="cp-mall-meta">
+              <div class="cp-setting-label">EXP Soldier</div>
+              <div class="cp-setting-help">Gives a small amount of EXP to one hero.</div>
+              <div class="cp-mall-price" aria-label="Price">
+                <img class="cp-mall-coin" src="images/Storage/Silver-Coin.png" alt="Silver coin">
+                <span class="cp-mall-x">×5</span>
+              </div>
+            </div>
+            <button class="cp-primary" type="button" id="cpBuyExpSoldier">Buy</button>
+          </div>
+        </div>
         <div class="cp-row" style="margin-top:12px;">
           <button class="cp-tool-btn" type="button" id="cpBackShop2">Back</button>
+          <div class="cp-muted" id="cpMallMsg"></div>
         </div>
       </div>
     `;
   };
   ShopMallPage.init = () => {
     document.getElementById('cpBackShop2')?.addEventListener('click', () => Router.goTo('/shop'), { passive: true });
+    const msg = document.getElementById('cpMallMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    document.getElementById('cpBuyExpSoldier')?.addEventListener('click', () => {
+      try {
+        setMsg('');
+        let slots = loadStorage();
+        const spent = spendFromStorage(slots, 'silver_coin', 5);
+        if (!spent.ok) {
+          setMsg('Not enough Silver Coins.');
+          return;
+        }
+        slots = spent.slots;
+        const before = JSON.stringify(slots);
+        slots = addItemToStorage(slots, 'exp_soldier', 1);
+        if (JSON.stringify(slots) === before) {
+          setMsg('Storage is full.');
+          return;
+        }
+        saveStorage(slots);
+        setMsg('Purchased.');
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Purchase failed'));
+      }
+    }, { passive: true });
   };
 
   function spendFromStorage(slots, itemId, qty) {
