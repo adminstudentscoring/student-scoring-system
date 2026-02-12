@@ -1095,6 +1095,16 @@ body {
   70%{ opacity: 1; }
   100%{ opacity: 0; }
 }
+
+.cp-respawn{
+  display: block;
+  opacity: 0;
+  animation: cp-respawn-fade 650ms ease-out both;
+}
+@keyframes cp-respawn-fade{
+  0%{ opacity: 0; filter: grayscale(1) saturate(0.9); transform: scale(0.99); }
+  100%{ opacity: 1; filter: grayscale(0) saturate(1.04); transform: scale(1); }
+}
 .cp-beam.is-player{
   background: linear-gradient(90deg, rgba(147,197,253,0) 0%, rgba(147,197,253,0.85) 25%, rgba(255,255,255,0.95) 55%, rgba(147,197,253,0.75) 80%, rgba(147,197,253,0) 100%);
 }

@@ -370,12 +370,13 @@ const ChessPalPages = (() => {
       const pHp = Math.max(0, Math.min(pMax, Number(b.playerHp) || 0));
       const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
       const mHp = Math.max(0, Math.min(mMax, Number(b.monsterHp) || 0));
+      const mLv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1));
       const bossBox = document.querySelector('.cp-practice-boss');
 
       if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
       if (hpText) hpText.textContent = pMax > 0 ? `${pHp}/${pMax} HP` : '0/0 HP';
       if (bossHpFill) bossHpFill.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
-      if (bossHpText) bossHpText.textContent = mMax > 0 ? `${mHp}/${mMax} HP` : '';
+      if (bossHpText) bossHpText.textContent = mMax > 0 ? `Lv ${mLv} · ${mHp}/${mMax} HP` : '';
 
       // If monster is dead, allow it to stay hidden
       try {
@@ -383,6 +384,25 @@ const ChessPalPages = (() => {
           bossBox.classList.add('cp-dead');
         }
       } catch {}
+    };
+
+    const getBossBase = () => {
+      try { return getAllMonsters().find(m => String(m.id) === '004') || null; } catch { return null; }
+    };
+    const getBossEffective = (level) => {
+      const lv = Math.max(1, Math.floor(Number(level) || 1));
+      const base = getBossBase();
+      const baseHp = Math.max(0, Math.floor(Number(base?.hp) || 0));
+      const baseAtk = Math.max(0, Math.floor(Number(base?.atk) || 0));
+      const baseRcv = Math.max(0, Math.floor(Number(base?.rcv) || 0));
+      // Practice scaling: +10% stats per level above 1
+      const mult = 1 + Math.max(0, lv - 1) * 0.10;
+      return {
+        level: lv,
+        hpMax: Math.max(1, Math.floor(baseHp * mult)),
+        atk: Math.max(0, Math.floor(baseAtk * mult)),
+        rcv: Math.max(0, Math.floor(baseRcv * mult)),
+      };
     };
 
     const getCenter = (el) => {
@@ -485,7 +505,7 @@ const ChessPalPages = (() => {
           if ((Number(b.monsterHp) || 0) <= 0) break;
         }
 
-        // Monster death: blink + disappear (image + hp)
+        // Monster death: blink + disappear (image + hp), then respawn at next level (fade in)
         if ((Number(b.monsterHp) || 0) <= 0) {
           try {
             if (bossBox) {
@@ -494,14 +514,37 @@ const ChessPalPages = (() => {
               bossBox.style.display = 'none';
             }
           } catch {}
+          try {
+            // Respawn (Lv + 1)
+            const nextLv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1) + 1);
+            b.monsterLevel = nextLv;
+            const eff = getBossEffective(nextLv);
+            b.monsterMaxHp = eff.hpMax;
+            b.monsterHp = eff.hpMax;
+            b.monsterAtk = eff.atk;
+
+            if (bossBox) {
+              bossBox.style.display = '';
+              bossBox.classList.remove('cp-dead');
+              bossBox.classList.add('cp-respawn');
+              // clear respawn class after animation so future transitions work
+              setTimeout(() => { try { bossBox.classList.remove('cp-respawn'); } catch {} }, 700);
+            }
+            updateHpUI();
+          } catch {}
           return;
         }
 
         // Monster counter-attacks player: beam from monster center → HP bar, shake HP bar
         let monsterAtk = 0;
         try {
-          const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
-          monsterAtk = Math.max(0, Math.floor(Number(boss?.atk) || 0));
+          if (Number.isFinite(Number(b.monsterAtk))) {
+            monsterAtk = Math.max(0, Math.floor(Number(b.monsterAtk) || 0));
+          } else {
+            const lv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1));
+            monsterAtk = getBossEffective(lv).atk;
+            b.monsterAtk = monsterAtk;
+          }
         } catch {}
         if (monsterAtk > 0) {
           await playBeamBetween({ fromEl: bossImg, toEl: hpBar, variant: 'monster' });
@@ -607,10 +650,16 @@ const ChessPalPages = (() => {
         const pMax = Math.max(0, totalHp);
         b.playerMaxHp = pMax;
         b.playerHp = Number.isFinite(Number(b.playerHp)) ? Math.max(0, Math.min(pMax, Number(b.playerHp))) : pMax;
-        const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
-        const mMax = Math.max(0, Math.floor(Number(boss?.hp) || 0));
-        b.monsterMaxHp = mMax;
-        b.monsterHp = Number.isFinite(Number(b.monsterHp)) ? Math.max(0, Math.min(mMax, Number(b.monsterHp))) : mMax;
+        const lv = Number.isFinite(Number(b.monsterLevel)) ? Math.max(1, Math.floor(Number(b.monsterLevel))) : 1;
+        b.monsterLevel = lv;
+        const eff = getBossEffective(lv);
+        b.monsterMaxHp = eff.hpMax;
+        b.monsterAtk = eff.atk;
+        b.monsterHp = Number.isFinite(Number(b.monsterHp)) ? Math.max(0, Math.min(eff.hpMax, Number(b.monsterHp))) : eff.hpMax;
+        // If previously hidden due to death, ensure it is visible on init
+        const bossBox = document.querySelector('.cp-practice-boss');
+        if (bossBox && bossBox.style.display === 'none') bossBox.style.display = '';
+        try { bossBox?.classList.remove('cp-dead'); } catch {}
       } catch {}
       updateHpUI();
 
