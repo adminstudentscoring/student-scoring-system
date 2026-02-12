@@ -149,23 +149,24 @@ const ChessPalPages = (() => {
   // PAD-style curve (approx): totalExp(level) = floor((level-1)^2.5 * curve)
   // ----------------------------
   const HERO_PROGRESS_KEY = 'chessPalHeroProgress';
-  const HERO_MAX_LEVEL = 99;
+  const HERO_MAX_LEVEL = 110; // supports up to 10★ max level
   const HERO_EXP_CURVE = 50; // reference curve; adjust later per hero/rarity if needed
 
-  function totalExpForLevel(level, curve = HERO_EXP_CURVE) {
-    const lv = Math.max(1, Math.min(HERO_MAX_LEVEL, Math.floor(Number(level) || 1)));
+  function totalExpForLevel(level, curve = HERO_EXP_CURVE, maxLevel = HERO_MAX_LEVEL) {
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || HERO_MAX_LEVEL));
+    const lv = Math.max(1, Math.min(cap, Math.floor(Number(level) || 1)));
     const c = Math.max(1, Number(curve) || HERO_EXP_CURVE);
     if (lv <= 1) return 0;
     return Math.floor(Math.pow(lv - 1, 2.5) * c);
   }
 
-  function levelFromTotalExp(totalExp, curve = HERO_EXP_CURVE) {
+  function levelFromTotalExp(totalExp, curve = HERO_EXP_CURVE, maxLevel = HERO_MAX_LEVEL) {
     const t = Math.max(0, Math.floor(Number(totalExp) || 0));
     let lo = 1;
-    let hi = HERO_MAX_LEVEL;
+    let hi = Math.max(1, Math.floor(Number(maxLevel) || HERO_MAX_LEVEL));
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      if (totalExpForLevel(mid, curve) <= t) lo = mid;
+      if (totalExpForLevel(mid, curve, hi) <= t) lo = mid;
       else hi = mid - 1;
     }
     return lo;
@@ -792,12 +793,16 @@ const ChessPalPages = (() => {
       id: '001',
       name: 'Aurex',
       element: 'light',
-      rarity: 5,
+      role: 'support',
+      rarity: 6,
       level: 1,
-      maxLevel: 99,
-      hp: 320,
-      atk: 145,
-      rcv: 60,
+      maxLevel: 70,
+      hp1: 300,
+      atk1: 170,
+      rcv1: 70,
+      hpMax: 4200,
+      atkMax: 1350,
+      rcvMax: 520,
       leaderSkill: {
         text: 'Light heroes ATK ×1.6; heal +3% max HP each turn.',
         params: { atkMult: 1.6, healMaxHpPctPerTurn: 0.03 }
@@ -815,12 +820,16 @@ const ChessPalPages = (() => {
       id: '002',
       name: 'Nyxblade',
       element: 'dark',
-      rarity: 5,
+      role: 'striker',
+      rarity: 7,
       level: 1,
-      maxLevel: 99,
-      hp: 280,
-      atk: 175,
-      rcv: 45,
+      maxLevel: 80,
+      hp1: 260,
+      atk1: 230,
+      rcv1: 35,
+      hpMax: 4000,
+      atkMax: 1750,
+      rcvMax: 320,
       leaderSkill: {
         text: 'Dark heroes ATK ×1.7; each cascade adds +10% ATK (cap +40%).',
         params: { atkMult: 1.7, cascadeAtkBonusPer: 0.10, cascadeAtkBonusCap: 0.40 }
@@ -838,12 +847,16 @@ const ChessPalPages = (() => {
       id: '003',
       name: 'Rivenhart',
       element: 'water',
-      rarity: 5,
+      role: 'healer',
+      rarity: 7,
       level: 1,
-      maxLevel: 99,
-      hp: 300,
-      atk: 140,
-      rcv: 75,
+      maxLevel: 80,
+      hp1: 280,
+      atk1: 150,
+      rcv1: 120,
+      hpMax: 4100,
+      atkMax: 1150,
+      rcvMax: 920,
       leaderSkill: {
         text: 'Water heroes RCV ×1.6; +1s action time each turn.',
         params: { rcvMult: 1.6, extraTimeSec: 1 }
@@ -861,12 +874,16 @@ const ChessPalPages = (() => {
       id: '004',
       name: 'Seraphix',
       element: 'wood',
-      rarity: 5,
+      role: 'tank',
+      rarity: 7,
       level: 1,
-      maxLevel: 99,
-      hp: 360,
-      atk: 130,
-      rcv: 55,
+      maxLevel: 80,
+      hp1: 360,
+      atk1: 155,
+      rcv1: 55,
+      hpMax: 5600,
+      atkMax: 1200,
+      rcvMax: 420,
       leaderSkill: {
         text: 'Wood heroes HP ×1.4; heal +5% max HP each turn.',
         params: { hpMult: 1.4, healMaxHpPctPerTurn: 0.05 }
@@ -884,12 +901,16 @@ const ChessPalPages = (() => {
       id: '005',
       name: 'Valkor',
       element: 'fire',
-      rarity: 5,
+      role: 'striker',
+      rarity: 6,
       level: 1,
-      maxLevel: 99,
-      hp: 340,
-      atk: 160,
-      rcv: 35,
+      maxLevel: 70,
+      hp1: 290,
+      atk1: 215,
+      rcv1: 40,
+      hpMax: 4100,
+      atkMax: 1550,
+      rcvMax: 300,
       leaderSkill: {
         text: 'Fire heroes HP ×1.3 and ATK ×1.5.',
         params: { hpMult: 1.3, atkMult: 1.5 }
@@ -910,19 +931,100 @@ const ChessPalPages = (() => {
     return HERO_DB.find(h => String(h.id) === key) || null;
   }
 
+  const HERO_RARITY_MAX_LEVEL = {
+    1: 30,
+    2: 35,
+    3: 40,
+    4: 50,
+    5: 60,
+    6: 70,
+    7: 80,
+    8: 90,
+    9: 100,
+    10: 110,
+  };
+  const HERO_RARITY_GROWTH_P = {
+    1: 1.00,
+    2: 1.05,
+    3: 1.10,
+    4: 1.16,
+    5: 1.22,
+    6: 1.28,
+    7: 1.35,
+    8: 1.42,
+    9: 1.48,
+    10: 1.55,
+  };
+  function heroMaxLevelForRarity(rarity) {
+    const r = Math.max(1, Math.min(10, Math.floor(Number(rarity) || 1)));
+    return HERO_RARITY_MAX_LEVEL[r] || HERO_MAX_LEVEL;
+  }
+  function heroGrowthPForRarity(rarity) {
+    const r = Math.max(1, Math.min(10, Math.floor(Number(rarity) || 1)));
+    return HERO_RARITY_GROWTH_P[r] || 1.22;
+  }
+  function scaleStat({ stat1, statMax, level, maxLevel, p }) {
+    const lv = Math.max(1, Math.min(Math.max(1, Math.floor(Number(maxLevel) || 1)), Math.floor(Number(level) || 1)));
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || 1));
+    const a = Math.max(0, Number(stat1) || 0);
+    const b = Math.max(0, Number(statMax) || 0);
+    if (cap <= 1) return Math.floor(b || a);
+    const t = (lv - 1) / (cap - 1);
+    const k = Math.pow(Math.max(0, Math.min(1, t)), Math.max(0.5, Number(p) || 1));
+    return Math.floor(a + (b - a) * k);
+  }
+  function heroStatsAtLevel(hero, level, maxLevel) {
+    const h = hero || {};
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || heroMaxLevelForRarity(h.rarity)));
+    const p = heroGrowthPForRarity(h.rarity);
+
+    // Back-compat: if hp1/hpMax not present, fall back to hp/atk/rcv as "flat"
+    const hp1 = (h.hp1 != null) ? Number(h.hp1) : Number(h.hp);
+    const atk1 = (h.atk1 != null) ? Number(h.atk1) : Number(h.atk);
+    const rcv1 = (h.rcv1 != null) ? Number(h.rcv1) : Number(h.rcv);
+    const hpMax = (h.hpMax != null) ? Number(h.hpMax) : Number(h.hp);
+    const atkMax = (h.atkMax != null) ? Number(h.atkMax) : Number(h.atk);
+    const rcvMax = (h.rcvMax != null) ? Number(h.rcvMax) : Number(h.rcv);
+
+    return {
+      hp: Math.max(1, scaleStat({ stat1: hp1, statMax: hpMax, level, maxLevel: cap, p })),
+      atk: Math.max(1, scaleStat({ stat1: atk1, statMax: atkMax, level, maxLevel: cap, p })),
+      rcv: Math.max(0, scaleStat({ stat1: rcv1, statMax: rcvMax, level, maxLevel: cap, p })),
+      maxLevel: cap,
+      growthP: p,
+      hp1: Math.max(1, Math.floor(Number(hp1) || 1)),
+      atk1: Math.max(1, Math.floor(Number(atk1) || 1)),
+      rcv1: Math.max(0, Math.floor(Number(rcv1) || 0)),
+      hpMax: Math.max(1, Math.floor(Number(hpMax) || 1)),
+      atkMax: Math.max(1, Math.floor(Number(atkMax) || 1)),
+      rcvMax: Math.max(0, Math.floor(Number(rcvMax) || 0)),
+    };
+  }
+
   function mergeHero(base) {
     const b = base || {};
     const o = (heroOverrides && b.id && heroOverrides[b.id]) ? heroOverrides[b.id] : {};
     const active = b.activeSkill && typeof b.activeSkill === 'object' ? b.activeSkill : { name: 'Skill', cd: 0, text: '', params: {} };
     const leader = b.leaderSkill && typeof b.leaderSkill === 'object' ? b.leaderSkill : { text: '', params: {} };
     const totalExp = b.id ? getHeroTotalExp(b.id) : 0;
-    const derivedLevel = levelFromTotalExp(totalExp);
+    const cap = heroMaxLevelForRarity(b.rarity);
+    const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, HERO_EXP_CURVE, cap)));
+    const scaled = heroStatsAtLevel(b, derivedLevel, cap);
     return {
       ...b,
       level: derivedLevel,
-      hp: (o.hp != null) ? Number(o.hp) : b.hp,
-      atk: (o.atk != null) ? Number(o.atk) : b.atk,
-      rcv: (o.rcv != null) ? Number(o.rcv) : b.rcv,
+      maxLevel: cap,
+      hp: (o.hp != null) ? Number(o.hp) : scaled.hp,
+      atk: (o.atk != null) ? Number(o.atk) : scaled.atk,
+      rcv: (o.rcv != null) ? Number(o.rcv) : scaled.rcv,
+      // expose growth info (useful for UI / debugging)
+      hp1: scaled.hp1,
+      atk1: scaled.atk1,
+      rcv1: scaled.rcv1,
+      hpMax: scaled.hpMax,
+      atkMax: scaled.atkMax,
+      rcvMax: scaled.rcvMax,
+      growthP: scaled.growthP,
       totalExp,
       activeSkill: {
         ...active,
