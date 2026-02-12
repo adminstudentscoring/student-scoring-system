@@ -1778,7 +1778,7 @@ const ChessPalPages = (() => {
           <div class="cp-square-label">Get Coins</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-shop="mall" aria-label="Mall">
-          ${renderImgWithFallback('images/Storage/S002-Gold-Coin.png', 'Mall', 'cp-square-img')}
+          ${renderImgWithFallback('images/Storage/S001-Gold-Coin.png', 'Mall', 'cp-square-img')}
           <div class="cp-square-label">Mall</div>
         </button>
       </div>
