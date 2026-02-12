@@ -370,22 +370,56 @@ const ChessPalPages = (() => {
       const pHp = Math.max(0, Math.min(pMax, Number(b.playerHp) || 0));
       const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
       const mHp = Math.max(0, Math.min(mMax, Number(b.monsterHp) || 0));
+      const bossBox = document.querySelector('.cp-practice-boss');
 
       if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
       if (hpText) hpText.textContent = pMax > 0 ? `${pHp}/${pMax} HP` : '0/0 HP';
       if (bossHpFill) bossHpFill.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
       if (bossHpText) bossHpText.textContent = mMax > 0 ? `${mHp}/${mMax} HP` : '';
+
+      // If monster is dead, allow it to stay hidden
+      try {
+        if (bossBox && (Number(b.monsterHp) || 0) <= 0) {
+          bossBox.classList.add('cp-dead');
+        }
+      } catch {}
     };
 
-    const playBeam = async ({ host, variant = 'player' } = {}) => {
-      if (!host) return;
-      const el = document.createElement('div');
-      el.className = `cp-beam ${variant === 'monster' ? 'is-monster' : 'is-player'}`;
-      host.appendChild(el);
+    const getCenter = (el) => {
+      try {
+        const r = el?.getBoundingClientRect?.();
+        if (!r) return null;
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      } catch {
+        return null;
+      }
+    };
+    const playBeamBetween = async ({ fromEl, toEl, variant = 'player' } = {}) => {
+      const a = getCenter(fromEl);
+      const b = getCenter(toEl);
+      if (!a || !b) return;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.max(0, Math.hypot(dx, dy));
+      if (len <= 1) return;
+      const angle = Math.atan2(dy, dx);
+
+      const outer = document.createElement('div');
+      outer.className = `cp-beamline ${variant === 'monster' ? 'is-monster' : 'is-player'}`;
+      outer.style.left = `${a.x}px`;
+      outer.style.top = `${a.y}px`;
+      outer.style.width = `${len}px`;
+      outer.style.setProperty('--cp-angle', `${angle}rad`);
+
+      const inner = document.createElement('div');
+      inner.className = 'cp-beamline-inner';
+      outer.appendChild(inner);
+
+      document.body.appendChild(outer);
       await new Promise((resolve) => {
-        el.addEventListener('animationend', () => resolve(), { once: true });
+        inner.addEventListener('animationend', () => resolve(), { once: true });
       });
-      try { el.remove(); } catch {}
+      try { outer.remove(); } catch {}
     };
     const shake = async (el) => {
       if (!el) return;
@@ -404,66 +438,83 @@ const ChessPalPages = (() => {
         window.__cpPracticeCombatInFlight = true;
       } catch {}
 
-      try { await loadHeroOverrides(); } catch {}
-      const teamState = loadTeams();
-      const team = (teamState && Array.isArray(teamState.teams) && Array.isArray(teamState.teams[teamState.active]))
-        ? teamState.teams[teamState.active]
-        : [null, null, null, null];
-      const heroes = getAllHeroes();
-
-      const gs = getGeneralSettings();
-      const atkMul = Number.isFinite(Number(gs?.atkScale)) ? Number(gs.atkScale) : 0.10;
-      const rcvMul = Number.isFinite(Number(gs?.rcvScale)) ? Number(gs.rcvScale) : 0.50;
-
-      // Heal first (Heart score)
-      const b = getBattle();
-      const heartScore = Number(elementScores?.heart || 0);
-      const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
-      const heal = Math.max(0, Math.round(totalRcv * heartScore * rcvMul));
-      if (heal > 0) {
-        const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
-        b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) + heal));
-        updateHpUI();
-      }
-
-      // Compute total damage from heroes (sum of each hero's element attack power)
-      let totalDmg = 0;
-      for (let i = 0; i < 4; i += 1) {
-        const id = team[i];
-        const hero = id ? heroes.find(h => h.id === String(id)) : null;
-        if (!hero) continue;
-        const el = String(hero.element || '');
-        const elScore = Number(elementScores?.[el] || 0);
-        const atk = Math.max(0, Number(hero.atk) || 0);
-        totalDmg += Math.max(0, Math.round(atk * elScore * atkMul));
-      }
-
-      // Player attacks monster (beam + shake + hp deduction)
-      const bossBox = document.querySelector('.cp-practice-boss');
-      const bossImg = document.querySelector('.cp-practice-bossimg');
-      if (totalDmg > 0) {
-        await playBeam({ host: bossBox, variant: 'player' });
-        await shake(bossImg);
-        const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
-        b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - totalDmg));
-        updateHpUI();
-      }
-
-      // If monster dead, stop.
-      if ((Number(b.monsterHp) || 0) <= 0) return;
-
-      // Monster counter-attacks player (damage = monster ATK)
-      let monsterAtk = 0;
       try {
-        const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
-        monsterAtk = Math.max(0, Math.floor(Number(boss?.atk) || 0));
-      } catch {}
-      if (monsterAtk > 0) {
-        await playBeam({ host: bossBox, variant: 'monster' });
-        await shake(row);
-        const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
-        b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - monsterAtk));
-        updateHpUI();
+        try { await loadHeroOverrides(); } catch {}
+        const teamState = loadTeams();
+        const team = (teamState && Array.isArray(teamState.teams) && Array.isArray(teamState.teams[teamState.active]))
+          ? teamState.teams[teamState.active]
+          : [null, null, null, null];
+        const heroes = getAllHeroes();
+
+        const gs = getGeneralSettings();
+        const atkMul = Number.isFinite(Number(gs?.atkScale)) ? Number(gs.atkScale) : 0.10;
+        const rcvMul = Number.isFinite(Number(gs?.rcvScale)) ? Number(gs.rcvScale) : 0.50;
+
+        const b = getBattle();
+        const bossBox = document.querySelector('.cp-practice-boss');
+        const bossImg = document.querySelector('.cp-practice-bossimg');
+        const hpBar = document.querySelector('.cp-team-hpbar');
+
+        // Heal first (Heart score)
+        const heartScore = Number(elementScores?.heart || 0);
+        const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
+        const heal = Math.max(0, Math.round(totalRcv * heartScore * rcvMul));
+        if (heal > 0) {
+          const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+          b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) + heal));
+          updateHpUI();
+        }
+
+        // Player attacks monster: beams from each hero mini center → monster center (sequential)
+        for (let i = 0; i < 4; i += 1) {
+          const id = team[i];
+          const hero = id ? heroes.find(h => h.id === String(id)) : null;
+          if (!hero) continue;
+          const el = String(hero.element || '');
+          const elScore = Number(elementScores?.[el] || 0);
+          const atk = Math.max(0, Number(hero.atk) || 0);
+          const dmg = Math.max(0, Math.round(atk * elScore * atkMul));
+          if (dmg <= 0) continue;
+
+          const slotEl = row?.children?.[i] || null;
+          await playBeamBetween({ fromEl: slotEl, toEl: bossImg, variant: 'player' });
+          await shake(bossImg);
+          const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
+          b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - dmg));
+          updateHpUI();
+          if ((Number(b.monsterHp) || 0) <= 0) break;
+        }
+
+        // Monster death: blink + disappear (image + hp)
+        if ((Number(b.monsterHp) || 0) <= 0) {
+          try {
+            if (bossBox) {
+              bossBox.classList.add('cp-dead');
+              await new Promise((r) => setTimeout(r, 1000));
+              bossBox.style.display = 'none';
+            }
+          } catch {}
+          return;
+        }
+
+        // Monster counter-attacks player: beam from monster center → HP bar, shake HP bar
+        let monsterAtk = 0;
+        try {
+          const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
+          monsterAtk = Math.max(0, Math.floor(Number(boss?.atk) || 0));
+        } catch {}
+        if (monsterAtk > 0) {
+          await playBeamBetween({ fromEl: bossImg, toEl: hpBar, variant: 'monster' });
+          await shake(hpBar);
+          const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+          b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - monsterAtk));
+          updateHpUI();
+        }
+      } finally {
+        // Clear per-turn scores after combat so next turn starts clean
+        try { window.__cpPracticeElementScores = {}; } catch {}
+        try { applyElementScoresToUI(); } catch {}
+        try { window.__cpPracticeCombatInFlight = false; } catch {}
       }
     };
 
