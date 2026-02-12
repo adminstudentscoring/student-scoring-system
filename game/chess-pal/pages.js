@@ -296,8 +296,20 @@ const ChessPalPages = (() => {
         <div class="cp-practice-left">
           <div class="cp-practice-boss" aria-label="Boss preview">
             <img class="cp-practice-bossimg" src="images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png" alt="Verdant Maw">
+            <div class="cp-boss-hp" aria-label="Monster HP">
+              <div class="cp-boss-hpbar">
+                <div class="cp-boss-hpfill" id="cpBossHpFill"></div>
+              </div>
+              <div class="cp-boss-hptext" id="cpBossHpText"></div>
+            </div>
           </div>
           <div class="cp-practice-team" aria-label="Team preview">
+            <div class="cp-team-hpwrap" aria-label="Player HP">
+              <div class="cp-team-hpbar">
+                <div class="cp-team-hpfill" id="cpTeamHpFill"></div>
+              </div>
+              <div class="cp-team-hptext" id="cpTeamHpText"></div>
+            </div>
             <div class="cp-practice-teamrow" id="cpPracticeTeamRow"></div>
           </div>
         </div>
@@ -314,6 +326,10 @@ const ChessPalPages = (() => {
     try { window.initChessPal?.(); } catch {}
 
     const row = document.getElementById('cpPracticeTeamRow');
+    const hpFill = document.getElementById('cpTeamHpFill');
+    const hpText = document.getElementById('cpTeamHpText');
+    const bossHpFill = document.getElementById('cpBossHpFill');
+    const bossHpText = document.getElementById('cpBossHpText');
     const renderTeam = async () => {
       if (!row) return;
       row.innerHTML = '';
@@ -321,13 +337,38 @@ const ChessPalPages = (() => {
       const state = loadTeams();
       const team = (state && Array.isArray(state.teams) && Array.isArray(state.teams[state.active])) ? state.teams[state.active] : [null, null, null, null];
       const heroes = getAllHeroes();
+
+      // Player totals (HP + RCV)
+      let totalHp = 0;
+      let totalRcv = 0;
+      for (let i = 0; i < 4; i += 1) {
+        const id = team[i];
+        const hero = id ? heroes.find(h => h.id === String(id)) : null;
+        if (hero) {
+          totalHp += Math.max(0, Math.floor(Number(hero.hp) || 0));
+          totalRcv += Math.max(0, Math.floor(Number(hero.rcv) || 0));
+        }
+      }
+      if (hpFill) hpFill.style.width = '100%';
+      if (hpText) hpText.textContent = totalHp > 0 ? `${totalHp} HP` : '0 HP';
+      // Keep RCV total for future use (not displayed yet)
+      try { window.__cpPlayerRcvTotal = totalRcv; } catch {}
+
+      // Boss HP (Verdant Maw = monster id 004)
+      try {
+        const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
+        const bossHp = Math.max(0, Math.floor(Number(boss?.hp) || 0));
+        if (bossHpFill) bossHpFill.style.width = bossHp > 0 ? '100%' : '0%';
+        if (bossHpText) bossHpText.textContent = bossHp > 0 ? `${bossHp} HP` : '';
+      } catch {}
+
       for (let i = 0; i < 4; i += 1) {
         const id = team[i];
         const hero = id ? heroes.find(h => h.id === String(id)) : null;
         const slot = document.createElement('div');
         slot.className = `cp-practice-slot ${i === 0 ? 'is-leader' : ''}`;
         slot.innerHTML = hero
-          ? `<img src="${esc(hero.mini)}" alt="${esc(hero.name)}">`
+          ? `<img src="${esc(hero.mini)}" alt="${esc(hero.name)}"><span class="cp-hero-jewel cp-hero-jewel--${esc(String(hero.element || '').toLowerCase())}" aria-hidden="true"></span>`
           : `<div class="cp-practice-slot-empty"></div>`;
         row.appendChild(slot);
       }

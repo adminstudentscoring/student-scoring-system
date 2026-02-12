@@ -1000,6 +1000,7 @@ body {
   background: rgba(255,255,255,0.04);
   overflow:hidden;
   min-height: 240px;
+  position: relative;
 }
 .cp-practice-bossimg{
   width: 100%;
@@ -1016,6 +1017,58 @@ body {
   background: rgba(255,255,255,0.04);
   padding: 12px;
 }
+.cp-team-hpwrap{
+  margin-bottom: 2px;
+}
+.cp-team-hpbar{
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+}
+.cp-team-hpfill{
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(34,197,94,0.92), rgba(16,185,129,0.92));
+  opacity: 0.90;
+}
+.cp-team-hptext{
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.86);
+}
+
+.cp-boss-hp{
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  width: 50%;
+  pointer-events: none;
+}
+.cp-boss-hpbar{
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.22);
+}
+.cp-boss-hpfill{
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(34,197,94,0.92), rgba(16,185,129,0.92));
+  opacity: 0.92;
+}
+.cp-boss-hptext{
+  margin-top: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.86);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.70);
+}
 .cp-practice-teamrow{
   display:grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1028,6 +1081,7 @@ body {
   border: 1px solid rgba(255,255,255,0.10);
   background: rgba(0,0,0,0.18);
   overflow:hidden;
+  position: relative;
 }
 .cp-practice-slot.is-leader{
   border-color: rgba(124,58,237,0.55);
