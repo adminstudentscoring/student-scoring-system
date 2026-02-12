@@ -1514,7 +1514,7 @@ const ChessPalPages = (() => {
     silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S001-Silver-Coin.png' },
     // You mentioned Gold/Silver both have S001 prefix; we try multiple names via fallback.
     gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S001-Gold-Coin.png' },
-    exp_soldier: { id: 'exp_soldier', name: 'EXP Soldier', img: 'images/Storage/S001-Exp-Soldier.png' },
+    exp_pawn: { id: 'exp_pawn', name: 'EXP Pawn', img: 'images/Storage/S003-Exp-Pawn.png' },
   };
 
   function getStorageItemDef(itemId) {
@@ -1530,14 +1530,21 @@ const ChessPalPages = (() => {
     const legacy = [];
     if (base.includes('S001-Silver-Coin')) legacy.push('images/Storage/Silver-Coin.png');
     if (base.includes('S001-Gold-Coin') || base.includes('S002-Gold-Coin')) legacy.push('images/Storage/Gold-Coin.png');
-    if (base.includes('S001-Exp-Soldier') || base.includes('S002-Exp-Soldier') || base.includes('S003-Exp-Soldier')) {
-      legacy.push('images/Storage/Exp-Soldier.png');
+    if (base.includes('S003-Exp-Pawn') || base.includes('S002-Exp-Pawn') || base.includes('S001-Exp-Pawn')) {
+      legacy.push('images/Storage/Exp-Pawn.png');
     }
     // Also try other numbered variants (in case you used different indices)
     if (base.includes('Gold-Coin')) {
       legacy.unshift('images/Storage/S002-Gold-Coin.png');
     }
+    if (base.includes('Exp-Pawn')) {
+      legacy.unshift('images/Storage/S003-Exp-Pawn.png');
+      legacy.unshift('images/Storage/S002-Exp-Pawn.png');
+      legacy.unshift('images/Storage/S001-Exp-Pawn.png');
+    }
+    // Legacy soldier naming (older builds)
     if (base.includes('Exp-Soldier')) {
+      legacy.push('images/Storage/Exp-Soldier.png');
       legacy.unshift('images/Storage/S003-Exp-Soldier.png');
       legacy.unshift('images/Storage/S002-Exp-Soldier.png');
     }
@@ -1569,6 +1576,8 @@ const ChessPalPages = (() => {
       const qty = Math.max(1, Math.floor(Number(s.qty) || 1));
       if (!itemId) return null;
       if (itemId === 'potion') return null; // remove old test item
+      // Legacy rename: exp_soldier -> exp_pawn
+      if (itemId === 'exp_soldier') return { itemId: 'exp_pawn', name: name || 'EXP Pawn', qty };
       return { itemId, name: name || itemId, qty };
     });
   }
@@ -1716,12 +1725,13 @@ const ChessPalPages = (() => {
         // Toggle selection if clicking same slot with item
         const slot = slots[idx] || null;
         if (slot) {
-          // Use item (UI first): EXP Soldier
-          if (String(slot.itemId || '').toLowerCase() === 'exp_soldier') {
+          // Use item (UI first): EXP Pawn (legacy: exp_soldier)
+          const slotId = String(slot.itemId || '').toLowerCase();
+          if (slotId === 'exp_pawn' || slotId === 'exp_soldier') {
             const owned = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
             const ids = Array.from(owned);
             showPickHeroModal({
-              title: 'Use EXP Soldier',
+              title: 'Use EXP Pawn',
               allowIds: ids,
               onPick: (heroId) => {
                 // Consume 1 item
@@ -1846,10 +1856,10 @@ const ChessPalPages = (() => {
         <div class="cp-mall-grid" style="margin-top:12px;">
           <div class="cp-mall-item">
             <div class="cp-mall-icon">
-              ${renderImgWithFallback('images/Storage/S003-Exp-Soldier.png', 'EXP Soldier', '')}
+              ${renderImgWithFallback('images/Storage/S003-Exp-Pawn.png', 'EXP Pawn', '')}
             </div>
             <div class="cp-mall-meta">
-              <div class="cp-setting-label">EXP Soldier</div>
+              <div class="cp-setting-label">EXP Pawn</div>
               <div class="cp-setting-help">Gives a small amount of EXP to one hero.</div>
               <div class="cp-mall-price" aria-label="Price">
                 ${renderImgWithFallback('images/Storage/S001-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
@@ -1881,7 +1891,7 @@ const ChessPalPages = (() => {
         }
         slots = spent.slots;
         const before = JSON.stringify(slots);
-        slots = addItemToStorage(slots, 'exp_soldier', 1);
+        slots = addItemToStorage(slots, 'exp_pawn', 1);
         if (JSON.stringify(slots) === before) {
           setMsg('Storage is full.');
           return;
