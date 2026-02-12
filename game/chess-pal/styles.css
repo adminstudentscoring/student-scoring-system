@@ -953,7 +953,7 @@ body {
   grid-template-columns: 360px max-content;
   gap: 14px;
   justify-content: center;
-  align-items: center;
+  align-items: start;
   align-content: center;
   min-height: calc(100dvh - 120px);
 }
@@ -968,8 +968,12 @@ body {
   display:flex;
   flex-direction: column;
   gap: 12px;
+  align-self: start; /* no vertical centering */
+  justify-content: flex-start;
+  align-items: center; /* horizontal centering */
 }
 .cp-practice-boss{
+  width: 100%;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.10);
   background: rgba(255,255,255,0.04);
@@ -985,6 +989,7 @@ body {
 }
 .cp-practice-team{
   margin-top: auto;
+  width: 100%;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.10);
   background: rgba(255,255,255,0.04);
@@ -994,6 +999,7 @@ body {
   display:grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
+  width: 100%;
 }
 .cp-practice-slot{
   aspect-ratio: 1 / 1;
@@ -1021,6 +1027,8 @@ body {
   justify-content:center;
   align-items:center;
   width: max-content;
+  align-self: center; /* keep board vertically centered */
+  margin-left: 38px; /* ~1cm to the right */
 }
 .cp-practice-right .pmf-wrapper{
   width: auto;
