@@ -953,9 +953,10 @@ body {
   grid-template-columns: 360px max-content;
   gap: 14px;
   justify-content: center;
-  align-items: start;
+  align-items: stretch;
   align-content: center;
-  min-height: calc(100dvh - 120px);
+  /* Fill viewport (minus topbar + page padding) so left team can dock bottom */
+  min-height: calc(100dvh - 86px);
 }
 @media (max-width: 980px){
   .cp-practice{
@@ -968,9 +969,9 @@ body {
   display:flex;
   flex-direction: column;
   gap: 12px;
-  align-self: start; /* no vertical centering */
   justify-content: flex-start;
   align-items: center; /* horizontal centering */
+  height: 100%;
 }
 .cp-practice-boss{
   width: 100%;
