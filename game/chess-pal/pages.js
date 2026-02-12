@@ -20,7 +20,7 @@ const ChessPalPages = (() => {
   }
 
   function getGeneralSettings() {
-    const base = { jewelAlpha: 0.22, appBg: '#060912', jewelSet: 'set_a' };
+    const base = { jewelAlpha: 0.22, appBg: '#060912', jewelSet: 'set_a', pieceStyle: 'none' };
     try {
       const raw = localStorage.getItem('chessPalGeneralSettings');
       if (!raw) return base;
@@ -29,10 +29,13 @@ const ChessPalPages = (() => {
       const appBg = String(v?.appBg || '').trim();
       const jewelSetRaw = String(v?.jewelSet || '').trim().toLowerCase();
       const jewelSet = (jewelSetRaw === 'set_a' || jewelSetRaw === 'none') ? jewelSetRaw : base.jewelSet;
+      const pieceStyleRaw = String(v?.pieceStyle || '').trim().toLowerCase();
+      const pieceStyle = (pieceStyleRaw === 'none' || pieceStyleRaw === 'nyxblade') ? pieceStyleRaw : base.pieceStyle;
       return {
         jewelAlpha: Number.isFinite(jewelAlpha) ? Math.max(0.08, Math.min(0.45, jewelAlpha)) : base.jewelAlpha,
         appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg,
-        jewelSet
+        jewelSet,
+        pieceStyle
       };
     } catch {
       return base;
@@ -47,6 +50,9 @@ const ChessPalPages = (() => {
       root.style.setProperty('--cp-app-bg', String(s?.appBg ?? '#060912'));
       const nextSet = String(s?.jewelSet || 'set_a').trim().toLowerCase();
       root.setAttribute('data-cp-jewel-set', (nextSet === 'none' || nextSet === 'set_a') ? nextSet : 'set_a');
+      const nextPiece = String(s?.pieceStyle || 'none').trim().toLowerCase();
+      root.setAttribute('data-cp-piece-style', (nextPiece === 'nyxblade' || nextPiece === 'none') ? nextPiece : 'none');
+      try { window.dispatchEvent(new Event('cpGeneralSettingsChanged')); } catch {}
     } catch {}
   }
 
@@ -368,7 +374,7 @@ const ChessPalPages = (() => {
         const slot = document.createElement('div');
         slot.className = `cp-practice-slot ${i === 0 ? 'is-leader' : ''}`;
         slot.innerHTML = hero
-          ? `<img src="${esc(hero.mini)}" alt="${esc(hero.name)}"><span class="cp-hero-jewel cp-hero-jewel--${esc(String(hero.element || '').toLowerCase())}" aria-hidden="true"></span>`
+          ? `<img src="${esc(hero.mini)}" alt="${esc(hero.name)}">${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}`
           : `<div class="cp-practice-slot-empty"></div>`;
         row.appendChild(slot);
       }
@@ -630,6 +636,21 @@ const ChessPalPages = (() => {
     return e || '-';
   }
 
+  function jewelIconSrcForElement(el) {
+    const e = String(el || '').toLowerCase();
+    const map = {
+      fire: 'Fire',
+      water: 'Water',
+      wood: 'Wood',
+      light: 'Light',
+      dark: 'Dark',
+      heart: 'Heart',
+    };
+    const key = map[e];
+    if (!key) return '';
+    return `images/Jewel/Set_A/Set_A-${key}.png`;
+  }
+
   function renderStars(n) {
     const k = Math.max(1, Math.min(8, Number(n) || 5));
     return '★'.repeat(k);
@@ -874,7 +895,7 @@ const ChessPalPages = (() => {
       <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini)}" alt="${esc(h.name)}">
-          <span class="cp-hero-jewel cp-hero-jewel--${esc(String(h.element || '').toLowerCase())}" aria-hidden="true"></span>
+          ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
         </div>
         <div class="cp-hero-mini-meta">
           <div class="cp-hero-mini-name">${(!admin && owned && !owned.has(h.id)) ? '' : esc(h.name)}</div>
@@ -1455,7 +1476,7 @@ const ChessPalPages = (() => {
         <button class="cp-hero-card" type="button" data-pick-hero="${esc(h.id)}">
           <div class="cp-hero-mini">
             <img src="${esc(h.mini)}" alt="${esc(h.name)}">
-            <span class="cp-hero-jewel cp-hero-jewel--${esc(String(h.element || '').toLowerCase())}" aria-hidden="true"></span>
+            ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
           </div>
           <div class="cp-hero-mini-meta">
             <div class="cp-hero-mini-name">${esc(h.name)}</div>
@@ -2096,6 +2117,22 @@ const ChessPalPages = (() => {
           </div>
 
           <div class="cp-setting-item">
+            <div class="cp-setting-label">Piece</div>
+            <div class="cp-setting-help">Choose the chess piece style (instant preview).</div>
+            <select id="cpSettingPieceStyle" class="cp-select">
+              <option value="none" ${s.pieceStyle === 'none' ? 'selected' : ''}>No Style</option>
+              <option value="nyxblade" ${s.pieceStyle === 'nyxblade' ? 'selected' : ''}>Nyxblade</option>
+            </select>
+            <div class="cp-setting-value"><span id="cpSettingPieceStyleVal">${s.pieceStyle === 'nyxblade' ? 'Nyxblade' : 'No Style'}</span></div>
+
+            <div class="cp-piece-preview" aria-label="Piece preview">
+              <div class="cp-piece-preview-box">
+                <img id="cpPiecePreviewImg" src="${s.pieceStyle === 'nyxblade' ? 'images/Piece/P001-nyxblade.png' : '/assets/pieces/white_Knight.png'}" alt="Piece preview">
+              </div>
+            </div>
+          </div>
+
+          <div class="cp-setting-item">
             <div class="cp-setting-label">Jewel Glow</div>
             <div class="cp-setting-help">Adjust jewel base brightness (alpha).</div>
             <input id="cpSettingJewelAlpha" type="range" min="0.08" max="0.45" step="0.01" value="${String(s.jewelAlpha)}">
@@ -2118,6 +2155,9 @@ const ChessPalPages = (() => {
     const s0 = getGeneralSettings();
     const jewelSet = document.getElementById('cpSettingJewelSet');
     const jewelSetVal = document.getElementById('cpSettingJewelSetVal');
+    const pieceStyle = document.getElementById('cpSettingPieceStyle');
+    const pieceStyleVal = document.getElementById('cpSettingPieceStyleVal');
+    const piecePreviewImg = document.getElementById('cpPiecePreviewImg');
     const alpha = document.getElementById('cpSettingJewelAlpha');
     const alphaVal = document.getElementById('cpSettingJewelAlphaVal');
     const bg = document.getElementById('cpSettingAppBg');
@@ -2143,6 +2183,25 @@ const ChessPalPages = (() => {
         applyGeneralSettings(next);
         saveGeneralSettings(next);
         if (alphaVal) alphaVal.textContent = `${Math.round(next.jewelAlpha * 100)}%`;
+      }, { passive: true });
+    }
+
+    if (pieceStyle) {
+      pieceStyle.value = String(s0.pieceStyle || 'none');
+      const syncPreview = () => {
+        if (!piecePreviewImg) return;
+        const v = String(pieceStyle.value || 'none').trim().toLowerCase();
+        piecePreviewImg.src = (v === 'nyxblade') ? 'images/Piece/P001-nyxblade.png' : '/assets/pieces/white_Knight.png';
+      };
+      syncPreview();
+      pieceStyle.addEventListener('change', () => {
+        const next = getGeneralSettings();
+        const v = String(pieceStyle.value || 'none').trim().toLowerCase();
+        next.pieceStyle = (v === 'nyxblade' || v === 'none') ? v : 'none';
+        applyGeneralSettings(next);
+        saveGeneralSettings(next);
+        if (pieceStyleVal) pieceStyleVal.textContent = next.pieceStyle === 'nyxblade' ? 'Nyxblade' : 'No Style';
+        syncPreview();
       }, { passive: true });
     }
 

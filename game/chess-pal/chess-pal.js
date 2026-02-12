@@ -31,6 +31,22 @@ const ChessPal = (() => {
     isAnimating: false
   };
 
+  function getPieceStyle() {
+    try {
+      const v = document.documentElement?.getAttribute('data-cp-piece-style');
+      const key = String(v || '').trim().toLowerCase();
+      return (key === 'nyxblade') ? 'nyxblade' : 'none';
+    } catch {
+      return 'none';
+    }
+  }
+
+  function getKnightImageSrc() {
+    const style = getPieceStyle();
+    if (style === 'nyxblade') return 'images/Piece/P001-nyxblade.png';
+    return '/assets/pieces/white_Knight.png';
+  }
+
   function init() {
     const container = document.getElementById('chessPalGame');
     if (!container) {
@@ -69,6 +85,12 @@ const ChessPal = (() => {
     state.startButtonEl = container.querySelector('#pmfStartTurn');
     state.startButtonEl.addEventListener('click', startPlayerTurn);
 
+    // Live update when user changes Piece setting
+    try {
+      window.__cpPieceListener = () => { try { renderBoard(); } catch {} };
+      window.addEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
+    } catch {}
+
     generateInitialBoard();
     renderBoard();
     renderMoveHistory();
@@ -98,6 +120,9 @@ const ChessPal = (() => {
     state.knightPosition = null;
     state.validMoves = [];
     state.lastScore = null;
+    try {
+      if (window.__cpPieceListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
+    } catch {}
   }
 
   function computeScoreBreakdown(moveHistory, cascades, timeLeftMs) {
@@ -239,7 +264,7 @@ const ChessPal = (() => {
         cell.innerHTML = '';
         if (isKnight) {
           const img = document.createElement('img');
-          img.src = '/assets/pieces/white_Knight.png';
+          img.src = getKnightImageSrc();
           img.alt = 'Knight';
           img.className = 'pmf-knight-image';
           img.onerror = function() {
