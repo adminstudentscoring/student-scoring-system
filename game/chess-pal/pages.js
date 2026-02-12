@@ -20,7 +20,16 @@ const ChessPalPages = (() => {
   }
 
   function getGeneralSettings() {
-    const base = { jewelAlpha: 0.22, appBg: '#060912', jewelSet: 'set_a', pieceStyle: 'none' };
+    const base = {
+      jewelAlpha: 0.22,
+      appBg: '#060912',
+      jewelSet: 'set_a',
+      pieceStyle: 'none',
+      // Admin tuning (used for Practice combat math)
+      streakMult: 1.05,
+      atkScale: 0.10,
+      rcvScale: 0.50
+    };
     try {
       const raw = localStorage.getItem('chessPalGeneralSettings');
       if (!raw) return base;
@@ -33,11 +42,17 @@ const ChessPalPages = (() => {
       const pieceStyle = (pieceStyleRaw === 'none' || pieceStyleRaw === 'nyxblade' || pieceStyleRaw === 'rivenhart')
         ? pieceStyleRaw
         : base.pieceStyle;
+      const streakMultRaw = Number(v?.streakMult);
+      const atkScaleRaw = Number(v?.atkScale);
+      const rcvScaleRaw = Number(v?.rcvScale);
       return {
         jewelAlpha: Number.isFinite(jewelAlpha) ? Math.max(0.08, Math.min(0.45, jewelAlpha)) : base.jewelAlpha,
         appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg,
         jewelSet,
-        pieceStyle
+        pieceStyle,
+        streakMult: Number.isFinite(streakMultRaw) ? Math.max(1.0, Math.min(1.3, streakMultRaw)) : base.streakMult,
+        atkScale: Number.isFinite(atkScaleRaw) ? Math.max(0, Math.min(1.0, atkScaleRaw)) : base.atkScale,
+        rcvScale: Number.isFinite(rcvScaleRaw) ? Math.max(0, Math.min(2.0, rcvScaleRaw)) : base.rcvScale
       };
     } catch {
       return base;
@@ -341,11 +356,127 @@ const ChessPalPages = (() => {
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpText = document.getElementById('cpBossHpText');
 
+    const getBattle = () => {
+      try {
+        if (!window.__cpPracticeBattleState) window.__cpPracticeBattleState = {};
+        return window.__cpPracticeBattleState;
+      } catch {
+        return {};
+      }
+    };
+    const updateHpUI = () => {
+      const b = getBattle();
+      const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+      const pHp = Math.max(0, Math.min(pMax, Number(b.playerHp) || 0));
+      const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
+      const mHp = Math.max(0, Math.min(mMax, Number(b.monsterHp) || 0));
+
+      if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
+      if (hpText) hpText.textContent = pMax > 0 ? `${pHp}/${pMax} HP` : '0/0 HP';
+      if (bossHpFill) bossHpFill.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
+      if (bossHpText) bossHpText.textContent = mMax > 0 ? `${mHp}/${mMax} HP` : '';
+    };
+
+    const playBeam = async ({ host, variant = 'player' } = {}) => {
+      if (!host) return;
+      const el = document.createElement('div');
+      el.className = `cp-beam ${variant === 'monster' ? 'is-monster' : 'is-player'}`;
+      host.appendChild(el);
+      await new Promise((resolve) => {
+        el.addEventListener('animationend', () => resolve(), { once: true });
+      });
+      try { el.remove(); } catch {}
+    };
+    const shake = async (el) => {
+      if (!el) return;
+      el.classList.remove('cp-shake');
+      // Force reflow
+      void el.offsetWidth;
+      el.classList.add('cp-shake');
+      await new Promise((r) => setTimeout(r, 420));
+      el.classList.remove('cp-shake');
+    };
+
+    const resolveCombatFinal = async (elementScores) => {
+      if (!row) return;
+      try {
+        if (window.__cpPracticeCombatInFlight) return;
+        window.__cpPracticeCombatInFlight = true;
+      } catch {}
+
+      try { await loadHeroOverrides(); } catch {}
+      const teamState = loadTeams();
+      const team = (teamState && Array.isArray(teamState.teams) && Array.isArray(teamState.teams[teamState.active]))
+        ? teamState.teams[teamState.active]
+        : [null, null, null, null];
+      const heroes = getAllHeroes();
+
+      const gs = getGeneralSettings();
+      const atkMul = Number.isFinite(Number(gs?.atkScale)) ? Number(gs.atkScale) : 0.10;
+      const rcvMul = Number.isFinite(Number(gs?.rcvScale)) ? Number(gs.rcvScale) : 0.50;
+
+      // Heal first (Heart score)
+      const b = getBattle();
+      const heartScore = Number(elementScores?.heart || 0);
+      const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
+      const heal = Math.max(0, Math.round(totalRcv * heartScore * rcvMul));
+      if (heal > 0) {
+        const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+        b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) + heal));
+        updateHpUI();
+      }
+
+      // Compute total damage from heroes (sum of each hero's element attack power)
+      let totalDmg = 0;
+      for (let i = 0; i < 4; i += 1) {
+        const id = team[i];
+        const hero = id ? heroes.find(h => h.id === String(id)) : null;
+        if (!hero) continue;
+        const el = String(hero.element || '');
+        const elScore = Number(elementScores?.[el] || 0);
+        const atk = Math.max(0, Number(hero.atk) || 0);
+        totalDmg += Math.max(0, Math.round(atk * elScore * atkMul));
+      }
+
+      // Player attacks monster (beam + shake + hp deduction)
+      const bossBox = document.querySelector('.cp-practice-boss');
+      const bossImg = document.querySelector('.cp-practice-bossimg');
+      if (totalDmg > 0) {
+        await playBeam({ host: bossBox, variant: 'player' });
+        await shake(bossImg);
+        const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
+        b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - totalDmg));
+        updateHpUI();
+      }
+
+      // If monster dead, stop.
+      if ((Number(b.monsterHp) || 0) <= 0) return;
+
+      // Monster counter-attacks player (damage = monster ATK)
+      let monsterAtk = 0;
+      try {
+        const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
+        monsterAtk = Math.max(0, Math.floor(Number(boss?.atk) || 0));
+      } catch {}
+      if (monsterAtk > 0) {
+        await playBeam({ host: bossBox, variant: 'monster' });
+        await shake(row);
+        const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+        b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - monsterAtk));
+        updateHpUI();
+      }
+    };
+
     const applyElementScoresToUI = () => {
       if (!row) return;
       const scores = (window.__cpPracticeElementScores && typeof window.__cpPracticeElementScores === 'object')
         ? window.__cpPracticeElementScores
         : {};
+      const gs = getGeneralSettings();
+      const atkScale = Number(gs?.atkScale);
+      const atkMul = Number.isFinite(atkScale) ? atkScale : 0.10;
+      const rcvScale = Number(gs?.rcvScale);
+      const rcvMul = Number.isFinite(rcvScale) ? rcvScale : 0.50;
       const heroes = getAllHeroes();
       row.querySelectorAll('.cp-practice-slot[data-hero-id]').forEach((slot) => {
         const hid = String(slot.getAttribute('data-hero-id') || '');
@@ -355,7 +486,7 @@ const ChessPalPages = (() => {
         const el = String(hero.element || '');
         const elScore = Number(scores[el] || 0);
         const atk = Math.max(0, Number(hero.atk) || 0);
-        const power = Math.round(atk * elScore * 0.1);
+        const power = Math.round(atk * elScore * atkMul);
         atkEl.textContent = power > 0 ? String(power) : '';
       });
 
@@ -363,7 +494,7 @@ const ChessPalPages = (() => {
       try {
         const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
         const heartScore = Number(scores.heart || 0);
-        const heal = Math.round(totalRcv * heartScore * 0.5);
+        const heal = Math.round(totalRcv * heartScore * rcvMul);
         if (rcvOverlay) rcvOverlay.textContent = heal > 0 ? `+${heal}` : '';
       } catch {
         if (rcvOverlay) rcvOverlay.textContent = '';
@@ -418,6 +549,20 @@ const ChessPalPages = (() => {
           : `<div class="cp-practice-slot-empty"></div>`;
         row.appendChild(slot);
       }
+
+      // Init / update battle state & HP UI
+      try {
+        const b = getBattle();
+        const pMax = Math.max(0, totalHp);
+        b.playerMaxHp = pMax;
+        b.playerHp = Number.isFinite(Number(b.playerHp)) ? Math.max(0, Math.min(pMax, Number(b.playerHp))) : pMax;
+        const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
+        const mMax = Math.max(0, Math.floor(Number(boss?.hp) || 0));
+        b.monsterMaxHp = mMax;
+        b.monsterHp = Number.isFinite(Number(b.monsterHp)) ? Math.max(0, Math.min(mMax, Number(b.monsterHp))) : mMax;
+      } catch {}
+      updateHpUI();
+
       applyElementScoresToUI();
     };
     renderTeam();
@@ -442,6 +587,14 @@ const ChessPalPages = (() => {
         window.__cpPracticeElementScores = {};
       }
       applyElementScoresToUI();
+
+      // On final score aggregation: heal + attack + monster counter-attack
+      try {
+        const phase = String(ev?.detail?.phase || '');
+        if (phase === 'final') {
+          resolveCombatFinal(window.__cpPracticeElementScores || {});
+        }
+      } catch {}
     };
     try { window.addEventListener('cpElementScoresChanged', window.__cpPracticeScoreListener); } catch {}
   };
@@ -2154,6 +2307,7 @@ const ChessPalPages = (() => {
   SettingsPage.title = 'Setting';
   SettingsPage.render = () => {
     const s = getGeneralSettings();
+    const admin = isAdminMode();
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Setting</div>
@@ -2213,6 +2367,32 @@ const ChessPalPages = (() => {
               <div class="cp-setting-value"><span id="cpSettingAppBgVal">${esc(s.appBg)}</span></div>
             </div>
           </div>
+
+          ${admin ? `
+            <div class="cp-setting-item">
+              <div class="cp-setting-label">Admin · Practice Tuning</div>
+              <div class="cp-setting-help">Tune streak multiplier and ATK/RCV scaling used for Practice combat.</div>
+
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top:10px;">
+                <label class="cp-setting-help" style="display:block;">
+                  Streak Multiplier (default 1.05)
+                  <input class="cp-select" id="cpSettingStreakMult" type="number" step="0.01" min="1" max="1.3" value="${esc(String(s.streakMult ?? 1.05))}">
+                </label>
+                <label class="cp-setting-help" style="display:block;">
+                  ATK Scale (default 0.10)
+                  <input class="cp-select" id="cpSettingAtkScale" type="number" step="0.01" min="0" max="1" value="${esc(String(s.atkScale ?? 0.10))}">
+                </label>
+                <label class="cp-setting-help" style="display:block;">
+                  RCV Scale (default 0.50)
+                  <input class="cp-select" id="cpSettingRcvScale" type="number" step="0.05" min="0" max="2" value="${esc(String(s.rcvScale ?? 0.50))}">
+                </label>
+                <div class="cp-setting-help" style="opacity:0.8;">
+                  ATK = hero.atk × elementScore × atkScale<br>
+                  Heal = teamRCV × heartScore × rcvScale
+                </div>
+              </div>
+            </div>
+          ` : ``}
         </div>
       </div>
     `;
@@ -2284,6 +2464,24 @@ const ChessPalPages = (() => {
         saveGeneralSettings(next);
         if (bgVal) bgVal.textContent = next.appBg;
       }, { passive: true });
+    }
+
+    // Admin tuning
+    if (isAdminMode()) {
+      const streakMult = document.getElementById('cpSettingStreakMult');
+      const atkScale = document.getElementById('cpSettingAtkScale');
+      const rcvScale = document.getElementById('cpSettingRcvScale');
+      const applyNum = (key, raw, min, max) => {
+        const next = getGeneralSettings();
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        next[key] = Math.max(min, Math.min(max, n));
+        applyGeneralSettings(next);
+        saveGeneralSettings(next);
+      };
+      streakMult?.addEventListener('change', () => applyNum('streakMult', streakMult.value, 1.0, 1.3), { passive: true });
+      atkScale?.addEventListener('change', () => applyNum('atkScale', atkScale.value, 0, 1.0), { passive: true });
+      rcvScale?.addEventListener('change', () => applyNum('rcvScale', rcvScale.value, 0, 2.0), { passive: true });
     }
   };
 

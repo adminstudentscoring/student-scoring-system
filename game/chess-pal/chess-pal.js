@@ -31,6 +31,19 @@ const ChessPal = (() => {
     isAnimating: false
   };
 
+  let tuning = { streakMult: 1.05 };
+  function loadTuning() {
+    try {
+      const raw = localStorage.getItem('chessPalGeneralSettings');
+      const v = raw ? JSON.parse(raw) : null;
+      const streakMultRaw = Number(v?.streakMult);
+      const streakMult = Number.isFinite(streakMultRaw) ? Math.max(1.0, Math.min(1.3, streakMultRaw)) : 1.05;
+      return { streakMult };
+    } catch {
+      return { streakMult: 1.05 };
+    }
+  }
+
   function getPieceStyle() {
     try {
       const v = document.documentElement?.getAttribute('data-cp-piece-style');
@@ -88,7 +101,8 @@ const ChessPal = (() => {
 
     // Live update when user changes Piece setting
     try {
-      window.__cpPieceListener = () => { try { renderBoard(); } catch {} };
+      tuning = loadTuning();
+      window.__cpPieceListener = () => { try { tuning = loadTuning(); renderBoard(); } catch {} };
       window.addEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
     } catch {}
 
@@ -139,9 +153,10 @@ const ChessPal = (() => {
     const n = Math.max(0, Math.floor(Number(len) || 0));
     if (n <= 0) return 0;
     if (n < 3) return n;
-    let t = 3 * 1.05;
+    const mult = Number.isFinite(Number(tuning?.streakMult)) ? Number(tuning.streakMult) : 1.05;
+    let t = 3 * mult;
     for (let k = 4; k <= n; k += 1) {
-      t = (t + 1) * 1.05;
+      t = (t + 1) * mult;
     }
     return t;
   }
