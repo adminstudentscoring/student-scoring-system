@@ -1044,11 +1044,24 @@ body {
   margin-bottom: 2px;
 }
 .cp-team-hpbar{
+  position: relative;
   height: 8px;
   border-radius: 999px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.12);
   background: rgba(0,0,0,0.18);
+}
+.cp-team-hpoverlay{
+  position: absolute;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 10px;
+  font-weight: 1000;
+  color: rgba(34,197,94,0.92);
+  text-shadow: 0 8px 18px rgba(0,0,0,0.60);
+  pointer-events: none;
 }
 .cp-team-hpfill{
   height: 100%;
@@ -1106,6 +1119,25 @@ body {
   overflow:hidden;
   position: relative;
 }
+.cp-practice-atk{
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 1000;
+  background: rgba(0,0,0,0.40);
+  border: 1px solid rgba(255,255,255,0.12);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.70);
+  pointer-events: none;
+}
+.cp-elem-fire{ color: rgba(239,68,68,0.95); }
+.cp-elem-water{ color: rgba(59,130,246,0.95); }
+.cp-elem-wood{ color: rgba(16,185,129,0.95); }
+.cp-elem-light{ color: rgba(250,204,21,0.95); }
+.cp-elem-dark{ color: rgba(99,102,241,0.98); }
+.cp-elem-heart{ color: rgba(236,72,153,0.95); }
 .cp-practice-slot.is-leader{
   border-color: rgba(124,58,237,0.55);
   box-shadow: 0 0 0 3px rgba(124,58,237,0.14);

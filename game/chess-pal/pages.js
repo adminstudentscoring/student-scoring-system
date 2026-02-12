@@ -315,6 +315,7 @@ const ChessPalPages = (() => {
             <div class="cp-team-hpwrap" aria-label="Player HP">
               <div class="cp-team-hpbar">
                 <div class="cp-team-hpfill" id="cpTeamHpFill"></div>
+                <div class="cp-team-hpoverlay" id="cpTeamRcvOverlay"></div>
               </div>
               <div class="cp-team-hptext" id="cpTeamHpText"></div>
             </div>
@@ -336,8 +337,39 @@ const ChessPalPages = (() => {
     const row = document.getElementById('cpPracticeTeamRow');
     const hpFill = document.getElementById('cpTeamHpFill');
     const hpText = document.getElementById('cpTeamHpText');
+    const rcvOverlay = document.getElementById('cpTeamRcvOverlay');
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpText = document.getElementById('cpBossHpText');
+
+    const applyElementScoresToUI = () => {
+      if (!row) return;
+      const scores = (window.__cpPracticeElementScores && typeof window.__cpPracticeElementScores === 'object')
+        ? window.__cpPracticeElementScores
+        : {};
+      const heroes = getAllHeroes();
+      row.querySelectorAll('.cp-practice-slot[data-hero-id]').forEach((slot) => {
+        const hid = String(slot.getAttribute('data-hero-id') || '');
+        const hero = heroes.find(h => String(h.id) === hid) || null;
+        const atkEl = slot.querySelector('[data-practice-atk]');
+        if (!atkEl || !hero) return;
+        const el = String(hero.element || '');
+        const elScore = Number(scores[el] || 0);
+        const atk = Math.max(0, Number(hero.atk) || 0);
+        const power = Math.round(atk * elScore * 0.1);
+        atkEl.textContent = power > 0 ? String(power) : '';
+      });
+
+      // RCV shown on HP bar (use Heart score)
+      try {
+        const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
+        const heartScore = Number(scores.heart || 0);
+        const heal = Math.round(totalRcv * heartScore * 0.5);
+        if (rcvOverlay) rcvOverlay.textContent = heal > 0 ? `+${heal}` : '';
+      } catch {
+        if (rcvOverlay) rcvOverlay.textContent = '';
+      }
+    };
+
     const renderTeam = async () => {
       if (!row) return;
       row.innerHTML = '';
@@ -361,6 +393,7 @@ const ChessPalPages = (() => {
       if (hpText) hpText.textContent = totalHp > 0 ? `${totalHp} HP` : '0 HP';
       // Keep RCV total for future use (not displayed yet)
       try { window.__cpPlayerRcvTotal = totalRcv; } catch {}
+      if (rcvOverlay) rcvOverlay.textContent = '';
 
       // Boss HP (Verdant Maw = monster id 004)
       try {
@@ -375,11 +408,17 @@ const ChessPalPages = (() => {
         const hero = id ? heroes.find(h => h.id === String(id)) : null;
         const slot = document.createElement('div');
         slot.className = `cp-practice-slot ${i === 0 ? 'is-leader' : ''}`;
+        if (hero) slot.setAttribute('data-hero-id', String(hero.id));
         slot.innerHTML = hero
-          ? `<img src="${esc(hero.mini)}" alt="${esc(hero.name)}">${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}`
+          ? `
+            <img src="${esc(hero.mini)}" alt="${esc(hero.name)}">
+            <div class="cp-practice-atk cp-elem-${esc(String(hero.element || ''))}" data-practice-atk></div>
+            ${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}
+          `
           : `<div class="cp-practice-slot-empty"></div>`;
         row.appendChild(slot);
       }
+      applyElementScoresToUI();
     };
     renderTeam();
     try {
@@ -389,12 +428,33 @@ const ChessPalPages = (() => {
     } catch {}
     window.__cpPracticeTeamListener = renderTeam;
     try { window.addEventListener('cpTeamsChanged', window.__cpPracticeTeamListener); } catch {}
+
+    try {
+      if (window.__cpPracticeScoreListener) {
+        window.removeEventListener('cpElementScoresChanged', window.__cpPracticeScoreListener);
+      }
+    } catch {}
+    window.__cpPracticeScoreListener = (ev) => {
+      try {
+        const total = ev?.detail?.scores?.total || ev?.detail?.scores || {};
+        window.__cpPracticeElementScores = total;
+      } catch {
+        window.__cpPracticeElementScores = {};
+      }
+      applyElementScoresToUI();
+    };
+    try { window.addEventListener('cpElementScoresChanged', window.__cpPracticeScoreListener); } catch {}
   };
   PracticePage.destroy = () => {
     try { window.ChessPal?.destroy?.(); } catch {}
     try {
       if (window.__cpPracticeTeamListener) {
         window.removeEventListener('cpTeamsChanged', window.__cpPracticeTeamListener);
+      }
+    } catch {}
+    try {
+      if (window.__cpPracticeScoreListener) {
+        window.removeEventListener('cpElementScoresChanged', window.__cpPracticeScoreListener);
       }
     } catch {}
   };

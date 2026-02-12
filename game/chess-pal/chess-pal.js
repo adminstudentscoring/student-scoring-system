@@ -126,34 +126,35 @@ const ChessPal = (() => {
     } catch {}
   }
 
-  function computeScoreBreakdown(moveHistory, cascades, timeLeftMs) {
-    // New rules:
-    // - Each consumed jewel = 1 point (by element)
-    // - Consecutive same-element streak: from 3 onwards apply:
-    //   T(3)=3*1.05; T(4)=(T(3)+1)*1.05; ...
-    // - Cascades: each match group scores (count - 2): 3->1, 4->2, 5->3, ...
-    // - Time is currently not used (kept for signature compatibility)
+  const SCORE_ELEMENTS = [...ELEMENTS];
+  function emptyElementScore() {
+    const s = {};
+    for (const el of SCORE_ELEMENTS) s[el] = 0;
+    return s;
+  }
+  function round2(n) {
+    return Math.round((Number(n) || 0) * 100) / 100;
+  }
+  function streakTotal(len) {
+    const n = Math.max(0, Math.floor(Number(len) || 0));
+    if (n <= 0) return 0;
+    if (n < 3) return n;
+    let t = 3 * 1.05;
+    for (let k = 4; k <= n; k += 1) {
+      t = (t + 1) * 1.05;
+    }
+    return t;
+  }
+  function computeElementScores(moveHistory, cascades) {
     const moves = Array.isArray(moveHistory) ? moveHistory : [];
     const cas = Array.isArray(cascades) ? cascades : [];
-    void timeLeftMs;
 
-    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-    const streakTotal = (len) => {
-      const n = Math.max(0, Math.floor(Number(len) || 0));
-      if (n <= 0) return 0;
-      if (n < 3) return n;
-      let t = 3 * 1.05;
-      for (let k = 4; k <= n; k += 1) {
-        t = (t + 1) * 1.05;
-      }
-      return t;
-    };
+    const path = emptyElementScore();
+    const cascade = emptyElementScore();
 
-    // Path jewel scoring with "consecutive same element" streaks
-    let pathScore = 0;
+    // Path: consecutive streaks
     let streakLen = 0;
     let streakElement = null;
-    let streakCount = 0;
     for (const mv of moves) {
       const el = String(mv?.element || '');
       if (!el) continue;
@@ -165,47 +166,61 @@ const ChessPal = (() => {
       if (el === streakElement) {
         streakLen += 1;
       } else {
-        pathScore += streakTotal(streakLen);
-        streakCount += 1;
+        path[streakElement] = round2((path[streakElement] || 0) + streakTotal(streakLen));
         streakElement = el;
         streakLen = 1;
       }
     }
     if (streakElement !== null) {
-      pathScore += streakTotal(streakLen);
-      streakCount += 1;
+      path[streakElement] = round2((path[streakElement] || 0) + streakTotal(streakLen));
     }
-    pathScore = round2(pathScore);
 
-    // Cascade scoring: for each match group, score (count - 2)
-    let cascadeScore = 0;
-    let cascadeGroups = 0;
+    // Cascades: each group scores (count - 2)
     for (const c of cas) {
       const matches = Array.isArray(c?.matches) ? c.matches : [];
       for (const m of matches) {
+        const el = String(m?.element || '');
         const count = Math.max(0, Math.floor(Number(m?.count) || 0));
-        if (count >= 3) {
-          cascadeGroups += 1;
-          cascadeScore += (count - 2);
-        }
+        if (!el || count < 3) continue;
+        cascade[el] = round2((cascade[el] || 0) + (count - 2));
       }
     }
-    cascadeScore = round2(cascadeScore);
 
-    const total = round2(Math.max(0, pathScore + cascadeScore));
+    const total = emptyElementScore();
+    for (const el of SCORE_ELEMENTS) {
+      total[el] = round2((path[el] || 0) + (cascade[el] || 0));
+    }
+    return { path, cascade, total };
+  }
+  function emitElementScores(scores, phase) {
+    try {
+      window.dispatchEvent(new CustomEvent('cpElementScoresChanged', {
+        detail: { scores, phase: String(phase || '') }
+      }));
+    } catch {}
+  }
+
+  function computeScoreBreakdown(moveHistory, cascades, timeLeftMs) {
+    // Separate 6 element scores (not combined).
+    const moves = Array.isArray(moveHistory) ? moveHistory : [];
+    const cas = Array.isArray(cascades) ? cascades : [];
+    void timeLeftMs;
+    const scores = computeElementScores(moves, cas);
     return {
-      total,
-      lines: [
-        { label: `Jewels`, detail: `${moves.length} consumed · ${streakCount} streak(s)`, value: pathScore },
-        { label: `Cascades`, detail: `${cascadeGroups} group(s)`, value: cascadeScore },
-      ]
+      total: null,
+      elementScores: scores,
+      lines: SCORE_ELEMENTS.map((el) => ({
+        label: el.toUpperCase(),
+        detail: `path ${formatScoreValue(scores.path[el])} + cascade ${formatScoreValue(scores.cascade[el])}`,
+        value: scores.total[el]
+      }))
     };
   }
 
   function renderScoreBreakdown(breakdown) {
     if (state.scoreTotalEl) {
       if (!breakdown) state.scoreTotalEl.textContent = 'No score yet.';
-      else state.scoreTotalEl.textContent = `Total: ${formatScoreValue(breakdown.total)}`;
+      else state.scoreTotalEl.textContent = `Element Scores`;
     }
     if (!state.scoreListEl) return;
     if (!breakdown) {
@@ -399,6 +414,9 @@ const ChessPal = (() => {
 
     renderBoard();
     renderMoveHistory();
+
+    // Live element score update (path only)
+    emitElementScores(computeElementScores(state.moveHistory, []), 'path');
   }
 
   function startPlayerTurn() {
@@ -424,6 +442,7 @@ const ChessPal = (() => {
     state.cascades = [];
     state.lastScore = null;
     renderScoreBreakdown(null);
+    emitElementScores(computeElementScores([], []), 'path');
     clearInterval(state.actionTimerId);
     state.actionTimerId = setInterval(handleTimerTick, 100);
     pushLog('Turn started. Use knight moves to consume jewels.');
@@ -458,6 +477,7 @@ const ChessPal = (() => {
       renderBoard();
       state.startingKnight = null;
       state.knightPosition = null;
+      emitElementScores(computeElementScores([], []), 'final');
       updateStartButtonState();
       return;
     }
@@ -477,6 +497,7 @@ const ChessPal = (() => {
         const breakdown = computeScoreBreakdown(state.moveHistory, cascades, timeLeftMs);
         state.lastScore = breakdown;
         renderScoreBreakdown(breakdown);
+        emitElementScores(breakdown?.elementScores || computeElementScores(state.moveHistory, cascades), 'final');
 
         renderBoard();
         state.startingKnight = null;
