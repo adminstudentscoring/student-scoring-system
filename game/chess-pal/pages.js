@@ -1512,8 +1512,9 @@ const ChessPalPages = (() => {
   const STORAGE_ITEM_DEFS = {
     // Prefer numbered asset filenames; keep fallback variants for older filenames.
     silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S001-Silver-Coin.png' },
-    gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S002-Gold-Coin.png' },
-    exp_soldier: { id: 'exp_soldier', name: 'EXP Soldier', img: 'images/Storage/S003-Exp-Soldier.png' },
+    // You mentioned Gold/Silver both have S001 prefix; we try multiple names via fallback.
+    gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S001-Gold-Coin.png' },
+    exp_soldier: { id: 'exp_soldier', name: 'EXP Soldier', img: 'images/Storage/S001-Exp-Soldier.png' },
   };
 
   function getStorageItemDef(itemId) {
@@ -1528,9 +1529,17 @@ const ChessPalPages = (() => {
     const base = src.replace(/^images\/Storage\//, '');
     const legacy = [];
     if (base.includes('S001-Silver-Coin')) legacy.push('images/Storage/Silver-Coin.png');
-    if (base.includes('S002-Gold-Coin')) legacy.push('images/Storage/Gold-Coin.png');
-    if (base.includes('S003-Exp-Soldier')) {
+    if (base.includes('S001-Gold-Coin') || base.includes('S002-Gold-Coin')) legacy.push('images/Storage/Gold-Coin.png');
+    if (base.includes('S001-Exp-Soldier') || base.includes('S002-Exp-Soldier') || base.includes('S003-Exp-Soldier')) {
       legacy.push('images/Storage/Exp-Soldier.png');
+    }
+    // Also try other numbered variants (in case you used different indices)
+    if (base.includes('Gold-Coin')) {
+      legacy.unshift('images/Storage/S002-Gold-Coin.png');
+    }
+    if (base.includes('Exp-Soldier')) {
+      legacy.unshift('images/Storage/S003-Exp-Soldier.png');
+      legacy.unshift('images/Storage/S002-Exp-Soldier.png');
     }
     return legacy;
   }
