@@ -771,6 +771,14 @@ body {
   pointer-events: none;
   filter: drop-shadow(0 8px 12px rgba(0,0,0,0.45));
 }
+
+/* In mini contexts, keep jewel at 1/10 size */
+.cp-hero-mini .cp-hero-jewel,
+.cp-practice-slot .cp-hero-jewel,
+.cp-team-slot .cp-hero-jewel{
+  width: 10%;
+  height: 10%;
+}
 .cp-mini-placeholder{
   padding: 10px;
   font-weight: 950;

@@ -30,7 +30,9 @@ const ChessPalPages = (() => {
       const jewelSetRaw = String(v?.jewelSet || '').trim().toLowerCase();
       const jewelSet = (jewelSetRaw === 'set_a' || jewelSetRaw === 'none') ? jewelSetRaw : base.jewelSet;
       const pieceStyleRaw = String(v?.pieceStyle || '').trim().toLowerCase();
-      const pieceStyle = (pieceStyleRaw === 'none' || pieceStyleRaw === 'nyxblade') ? pieceStyleRaw : base.pieceStyle;
+      const pieceStyle = (pieceStyleRaw === 'none' || pieceStyleRaw === 'nyxblade' || pieceStyleRaw === 'rivenhart')
+        ? pieceStyleRaw
+        : base.pieceStyle;
       return {
         jewelAlpha: Number.isFinite(jewelAlpha) ? Math.max(0.08, Math.min(0.45, jewelAlpha)) : base.jewelAlpha,
         appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg,
@@ -51,7 +53,7 @@ const ChessPalPages = (() => {
       const nextSet = String(s?.jewelSet || 'set_a').trim().toLowerCase();
       root.setAttribute('data-cp-jewel-set', (nextSet === 'none' || nextSet === 'set_a') ? nextSet : 'set_a');
       const nextPiece = String(s?.pieceStyle || 'none').trim().toLowerCase();
-      root.setAttribute('data-cp-piece-style', (nextPiece === 'nyxblade' || nextPiece === 'none') ? nextPiece : 'none');
+      root.setAttribute('data-cp-piece-style', (nextPiece === 'nyxblade' || nextPiece === 'rivenhart' || nextPiece === 'none') ? nextPiece : 'none');
       try { window.dispatchEvent(new Event('cpGeneralSettingsChanged')); } catch {}
     } catch {}
   }
@@ -1539,7 +1541,10 @@ const ChessPalPages = (() => {
         const isLeader = slotIdx === 0;
         return `
           <button class="cp-team-slot ${isLeader ? 'is-leader' : ''}" type="button" data-team-slot="${slotIdx}" aria-label="${isLeader ? 'Leader slot' : 'Member slot'}">
-            ${hero ? `<img class="cp-team-img" src="${esc(hero.mini)}" alt="${esc(hero.name)}">` : `<div class="cp-team-empty"></div>`}
+            ${hero ? `
+              <img class="cp-team-img" src="${esc(hero.mini)}" alt="${esc(hero.name)}">
+              ${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}
+            ` : `<div class="cp-team-empty"></div>`}
           </button>
         `;
       }).join('');
@@ -2122,12 +2127,13 @@ const ChessPalPages = (() => {
             <select id="cpSettingPieceStyle" class="cp-select">
               <option value="none" ${s.pieceStyle === 'none' ? 'selected' : ''}>No Style</option>
               <option value="nyxblade" ${s.pieceStyle === 'nyxblade' ? 'selected' : ''}>Nyxblade</option>
+              <option value="rivenhart" ${s.pieceStyle === 'rivenhart' ? 'selected' : ''}>Rivenhart</option>
             </select>
-            <div class="cp-setting-value"><span id="cpSettingPieceStyleVal">${s.pieceStyle === 'nyxblade' ? 'Nyxblade' : 'No Style'}</span></div>
+            <div class="cp-setting-value"><span id="cpSettingPieceStyleVal">${s.pieceStyle === 'nyxblade' ? 'Nyxblade' : (s.pieceStyle === 'rivenhart' ? 'Rivenhart' : 'No Style')}</span></div>
 
             <div class="cp-piece-preview" aria-label="Piece preview">
               <div class="cp-piece-preview-box">
-                <img id="cpPiecePreviewImg" src="${s.pieceStyle === 'nyxblade' ? 'images/Piece/P001-nyxblade.png' : '/assets/pieces/white_Knight.png'}" alt="Piece preview">
+                <img id="cpPiecePreviewImg" src="${s.pieceStyle === 'nyxblade' ? 'images/Piece/P001-nyxblade.png' : (s.pieceStyle === 'rivenhart' ? 'images/Piece/P002-rivenhart.png' : '/assets/pieces/white_Knight.png')}" alt="Piece preview">
               </div>
             </div>
           </div>
@@ -2191,16 +2197,20 @@ const ChessPalPages = (() => {
       const syncPreview = () => {
         if (!piecePreviewImg) return;
         const v = String(pieceStyle.value || 'none').trim().toLowerCase();
-        piecePreviewImg.src = (v === 'nyxblade') ? 'images/Piece/P001-nyxblade.png' : '/assets/pieces/white_Knight.png';
+        piecePreviewImg.src = (v === 'nyxblade')
+          ? 'images/Piece/P001-nyxblade.png'
+          : (v === 'rivenhart')
+            ? 'images/Piece/P002-rivenhart.png'
+            : '/assets/pieces/white_Knight.png';
       };
       syncPreview();
       pieceStyle.addEventListener('change', () => {
         const next = getGeneralSettings();
         const v = String(pieceStyle.value || 'none').trim().toLowerCase();
-        next.pieceStyle = (v === 'nyxblade' || v === 'none') ? v : 'none';
+        next.pieceStyle = (v === 'nyxblade' || v === 'rivenhart' || v === 'none') ? v : 'none';
         applyGeneralSettings(next);
         saveGeneralSettings(next);
-        if (pieceStyleVal) pieceStyleVal.textContent = next.pieceStyle === 'nyxblade' ? 'Nyxblade' : 'No Style';
+        if (pieceStyleVal) pieceStyleVal.textContent = next.pieceStyle === 'nyxblade' ? 'Nyxblade' : (next.pieceStyle === 'rivenhart' ? 'Rivenhart' : 'No Style');
         syncPreview();
       }, { passive: true });
     }
