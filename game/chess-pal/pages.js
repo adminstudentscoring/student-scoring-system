@@ -57,6 +57,70 @@ const ChessPalPages = (() => {
   // Apply once on load (so it affects all pages)
   applyGeneralSettings(getGeneralSettings());
 
+  // ----------------------------
+  // Ownership (heroes) + Seen (monsters)
+  // ----------------------------
+  const OWNED_HERO_KEY = 'chessPalOwnedHeroes';
+  const SEEN_MONSTER_KEY = 'chessPalSeenMonsters';
+
+  function getDefaultOwnedHeroIds() {
+    // Nyxblade (002), Rivenhart (003), Seraphix (004)
+    return ['002', '003', '004'];
+  }
+
+  function getOwnedHeroSet() {
+    try {
+      const raw = localStorage.getItem(OWNED_HERO_KEY);
+      if (!raw) return new Set(getDefaultOwnedHeroIds());
+      const v = JSON.parse(raw);
+      const arr = Array.isArray(v) ? v : (Array.isArray(v?.ids) ? v.ids : []);
+      const ids = arr.map(x => String(x || '').trim()).filter(Boolean);
+      return new Set(ids.length ? ids : getDefaultOwnedHeroIds());
+    } catch {
+      return new Set(getDefaultOwnedHeroIds());
+    }
+  }
+
+  function setOwnedHeroSet(set) {
+    try {
+      const ids = Array.from(set || []).map(x => String(x || '').trim()).filter(Boolean);
+      localStorage.setItem(OWNED_HERO_KEY, JSON.stringify(ids));
+    } catch {}
+    try { window.dispatchEvent(new Event('cpOwnedHeroesChanged')); } catch {}
+  }
+
+  function addOwnedHeroId(id) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    const set = getOwnedHeroSet();
+    set.add(key);
+    setOwnedHeroSet(set);
+  }
+
+  function getSeenMonsterSet() {
+    try {
+      const raw = localStorage.getItem(SEEN_MONSTER_KEY);
+      if (!raw) return new Set();
+      const v = JSON.parse(raw);
+      const arr = Array.isArray(v) ? v : (Array.isArray(v?.ids) ? v.ids : []);
+      return new Set(arr.map(x => String(x || '').trim()).filter(Boolean));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function addSeenMonsterId(id) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    const set = getSeenMonsterSet();
+    set.add(key);
+    try { localStorage.setItem(SEEN_MONSTER_KEY, JSON.stringify(Array.from(set))); } catch {}
+    try { window.dispatchEvent(new Event('cpSeenMonstersChanged')); } catch {}
+  }
+
+  // For future battle integration
+  try { window.cpMarkMonsterSeen = addSeenMonsterId; } catch {}
+
   function HomePage() {}
   HomePage.title = 'Home';
   HomePage.render = () => {
@@ -702,21 +766,27 @@ const ChessPalPages = (() => {
     if (!host) return;
     host.innerHTML = `<div class="cp-muted">Loading heroes...</div>`;
     await loadHeroOverrides();
+    const admin = isAdminMode();
+    const owned = admin ? null : getOwnedHeroSet();
     const list = getAllHeroes();
     host.innerHTML = list.map(h => `
-      <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}">
+      <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini)}" alt="${esc(h.name)}">
         </div>
         <div class="cp-hero-mini-meta">
-          <div class="cp-hero-mini-name">${esc(h.name)}</div>
-          <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
+          <div class="cp-hero-mini-name">${(!admin && owned && !owned.has(h.id)) ? '' : esc(h.name)}</div>
+          <div class="cp-hero-mini-sub">${(!admin && owned && !owned.has(h.id)) ? 'Locked' : `#${esc(h.id)} · ${esc(elementLabel(h.element))}`}</div>
         </div>
       </button>
     `).join('');
     host.querySelectorAll('[data-hero-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = String(btn.getAttribute('data-hero-id') || '');
+        if (!admin) {
+          const owned2 = getOwnedHeroSet();
+          if (!owned2.has(id)) return;
+        }
         const hero = getAllHeroes().find(x => x.id === id);
         if (hero) showHeroModal(hero);
       });
@@ -1170,21 +1240,27 @@ const ChessPalPages = (() => {
     if (!host) return;
     host.innerHTML = `<div class="cp-muted">Loading monsters...</div>`;
     await loadMonsterOverrides();
+    const admin = isAdminMode();
+    const seen = admin ? null : getSeenMonsterSet();
     const list = getAllMonsters();
     host.innerHTML = list.map(m => `
-      <button class="cp-hero-card" type="button" data-monster-id="${esc(m.id)}">
+      <button class="cp-hero-card ${(!admin && seen && !seen.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}">
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
         </div>
         <div class="cp-hero-mini-meta">
-          <div class="cp-hero-mini-name">${esc(m.name)}</div>
-          <div class="cp-hero-mini-sub">#${esc(m.id)} · ${esc(elementLabel(m.element))}</div>
+          <div class="cp-hero-mini-name">${(!admin && seen && !seen.has(m.id)) ? '' : esc(m.name)}</div>
+          <div class="cp-hero-mini-sub">${(!admin && seen && !seen.has(m.id)) ? 'Locked' : `#${esc(m.id)} · ${esc(elementLabel(m.element))}`}</div>
         </div>
       </button>
     `).join('');
     host.querySelectorAll('[data-monster-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = String(btn.getAttribute('data-monster-id') || '');
+        if (!admin) {
+          const seen2 = getSeenMonsterSet();
+          if (!seen2.has(id)) return;
+        }
         const m = getAllMonsters().find(x => x.id === id);
         if (m) showMonsterModal(m);
       });
@@ -1220,6 +1296,7 @@ const ChessPalPages = (() => {
       const name = String(s.name || '').trim();
       const qty = Math.max(1, Math.floor(Number(s.qty) || 1));
       if (!itemId) return null;
+      if (itemId === 'potion') return null; // remove old test item
       return { itemId, name: name || itemId, qty };
     });
   }
@@ -1313,34 +1390,30 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Storage</div>
-        <div class="cp-muted">Inventory grid (layout first). Each slot holds one item type; same type stacks.</div>
-
+        
         <div class="cp-storage-grid" id="cpStorageGrid" style="margin-top:12px;"></div>
-        <div class="cp-muted" id="cpStorageHint" style="margin-top:10px;"></div>
       </div>
     `;
   };
   StoragePage.init = () => {
     const host = document.getElementById('cpStorageGrid');
-    const hint = document.getElementById('cpStorageHint');
     if (!host) return;
 
     let slots = loadStorage();
+    // persist cleanup (e.g. remove potion) + update coins bar
+    saveStorage(slots);
     let selectedIdx = -1;
 
-    const setHint = (t) => { if (hint) hint.textContent = String(t || ''); };
     const render = () => {
       host.innerHTML = slots.map((s, i) => {
         const isSel = i === selectedIdx;
         const title = s ? `${s.name} ×${s.qty}` : `Empty (Slot ${i + 1})`;
         const def = s ? getStorageItemDef(s.itemId) : null;
         return `
-          <button class="cp-storage-slot ${isSel ? 'is-selected' : ''}" type="button" data-slot="${i}" aria-label="${esc(title)}">
+          <button class="cp-storage-slot ${isSel ? 'is-selected' : ''} ${s ? 'has-item' : ''}" type="button" data-slot="${i}" aria-label="${esc(title)}">
             ${s ? `
-              <div class="cp-storage-icon">
-                ${def?.img ? `<img class="cp-storage-itemimg" src="${esc(def.img)}" alt="${esc(def.name || s.name || s.itemId)}">` : `<span>${esc(String(s.name || s.itemId).slice(0, 1).toUpperCase())}</span>`}
-              </div>
-              <div class="cp-storage-name">${esc(s.name)}</div>
+              ${def?.img ? `<img class="cp-storage-slot-img" src="${esc(def.img)}" alt="${esc(def.name || s.name || s.itemId)}">` : ''}
+              <div class="cp-storage-name">${esc(def?.name || s.name)}</div>
               <div class="cp-storage-qtybadge">×${esc(s.qty)}</div>
             ` : `
               <div class="cp-storage-empty"></div>
@@ -1353,7 +1426,6 @@ const ChessPalPages = (() => {
     const persist = () => { saveStorage(slots); };
     const refresh = () => { render(); persist(); };
 
-    setHint('');
     render();
 
     host.querySelectorAll('[data-slot]').forEach(btn => {
@@ -1365,7 +1437,6 @@ const ChessPalPages = (() => {
         if (selectedIdx >= 0 && selectedIdx !== idx) {
           slots = swapOrStackSlots(slots, selectedIdx, idx);
           selectedIdx = -1;
-          setHint('');
           refresh();
           return;
         }
@@ -1375,12 +1446,10 @@ const ChessPalPages = (() => {
         if (slot) {
           if (selectedIdx === idx) {
             selectedIdx = -1;
-            setHint('');
             refresh();
             return;
           }
           selectedIdx = idx;
-          setHint('Selected. Click another slot to move / swap / stack.');
           refresh();
           return;
         }
@@ -1396,105 +1465,168 @@ const ChessPalPages = (() => {
         <div class="cp-h1">Shop</div>
         <div class="cp-muted">Choose a section.</div>
 
-        <div class="cp-shop-grid" style="margin-top:12px;">
-          <button class="cp-mode" type="button" id="cpShopGetCoins">
+        <div class="cp-mode-grid" style="margin-top:12px;">
+          <button class="cp-mode" type="button" data-cp-shop="get-coins">
             <div class="cp-mode-title">Get Coins</div>
             <div class="cp-mode-desc">Daily free coins and rewards.</div>
           </button>
-          <button class="cp-mode" type="button" id="cpShopMall">
+          <button class="cp-mode" type="button" data-cp-shop="mall">
             <div class="cp-mode-title">Mall</div>
             <div class="cp-mode-desc">Coming soon.</div>
           </button>
         </div>
-
-        <div id="cpShopSub" style="margin-top:12px;"></div>
       </div>
     `;
   };
   ShopPage.init = () => {
-    const sub = document.getElementById('cpShopSub');
-    const btnGet = document.getElementById('cpShopGetCoins');
-    const btnMall = document.getElementById('cpShopMall');
-    if (!sub) return;
+    document.querySelectorAll('[data-cp-shop]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = String(btn.getAttribute('data-cp-shop') || '');
+        if (key === 'mall') Router.goTo('/shop/mall');
+        else Router.goTo('/shop/get-coins');
+      }, { passive: true });
+    });
+  };
 
-    const renderGetCoins = () => {
-      const canClaim = canClaimFreeSilverToday();
-      sub.innerHTML = `
-        <div class="cp-page-card" style="padding:12px; background: rgba(255,255,255,0.03);">
-          <div class="cp-h1" style="font-size:16px;">Get Coins</div>
-          <div class="cp-muted" style="margin-top:6px;">Daily rewards (UI first).</div>
+  function ShopGetCoinsPage() {}
+  ShopGetCoinsPage.title = 'Get Coins';
+  ShopGetCoinsPage.render = () => {
+    const canClaim = canClaimFreeSilverToday();
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Get Coins</div>
+        <div class="cp-muted">Daily rewards.</div>
 
-          <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
-            <div class="cp-setting-item">
-              <div class="cp-setting-label">Free Coin Today</div>
-              <div class="cp-setting-help">每日點擊一次可獲得 10 個 Silver Coin。</div>
-              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-                <button class="cp-primary" type="button" id="cpClaimFreeSilver" ${canClaim ? '' : 'disabled'}>${canClaim ? 'Claim 10 Silver' : 'Claimed Today'}</button>
-                <div class="cp-muted" id="cpClaimMsg"></div>
-              </div>
-            </div>
-
-            <div class="cp-setting-item" style="opacity:0.65;">
-              <div class="cp-setting-label">Reward #2</div>
-              <div class="cp-setting-help">Coming soon.</div>
-            </div>
-
-            <div class="cp-setting-item" style="opacity:0.65;">
-              <div class="cp-setting-label">Reward #3</div>
-              <div class="cp-setting-help">Coming soon.</div>
+        <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
+          <div class="cp-setting-item">
+            <div class="cp-setting-label">Free Coin Today</div>
+            <div class="cp-setting-help">Claim once per day to receive 10 Silver Coins.</div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+              <button class="cp-primary" type="button" id="cpClaimFreeSilver" ${canClaim ? '' : 'disabled'}>${canClaim ? 'Claim 10 Silver' : 'Claimed Today'}</button>
+              <button class="cp-tool-btn" type="button" id="cpBackShop">Back</button>
+              <div class="cp-muted" id="cpClaimMsg"></div>
             </div>
           </div>
+
+          <div class="cp-setting-item" style="opacity:0.65;">
+            <div class="cp-setting-label">Reward #2</div>
+            <div class="cp-setting-help">Coming soon.</div>
+          </div>
+
+          <div class="cp-setting-item" style="opacity:0.65;">
+            <div class="cp-setting-label">Reward #3</div>
+            <div class="cp-setting-help">Coming soon.</div>
+          </div>
         </div>
-      `;
-
-      const msg = document.getElementById('cpClaimMsg');
-      const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-
-      const claimBtn = document.getElementById('cpClaimFreeSilver');
-      if (claimBtn) {
-        claimBtn.addEventListener('click', () => {
-          try {
-            setMsg('');
-            if (!canClaimFreeSilverToday()) {
-              setMsg('Already claimed today.');
-              return;
-            }
-            let slots = loadStorage();
-            const before = JSON.stringify(slots);
-            slots = addItemToStorage(slots, 'silver_coin', 10);
-            if (JSON.stringify(slots) === before) {
-              setMsg('Storage is full.');
-              return;
-            }
-            saveStorage(slots);
-            markClaimedFreeSilverToday();
-            setMsg('Received 10 Silver Coin.');
-            // Re-render to disable button
-            renderGetCoins();
-          } catch (e) {
-            setMsg(String(e?.message || e || 'Failed'));
-          }
-        }, { passive: true });
+      </div>
+    `;
+  };
+  ShopGetCoinsPage.init = () => {
+    const msg = document.getElementById('cpClaimMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    document.getElementById('cpBackShop')?.addEventListener('click', () => Router.goTo('/shop'), { passive: true });
+    document.getElementById('cpClaimFreeSilver')?.addEventListener('click', () => {
+      try {
+        setMsg('');
+        if (!canClaimFreeSilverToday()) {
+          setMsg('Already claimed today.');
+          return;
+        }
+        let slots = loadStorage();
+        const before = JSON.stringify(slots);
+        slots = addItemToStorage(slots, 'silver_coin', 10);
+        if (JSON.stringify(slots) === before) {
+          setMsg('Storage is full.');
+          return;
+        }
+        saveStorage(slots);
+        markClaimedFreeSilverToday();
+        setMsg('Received 10 Silver Coins.');
+        try { Router.renderCurrent(); } catch {}
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Failed'));
       }
-    };
+    }, { passive: true });
+  };
 
-    const renderMall = () => {
-      sub.innerHTML = `
-        <div class="cp-page-card" style="padding:12px; background: rgba(255,255,255,0.03);">
-          <div class="cp-h1" style="font-size:16px;">Mall</div>
-          <div class="cp-muted" style="margin-top:6px;">Coming soon.</div>
+  function ShopMallPage() {}
+  ShopMallPage.title = 'Mall';
+  ShopMallPage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Mall</div>
+        <div class="cp-muted">Coming soon.</div>
+        <div class="cp-row" style="margin-top:12px;">
+          <button class="cp-tool-btn" type="button" id="cpBackShop2">Back</button>
         </div>
-      `;
-    };
+      </div>
+    `;
+  };
+  ShopMallPage.init = () => {
+    document.getElementById('cpBackShop2')?.addEventListener('click', () => Router.goTo('/shop'), { passive: true });
+  };
 
-    const select = (key) => {
-      if (key === 'mall') renderMall();
-      else renderGetCoins();
-    };
+  function spendFromStorage(slots, itemId, qty) {
+    const id = String(itemId || '').trim().toLowerCase();
+    const need = Math.max(1, Math.floor(Number(qty) || 1));
+    const idx = slots.findIndex(s => s && String(s.itemId || '').toLowerCase() === id);
+    if (idx < 0) return { ok: false, slots };
+    const have = Math.max(0, Math.floor(Number(slots[idx].qty) || 0));
+    if (have < need) return { ok: false, slots };
+    const next = slots.slice();
+    const left = have - need;
+    next[idx] = left <= 0 ? null : { ...next[idx], qty: left };
+    return { ok: true, slots: next };
+  }
 
-    if (btnGet) btnGet.addEventListener('click', () => select('get'), { passive: true });
-    if (btnMall) btnMall.addEventListener('click', () => select('mall'), { passive: true });
-    select('get');
+  function SummonPage() {}
+  SummonPage.title = 'Summon';
+  SummonPage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Summon</div>
+        <div class="cp-muted">Summon a hero using 1 Gold Coin.</div>
+
+        <div class="cp-row" style="margin-top:12px;">
+          <button class="cp-primary" type="button" id="cpSummonHero">Summon Hero</button>
+        </div>
+        <div class="cp-muted" id="cpSummonMsg" style="margin-top:10px;"></div>
+      </div>
+    `;
+  };
+  SummonPage.init = () => {
+    const msg = document.getElementById('cpSummonMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    document.getElementById('cpSummonHero')?.addEventListener('click', async () => {
+      try {
+        setMsg('');
+        let slots = loadStorage();
+        const spent = spendFromStorage(slots, 'gold_coin', 1);
+        if (!spent.ok) {
+          setMsg('Not enough Gold Coins.');
+          return;
+        }
+        slots = spent.slots;
+        saveStorage(slots);
+
+        await loadHeroOverrides();
+        const all = getAllHeroes();
+        const admin = isAdminMode();
+        const owned = admin ? new Set(all.map(h => h.id)) : getOwnedHeroSet();
+        const locked = all.filter(h => !owned.has(h.id));
+        const pool = locked.length ? locked : all;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        if (!pick) {
+          setMsg('No heroes available.');
+          return;
+        }
+        addOwnedHeroId(pick.id);
+        setMsg(`Summoned: ${pick.name}`);
+        showHeroModal(pick);
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Summon failed'));
+      }
+    }, { passive: true });
   };
 
   function SettingsPage() {}
@@ -1504,12 +1636,12 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Setting</div>
-        <div class="cp-muted">General Setting</div>
+        <div class="cp-muted">General Settings</div>
 
         <div class="cp-setting-grid" style="margin-top:12px;">
           <div class="cp-setting-item">
-            <div class="cp-setting-label">Jewel 系列</div>
-            <div class="cp-setting-help">選擇棋盤寶石的美術系列（即時預覽）。</div>
+            <div class="cp-setting-label">Jewel Set</div>
+            <div class="cp-setting-help">Choose a jewel art set (instant preview).</div>
             <select id="cpSettingJewelSet" class="cp-select">
               <option value="set_a" ${s.jewelSet === 'set_a' ? 'selected' : ''}>Set_A</option>
               <option value="none" ${s.jewelSet === 'none' ? 'selected' : ''}>No Style</option>
@@ -1529,15 +1661,15 @@ const ChessPalPages = (() => {
           </div>
 
           <div class="cp-setting-item">
-            <div class="cp-setting-label">寶石顏色光暗</div>
-            <div class="cp-setting-help">調整寶石底色的亮暗（透明度）。</div>
+            <div class="cp-setting-label">Jewel Glow</div>
+            <div class="cp-setting-help">Adjust jewel base brightness (alpha).</div>
             <input id="cpSettingJewelAlpha" type="range" min="0.08" max="0.45" step="0.01" value="${String(s.jewelAlpha)}">
             <div class="cp-setting-value"><span id="cpSettingJewelAlphaVal">${Math.round(s.jewelAlpha * 100)}%</span></div>
           </div>
 
           <div class="cp-setting-item">
-            <div class="cp-setting-label">App 背景顏色</div>
-            <div class="cp-setting-help">整個 Chess Pal 的背景底色。</div>
+            <div class="cp-setting-label">App Background Color</div>
+            <div class="cp-setting-help">The base background color for Chess Pal.</div>
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
               <input id="cpSettingAppBg" type="color" value="${String(s.appBg)}" style="width:60px; height:44px; padding:0; border:0; background:transparent;">
               <div class="cp-setting-value"><span id="cpSettingAppBgVal">${esc(s.appBg)}</span></div>
@@ -1602,6 +1734,9 @@ const ChessPalPages = (() => {
       '/monsters': MonstersPage,
       '/storage': StoragePage,
       '/shop': ShopPage,
+      '/shop/get-coins': ShopGetCoinsPage,
+      '/shop/mall': ShopMallPage,
+      '/summon': SummonPage,
       '/settings': SettingsPage,
     }
   };
