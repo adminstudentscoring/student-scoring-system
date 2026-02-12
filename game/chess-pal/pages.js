@@ -747,9 +747,11 @@ const ChessPalPages = (() => {
       <div class="cp-square-grid" aria-label="Pal">
         <button class="cp-square-tile" type="button" data-cp-pal="hero" aria-label="Hero">
           <img class="cp-square-img" src="images/Heros/002-Nyxblade/002-Nyxblade-mini.png" alt="Hero">
+          <div class="cp-square-label">Hero</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-pal="monster" aria-label="Monster">
           <img class="cp-square-img" src="images/Monsters/M001-Grimjaw/M001-Grimjaw-mini.png" alt="Monster">
+          <div class="cp-square-label">Monster</div>
         </button>
       </div>
     `;
@@ -1511,7 +1513,7 @@ const ChessPalPages = (() => {
 
   const STORAGE_ITEM_DEFS = {
     // Prefer numbered asset filenames; keep fallback variants for older filenames.
-    silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S001-Silver-Coin.png' },
+    silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S002-Silver-Coin.png' },
     // You mentioned Gold/Silver both have S001 prefix; we try multiple names via fallback.
     gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S001-Gold-Coin.png' },
     exp_pawn: { id: 'exp_pawn', name: 'EXP Pawn', img: 'images/Storage/S003-Exp-Pawn.png' },
@@ -1528,7 +1530,7 @@ const ChessPalPages = (() => {
     // Try common legacy variants
     const base = src.replace(/^images\/Storage\//, '');
     const legacy = [];
-    if (base.includes('S001-Silver-Coin')) legacy.push('images/Storage/Silver-Coin.png');
+    if (base.includes('S002-Silver-Coin') || base.includes('S001-Silver-Coin')) legacy.push('images/Storage/Silver-Coin.png');
     if (base.includes('S001-Gold-Coin') || base.includes('S002-Gold-Coin')) legacy.push('images/Storage/Gold-Coin.png');
     if (base.includes('S003-Exp-Pawn') || base.includes('S002-Exp-Pawn') || base.includes('S001-Exp-Pawn')) {
       legacy.push('images/Storage/Exp-Pawn.png');
@@ -1536,6 +1538,10 @@ const ChessPalPages = (() => {
     // Also try other numbered variants (in case you used different indices)
     if (base.includes('Gold-Coin')) {
       legacy.unshift('images/Storage/S002-Gold-Coin.png');
+    }
+    if (base.includes('Silver-Coin')) {
+      legacy.unshift('images/Storage/S001-Silver-Coin.png');
+      legacy.unshift('images/Storage/S002-Silver-Coin.png');
     }
     if (base.includes('Exp-Pawn')) {
       legacy.unshift('images/Storage/S003-Exp-Pawn.png');
@@ -1768,10 +1774,12 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-square-grid" aria-label="Shop">
         <button class="cp-square-tile" type="button" data-cp-shop="get-coins" aria-label="Get Coins">
-          ${renderImgWithFallback('images/Storage/S001-Silver-Coin.png', 'Get Coins', 'cp-square-img')}
+          ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Get Coins', 'cp-square-img')}
+          <div class="cp-square-label">Get Coins</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-shop="mall" aria-label="Mall">
           ${renderImgWithFallback('images/Storage/S002-Gold-Coin.png', 'Mall', 'cp-square-img')}
+          <div class="cp-square-label">Mall</div>
         </button>
       </div>
     `;
@@ -1862,7 +1870,7 @@ const ChessPalPages = (() => {
               <div class="cp-setting-label">EXP Pawn</div>
               <div class="cp-setting-help">Gives a small amount of EXP to one hero.</div>
               <div class="cp-mall-price" aria-label="Price">
-                ${renderImgWithFallback('images/Storage/S001-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
+                ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
                 <span class="cp-mall-x">×5</span>
               </div>
             </div>

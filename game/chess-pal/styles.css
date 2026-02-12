@@ -514,6 +514,7 @@ body {
   gap: 12px;
 }
 .cp-square-tile{
+  position: relative;
   aspect-ratio: 1 / 1;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.10);
@@ -530,6 +531,25 @@ body {
   object-fit: cover;
   display:block;
   filter: saturate(1.05);
+  opacity: 0.5;
+}
+.cp-square-tile::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.38), rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.55));
+  pointer-events:none;
+}
+.cp-square-label{
+  position:absolute;
+  left: 14px;
+  top: 12px;
+  z-index: 2;
+  font-weight: 1000;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 10px 22px rgba(0,0,0,0.70);
 }
 
 /* Team */
