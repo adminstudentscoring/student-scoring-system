@@ -615,22 +615,27 @@ body {
 /* Mall */
 .cp-mall-grid{
   display:grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 520px){
+  .cp-mall-grid{ grid-template-columns: 1fr; }
 }
 .cp-mall-item{
   display:flex;
+  flex-direction: column;
   align-items:center;
-  gap: 12px;
-  padding: 12px;
+  text-align: center;
+  gap: 10px;
+  padding: 14px;
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.10);
   background: rgba(255,255,255,0.04);
 }
 .cp-mall-icon{
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: clamp(96px, 14vw, 140px);
+  height: clamp(96px, 14vw, 140px);
+  border-radius: 20px;
   border: 1px solid rgba(255,255,255,0.12);
   background: rgba(0,0,0,0.18);
   display:flex;
@@ -639,12 +644,15 @@ body {
   overflow:hidden;
 }
 .cp-mall-icon img{ width: 100%; height: 100%; object-fit: cover; display:block; }
-.cp-mall-meta{ flex: 1 1 auto; min-width: 0; }
+.cp-mall-meta{ width: 100%; min-width: 0; }
+.cp-mall-item .cp-setting-label{ text-align:center; }
+.cp-mall-item .cp-setting-help{ text-align:center; }
 .cp-mall-price{
   margin-top: 8px;
   display:flex;
   align-items:center;
   gap: 8px;
+  justify-content: center;
 }
 .cp-mall-coin{
   width: 18px;
@@ -654,6 +662,11 @@ body {
 .cp-mall-x{
   font-weight: 1000;
   color: rgba(255,255,255,0.85);
+}
+.cp-mall-item .cp-primary{
+  align-self: center;
+  margin-top: 4px;
+  min-width: 120px;
 }
 
 /* Hero grid (Pal -> Hero) */
