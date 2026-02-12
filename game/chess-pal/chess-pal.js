@@ -127,38 +127,77 @@ const ChessPal = (() => {
   }
 
   function computeScoreBreakdown(moveHistory, cascades, timeLeftMs) {
+    // New rules:
+    // - Each consumed jewel = 1 point (by element)
+    // - Consecutive same-element streak: from 3 onwards apply:
+    //   T(3)=3*1.05; T(4)=(T(3)+1)*1.05; ...
+    // - Cascades: each match group scores (count - 2): 3->1, 4->2, 5->3, ...
+    // - Time is currently not used (kept for signature compatibility)
     const moves = Array.isArray(moveHistory) ? moveHistory : [];
     const cas = Array.isArray(cascades) ? cascades : [];
-    const timeMs = Math.max(0, Math.floor(Number(timeLeftMs) || 0));
+    void timeLeftMs;
 
-    const pathJewels = moves.length;
-    const base = pathJewels * 10;
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    const streakTotal = (len) => {
+      const n = Math.max(0, Math.floor(Number(len) || 0));
+      if (n <= 0) return 0;
+      if (n < 3) return n;
+      let t = 3 * 1.05;
+      for (let k = 4; k <= n; k += 1) {
+        t = (t + 1) * 1.05;
+      }
+      return t;
+    };
 
-    let matchedJewels = 0;
-    let combos = 0;
-    for (const c of cas) {
-      const matches = Array.isArray(c?.matches) ? c.matches : [];
-      combos += matches.length;
-      for (const m of matches) {
-        matchedJewels += Math.max(0, Math.floor(Number(m?.count) || 0));
+    // Path jewel scoring with "consecutive same element" streaks
+    let pathScore = 0;
+    let streakLen = 0;
+    let streakElement = null;
+    let streakCount = 0;
+    for (const mv of moves) {
+      const el = String(mv?.element || '');
+      if (!el) continue;
+      if (streakElement === null) {
+        streakElement = el;
+        streakLen = 1;
+        continue;
+      }
+      if (el === streakElement) {
+        streakLen += 1;
+      } else {
+        pathScore += streakTotal(streakLen);
+        streakCount += 1;
+        streakElement = el;
+        streakLen = 1;
       }
     }
-    const matchPoints = matchedJewels * 6;
+    if (streakElement !== null) {
+      pathScore += streakTotal(streakLen);
+      streakCount += 1;
+    }
+    pathScore = round2(pathScore);
 
-    const subtotal = base + matchPoints;
-    const comboBonus = Math.floor(subtotal * 0.10 * Math.max(0, combos - 1));
-    const chainBonus = Math.floor(subtotal * 0.05 * Math.max(0, cas.length));
-    const timeBonus = Math.floor((timeMs / 1000) * 2);
-    const total = Math.max(0, base + matchPoints + comboBonus + chainBonus + timeBonus);
+    // Cascade scoring: for each match group, score (count - 2)
+    let cascadeScore = 0;
+    let cascadeGroups = 0;
+    for (const c of cas) {
+      const matches = Array.isArray(c?.matches) ? c.matches : [];
+      for (const m of matches) {
+        const count = Math.max(0, Math.floor(Number(m?.count) || 0));
+        if (count >= 3) {
+          cascadeGroups += 1;
+          cascadeScore += (count - 2);
+        }
+      }
+    }
+    cascadeScore = round2(cascadeScore);
 
+    const total = round2(Math.max(0, pathScore + cascadeScore));
     return {
       total,
       lines: [
-        { label: `Base`, detail: `${pathJewels} × 10`, value: base },
-        { label: `Matches`, detail: `${matchedJewels} × 6`, value: matchPoints },
-        { label: `Combo Bonus`, detail: `combos ${combos}`, value: comboBonus },
-        { label: `Cascade Bonus`, detail: `chains ${cas.length}`, value: chainBonus },
-        { label: `Time Bonus`, detail: `${(timeMs / 1000).toFixed(1)}s × 2`, value: timeBonus },
+        { label: `Jewels`, detail: `${moves.length} consumed · ${streakCount} streak(s)`, value: pathScore },
+        { label: `Cascades`, detail: `${cascadeGroups} group(s)`, value: cascadeScore },
       ]
     };
   }
@@ -166,7 +205,7 @@ const ChessPal = (() => {
   function renderScoreBreakdown(breakdown) {
     if (state.scoreTotalEl) {
       if (!breakdown) state.scoreTotalEl.textContent = 'No score yet.';
-      else state.scoreTotalEl.textContent = `Total: ${breakdown.total}`;
+      else state.scoreTotalEl.textContent = `Total: ${formatScoreValue(breakdown.total)}`;
     }
     if (!state.scoreListEl) return;
     if (!breakdown) {
@@ -177,9 +216,16 @@ const ChessPal = (() => {
       <li class="pmf-cascade-item">
         <b>${escapeHtml(l.label)}</b>
         <span style="opacity:0.72;">· ${escapeHtml(l.detail)}</span>
-        <span style="float:right; font-weight:1000;">+${escapeHtml(l.value)}</span>
+        <span style="float:right; font-weight:1000;">+${escapeHtml(formatScoreValue(l.value))}</span>
       </li>
     `).join('');
+  }
+
+  function formatScoreValue(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return String(v ?? '');
+    if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+    return n.toFixed(2);
   }
 
   function escapeHtml(s) {
