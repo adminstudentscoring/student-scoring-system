@@ -2764,7 +2764,7 @@ const ChessPalPages = (() => {
 
             <div class="cp-setting-item">
               <div class="cp-setting-label">Admin · Backgrounds</div>
-              <div class="cp-setting-help">Change Practice and Summon background images (path relative to `game/chess-pal/`).</div>
+              <div class="cp-setting-help">Change Practice and Summon background images (path relative to game/chess-pal/).</div>
 
               <div style="display:grid; grid-template-columns: 1fr; gap: 10px; margin-top:10px;">
                 <label class="cp-setting-help" style="display:block;">
