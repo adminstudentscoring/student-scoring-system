@@ -532,6 +532,23 @@ const ChessPalPages = (() => {
         const bossBox = document.querySelector('.cp-practice-boss');
         const bossImg = document.querySelector('.cp-practice-bossimg');
         const hpBar = document.querySelector('.cp-team-hpbar');
+        const showDamageFloat = (value, element, mult) => {
+          if (!bossBox) return;
+          const el = document.createElement('div');
+          const m = Number(mult) || 1;
+          const cls = m > 1 ? 'is-adv' : (m < 1 ? 'is-dis' : '');
+          el.className = `cp-dmg-float cp-elem-${String(element || '').toLowerCase()} ${cls}`.trim();
+          el.textContent = String(Math.max(0, Math.floor(Number(value) || 0)));
+          // small random offset so multi-hits don't overlap perfectly
+          try {
+            const ox = (Math.random() * 16 - 8);
+            const oy = (Math.random() * 16 - 8);
+            el.style.left = `calc(50% + ${ox}px)`;
+            el.style.top = `calc(52% + ${oy}px)`;
+          } catch {}
+          bossBox.appendChild(el);
+          setTimeout(() => { try { el.remove(); } catch {} }, 1200);
+        };
         const bossEl = String(getBossBase()?.element || '').toLowerCase();
         const elemMult = (att, def) => {
           const a = String(att || '').toLowerCase();
@@ -563,12 +580,14 @@ const ChessPalPages = (() => {
           const el = String(hero.element || '');
           const elScore = Number(elementScores?.[el] || 0);
           const atk = Math.max(0, Number(hero.atk) || 0);
-          const dmg = Math.max(0, Math.round(atk * elScore * atkMul * elemMult(el, bossEl)));
+          const mult = elemMult(el, bossEl);
+          const dmg = Math.max(0, Math.round(atk * elScore * atkMul * mult));
           if (dmg <= 0) continue;
 
           const slotEl = row?.children?.[i] || null;
           await playBeamBetween({ fromEl: slotEl, toEl: bossImg, variant: 'player' });
           await shake(bossImg);
+          showDamageFloat(dmg, el, mult);
           const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
           b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - dmg));
           updateHpUI();
@@ -2597,15 +2616,15 @@ const ChessPalPages = (() => {
   SummonPage.render = () => {
     const s = getGeneralSettings();
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Summon</div>
-        <div class="cp-muted">Summon a hero using 1 Gold Coin.</div>
-
-        <button class="cp-summon-castle" type="button" id="cpSummonHero" aria-label="Summon Hero">
-          <img class="cp-summon-castleimg" id="cpSummonBgImg" src="${esc(String(s.summonBg || ''))}" alt="Summon Castle" onerror="this.style.display='none';">
-          <div class="cp-summon-text">Summon Hero</div>
-          <div class="cp-summon-sub">Cost: 1 Gold Coin</div>
+      <div class="cp-page-card cp-summon-page">
+        <button class="cp-summon-main" type="button" id="cpSummonHero" aria-label="Summon Hero">
+          <img class="cp-summon-mainimg" id="cpSummonBgImg" src="${esc(String(s.summonBg || ''))}" alt="Summon background" onerror="this.style.display='none';">
         </button>
+        <div class="cp-summon-title">Summon Hero</div>
+        <div class="cp-summon-cost" aria-label="Cost">
+          <img class="cp-summon-coin" src="images/Storage/S001-Gold-Coin.png" alt="Gold coin" onerror="this.onerror=null;this.src='images/Storage/S002-Gold-Coin.png';">
+          <span class="cp-summon-x">× 1</span>
+        </div>
         <div class="cp-muted" id="cpSummonMsg" style="margin-top:10px;"></div>
       </div>
     `;

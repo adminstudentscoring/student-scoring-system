@@ -149,6 +149,11 @@ const Router = (() => {
     setTopToolsForPath(p);
     updateSidebarCoins();
 
+    // Hide top bar on game-like pages
+    try {
+      document.body.classList.toggle('cp-hide-topbar', (p === '/practice' || p === '/test-game' || p === '/summon'));
+    } catch {}
+
     container.style.opacity = '0';
     setTimeout(() => {
       container.innerHTML = page?.render?.() || '';

@@ -82,7 +82,7 @@ const ChessPal = (() => {
             <div class="pmf-board" id="pmfBoard" role="grid" aria-label="Puzzle board"></div>
           </div>
           <div class="pmf-controls">
-            <button id="pmfStartTurn" class="pmf-primary hidden" disabled>Start Turn</button>
+            <button id="pmfStartTurn" class="pmf-primary hidden" disabled>Start</button>
           </div>
         </div>
       </div>
