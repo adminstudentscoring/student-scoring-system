@@ -2067,6 +2067,8 @@ const ChessPalPages = (() => {
     // You mentioned Gold/Silver both have S001 prefix; we try multiple names via fallback.
     gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S001-Gold-Coin.png' },
     exp_pawn: { id: 'exp_pawn', name: 'EXP Pawn', img: 'images/Storage/S003-Exp-Pawn.png' },
+    exp_knight: { id: 'exp_knight', name: 'EXP Knight', img: 'images/Storage/S004-Exp-Knight.png' },
+    exp_bishop: { id: 'exp_bishop', name: 'EXP Bishop', img: 'images/Storage/S005-Exp-Bishop.png' },
   };
 
   function getStorageItemDef(itemId) {
@@ -2097,6 +2099,16 @@ const ChessPalPages = (() => {
       legacy.unshift('images/Storage/S003-Exp-Pawn.png');
       legacy.unshift('images/Storage/S002-Exp-Pawn.png');
       legacy.unshift('images/Storage/S001-Exp-Pawn.png');
+    }
+    if (base.includes('Exp-Knight')) {
+      legacy.push('images/Storage/Exp-Knight.png');
+      legacy.unshift('images/Storage/S005-Exp-Knight.png');
+      legacy.unshift('images/Storage/S004-Exp-Knight.png');
+    }
+    if (base.includes('Exp-Bishop')) {
+      legacy.push('images/Storage/Exp-Bishop.png');
+      legacy.unshift('images/Storage/S006-Exp-Bishop.png');
+      legacy.unshift('images/Storage/S005-Exp-Bishop.png');
     }
     // Legacy soldier naming (older builds)
     if (base.includes('Exp-Soldier')) {
@@ -2283,11 +2295,17 @@ const ChessPalPages = (() => {
         if (slot) {
           // Use item (UI first): EXP Pawn (legacy: exp_soldier)
           const slotId = String(slot.itemId || '').toLowerCase();
-          if (slotId === 'exp_pawn' || slotId === 'exp_soldier') {
+          const expDefs = {
+            exp_pawn: { label: 'EXP Pawn', exp: 500 },
+            exp_soldier: { label: 'EXP Pawn', exp: 500 },
+            exp_knight: { label: 'EXP Knight', exp: 1500 },
+            exp_bishop: { label: 'EXP Bishop', exp: 2500 },
+          };
+          if (expDefs[slotId]) {
             const owned = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
             const ids = Array.from(owned);
             showPickHeroModal({
-              title: 'Use EXP Pawn',
+              title: `Use ${expDefs[slotId].label}`,
               allowIds: ids,
               onPick: (heroId) => {
                 // Consume 1 item
@@ -2295,7 +2313,7 @@ const ChessPalPages = (() => {
                 slots[idx] = (q <= 1) ? null : { ...slot, qty: q - 1 };
                 saveStorage(slots);
                 // Add small EXP
-                addHeroExp(heroId, 500);
+                addHeroExp(heroId, expDefs[slotId].exp);
                 try { Router.renderCurrent(); } catch {}
                 const hero = getAllHeroes().find(h => h.id === String(heroId || ''));
                 if (hero) showHeroModal(hero);
@@ -2426,6 +2444,36 @@ const ChessPalPages = (() => {
             </div>
             <button class="cp-primary" type="button" id="cpBuyExpSoldier">Buy</button>
           </div>
+
+          <div class="cp-mall-item">
+            <div class="cp-mall-icon">
+              ${renderImgWithFallback('images/Storage/S004-Exp-Knight.png', 'EXP Knight', '')}
+            </div>
+            <div class="cp-mall-meta">
+              <div class="cp-setting-label">EXP Knight</div>
+              <div class="cp-setting-help">Gives a medium amount of EXP to one hero.</div>
+              <div class="cp-mall-price" aria-label="Price">
+                ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
+                <span class="cp-mall-x">×15</span>
+              </div>
+            </div>
+            <button class="cp-primary" type="button" id="cpBuyExpKnight">Buy</button>
+          </div>
+
+          <div class="cp-mall-item">
+            <div class="cp-mall-icon">
+              ${renderImgWithFallback('images/Storage/S005-Exp-Bishop.png', 'EXP Bishop', '')}
+            </div>
+            <div class="cp-mall-meta">
+              <div class="cp-setting-label">EXP Bishop</div>
+              <div class="cp-setting-help">Gives a large amount of EXP to one hero.</div>
+              <div class="cp-mall-price" aria-label="Price">
+                ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
+                <span class="cp-mall-x">×25</span>
+              </div>
+            </div>
+            <button class="cp-primary" type="button" id="cpBuyExpBishop">Buy</button>
+          </div>
         </div>
         <div class="cp-row" style="margin-top:12px;">
           <button class="cp-tool-btn" type="button" id="cpBackShop2">Back</button>
@@ -2438,18 +2486,18 @@ const ChessPalPages = (() => {
     document.getElementById('cpBackShop2')?.addEventListener('click', () => Router.goTo('/shop'), { passive: true });
     const msg = document.getElementById('cpMallMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-    document.getElementById('cpBuyExpSoldier')?.addEventListener('click', () => {
+    const buy = (cost, itemId) => {
       try {
         setMsg('');
         let slots = loadStorage();
-        const spent = spendFromStorage(slots, 'silver_coin', 5);
+        const spent = spendFromStorage(slots, 'silver_coin', cost);
         if (!spent.ok) {
           setMsg('Not enough Silver Coins.');
           return;
         }
         slots = spent.slots;
         const before = JSON.stringify(slots);
-        slots = addItemToStorage(slots, 'exp_pawn', 1);
+        slots = addItemToStorage(slots, itemId, 1);
         if (JSON.stringify(slots) === before) {
           setMsg('Storage is full.');
           return;
@@ -2459,7 +2507,10 @@ const ChessPalPages = (() => {
       } catch (e) {
         setMsg(String(e?.message || e || 'Purchase failed'));
       }
-    }, { passive: true });
+    };
+    document.getElementById('cpBuyExpSoldier')?.addEventListener('click', () => buy(5, 'exp_pawn'), { passive: true });
+    document.getElementById('cpBuyExpKnight')?.addEventListener('click', () => buy(15, 'exp_knight'), { passive: true });
+    document.getElementById('cpBuyExpBishop')?.addEventListener('click', () => buy(25, 'exp_bishop'), { passive: true });
   };
 
   function spendFromStorage(slots, itemId, qty) {
@@ -2483,9 +2534,11 @@ const ChessPalPages = (() => {
         <div class="cp-h1">Summon</div>
         <div class="cp-muted">Summon a hero using 1 Gold Coin.</div>
 
-        <div class="cp-row" style="margin-top:12px;">
-          <button class="cp-primary" type="button" id="cpSummonHero">Summon Hero</button>
-        </div>
+        <button class="cp-summon-castle" type="button" id="cpSummonHero" aria-label="Summon Hero">
+          <img class="cp-summon-castleimg" src="images/Summon/Summon-Castle.png" alt="Summon Castle" onerror="this.style.display='none';">
+          <div class="cp-summon-text">Summon Hero</div>
+          <div class="cp-summon-sub">Cost: 1 Gold Coin</div>
+        </button>
         <div class="cp-muted" id="cpSummonMsg" style="margin-top:10px;"></div>
       </div>
     `;
