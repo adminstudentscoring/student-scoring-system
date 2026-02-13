@@ -26,8 +26,8 @@ const ChessPalPages = (() => {
       jewelSet: 'set_a',
       pieceStyle: 'none',
       // Backgrounds
-      practiceBg: 'images/Mode/Practice/Map/Map001.png',
-      summonBg: 'images/Summon/Su001.png',
+      practiceBg: 'images/Mode/Practice/Map/Map001-Grassland.jpg',
+      summonBg: 'images/Summon/Su001-Castling.jpg',
       // Admin tuning (used for Practice combat math)
       streakMult: 1.05,
       atkScale: 0.10,
@@ -42,7 +42,7 @@ const ChessPalPages = (() => {
       const jewelSetRaw = String(v?.jewelSet || '').trim().toLowerCase();
       const jewelSet = (jewelSetRaw === 'set_a' || jewelSetRaw === 'none') ? jewelSetRaw : base.jewelSet;
       const pieceStyleRaw = String(v?.pieceStyle || '').trim().toLowerCase();
-      const pieceStyle = (pieceStyleRaw === 'none' || pieceStyleRaw === 'nyxblade' || pieceStyleRaw === 'rivenhart')
+      const pieceStyle = (pieceStyleRaw === 'none' || pieceStyleRaw === 'nyxblade' || pieceStyleRaw === 'rivenhart' || pieceStyleRaw === 'seraphix')
         ? pieceStyleRaw
         : base.pieceStyle;
       const streakMultRaw = Number(v?.streakMult);
@@ -75,7 +75,7 @@ const ChessPalPages = (() => {
       const nextSet = String(s?.jewelSet || 'set_a').trim().toLowerCase();
       root.setAttribute('data-cp-jewel-set', (nextSet === 'none' || nextSet === 'set_a') ? nextSet : 'set_a');
       const nextPiece = String(s?.pieceStyle || 'none').trim().toLowerCase();
-      root.setAttribute('data-cp-piece-style', (nextPiece === 'nyxblade' || nextPiece === 'rivenhart' || nextPiece === 'none') ? nextPiece : 'none');
+      root.setAttribute('data-cp-piece-style', (nextPiece === 'nyxblade' || nextPiece === 'rivenhart' || nextPiece === 'seraphix' || nextPiece === 'none') ? nextPiece : 'none');
       try { window.dispatchEvent(new Event('cpGeneralSettingsChanged')); } catch {}
     } catch {}
   }
@@ -2688,12 +2688,13 @@ const ChessPalPages = (() => {
               <option value="none" ${s.pieceStyle === 'none' ? 'selected' : ''}>No Style</option>
               <option value="nyxblade" ${s.pieceStyle === 'nyxblade' ? 'selected' : ''}>Nyxblade</option>
               <option value="rivenhart" ${s.pieceStyle === 'rivenhart' ? 'selected' : ''}>Rivenhart</option>
+              <option value="seraphix" ${s.pieceStyle === 'seraphix' ? 'selected' : ''}>Seraphix</option>
             </select>
-            <div class="cp-setting-value"><span id="cpSettingPieceStyleVal">${s.pieceStyle === 'nyxblade' ? 'Nyxblade' : (s.pieceStyle === 'rivenhart' ? 'Rivenhart' : 'No Style')}</span></div>
+            <div class="cp-setting-value"><span id="cpSettingPieceStyleVal">${s.pieceStyle === 'nyxblade' ? 'Nyxblade' : (s.pieceStyle === 'rivenhart' ? 'Rivenhart' : (s.pieceStyle === 'seraphix' ? 'Seraphix' : 'No Style'))}</span></div>
 
             <div class="cp-piece-preview" aria-label="Piece preview">
               <div class="cp-piece-preview-box">
-                <img id="cpPiecePreviewImg" src="${s.pieceStyle === 'nyxblade' ? 'images/Piece/P001-nyxblade.png' : (s.pieceStyle === 'rivenhart' ? 'images/Piece/P002-rivenhart.png' : '/assets/pieces/white_Knight.png')}" alt="Piece preview">
+                <img id="cpPiecePreviewImg" src="${s.pieceStyle === 'nyxblade' ? 'images/Piece/P001-nyxblade.png' : (s.pieceStyle === 'rivenhart' ? 'images/Piece/P002-Rivenhart.png' : (s.pieceStyle === 'seraphix' ? 'images/Piece/P003-Seraphix.png' : '/assets/pieces/white_Knight.png'))}" alt="Piece preview">
               </div>
             </div>
           </div>
@@ -2813,17 +2814,23 @@ const ChessPalPages = (() => {
         piecePreviewImg.src = (v === 'nyxblade')
           ? 'images/Piece/P001-nyxblade.png'
           : (v === 'rivenhart')
-            ? 'images/Piece/P002-rivenhart.png'
-            : '/assets/pieces/white_Knight.png';
+            ? 'images/Piece/P002-Rivenhart.png'
+            : (v === 'seraphix')
+              ? 'images/Piece/P003-Seraphix.png'
+              : '/assets/pieces/white_Knight.png';
       };
       syncPreview();
       pieceStyle.addEventListener('change', () => {
         const next = getGeneralSettings();
         const v = String(pieceStyle.value || 'none').trim().toLowerCase();
-        next.pieceStyle = (v === 'nyxblade' || v === 'rivenhart' || v === 'none') ? v : 'none';
+        next.pieceStyle = (v === 'nyxblade' || v === 'rivenhart' || v === 'seraphix' || v === 'none') ? v : 'none';
         applyGeneralSettings(next);
         saveGeneralSettings(next);
-        if (pieceStyleVal) pieceStyleVal.textContent = next.pieceStyle === 'nyxblade' ? 'Nyxblade' : (next.pieceStyle === 'rivenhart' ? 'Rivenhart' : 'No Style');
+        if (pieceStyleVal) pieceStyleVal.textContent = next.pieceStyle === 'nyxblade'
+          ? 'Nyxblade'
+          : (next.pieceStyle === 'rivenhart'
+            ? 'Rivenhart'
+            : (next.pieceStyle === 'seraphix' ? 'Seraphix' : 'No Style'));
         syncPreview();
       }, { passive: true });
     }

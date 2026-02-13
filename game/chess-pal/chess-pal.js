@@ -48,7 +48,7 @@ const ChessPal = (() => {
     try {
       const v = document.documentElement?.getAttribute('data-cp-piece-style');
       const key = String(v || '').trim().toLowerCase();
-      return (key === 'nyxblade' || key === 'rivenhart') ? key : 'none';
+      return (key === 'nyxblade' || key === 'rivenhart' || key === 'seraphix') ? key : 'none';
     } catch {
       return 'none';
     }
@@ -57,7 +57,8 @@ const ChessPal = (() => {
   function getKnightImageSrc() {
     const style = getPieceStyle();
     if (style === 'nyxblade') return 'images/Piece/P001-nyxblade.png';
-    if (style === 'rivenhart') return 'images/Piece/P002-rivenhart.png';
+    if (style === 'rivenhart') return 'images/Piece/P002-Rivenhart.png';
+    if (style === 'seraphix') return 'images/Piece/P003-Seraphix.png';
     return '/assets/pieces/white_Knight.png';
   }
 
