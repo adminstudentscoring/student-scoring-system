@@ -25,6 +25,9 @@ const ChessPalPages = (() => {
       appBg: '#060912',
       jewelSet: 'set_a',
       pieceStyle: 'none',
+      // Backgrounds
+      practiceBg: 'images/Mode/Practice/Map/Map001.png',
+      summonBg: 'images/Summon/Su001.png',
       // Admin tuning (used for Practice combat math)
       streakMult: 1.05,
       atkScale: 0.10,
@@ -45,11 +48,15 @@ const ChessPalPages = (() => {
       const streakMultRaw = Number(v?.streakMult);
       const atkScaleRaw = Number(v?.atkScale);
       const rcvScaleRaw = Number(v?.rcvScale);
+      const practiceBg = String(v?.practiceBg || '').trim() || base.practiceBg;
+      const summonBg = String(v?.summonBg || '').trim() || base.summonBg;
       return {
         jewelAlpha: Number.isFinite(jewelAlpha) ? Math.max(0.08, Math.min(0.45, jewelAlpha)) : base.jewelAlpha,
         appBg: /^#([0-9a-fA-F]{6})$/.test(appBg) ? appBg : base.appBg,
         jewelSet,
         pieceStyle,
+        practiceBg,
+        summonBg,
         streakMult: Number.isFinite(streakMultRaw) ? Math.max(1.0, Math.min(1.3, streakMultRaw)) : base.streakMult,
         atkScale: Number.isFinite(atkScaleRaw) ? Math.max(0, Math.min(1.0, atkScaleRaw)) : base.atkScale,
         rcvScale: Number.isFinite(rcvScaleRaw) ? Math.max(0, Math.min(2.0, rcvScaleRaw)) : base.rcvScale
@@ -333,8 +340,12 @@ const ChessPalPages = (() => {
   function PracticePage() {}
   PracticePage.title = 'Practice';
   PracticePage.render = () => {
+    const s = getGeneralSettings();
     return `
       <div class="cp-practice">
+        <div class="cp-practice-bg" aria-hidden="true">
+          <img id="cpPracticeBgImg" class="cp-practice-bgimg" src="${esc(String(s.practiceBg || ''))}" alt="" aria-hidden="true">
+        </div>
         <div class="cp-practice-left">
           <div class="cp-practice-boss" aria-label="Boss preview">
             <img class="cp-practice-bossimg" src="images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png" alt="Verdant Maw">
@@ -369,11 +380,39 @@ const ChessPalPages = (() => {
     try { window.initChessPal?.(); } catch {}
 
     const row = document.getElementById('cpPracticeTeamRow');
+    const bgImg = document.getElementById('cpPracticeBgImg');
     const hpFill = document.getElementById('cpTeamHpFill');
     const hpText = document.getElementById('cpTeamHpText');
     const rcvOverlay = document.getElementById('cpTeamRcvOverlay');
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpText = document.getElementById('cpBossHpText');
+
+    const syncPracticeBg = () => {
+      if (!bgImg) return;
+      const s = getGeneralSettings();
+      const src = String(s?.practiceBg || '').trim();
+      if (!src) return;
+      if (bgImg.getAttribute('src') !== src) bgImg.setAttribute('src', src);
+      bgImg.onerror = function() {
+        // If user saved without extension, try common ones.
+        const cur = String(this.getAttribute('src') || '');
+        if (!cur) return;
+        if (cur.endsWith('.png')) return;
+        if (cur.endsWith('.jpg') || cur.endsWith('.jpeg') || cur.endsWith('.webp')) return;
+        // Try .png then .jpg then .webp
+        try {
+          if (!this.dataset.try1) { this.dataset.try1 = '1'; this.src = `${cur}.png`; return; }
+          if (!this.dataset.try2) { this.dataset.try2 = '1'; this.src = `${cur}.jpg`; return; }
+          if (!this.dataset.try3) { this.dataset.try3 = '1'; this.src = `${cur}.webp`; return; }
+        } catch {}
+      };
+    };
+    syncPracticeBg();
+    try {
+      if (window.__cpPracticeBgListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpPracticeBgListener);
+    } catch {}
+    window.__cpPracticeBgListener = () => { try { syncPracticeBg(); } catch {} };
+    try { window.addEventListener('cpGeneralSettingsChanged', window.__cpPracticeBgListener); } catch {}
 
     const getBattle = () => {
       try {
@@ -727,6 +766,11 @@ const ChessPalPages = (() => {
     try {
       if (window.__cpPracticeScoreListener) {
         window.removeEventListener('cpElementScoresChanged', window.__cpPracticeScoreListener);
+      }
+    } catch {}
+    try {
+      if (window.__cpPracticeBgListener) {
+        window.removeEventListener('cpGeneralSettingsChanged', window.__cpPracticeBgListener);
       }
     } catch {}
   };
@@ -2529,13 +2573,14 @@ const ChessPalPages = (() => {
   function SummonPage() {}
   SummonPage.title = 'Summon';
   SummonPage.render = () => {
+    const s = getGeneralSettings();
     return `
       <div class="cp-page-card">
         <div class="cp-h1">Summon</div>
         <div class="cp-muted">Summon a hero using 1 Gold Coin.</div>
 
         <button class="cp-summon-castle" type="button" id="cpSummonHero" aria-label="Summon Hero">
-          <img class="cp-summon-castleimg" src="images/Summon/Summon-Castle.png" alt="Summon Castle" onerror="this.style.display='none';">
+          <img class="cp-summon-castleimg" id="cpSummonBgImg" src="${esc(String(s.summonBg || ''))}" alt="Summon Castle" onerror="this.style.display='none';">
           <div class="cp-summon-text">Summon Hero</div>
           <div class="cp-summon-sub">Cost: 1 Gold Coin</div>
         </button>
@@ -2545,7 +2590,33 @@ const ChessPalPages = (() => {
   };
   SummonPage.init = () => {
     const msg = document.getElementById('cpSummonMsg');
+    const bgImg = document.getElementById('cpSummonBgImg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    const syncSummonBg = () => {
+      if (!bgImg) return;
+      const s = getGeneralSettings();
+      const src = String(s?.summonBg || '').trim();
+      if (!src) return;
+      if (bgImg.getAttribute('src') !== src) bgImg.setAttribute('src', src);
+      bgImg.onerror = function() {
+        const cur = String(this.getAttribute('src') || '');
+        if (!cur) return;
+        if (cur.endsWith('.png')) return;
+        if (cur.endsWith('.jpg') || cur.endsWith('.jpeg') || cur.endsWith('.webp')) return;
+        try {
+          if (!this.dataset.try1) { this.dataset.try1 = '1'; this.src = `${cur}.png`; return; }
+          if (!this.dataset.try2) { this.dataset.try2 = '1'; this.src = `${cur}.jpg`; return; }
+          if (!this.dataset.try3) { this.dataset.try3 = '1'; this.src = `${cur}.webp`; return; }
+        } catch {}
+      };
+    };
+    syncSummonBg();
+    try {
+      if (window.__cpSummonBgListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpSummonBgListener);
+    } catch {}
+    window.__cpSummonBgListener = () => { try { syncSummonBg(); } catch {} };
+    try { window.addEventListener('cpGeneralSettingsChanged', window.__cpSummonBgListener); } catch {}
+
     document.getElementById('cpSummonHero')?.addEventListener('click', async () => {
       try {
         setMsg('');
@@ -2667,6 +2738,33 @@ const ChessPalPages = (() => {
                 </div>
               </div>
             </div>
+
+            <div class="cp-setting-item">
+              <div class="cp-setting-label">Admin · Backgrounds</div>
+              <div class="cp-setting-help">Change Practice and Summon background images (path relative to `game/chess-pal/`).</div>
+
+              <div style="display:grid; grid-template-columns: 1fr; gap: 10px; margin-top:10px;">
+                <label class="cp-setting-help" style="display:block;">
+                  Practice Background
+                  <input class="cp-select" id="cpSettingPracticeBg" type="text" value="${esc(String(s.practiceBg || ''))}">
+                </label>
+                <div class="cp-piece-preview" aria-label="Practice background preview">
+                  <div class="cp-piece-preview-box" style="aspect-ratio: 16/9; width:100%;">
+                    <img id="cpPracticeBgPreview" src="${esc(String(s.practiceBg || ''))}" alt="Practice background preview" style="object-fit:cover;">
+                  </div>
+                </div>
+
+                <label class="cp-setting-help" style="display:block;">
+                  Summon Background
+                  <input class="cp-select" id="cpSettingSummonBg" type="text" value="${esc(String(s.summonBg || ''))}">
+                </label>
+                <div class="cp-piece-preview" aria-label="Summon background preview">
+                  <div class="cp-piece-preview-box" style="aspect-ratio: 16/9; width:100%;">
+                    <img id="cpSummonBgPreview" src="${esc(String(s.summonBg || ''))}" alt="Summon background preview" style="object-fit:cover;">
+                  </div>
+                </div>
+              </div>
+            </div>
           ` : ``}
         </div>
       </div>
@@ -2746,6 +2844,10 @@ const ChessPalPages = (() => {
       const streakMult = document.getElementById('cpSettingStreakMult');
       const atkScale = document.getElementById('cpSettingAtkScale');
       const rcvScale = document.getElementById('cpSettingRcvScale');
+      const practiceBg = document.getElementById('cpSettingPracticeBg');
+      const summonBg = document.getElementById('cpSettingSummonBg');
+      const practiceBgPrev = document.getElementById('cpPracticeBgPreview');
+      const summonBgPrev = document.getElementById('cpSummonBgPreview');
       const applyNum = (key, raw, min, max) => {
         const next = getGeneralSettings();
         const n = Number(raw);
@@ -2757,6 +2859,21 @@ const ChessPalPages = (() => {
       streakMult?.addEventListener('change', () => applyNum('streakMult', streakMult.value, 1.0, 1.3), { passive: true });
       atkScale?.addEventListener('change', () => applyNum('atkScale', atkScale.value, 0, 1.0), { passive: true });
       rcvScale?.addEventListener('change', () => applyNum('rcvScale', rcvScale.value, 0, 2.0), { passive: true });
+
+      const applyStr = (key, raw) => {
+        const next = getGeneralSettings();
+        next[key] = String(raw || '').trim();
+        applyGeneralSettings(next);
+        saveGeneralSettings(next);
+      };
+      practiceBg?.addEventListener('change', () => {
+        applyStr('practiceBg', practiceBg.value);
+        if (practiceBgPrev) practiceBgPrev.setAttribute('src', String(practiceBg.value || '').trim());
+      }, { passive: true });
+      summonBg?.addEventListener('change', () => {
+        applyStr('summonBg', summonBg.value);
+        if (summonBgPrev) summonBgPrev.setAttribute('src', String(summonBg.value || '').trim());
+      }, { passive: true });
     }
   };
 

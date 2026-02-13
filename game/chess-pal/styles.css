@@ -1002,6 +1002,27 @@ body {
   min-height: calc(100dvh - 86px);
   position: relative;
 }
+.cp-practice-bg{
+  position:absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow:hidden;
+  border-radius: 18px;
+}
+.cp-practice-bgimg{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+  opacity: 0.60;
+  filter: saturate(1.06) contrast(1.05) blur(0.2px);
+}
+.cp-practice-left,
+.cp-practice-right{
+  position: relative;
+  z-index: 1;
+}
 @media (max-width: 980px){
   .cp-practice{
     grid-template-columns: 1fr;
