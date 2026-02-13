@@ -532,6 +532,18 @@ const ChessPalPages = (() => {
         const bossBox = document.querySelector('.cp-practice-boss');
         const bossImg = document.querySelector('.cp-practice-bossimg');
         const hpBar = document.querySelector('.cp-team-hpbar');
+        const bossEl = String(getBossBase()?.element || '').toLowerCase();
+        const elemMult = (att, def) => {
+          const a = String(att || '').toLowerCase();
+          const d = String(def || '').toLowerCase();
+          if (!a || !d) return 1;
+          // Light/Dark vs Fire/Wood/Water special rule
+          if ((a === 'light' || a === 'dark') && (d === 'fire' || d === 'wood' || d === 'water')) return 1.1;
+          const adv = { fire: 'wood', wood: 'water', water: 'fire', light: 'dark', dark: 'light' };
+          if (adv[a] === d) return 1.25;
+          if (adv[d] === a) return 0.75;
+          return 1;
+        };
 
         // Heal first (Heart score)
         const heartScore = Number(elementScores?.heart || 0);
@@ -551,7 +563,7 @@ const ChessPalPages = (() => {
           const el = String(hero.element || '');
           const elScore = Number(elementScores?.[el] || 0);
           const atk = Math.max(0, Number(hero.atk) || 0);
-          const dmg = Math.max(0, Math.round(atk * elScore * atkMul));
+          const dmg = Math.max(0, Math.round(atk * elScore * atkMul * elemMult(el, bossEl)));
           if (dmg <= 0) continue;
 
           const slotEl = row?.children?.[i] || null;
@@ -774,6 +786,13 @@ const ChessPalPages = (() => {
       }
     } catch {}
   };
+
+  // Admin-only test page (same as Practice for now)
+  function TestGamePage() {}
+  TestGamePage.title = 'Test Game';
+  TestGamePage.render = PracticePage.render;
+  TestGamePage.init = PracticePage.init;
+  TestGamePage.destroy = PracticePage.destroy;
 
   function PlaceholderPage(title, desc) {
     return {
@@ -1376,6 +1395,7 @@ const ChessPalPages = (() => {
       <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+          ${(!admin && owned && !owned.has(h.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(h.level)}</div>`}
           ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
         </div>
         <div class="cp-hero-mini-meta">
@@ -1851,6 +1871,7 @@ const ChessPalPages = (() => {
       <button class="cp-hero-card ${(!admin && seen && !seen.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}">
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
+          ${(!admin && seen && !seen.has(m.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(m.level)}</div>`}
         </div>
         <div class="cp-hero-mini-meta">
           <div class="cp-hero-mini-name">${(!admin && seen && !seen.has(m.id)) ? '' : esc(m.name)}</div>
@@ -2022,6 +2043,7 @@ const ChessPalPages = (() => {
           <button class="cp-team-slot ${isLeader ? 'is-leader' : ''}" type="button" data-team-slot="${slotIdx}" aria-label="${isLeader ? 'Leader slot' : 'Member slot'}">
             ${hero ? `
               <img class="cp-team-img" src="${esc(hero.mini)}" alt="${esc(hero.name)}">
+              <div class="cp-mini-lv">Lv ${esc(hero.level)}</div>
               ${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}
             ` : `<div class="cp-team-empty"></div>`}
           </button>
@@ -2889,6 +2911,7 @@ const ChessPalPages = (() => {
       '/home': HomePage,
       '/mode': ModePage,
       '/practice': PracticePage,
+      '/test-game': TestGamePage,
       '/team': TeamPage,
       '/pal': PalPage,
       '/heroes': HeroesPage,

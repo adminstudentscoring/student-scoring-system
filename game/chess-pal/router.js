@@ -37,7 +37,7 @@ const Router = (() => {
     const pops = document.getElementById('cpTopPopovers');
     if (!tools || !pops) return;
 
-    if (path !== '/practice') {
+    if (path !== '/practice' && path !== '/test-game') {
       tools.innerHTML = '';
       pops.innerHTML = '';
       return;
@@ -176,6 +176,19 @@ const Router = (() => {
       if (String(role) === 'admin' && window.authUtils && typeof window.authUtils.requireRole === 'function') {
         if (!window.authUtils.requireRole('admin')) return;
       }
+    } catch {}
+
+    // Admin-only nav items
+    try {
+      const role = new URLSearchParams(window.location.search || '').get('role');
+      const isAdmin = (() => {
+        if (String(role) !== 'admin') return false;
+        if (window.authUtils && typeof window.authUtils.hasRole === 'function') return !!window.authUtils.hasRole('admin');
+        return true;
+      })();
+      document.querySelectorAll('.cp-nav-admin').forEach((btn) => {
+        btn.style.display = isAdmin ? '' : 'none';
+      });
     } catch {}
 
     // Nav click
