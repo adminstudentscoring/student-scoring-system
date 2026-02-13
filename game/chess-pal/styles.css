@@ -254,6 +254,9 @@ body {
   padding: 14px 14px 22px;
   transition: opacity 0.22s ease;
 }
+.cp-hide-topbar .cp-container{
+  padding-top: 10px;
+}
 
 .cp-overlay{
   display:none;
@@ -1183,6 +1186,17 @@ body {
   touch-action: manipulation;
 }
 .cp-summon-main:active{ transform: translateY(1px); }
+.cp-summon-overlay{
+  position:absolute;
+  inset: 0;
+  display:flex;
+  flex-direction: column;
+  align-items:center;
+  justify-content:center;
+  gap: 14px;
+  padding: 18px;
+  pointer-events:none;
+}
 .cp-summon-mainimg{
   position:absolute;
   inset:0;
@@ -1193,7 +1207,6 @@ body {
   filter: saturate(1.06) contrast(1.04);
 }
 .cp-summon-title{
-  margin-top: 18px;
   font-size: clamp(44px, 6.8vw, 92px); /* ~4x */
   font-weight: 1000;
   letter-spacing: 0.2px;
@@ -1202,7 +1215,6 @@ body {
   text-align: center;
 }
 .cp-summon-cost{
-  margin-top: 10px;
   display:flex;
   align-items:center;
   gap: 12px;
@@ -1315,15 +1327,15 @@ body {
   top: 52%;
   transform: translate(-50%, -50%);
   font-weight: 900;
-  font-size: 18px;
+  font-size: 36px; /* 2x */
   letter-spacing: 0.2px;
   text-shadow: 0 14px 26px rgba(0,0,0,0.70);
   pointer-events: none;
   opacity: 0;
   animation: cp-dmg-float 1100ms ease-out both;
 }
-.cp-dmg-float.is-adv{ font-size: 26px; font-weight: 1000; }
-.cp-dmg-float.is-dis{ font-size: 16px; font-weight: 700; opacity: 0.95; }
+.cp-dmg-float.is-adv{ font-size: 52px; font-weight: 1000; }
+.cp-dmg-float.is-dis{ font-size: 30px; font-weight: 700; opacity: 0.95; }
 @keyframes cp-dmg-float{
   0%{ opacity: 0; transform: translate(-50%, -40%) scale(0.92); }
   15%{ opacity: 1; }
@@ -1359,8 +1371,8 @@ body {
 .cp-practice-slot{
   aspect-ratio: 1 / 1;
   border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.18);
+  border: 0;
+  background: transparent;
   overflow:hidden;
   position: relative;
 }
@@ -1404,6 +1416,9 @@ body {
   width: max-content;
   align-self: center; /* keep board vertically centered */
   margin-left: 38px; /* ~1cm to the right */
+  /* shrink board (grid + content) by 10% */
+  --cp-cell: calc(66px * 0.9);
+  --cp-gap: calc(8px * 0.9);
 }
 .cp-practice-right .pmf-wrapper{
   width: auto;
