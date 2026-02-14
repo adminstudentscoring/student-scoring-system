@@ -92,6 +92,7 @@ const ChessPalPages = (() => {
   // ----------------------------
   const OWNED_HERO_KEY = 'chessPalOwnedHeroes';
   const SEEN_MONSTER_KEY = 'chessPalSeenMonsters';
+  const OWNED_MONSTER_KEY = 'chessPalOwnedMonsters';
 
   function getDefaultOwnedHeroIds() {
     // Nyxblade (002), Rivenhart (003), Seraphix (004)
@@ -127,6 +128,32 @@ const ChessPalPages = (() => {
     setOwnedHeroSet(set);
   }
 
+  function getOwnedMonsterSet() {
+    try {
+      const raw = localStorage.getItem(OWNED_MONSTER_KEY);
+      if (!raw) return new Set();
+      const v = JSON.parse(raw);
+      const arr = Array.isArray(v) ? v : (Array.isArray(v?.ids) ? v.ids : []);
+      return new Set(arr.map(x => String(x || '').trim()).filter(Boolean));
+    } catch {
+      return new Set();
+    }
+  }
+  function setOwnedMonsterSet(set) {
+    try {
+      const ids = Array.from(set || []).map(x => String(x || '').trim()).filter(Boolean);
+      localStorage.setItem(OWNED_MONSTER_KEY, JSON.stringify(ids));
+    } catch {}
+    try { window.dispatchEvent(new Event('cpOwnedMonstersChanged')); } catch {}
+  }
+  function addOwnedMonsterId(id) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    const set = getOwnedMonsterSet();
+    set.add(key);
+    setOwnedMonsterSet(set);
+  }
+
   function getSeenMonsterSet() {
     try {
       const raw = localStorage.getItem(SEEN_MONSTER_KEY);
@@ -150,6 +177,7 @@ const ChessPalPages = (() => {
 
   // For future battle integration
   try { window.cpMarkMonsterSeen = addSeenMonsterId; } catch {}
+  try { window.cpAddOwnedMonster = addOwnedMonsterId; } catch {}
 
   // ----------------------------
   // Hero progression (per-user): total EXP -> level
@@ -517,17 +545,35 @@ const ChessPalPages = (() => {
 
   function ModeStoryPage() {}
   ModeStoryPage.title = 'Story Mode';
-  ModeStoryPage.render = () => `
-    <div class="cp-square-grid" aria-label="Story Mode">
-      <button class="cp-square-tile" type="button" data-cp-modeback aria-label="Back">
-        ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Back', 'cp-square-img')}
-        <div class="cp-square-label">Back</div>
-      </button>
-    </div>
-  `;
+  ModeStoryPage.render = () => {
+    const chapters = [
+      { id: 1, title: 'Chapter 1 · Grassland Awakening' },
+      { id: 2, title: 'Chapter 2 · Riverbound Oath' },
+      { id: 3, title: 'Chapter 3 · Ember Trial' },
+      { id: 4, title: 'Chapter 4 · Cathedral of Thorns' },
+      { id: 5, title: 'Chapter 5 · Halo and Dusk' },
+      { id: 6, title: 'Chapter 6 · The First Bloom' },
+      { id: 7, title: 'Chapter 7 · Lost Bestiary' },
+      { id: 8, title: 'Chapter 8 · Castling Keep Siege' },
+      { id: 9, title: 'Chapter 9 · The Board Rewrites' },
+      { id: 10, title: 'Chapter 10 · Dawn Seraph Verdict' },
+    ];
+    return `
+      <div class="cp-chapter-list" aria-label="Story chapters">
+        ${chapters.map(c => `
+          <button class="cp-chapter-tile" type="button" data-cp-chapter="${esc(String(c.id))}" aria-label="${esc(c.title)}">
+            ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', c.title, 'cp-chapter-img')}
+            <div class="cp-chapter-label">${esc(c.title)}</div>
+          </button>
+        `).join('')}
+      </div>
+    `;
+  };
   ModeStoryPage.init = () => {
-    document.querySelectorAll('[data-cp-modeback]').forEach(btn => {
-      btn.addEventListener('click', () => Router.goTo('/mode'), { passive: true });
+    document.querySelectorAll('[data-cp-chapter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // UI first: stages coming next
+      }, { passive: true });
     });
   };
 
@@ -1810,7 +1856,7 @@ const ChessPalPages = (() => {
     const m = monster || null;
     if (!m) return;
     const admin = isAdminMode();
-    const canLevelUp = admin || getSeenMonsterSet().has(String(m.id || ''));
+    const canLevelUp = admin || getOwnedMonsterSet().has(String(m.id || ''));
     const xp = expProgressMeta({ totalExp: m.totalExp || 0, level: m.level, curve: m.expCurve, maxLevel: m.maxLevel });
     const old = document.getElementById('cpMonsterModalOverlay');
     if (old) old.remove();
@@ -2031,10 +2077,11 @@ const ChessPalPages = (() => {
     await loadMonsterOverrides();
     const admin = isAdminMode();
     const seen = admin ? null : getSeenMonsterSet();
+    const owned = admin ? null : getOwnedMonsterSet();
     const all = getAllMonsters();
-    const list = admin ? all : all.filter(m => seen && seen.has(m.id));
+    const list = admin ? all : all.filter(m => (owned && owned.has(m.id)) || (seen && seen.has(m.id)));
     host.innerHTML = list.map(m => `
-      <button class="cp-hero-card" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}">
+      <button class="cp-hero-card ${(!admin && owned && !owned.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}" ${(!admin && owned && !owned.has(m.id)) ? 'disabled' : ''}>
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}" decoding="async" loading="lazy">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
           <div class="cp-mini-lv">Lv ${esc(m.level)}</div>
@@ -2049,8 +2096,8 @@ const ChessPalPages = (() => {
       btn.addEventListener('click', () => {
         const id = String(btn.getAttribute('data-monster-id') || '');
         if (!admin) {
-          const seen2 = getSeenMonsterSet();
-          if (!seen2.has(id)) return;
+          const owned2 = getOwnedMonsterSet();
+          if (!owned2.has(id)) return;
         }
         const m = getAllMonsters().find(x => x.id === id);
         if (m) showMonsterModal(m);
@@ -3063,11 +3110,30 @@ const ChessPalPages = (() => {
 
         await loadHeroOverrides();
         const all = getAllHeroes();
-        const admin = isAdminMode();
-        const owned = admin ? new Set(all.map(h => h.id)) : getOwnedHeroSet();
-        const locked = all.filter(h => !owned.has(h.id));
-        const pool = locked.length ? locked : all;
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        // Summon from the full pool, weighted by rarity (higher ★ is rarer).
+        // Weights are relative; within same rarity, heroes are equally likely.
+        const rarityWeights = {
+          1: 500,
+          2: 260,
+          3: 140,
+          4: 80,
+          5: 45,
+          6: 22,
+          7: 10,
+          8: 4,
+          9: 1,
+          10: 0.2
+        };
+        const pool = all;
+        const totalW = pool.reduce((sum, h) => sum + (Number(rarityWeights[Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)))]) || 1), 0);
+        let r = Math.random() * Math.max(0.0001, totalW);
+        let pick = pool[0] || null;
+        for (const h of pool) {
+          const rr = Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)));
+          const w = Number(rarityWeights[rr]) || 1;
+          r -= w;
+          if (r <= 0) { pick = h; break; }
+        }
         if (!pick) {
           setMsg('No heroes available.');
           return;

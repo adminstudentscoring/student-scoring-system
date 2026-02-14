@@ -595,6 +595,57 @@ body {
   pointer-events: none;
 }
 
+/* Story chapters (1 per row, centered) */
+.cp-chapter-list{
+  width: min(860px, 100%);
+  margin: 0 auto;
+  display:flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cp-chapter-tile{
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 5;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cp-chapter-tile:active{ transform: translateY(1px); }
+.cp-chapter-img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+  filter: saturate(1.05);
+  opacity: 0.55;
+}
+.cp-chapter-tile::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(90deg, rgba(0,0,0,0.70), rgba(0,0,0,0.20) 55%, rgba(0,0,0,0.55));
+  pointer-events:none;
+}
+.cp-chapter-label{
+  position:absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  z-index: 2;
+  font-weight: 1000;
+  font-size: clamp(18px, 2.7vw, 28px);
+  letter-spacing: 0.2px;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 14px 26px rgba(0,0,0,0.80);
+  text-align: left;
+  pointer-events: none;
+}
+
 /* Team */
 .cp-team-head{
   display:flex;
@@ -752,6 +803,46 @@ body {
 .cp-hero-card[data-element="dark"] .cp-hero-mini{ border-color: rgba(99,102,241,0.65); }
 .cp-hero-card[data-element="heart"] .cp-hero-mini{ border-color: rgba(236,72,153,0.55); }
 .cp-hero-card:active{ transform: translateY(1px); }
+
+/* Locked (seen but not owned) monster card */
+.cp-hero-card.is-locked{
+  position: relative;
+  cursor: not-allowed;
+}
+.cp-hero-card.is-locked::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: rgba(120,120,120,0.55);
+  pointer-events: none;
+}
+.cp-hero-card.is-locked .cp-hero-mini img{
+  filter: grayscale(1) brightness(0.75);
+}
+.cp-hero-card.is-locked .cp-hero-mini-meta{
+  opacity: 0.85;
+}
+.cp-hero-card:disabled{
+  opacity: 1;
+}
+.cp-hero-card.is-locked{
+  position: relative;
+}
+.cp-hero-card.is-locked::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: rgba(180,180,180,0.25);
+  pointer-events: none;
+}
+.cp-hero-card.is-locked .cp-hero-mini img{
+  filter: grayscale(1) brightness(0.72);
+}
+.cp-hero-card.is-locked .cp-hero-mini-meta{
+  opacity: 0.85;
+}
 .cp-hero-mini{
   width: 100%;
   aspect-ratio: 1 / 1;
