@@ -1185,7 +1185,7 @@ body {
 }
 .cp-summon-main{
   width: min(620px, 100%);
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 16 / 9;
   border-radius: 26px;
   border: 0;
   background:
@@ -1383,11 +1383,18 @@ body {
 .cp-practice-slot{
   aspect-ratio: 1 / 1;
   border-radius: 14px;
-  border: 0;
+  border: 2px solid rgba(255,255,255,0.10);
   background: transparent;
   overflow:hidden;
   position: relative;
+  box-sizing: border-box;
 }
+.cp-practice-slot[data-element="fire"]{ border-color: rgba(239,68,68,0.75); }
+.cp-practice-slot[data-element="water"]{ border-color: rgba(59,130,246,0.75); }
+.cp-practice-slot[data-element="wood"]{ border-color: rgba(16,185,129,0.75); }
+.cp-practice-slot[data-element="light"]{ border-color: rgba(250,204,21,0.75); }
+.cp-practice-slot[data-element="dark"]{ border-color: rgba(99,102,241,0.85); }
+.cp-practice-slot[data-element="heart"]{ border-color: rgba(236,72,153,0.75); }
 .cp-practice-atk{
   position: absolute;
   left: 8px;
@@ -1460,7 +1467,7 @@ body {
   margin-top: 10px;
   display:flex;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: center;
 }
 .cp-practice-right{
   display:flex;
@@ -1468,7 +1475,7 @@ body {
   align-items:center;
   width: max-content;
   align-self: center; /* keep board vertically centered */
-  margin-left: 38px; /* ~1cm to the right */
+  margin-left: 95px; /* ~2.5cm to the right */
   /* shrink board (grid + content) by 10% */
   --cp-cell: calc(66px * 0.9);
   --cp-gap: calc(8px * 0.9);

@@ -283,56 +283,28 @@ const ChessPalPages = (() => {
   ModePage.title = 'Mode';
   ModePage.render = () => {
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Mode</div>
-        <div class="cp-muted">Choose your mode.</div>
-
-        <div class="cp-mode-grid" style="margin-top:12px;">
-          <button class="cp-mode" type="button" data-cp-mode="story">
-            <div class="cp-mode-title">Story Mode</div>
-            <div class="cp-mode-desc">Preset story stages (UI first).</div>
-          </button>
-          <button class="cp-mode" type="button" data-cp-mode="challenge">
-            <div class="cp-mode-title">Challenge Mode</div>
-            <div class="cp-mode-desc">Hard puzzles & quests (UI first).</div>
-          </button>
-        </div>
-
-        <div class="cp-mode-sub" id="cpModeSub" style="margin-top:12px;">
-          <div class="cp-muted">Select a mode above.</div>
-        </div>
+      <div class="cp-square-grid" aria-label="Mode">
+        <button class="cp-square-tile" type="button" data-cp-modego="/mode/story" aria-label="Story Mode">
+          ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Story Mode', 'cp-square-img')}
+          <div class="cp-square-label">Story Mode</div>
+        </button>
+        <button class="cp-square-tile" type="button" data-cp-modego="/mode/challenge" aria-label="Challenge Mode">
+          ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Challenge Mode', 'cp-square-img')}
+          <div class="cp-square-label">Challenge Mode</div>
+        </button>
+        <button class="cp-square-tile" type="button" data-cp-modego="/practice" aria-label="Practice Mode">
+          ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Practice Mode', 'cp-square-img')}
+          <div class="cp-square-label">Practice Mode</div>
+        </button>
       </div>
     `;
   };
   ModePage.init = () => {
-    const sub = document.getElementById('cpModeSub');
-    const setSub = (key) => {
-      if (!sub) return;
-      if (key === 'story') {
-        sub.innerHTML = `
-          <div class="cp-page-card" style="margin-top:10px;">
-            <div class="cp-h1" style="font-size:16px;">Story Mode</div>
-            <div class="cp-muted">Coming soon: chapters, dialogue, stage presets.</div>
-          </div>
-        `;
-        return;
-      }
-      if (key === 'challenge') {
-        sub.innerHTML = `
-          <div class="cp-page-card" style="margin-top:10px;">
-            <div class="cp-h1" style="font-size:16px;">Challenge Mode</div>
-            <div class="cp-muted">Coming soon: daily challenges, ranked tasks.</div>
-          </div>
-        `;
-        return;
-      }
-      sub.innerHTML = `<div class="cp-muted">Select a mode above.</div>`;
-    };
-
-    document.querySelectorAll('[data-cp-mode]').forEach((btn) => {
+    document.querySelectorAll('[data-cp-modego]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const key = String(btn.getAttribute('data-cp-mode') || '');
-        setSub(key);
+        const r = String(btn.getAttribute('data-cp-modego') || '').trim();
+        if (!r) return;
+        Router.goTo(r);
       }, { passive: true });
     });
   };
@@ -794,6 +766,7 @@ const ChessPalPages = (() => {
         slot.type = 'button';
         slot.className = `cp-practice-slot ${i === 0 ? 'is-leader' : ''}`;
         if (unit) slot.setAttribute('data-team-slotkey', String(unit.key || id));
+        if (unit && unit.element) slot.setAttribute('data-element', String(unit.element || '').toLowerCase());
         slot.setAttribute('data-team-slot', String(i));
         slot.innerHTML = unit
           ? `
@@ -1905,7 +1878,7 @@ const ChessPalPages = (() => {
           <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Unit')}</div>
           <div class="cp-muted" style="margin-top:6px;">Pick a Hero or Monster.</div>
 
-          <div class="cp-row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="cp-row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px;">
             <div style="min-width:220px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Search</div>
               <input class="cp-input" id="cpPickUnitSearch" placeholder="Search name or id" />

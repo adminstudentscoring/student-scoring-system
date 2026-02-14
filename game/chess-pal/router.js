@@ -151,7 +151,7 @@ const Router = (() => {
 
     // Hide top bar on game-like pages
     try {
-      document.body.classList.toggle('cp-hide-topbar', (p === '/practice' || p === '/test-game' || p === '/summon'));
+      document.body.classList.toggle('cp-hide-topbar', (p === '/practice' || p === '/test-game' || p === '/summon' || p === '/mode' || p.startsWith('/mode/')));
     } catch {}
 
     container.style.opacity = '0';
