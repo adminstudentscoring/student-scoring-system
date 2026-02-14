@@ -1482,7 +1482,7 @@ body {
   align-items:center;
   width: max-content;
   align-self: center; /* keep board vertically centered */
-  margin-left: 95px; /* ~2.5cm to the right */
+  margin-left: 10px;
   /* shrink board (grid + content) by 10% */
   --cp-cell: calc(66px * 0.9);
   --cp-gap: calc(8px * 0.9);
