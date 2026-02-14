@@ -511,6 +511,7 @@ const ChessPalPages = (() => {
 
     const resolveCombatFinal = async (elementScores) => {
       if (!row) return;
+      let b = null;
       try {
         if (window.__cpPracticeCombatInFlight) return;
         window.__cpPracticeCombatInFlight = true;
@@ -518,17 +519,17 @@ const ChessPalPages = (() => {
 
       try {
         try { await loadHeroOverrides(); } catch {}
+        try { await loadMonsterOverrides(); } catch {}
         const teamState = loadTeams();
         const team = (teamState && Array.isArray(teamState.teams) && Array.isArray(teamState.teams[teamState.active]))
           ? teamState.teams[teamState.active]
           : [null, null, null, null];
-        const heroes = getAllHeroes();
 
         const gs = getGeneralSettings();
         const atkMul = Number.isFinite(Number(gs?.atkScale)) ? Number(gs.atkScale) : 0.10;
         const rcvMul = Number.isFinite(Number(gs?.rcvScale)) ? Number(gs.rcvScale) : 0.50;
 
-        const b = getBattle();
+        b = getBattle();
         const bossBox = document.querySelector('.cp-practice-boss');
         const bossImg = document.querySelector('.cp-practice-bossimg');
         const hpBar = document.querySelector('.cp-team-hpbar');
@@ -562,6 +563,57 @@ const ChessPalPages = (() => {
           return 1;
         };
 
+        // Reset per-round buffs
+        try {
+          b.playerDamageReduction = 0;
+          b.teamAtkBonus = 0;
+          b.teamElemBonus = {};
+          b.playerRegenMaxHpPct = 0;
+          b.teamAtkMultThisTurn = Number.isFinite(Number(b.teamAtkMultThisTurn)) ? Number(b.teamAtkMultThisTurn) : 1;
+        } catch {}
+
+        // Monster leader passive only works when leader slot
+        try {
+          const leader = team[0] ? getTeamUnit(team[0]) : null;
+          if (leader && leader.kind === 'monster') {
+            const p = leader.passiveSkill?.params || {};
+            const dr = Number(p.damageReduction);
+            if (Number.isFinite(dr)) b.playerDamageReduction = Math.max(0, Math.min(0.7, dr));
+            const regen = Number(p.healMaxHpPctPerTurn);
+            if (Number.isFinite(regen)) b.playerRegenMaxHpPct = Math.max(0, Math.min(0.2, regen));
+            const atkB = Number(p.atkBonus);
+            if (Number.isFinite(atkB)) b.teamAtkBonus = Math.max(-0.9, Math.min(2.0, atkB));
+            const elemBonus = {};
+            ['fire','water','wood','light','dark'].forEach((el) => {
+              const k = `${el}DmgBonus`;
+              const v = Number(p[k]);
+              if (Number.isFinite(v)) elemBonus[el] = Math.max(-0.9, Math.min(2.0, v));
+            });
+            b.teamElemBonus = elemBonus;
+          }
+        } catch {}
+
+        // Skill damage reduction (this round only)
+        try {
+          const sdr = Number(b.skillDamageReductionThisTurn);
+          if (Number.isFinite(sdr) && sdr > 0) {
+            b.playerDamageReduction = Math.max(Number(b.playerDamageReduction) || 0, Math.max(0, Math.min(0.9, sdr)));
+          }
+        } catch {}
+
+        // Regen from leader passive (if any)
+        try {
+          const pct = Number(b.playerRegenMaxHpPct) || 0;
+          if (pct > 0) {
+            const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+            const amt = Math.max(0, Math.floor(pMax * pct));
+            if (amt > 0) {
+              b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) + amt));
+              updateHpUI();
+            }
+          }
+        } catch {}
+
         // Heal first (Heart score)
         const heartScore = Number(elementScores?.heart || 0);
         const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
@@ -572,16 +624,19 @@ const ChessPalPages = (() => {
           updateHpUI();
         }
 
-        // Player attacks monster: beams from each hero mini center → monster center (sequential)
+        // Player attacks monster: beams from each unit mini center → monster center (sequential)
         for (let i = 0; i < 4; i += 1) {
           const id = team[i];
-          const hero = id ? heroes.find(h => h.id === String(id)) : null;
-          if (!hero) continue;
-          const el = String(hero.element || '');
+          const unit = id ? getTeamUnit(id) : null;
+          if (!unit) continue;
+          const el = String(unit.element || '');
           const elScore = Number(elementScores?.[el] || 0);
-          const atk = Math.max(0, Number(hero.atk) || 0);
+          const atk = Math.max(0, Number(unit.atk) || 0);
           const mult = elemMult(el, bossEl);
-          const dmg = Math.max(0, Math.round(atk * elScore * atkMul * mult));
+          const teamAtkBonus = Number.isFinite(Number(b.teamAtkBonus)) ? Number(b.teamAtkBonus) : 0;
+          const elemBonus = (b.teamElemBonus && typeof b.teamElemBonus === 'object') ? Number(b.teamElemBonus[el] || 0) : 0;
+          const atkMultThisTurn = Number.isFinite(Number(b.teamAtkMultThisTurn)) ? Number(b.teamAtkMultThisTurn) : 1;
+          const dmg = Math.max(0, Math.round(atk * elScore * atkMul * mult * (1 + teamAtkBonus) * (1 + elemBonus) * atkMultThisTurn));
           if (dmg <= 0) continue;
 
           const slotEl = row?.children?.[i] || null;
@@ -639,13 +694,29 @@ const ChessPalPages = (() => {
           await playBeamBetween({ fromEl: bossImg, toEl: hpBar, variant: 'monster' });
           await shake(hpBar);
           const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
-          b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - monsterAtk));
+          const dr = Number.isFinite(Number(b.playerDamageReduction)) ? Number(b.playerDamageReduction) : 0;
+          const effDmg = Math.max(0, Math.floor(monsterAtk * (1 - Math.max(0, Math.min(0.9, dr)))));
+          b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - effDmg));
           updateHpUI();
         }
       } finally {
         // Clear per-turn scores after combat so next turn starts clean
         try { window.__cpPracticeElementScores = {}; } catch {}
         try { applyElementScoresToUI(); } catch {}
+        // Cooldowns tick down once per full round
+        try {
+          const cds = (b && b.skillCds && typeof b.skillCds === 'object') ? b.skillCds : null;
+          if (cds) {
+            Object.keys(cds).forEach((k) => {
+              const n = Math.max(0, Math.floor(Number(cds[k]) || 0));
+              cds[k] = Math.max(0, n - 1);
+            });
+            b.skillCds = cds;
+          }
+        } catch {}
+        // Reset one-turn ATK mult buff after resolution
+        try { b.teamAtkMultThisTurn = 1; } catch {}
+        try { b.skillDamageReductionThisTurn = 0; } catch {}
         try { window.__cpPracticeCombatInFlight = false; } catch {}
       }
     };
@@ -660,15 +731,14 @@ const ChessPalPages = (() => {
       const atkMul = Number.isFinite(atkScale) ? atkScale : 0.10;
       const rcvScale = Number(gs?.rcvScale);
       const rcvMul = Number.isFinite(rcvScale) ? rcvScale : 0.50;
-      const heroes = getAllHeroes();
-      row.querySelectorAll('.cp-practice-slot[data-hero-id]').forEach((slot) => {
-        const hid = String(slot.getAttribute('data-hero-id') || '');
-        const hero = heroes.find(h => String(h.id) === hid) || null;
+      row.querySelectorAll('.cp-practice-slot[data-team-slotkey]').forEach((slot) => {
+        const sk = String(slot.getAttribute('data-team-slotkey') || '');
+        const unit = sk ? getTeamUnit(sk) : null;
         const atkEl = slot.querySelector('[data-practice-atk]');
-        if (!atkEl || !hero) return;
-        const el = String(hero.element || '');
+        if (!atkEl || !unit) return;
+        const el = String(unit.element || '');
         const elScore = Number(scores[el] || 0);
-        const atk = Math.max(0, Number(hero.atk) || 0);
+        const atk = Math.max(0, Number(unit.atk) || 0);
         const power = Math.round(atk * elScore * atkMul);
         atkEl.textContent = power > 0 ? String(power) : '';
       });
@@ -688,19 +758,19 @@ const ChessPalPages = (() => {
       if (!row) return;
       row.innerHTML = '';
       try { await loadHeroOverrides(); } catch {}
+      try { await loadMonsterOverrides(); } catch {}
       const state = loadTeams();
       const team = (state && Array.isArray(state.teams) && Array.isArray(state.teams[state.active])) ? state.teams[state.active] : [null, null, null, null];
-      const heroes = getAllHeroes();
 
       // Player totals (HP + RCV)
       let totalHp = 0;
       let totalRcv = 0;
       for (let i = 0; i < 4; i += 1) {
         const id = team[i];
-        const hero = id ? heroes.find(h => h.id === String(id)) : null;
-        if (hero) {
-          totalHp += Math.max(0, Math.floor(Number(hero.hp) || 0));
-          totalRcv += Math.max(0, Math.floor(Number(hero.rcv) || 0));
+        const unit = id ? getTeamUnit(id) : null;
+        if (unit) {
+          totalHp += Math.max(0, Math.floor(Number(unit.hp) || 0));
+          totalRcv += Math.max(0, Math.floor(Number(unit.rcv) || 0));
         }
       }
       if (hpFill) hpFill.style.width = '100%';
@@ -719,19 +789,123 @@ const ChessPalPages = (() => {
 
       for (let i = 0; i < 4; i += 1) {
         const id = team[i];
-        const hero = id ? heroes.find(h => h.id === String(id)) : null;
-        const slot = document.createElement('div');
+        const unit = id ? getTeamUnit(id) : null;
+        const slot = document.createElement('button');
+        slot.type = 'button';
         slot.className = `cp-practice-slot ${i === 0 ? 'is-leader' : ''}`;
-        if (hero) slot.setAttribute('data-hero-id', String(hero.id));
-        slot.innerHTML = hero
+        if (unit) slot.setAttribute('data-team-slotkey', String(unit.key || id));
+        slot.setAttribute('data-team-slot', String(i));
+        slot.innerHTML = unit
           ? `
-            <img src="${esc(hero.mini)}" alt="${esc(hero.name)}">
-            <div class="cp-practice-atk cp-elem-${esc(String(hero.element || ''))}" data-practice-atk></div>
-            ${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}
+            <img src="${esc(unit.mini)}" alt="${esc(unit.name)}">
+            <div class="cp-mini-lv">Lv ${esc(unit.level)}</div>
+            <div class="cp-practice-atk cp-elem-${esc(String(unit.element || ''))}" data-practice-atk></div>
+            ${jewelIconSrcForElement(unit.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(unit.element))}" alt="" aria-hidden="true">` : ``}
           `
           : `<div class="cp-practice-slot-empty"></div>`;
         row.appendChild(slot);
       }
+
+      // Skill popover (Confirm / Cancel) under clicked slot
+      const closeSkillPanels = () => {
+        try { row.querySelectorAll('.cp-practice-skillpanel').forEach(x => x.remove()); } catch {}
+        try { row.querySelectorAll('.cp-practice-slot').forEach(x => x.classList.remove('is-skill-open')); } catch {}
+      };
+      const castSkill = (unit) => {
+        const u = unit || null;
+        if (!u || !u.activeSkill) return;
+        const b = getBattle();
+        if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
+        const key = String(u.key || '');
+        const cd = Math.max(0, Math.floor(Number(u.activeSkill?.cd) || 0));
+        if (key) {
+          const left = Math.max(0, Math.floor(Number(b.skillCds[key]) || 0));
+          if (left > 0) return;
+          b.skillCds[key] = cd;
+        }
+
+        const p = u.activeSkill?.params || {};
+        // Heal immediately
+        const healFlat = Number(p.healFlat);
+        if (Number.isFinite(healFlat) && healFlat > 0) {
+          const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+          b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) + Math.floor(healFlat)));
+          updateHpUI();
+        }
+        // Damage reduction applies to the upcoming monster attack this round
+        const dr = Number(p.damageReduction);
+        if (Number.isFinite(dr) && dr > 0) {
+          b.skillDamageReductionThisTurn = Math.max(0, Math.min(0.9, Math.max(Number(b.skillDamageReductionThisTurn) || 0, dr)));
+        }
+        // ATK multiplier applies to this round's damage
+        const atkMultThisTurn = Number(p.atkMultThisTurn);
+        if (Number.isFinite(atkMultThisTurn) && atkMultThisTurn > 0) {
+          b.teamAtkMultThisTurn = Math.max(0.01, Math.min(5, Math.max(Number(b.teamAtkMultThisTurn) || 1, atkMultThisTurn)));
+        }
+        // Extra time during player turn
+        const extraTimeSec = Number(p.extraTimeSec);
+        if (Number.isFinite(extraTimeSec) && extraTimeSec !== 0) {
+          try {
+            window.dispatchEvent(new CustomEvent('cpPracticeCastSkill', { detail: { type: 'addTime', seconds: extraTimeSec, name: u.activeSkill?.name || '' } }));
+          } catch {}
+        }
+        // Convert tiles
+        const conv = p.convert;
+        const convertList = [];
+        if (Array.isArray(conv)) {
+          conv.forEach(c => {
+            const cnt = Math.max(0, Math.floor(Number(c?.count) || 0));
+            const to = String(c?.to || '').toLowerCase();
+            if (cnt > 0 && to) convertList.push({ count: cnt, to });
+          });
+        } else if (conv && typeof conv === 'object') {
+          const cnt = Math.max(0, Math.floor(Number(conv?.count) || 0));
+          const to = String(conv?.to || '').toLowerCase();
+          if (cnt > 0 && to) convertList.push({ count: cnt, to });
+        }
+        if (convertList.length) {
+          try {
+            window.dispatchEvent(new CustomEvent('cpPracticeCastSkill', { detail: { type: 'convert', convert: convertList, name: u.activeSkill?.name || '' } }));
+          } catch {}
+        }
+      };
+
+      row.querySelectorAll('.cp-practice-slot[data-team-slotkey]').forEach((slotBtn) => {
+        slotBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const sk = String(slotBtn.getAttribute('data-team-slotkey') || '');
+          const u = sk ? getTeamUnit(sk) : null;
+          if (!u || !u.activeSkill) return;
+          const b = getBattle();
+          const key = String(u.key || '');
+          const left = (b.skillCds && typeof b.skillCds === 'object') ? Math.max(0, Math.floor(Number(b.skillCds[key]) || 0)) : 0;
+
+          closeSkillPanels();
+          slotBtn.classList.add('is-skill-open');
+
+          const panel = document.createElement('div');
+          panel.className = 'cp-practice-skillpanel';
+          panel.innerHTML = `
+            <div class="cp-practice-skilltitle">${esc(u.activeSkill?.name || 'Skill')}</div>
+            <div class="cp-practice-skilldesc">${esc(u.activeSkill?.text || '')}</div>
+            <div class="cp-practice-skillmeta">CD ${esc(u.activeSkill?.cd ?? 0)}${left > 0 ? ` · Cooling down ${esc(left)}` : ''}</div>
+            <div class="cp-practice-skillbtnrow">
+              <button class="cp-tool-btn" type="button" data-skill-confirm ${left > 0 ? 'disabled' : ''}>Confirm</button>
+              <button class="cp-tool-btn" type="button" data-skill-cancel>Cancel</button>
+            </div>
+          `;
+          slotBtn.appendChild(panel);
+          panel.querySelector('[data-skill-cancel]')?.addEventListener('click', (e2) => {
+            e2.preventDefault();
+            closeSkillPanels();
+          }, { passive: false });
+          panel.querySelector('[data-skill-confirm]')?.addEventListener('click', (e2) => {
+            e2.preventDefault();
+            castSkill(u);
+            closeSkillPanels();
+          }, { passive: false });
+        }, { passive: false });
+      });
 
       // Init / update battle state & HP UI
       try {
@@ -1627,9 +1801,50 @@ const ChessPalPages = (() => {
   // ----------------------------
   const TEAM_KEY = 'chessPalTeams';
 
+  function teamSlotKey(kind, id) {
+    const k = String(kind || '').trim().toLowerCase();
+    const n = String(id == null ? '' : id).trim();
+    const pid = n ? n.padStart(3, '0') : '';
+    if (!/^\d{3}$/.test(pid)) return null;
+    if (k === 'monster') return `M${pid}`;
+    return `H${pid}`;
+  }
+
+  function parseTeamSlot(raw) {
+    if (raw == null) return null;
+    const s0 = String(raw || '').trim();
+    if (!s0) return null;
+    const s = s0.toUpperCase();
+    if (/^H\d{3}$/.test(s)) return { kind: 'hero', id: s.slice(1) };
+    if (/^M\d{3}$/.test(s)) return { kind: 'monster', id: s.slice(1) };
+    // Back-compat: old saves stored hero ids as "003"
+    if (/^\d{3}$/.test(s)) return { kind: 'hero', id: s };
+    // Back-compat: sometimes numbers can be stored without padding
+    if (/^\d+$/.test(s)) return { kind: 'hero', id: s.padStart(3, '0') };
+    return null;
+  }
+
+  function getTeamUnit(slotKey) {
+    const parsed = parseTeamSlot(slotKey);
+    if (!parsed) return null;
+    if (parsed.kind === 'monster') {
+      const m = getAllMonsters().find(x => String(x.id) === parsed.id) || null;
+      if (!m) return null;
+      return { kind: 'monster', key: teamSlotKey('monster', m.id), ...m };
+    }
+    const h = getAllHeroes().find(x => String(x.id) === parsed.id) || null;
+    if (!h) return null;
+    return { kind: 'hero', key: teamSlotKey('hero', h.id), ...h };
+  }
+
   function defaultTeams() {
     const owned = Array.from(getOwnedHeroSet());
-    const t0 = [owned.includes('002') ? '002' : (owned[0] || null), owned.includes('003') ? '003' : (owned[1] || null), owned.includes('004') ? '004' : (owned[2] || null), null];
+    const t0 = [
+      owned.includes('002') ? teamSlotKey('hero', '002') : (owned[0] ? teamSlotKey('hero', owned[0]) : null),
+      owned.includes('003') ? teamSlotKey('hero', '003') : (owned[1] ? teamSlotKey('hero', owned[1]) : null),
+      owned.includes('004') ? teamSlotKey('hero', '004') : (owned[2] ? teamSlotKey('hero', owned[2]) : null),
+      null
+    ];
     return {
       active: 0,
       teams: [t0, [null, null, null, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]]
@@ -1645,8 +1860,12 @@ const ChessPalPages = (() => {
       const row = Array.isArray(teamsIn[i]) ? teamsIn[i] : [null, null, null, null];
       const slots = [];
       for (let j = 0; j < 4; j += 1) {
-        const id = row[j] == null ? null : String(row[j]).padStart(3, '0');
-        slots.push(/^\d{3}$/.test(String(id || '')) ? id : null);
+        const parsed = parseTeamSlot(row[j]);
+        if (!parsed) {
+          slots.push(null);
+        } else {
+          slots.push(teamSlotKey(parsed.kind, parsed.id));
+        }
       }
       teams.push(slots);
     }
@@ -1668,23 +1887,57 @@ const ChessPalPages = (() => {
     try { window.dispatchEvent(new Event('cpTeamsChanged')); } catch {}
   }
 
-  function showPickHeroModal(opts) {
-    const { title, allowIds, onPick, onClear } = opts || {};
-    const old = document.getElementById('cpPickHeroOverlay');
+  function showPickTeamUnitModal(opts) {
+    const { title, allowHeroIds, allowMonsterIds, onPick, onClear } = opts || {};
+    const old = document.getElementById('cpPickTeamUnitOverlay');
     if (old) old.remove();
 
     const overlay = document.createElement('div');
-    overlay.id = 'cpPickHeroOverlay';
+    overlay.id = 'cpPickTeamUnitOverlay';
     overlay.className = 'cp-modal-overlay';
     overlay.innerHTML = `
-      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Pick hero">
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Pick team unit">
         <button class="cp-modal-close" type="button" aria-label="Close">×</button>
         <div class="cp-modal-body">
-          <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Hero')}</div>
-          <div class="cp-muted" style="margin-top:6px;">Owned heroes only.</div>
-          <div class="cp-hero-grid" style="margin-top:12px;" id="cpPickHeroGrid"></div>
+          <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Unit')}</div>
+          <div class="cp-muted" style="margin-top:6px;">Pick a Hero or Monster.</div>
+
+          <div class="cp-row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <div style="min-width:220px;">
+              <div class="cp-setting-label" style="margin-bottom:6px;">Search</div>
+              <input class="cp-input" id="cpPickUnitSearch" placeholder="Search name or id" />
+            </div>
+            <div style="min-width:200px;">
+              <div class="cp-setting-label" style="margin-bottom:6px;">Filter</div>
+              <select class="cp-select" id="cpPickUnitFilterMode">
+                <option value="none">None</option>
+                <option value="type">Hero or Monster</option>
+                <option value="level">Level</option>
+                <option value="rarity">Stars</option>
+                <option value="element">Element</option>
+              </select>
+            </div>
+            <div style="min-width:200px;" id="cpPickUnitFilterValueWrap"></div>
+            <div style="min-width:180px;">
+              <div class="cp-setting-label" style="margin-bottom:6px;">Sort</div>
+              <select class="cp-select" id="cpPickUnitSortKey">
+                <option value="level">Level</option>
+                <option value="rarity">Stars</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+            <div style="min-width:180px;">
+              <div class="cp-setting-label" style="margin-bottom:6px;">Order</div>
+              <select class="cp-select" id="cpPickUnitSortDir">
+                <option value="desc">High to Low</option>
+                <option value="asc">Low to High</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="cp-hero-grid" style="margin-top:12px;" id="cpPickUnitGrid"></div>
           <div class="cp-row" style="margin-top:12px;">
-            <button class="cp-tool-btn" type="button" id="cpPickHeroClear">Clear Slot</button>
+            <button class="cp-tool-btn" type="button" id="cpPickUnitClear">Clear Slot</button>
           </div>
         </div>
       </div>
@@ -1700,32 +1953,172 @@ const ChessPalPages = (() => {
     overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
     window.addEventListener('keydown', onKey);
 
-    const grid = overlay.querySelector('#cpPickHeroGrid');
-    const ids = Array.isArray(allowIds) ? allowIds : [];
-    if (grid) {
-      const list = getAllHeroes().filter(h => ids.includes(h.id));
-      grid.innerHTML = list.map(h => `
-        <button class="cp-hero-card" type="button" data-pick-hero="${esc(h.id)}">
+    const searchEl = overlay.querySelector('#cpPickUnitSearch');
+    const filterModeEl = overlay.querySelector('#cpPickUnitFilterMode');
+    const filterWrap = overlay.querySelector('#cpPickUnitFilterValueWrap');
+    const sortKeyEl = overlay.querySelector('#cpPickUnitSortKey');
+    const sortDirEl = overlay.querySelector('#cpPickUnitSortDir');
+    const grid = overlay.querySelector('#cpPickUnitGrid');
+
+    const heroAllow = new Set(Array.isArray(allowHeroIds) ? allowHeroIds : []);
+    const monsterAllow = new Set(Array.isArray(allowMonsterIds) ? allowMonsterIds : []);
+
+    const baseList = [];
+    try {
+      getAllHeroes().forEach(h => {
+        if (!heroAllow.has(h.id)) return;
+        baseList.push({
+          kind: 'hero',
+          key: teamSlotKey('hero', h.id),
+          id: String(h.id),
+          name: String(h.name || ''),
+          element: String(h.element || ''),
+          rarity: Number(h.rarity) || 0,
+          level: Number(h.level) || 0,
+          mini: h.mini || '',
+          locked: false
+        });
+      });
+    } catch {}
+    try {
+      getAllMonsters().forEach(m => {
+        if (!monsterAllow.has(m.id)) return;
+        baseList.push({
+          kind: 'monster',
+          key: teamSlotKey('monster', m.id),
+          id: String(m.id),
+          name: String(m.name || ''),
+          element: String(m.element || ''),
+          rarity: Number(m.rarity) || 0,
+          level: Number(m.level) || 0,
+          mini: m.mini || '',
+          locked: false
+        });
+      });
+    } catch {}
+
+    function renderFilterValue() {
+      if (!filterWrap) return;
+      const mode = String(filterModeEl?.value || 'none');
+      if (mode === 'type') {
+        filterWrap.innerHTML = `
+          <div class="cp-setting-label" style="margin-bottom:6px;">Value</div>
+          <select class="cp-select" id="cpPickUnitFilterValue">
+            <option value="hero">Hero</option>
+            <option value="monster">Monster</option>
+          </select>
+        `;
+      } else if (mode === 'level') {
+        filterWrap.innerHTML = `
+          <div class="cp-setting-label" style="margin-bottom:6px;">Min level</div>
+          <input class="cp-input" id="cpPickUnitFilterValue" type="number" min="1" step="1" value="1" />
+        `;
+      } else if (mode === 'rarity') {
+        filterWrap.innerHTML = `
+          <div class="cp-setting-label" style="margin-bottom:6px;">Stars</div>
+          <select class="cp-select" id="cpPickUnitFilterValue">
+            ${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}
+          </select>
+        `;
+      } else if (mode === 'element') {
+        filterWrap.innerHTML = `
+          <div class="cp-setting-label" style="margin-bottom:6px;">Element</div>
+          <select class="cp-select" id="cpPickUnitFilterValue">
+            <option value="fire">Fire</option>
+            <option value="water">Water</option>
+            <option value="wood">Wood</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="heart">Heart</option>
+          </select>
+        `;
+      } else {
+        filterWrap.innerHTML = `<div class="cp-setting-label" style="margin-bottom:6px;">Value</div><div class="cp-muted">—</div>`;
+      }
+    }
+
+    function matchesSearch(u, q) {
+      const qq = String(q || '').trim().toLowerCase();
+      if (!qq) return true;
+      return String(u.name || '').toLowerCase().includes(qq) || String(u.id || '').toLowerCase().includes(qq);
+    }
+
+    function applyFilter(list) {
+      const mode = String(filterModeEl?.value || 'none');
+      const valEl = overlay.querySelector('#cpPickUnitFilterValue');
+      const val = valEl ? String(valEl.value || '').trim().toLowerCase() : '';
+      if (mode === 'type') return list.filter(u => String(u.kind) === val);
+      if (mode === 'level') {
+        const n = Math.max(1, Math.floor(Number(valEl?.value) || 1));
+        return list.filter(u => (Number(u.level) || 0) >= n);
+      }
+      if (mode === 'rarity') {
+        const n = Math.max(1, Math.floor(Number(val) || 1));
+        return list.filter(u => (Number(u.rarity) || 0) === n);
+      }
+      if (mode === 'element') return list.filter(u => String(u.element || '').toLowerCase() === val);
+      return list;
+    }
+
+    function sortList(list) {
+      const key = String(sortKeyEl?.value || 'level');
+      const dir = String(sortDirEl?.value || 'desc');
+      const sign = dir === 'asc' ? 1 : -1;
+      const by = (a, b) => {
+        if (key === 'name') return String(a.name || '').localeCompare(String(b.name || '')) * sign;
+        if (key === 'rarity') return ((Number(a.rarity) || 0) - (Number(b.rarity) || 0)) * sign || ((Number(a.level) || 0) - (Number(b.level) || 0)) * sign;
+        return ((Number(a.level) || 0) - (Number(b.level) || 0)) * sign || ((Number(a.rarity) || 0) - (Number(b.rarity) || 0)) * sign;
+      };
+      return [...list].sort(by);
+    }
+
+    function renderGrid() {
+      if (!grid) return;
+      const q = String(searchEl?.value || '');
+      let list = baseList.filter(u => matchesSearch(u, q));
+      list = applyFilter(list);
+      list = sortList(list);
+      grid.innerHTML = list.map(u => `
+        <button class="cp-hero-card" type="button" data-pick-unit="${esc(u.key)}">
           <div class="cp-hero-mini">
-            <img src="${esc(h.mini)}" alt="${esc(h.name)}">
-            ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
+            ${u.mini ? `<img src="${esc(u.mini)}" alt="${esc(u.name)}">` : `<div class="cp-mini-placeholder">${esc(u.name)}</div>`}
+            <div class="cp-mini-lv">Lv ${esc(String(u.level || 1))}</div>
+            ${jewelIconSrcForElement(u.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(u.element))}" alt="" aria-hidden="true">` : ``}
           </div>
           <div class="cp-hero-mini-meta">
-            <div class="cp-hero-mini-name">${esc(h.name)}</div>
-            <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
+            <div class="cp-hero-mini-name">${esc(u.name)}</div>
+            <div class="cp-hero-mini-sub">${esc(u.kind === 'monster' ? 'Monster' : 'Hero')} · #${esc(u.id)} · ${esc(elementLabel(u.element))} · ${esc(renderStars(u.rarity))}</div>
           </div>
         </button>
       `).join('');
-      grid.querySelectorAll('[data-pick-hero]').forEach(btn => {
+      grid.querySelectorAll('[data-pick-unit]').forEach(btn => {
         btn.addEventListener('click', () => {
-          const id = String(btn.getAttribute('data-pick-hero') || '');
-          try { onPick && onPick(id); } catch {}
+          const key = String(btn.getAttribute('data-pick-unit') || '');
+          try { onPick && onPick(key); } catch {}
           close();
         }, { passive: true });
       });
     }
 
-    overlay.querySelector('#cpPickHeroClear')?.addEventListener('click', () => {
+    renderFilterValue();
+    // Default sort: level high to low
+    try { if (sortKeyEl) sortKeyEl.value = 'level'; } catch {}
+    try { if (sortDirEl) sortDirEl.value = 'desc'; } catch {}
+    renderGrid();
+
+    searchEl?.addEventListener('input', () => { try { renderGrid(); } catch {} });
+    filterModeEl?.addEventListener('change', () => {
+      try { renderFilterValue(); } catch {}
+      try { renderGrid(); } catch {}
+      overlay.querySelector('#cpPickUnitFilterValue')?.addEventListener('input', () => { try { renderGrid(); } catch {} });
+      overlay.querySelector('#cpPickUnitFilterValue')?.addEventListener('change', () => { try { renderGrid(); } catch {} });
+    });
+    sortKeyEl?.addEventListener('change', () => { try { renderGrid(); } catch {} });
+    sortDirEl?.addEventListener('change', () => { try { renderGrid(); } catch {} });
+    overlay.querySelector('#cpPickUnitFilterValue')?.addEventListener('input', () => { try { renderGrid(); } catch {} });
+    overlay.querySelector('#cpPickUnitFilterValue')?.addEventListener('change', () => { try { renderGrid(); } catch {} });
+
+    overlay.querySelector('#cpPickUnitClear')?.addEventListener('click', () => {
       try { onClear && onClear(); } catch {}
       close();
     }, { passive: true });
@@ -1749,6 +2142,7 @@ const ChessPalPages = (() => {
   };
   TeamPage.init = async () => {
     await loadHeroOverrides();
+    try { await loadMonsterOverrides(); } catch {}
     const host = document.getElementById('cpTeamGrid');
     const title = document.getElementById('cpTeamTitle');
     const skill = document.getElementById('cpTeamSkill');
@@ -1758,8 +2152,9 @@ const ChessPalPages = (() => {
 
     let state = loadTeams();
 
-    const ownedSet = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
-    const ownedIds = Array.from(ownedSet);
+    const ownedHeroSet = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
+    const ownedHeroIds = Array.from(ownedHeroSet);
+    const allowedMonsterIds = isAdminMode() ? getAllMonsters().map(m => m.id) : Array.from(getSeenMonsterSet());
 
     const render = () => {
       const idx = Math.max(0, Math.min(4, Number(state.active) || 0));
@@ -1767,30 +2162,30 @@ const ChessPalPages = (() => {
       if (title) title.textContent = `Team ${idx + 1} / 5`;
 
       host.innerHTML = team.map((hid, slotIdx) => {
-        const hero = hid ? getAllHeroes().find(h => h.id === hid) : null;
+        const unit = hid ? getTeamUnit(hid) : null;
         const isLeader = slotIdx === 0;
         return `
           <button class="cp-team-slot ${isLeader ? 'is-leader' : ''}" type="button" data-team-slot="${slotIdx}" aria-label="${isLeader ? 'Leader slot' : 'Member slot'}">
-            ${hero ? `
-              <img class="cp-team-img" src="${esc(hero.mini)}" alt="${esc(hero.name)}">
-              <div class="cp-mini-lv">Lv ${esc(hero.level)}</div>
-              ${jewelIconSrcForElement(hero.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(hero.element))}" alt="" aria-hidden="true">` : ``}
+            ${unit ? `
+              <img class="cp-team-img" src="${esc(unit.mini)}" alt="${esc(unit.name)}">
+              <div class="cp-mini-lv">Lv ${esc(unit.level)}</div>
+              ${jewelIconSrcForElement(unit.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(unit.element))}" alt="" aria-hidden="true">` : ``}
             ` : `<div class="cp-team-empty"></div>`}
           </button>
         `;
       }).join('');
 
       const leaderId = team[0];
-      const leader = leaderId ? getAllHeroes().find(h => h.id === leaderId) : null;
+      const leader = leaderId ? getTeamUnit(leaderId) : null;
       const memberSkills = team
-        .map(id => id ? getAllHeroes().find(h => h.id === id) : null)
+        .map(id => id ? getTeamUnit(id) : null)
         .filter(Boolean)
-        .map(h => `${esc(h.name)} · ${esc(h.activeSkill?.name || '')} (CD ${esc(h.activeSkill?.cd ?? 0)})`);
+        .map(u => `${esc(u.kind === 'monster' ? 'Monster' : 'Hero')} ${esc(u.name)} · ${esc(u.activeSkill?.name || '')} (CD ${esc(u.activeSkill?.cd ?? 0)})`);
       if (skill) {
         skill.innerHTML = leader ? `
           <div class="cp-setting-item" style="background: rgba(255,255,255,0.03);">
-            <div class="cp-setting-label">Leader Skill</div>
-            <div class="cp-setting-help">${esc(leader.leaderSkill?.text || '')}</div>
+            <div class="cp-setting-label">${leader.kind === 'monster' ? 'Leader Passive Skill' : 'Leader Skill'}</div>
+            <div class="cp-setting-help">${esc(leader.kind === 'monster' ? (leader.passiveSkill?.text || '') : (leader.leaderSkill?.text || ''))}</div>
           </div>
           <div class="cp-setting-item" style="margin-top:10px; background: rgba(255,255,255,0.03);">
             <div class="cp-setting-label">Team Skills</div>
@@ -1807,11 +2202,14 @@ const ChessPalPages = (() => {
           const idx2 = Math.max(0, Math.min(4, Number(state.active) || 0));
           const team2 = state.teams[idx2] || [null, null, null, null];
 
-          showPickHeroModal({
-            title: slotIdx === 0 ? 'Pick Leader' : 'Pick Hero',
-            allowIds: ownedIds,
-            onPick: (heroId) => {
-              const id = String(heroId || '').padStart(3, '0');
+          showPickTeamUnitModal({
+            title: slotIdx === 0 ? 'Pick Leader' : 'Pick Unit',
+            allowHeroIds: ownedHeroIds,
+            allowMonsterIds: allowedMonsterIds,
+            onPick: (slotKey) => {
+              const picked = teamSlotKey(String(slotKey || '')[0] === 'M' ? 'monster' : 'hero', String(slotKey || '').slice(1));
+              const id = picked || null;
+              if (!id) return;
               // Prevent duplicates in the same team
               if (team2.includes(id)) return;
               const nextState = loadTeams();

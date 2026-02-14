@@ -107,6 +107,71 @@ const ChessPal = (() => {
       window.addEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
     } catch {}
 
+    // Practice skill hooks (convert tiles, add time)
+    try {
+      if (window.__cpPracticeSkillListener) {
+        window.removeEventListener('cpPracticeCastSkill', window.__cpPracticeSkillListener);
+      }
+    } catch {}
+    try {
+      window.__cpPracticeSkillListener = (ev) => {
+        const d = ev?.detail || {};
+        const type = String(d.type || '').trim().toLowerCase();
+        if (state.isAnimating) return;
+        if (type === 'addtime') {
+          const sec = Number(d.seconds);
+          if (!Number.isFinite(sec) || sec === 0) return;
+          if (!state.isPlayerTurn) return;
+          const addMs = Math.floor(sec * 1000);
+          const max = TURN_TIME_MS * 2;
+          state.timeRemaining = Math.max(0, Math.min(max, (Number(state.timeRemaining) || 0) + addMs));
+          updateTimerDisplay(Math.min(1, Math.max(0, state.timeRemaining / TURN_TIME_MS)));
+          try { pushLog(`Skill: +${sec.toFixed(1)}s`); } catch {}
+          return;
+        }
+        if (type === 'convert') {
+          const list = Array.isArray(d.convert) ? d.convert : [];
+          if (!list.length) return;
+          // collect candidate positions
+          const positions = [];
+          for (let r = 0; r < BOARD_ROWS; r += 1) {
+            for (let c = 0; c < BOARD_COLS; c += 1) {
+              const j = state.board?.[r]?.[c] || null;
+              if (!j) continue;
+              const isKnight = state.knightPosition && state.knightPosition.row === r && state.knightPosition.col === c;
+              if (isKnight) continue;
+              positions.push({ r, c });
+            }
+          }
+          if (!positions.length) return;
+          // shuffle
+          for (let i = positions.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = positions[i];
+            positions[i] = positions[j];
+            positions[j] = tmp;
+          }
+          let idx = 0;
+          for (const it of list) {
+            const cnt = Math.max(0, Math.floor(Number(it?.count) || 0));
+            const to = String(it?.to || '').trim().toLowerCase();
+            if (!cnt || !to) continue;
+            for (let k = 0; k < cnt; k += 1) {
+              if (idx >= positions.length) break;
+              const p = positions[idx++];
+              const jewel = state.board?.[p.r]?.[p.c] || null;
+              if (!jewel) continue;
+              jewel.element = to;
+            }
+          }
+          renderBoard();
+          try { pushLog(`Skill: convert tiles`); } catch {}
+          return;
+        }
+      };
+      window.addEventListener('cpPracticeCastSkill', window.__cpPracticeSkillListener);
+    } catch {}
+
     generateInitialBoard();
     renderBoard();
     renderMoveHistory();
@@ -138,6 +203,9 @@ const ChessPal = (() => {
     state.lastScore = null;
     try {
       if (window.__cpPieceListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
+    } catch {}
+    try {
+      if (window.__cpPracticeSkillListener) window.removeEventListener('cpPracticeCastSkill', window.__cpPracticeSkillListener);
     } catch {}
   }
 
@@ -473,7 +541,7 @@ const ChessPal = (() => {
       state.timeRemaining = 0;
       endPlayerTurn();
     }
-    updateTimerDisplay(Math.max(0, state.timeRemaining / TURN_TIME_MS));
+    updateTimerDisplay(Math.min(1, Math.max(0, state.timeRemaining / TURN_TIME_MS)));
   }
 
   function endPlayerTurn() {
