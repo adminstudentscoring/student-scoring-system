@@ -761,7 +761,21 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 16px;
-  background: rgba(20, 20, 20, 0.80);
+  background: rgba(0, 0, 0, 0.96);
+  pointer-events: none;
+}
+.cp-hero-card.is-locked::before{
+  content: "?";
+  position: absolute;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 1000;
+  font-size: clamp(64px, 10vw, 140px);
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 18px 34px rgba(0,0,0,0.72);
+  z-index: 3;
   pointer-events: none;
 }
 .cp-hero-card.is-locked .cp-hero-mini img{

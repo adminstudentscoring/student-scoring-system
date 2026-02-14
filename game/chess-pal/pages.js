@@ -232,6 +232,209 @@ const ChessPalPages = (() => {
     saveHeroProgress(p);
   }
 
+  // ----------------------------
+  // Monster progression (per-user): total EXP -> level
+  // Uses the same EXP curve shape as heroes (rarity-scaled).
+  // ----------------------------
+  const MONSTER_PROGRESS_KEY = 'chessPalMonsterProgress';
+  const MONSTER_EXP_CURVE = 40; // slightly faster than baseline hero curve
+  const MONSTER_RARITY_EXP_CURVE = {
+    1: 28,
+    2: 32,
+    3: 36,
+    4: 40,
+    5: 44,
+    6: 50,
+    7: 56,
+    8: 64,
+    9: 74,
+    10: 86,
+  };
+  function monsterExpCurveForRarity(rarity) {
+    const r = Math.max(1, Math.min(10, Math.floor(Number(rarity) || 1)));
+    return MONSTER_RARITY_EXP_CURVE[r] || MONSTER_EXP_CURVE;
+  }
+  function loadMonsterProgress() {
+    try {
+      const raw = localStorage.getItem(MONSTER_PROGRESS_KEY);
+      if (!raw) return {};
+      const v = JSON.parse(raw);
+      return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    } catch {
+      return {};
+    }
+  }
+  function saveMonsterProgress(p) {
+    try { localStorage.setItem(MONSTER_PROGRESS_KEY, JSON.stringify(p || {})); } catch {}
+    try { window.dispatchEvent(new Event('cpMonsterProgressChanged')); } catch {}
+  }
+  function getMonsterTotalExp(monsterId) {
+    const id = String(monsterId || '').trim();
+    const p = loadMonsterProgress();
+    const t = p && p[id] && p[id].totalExp != null ? Number(p[id].totalExp) : 0;
+    return Math.max(0, Math.floor(Number(t) || 0));
+  }
+  function addMonsterExp(monsterId, deltaExp) {
+    const id = String(monsterId || '').trim();
+    if (!id) return;
+    const add = Math.max(0, Math.floor(Number(deltaExp) || 0));
+    if (add <= 0) return;
+    const p = loadMonsterProgress();
+    const cur = (p && p[id] && p[id].totalExp != null) ? Number(p[id].totalExp) : 0;
+    const next = Math.max(0, Math.floor((Number(cur) || 0) + add));
+    p[id] = { ...(p[id] || {}), totalExp: next };
+    saveMonsterProgress(p);
+  }
+
+  function expBarInfo({ level, maxLevel, totalExp, curve }) {
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || 1));
+    const lv = Math.max(1, Math.min(cap, Math.floor(Number(level) || 1)));
+    const t = Math.max(0, Math.floor(Number(totalExp) || 0));
+    const c = Math.max(1, Number(curve) || 1);
+    const curAt = totalExpForLevel(lv, c, cap);
+    if (lv >= cap) return { pct: 100, into: 0, span: 0, curAt, nextAt: curAt, isMax: true };
+    const nextAt = totalExpForLevel(lv + 1, c, cap);
+    const span = Math.max(1, Math.floor(nextAt - curAt));
+    const into = Math.max(0, Math.floor(t - curAt));
+    const pct = Math.max(0, Math.min(100, Math.round((into / span) * 100)));
+    return { pct, into, span, curAt, nextAt, isMax: false };
+  }
+
+  function expProgressMeta({ totalExp, level, curve, maxLevel }) {
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || 1));
+    const lv = Math.max(1, Math.min(cap, Math.floor(Number(level) || 1)));
+    const t = Math.max(0, Math.floor(Number(totalExp) || 0));
+    const at = totalExpForLevel(lv, curve, cap);
+    const nextLv = Math.min(cap, lv + 1);
+    const next = totalExpForLevel(nextLv, curve, cap);
+    const denom = Math.max(1, (next - at));
+    const cur = Math.max(0, Math.min(denom, t - at));
+    const pct = (lv >= cap) ? 1 : Math.max(0, Math.min(1, cur / denom));
+    return { cur, need: denom, pct, at, next };
+  }
+
+  function preloadImages(srcs, limit = 32) {
+    try {
+      const list = Array.isArray(srcs) ? srcs.filter(Boolean) : [];
+      const take = list.slice(0, Math.max(0, Math.floor(Number(limit) || 0)));
+      const run = () => {
+        take.forEach((s) => {
+          try {
+            const img = new Image();
+            img.decoding = 'async';
+            img.src = String(s || '');
+          } catch {}
+        });
+      };
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 900 });
+      else setTimeout(run, 60);
+    } catch {}
+  }
+
+  function showLevelUpModal({ kind, id, name }) {
+    const k = String(kind || '').trim().toLowerCase();
+    const unitId = String(id || '').trim();
+    if (!unitId) return;
+    const unitName = String(name || '').trim();
+
+    const old = document.getElementById('cpLevelUpOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpLevelUpOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Level up">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Level Up · ${esc(unitName || unitId)}</div>
+          <div class="cp-muted" style="margin-top:6px;">Use EXP items from Storage.</div>
+          <div class="cp-levelup-grid" id="cpLevelUpGrid" style="margin-top:12px;"></div>
+          <div class="cp-muted" id="cpLevelUpMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    const msg = overlay.querySelector('#cpLevelUpMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+
+    const expDefs = [
+      { itemId: 'exp_pawn', label: 'EXP Pawn', exp: 500 },
+      { itemId: 'exp_knight', label: 'EXP Knight', exp: 1500 },
+      { itemId: 'exp_bishop', label: 'EXP Bishop', exp: 2500 },
+    ];
+    const grid = overlay.querySelector('#cpLevelUpGrid');
+    const slots = loadStorage();
+    const qtyOf = (itemId) => {
+      const s = slots.find(x => x && String(x.itemId || '').toLowerCase() === String(itemId || '').toLowerCase());
+      return Math.max(0, Math.floor(Number(s?.qty) || 0));
+    };
+    const hasAny = expDefs.some(d => qtyOf(d.itemId) > 0);
+
+    if (!grid) return;
+    if (!hasAny) {
+      grid.innerHTML = `<div class="cp-muted">No EXP items in Storage.</div>`;
+      return;
+    }
+
+    grid.innerHTML = expDefs.map(d => {
+      const q = qtyOf(d.itemId);
+      const def = getStorageItemDef(d.itemId);
+      return `
+        <button class="cp-levelup-item" type="button" data-exp-item="${esc(d.itemId)}" ${q > 0 ? '' : 'disabled'}>
+          ${def?.img ? `<img src="${esc(def.img)}" alt="${esc(def.name || d.label)}" decoding="async" loading="lazy">` : ''}
+          <div class="cp-levelup-meta">
+            <div class="cp-levelup-name">${esc(d.label)}</div>
+            <div class="cp-levelup-sub">+${esc(String(d.exp))} EXP · ×${esc(String(q))}</div>
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    grid.querySelectorAll('[data-exp-item]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const itemId = String(btn.getAttribute('data-exp-item') || '').toLowerCase();
+        const def = expDefs.find(x => x.itemId === itemId);
+        if (!def) return;
+        // consume one from storage
+        const idx = slots.findIndex(x => x && String(x.itemId || '').toLowerCase() === itemId);
+        if (idx < 0) return;
+        const curQty = Math.max(0, Math.floor(Number(slots[idx]?.qty) || 0));
+        if (curQty <= 0) return;
+        slots[idx] = (curQty <= 1) ? null : { ...slots[idx], qty: curQty - 1 };
+        saveStorage(slots);
+
+        // add exp
+        if (k === 'monster') addMonsterExp(unitId, def.exp);
+        else addHeroExp(unitId, def.exp);
+
+        setMsg(`Used ${def.label}.`);
+        close();
+
+        // reopen unit modal with refreshed stats/level
+        try {
+          if (k === 'monster') {
+            const refreshed = mergeMonster(getMonsterById(unitId));
+            if (refreshed) showMonsterModal(refreshed);
+          } else {
+            const refreshed = mergeHero(getHeroById(unitId));
+            if (refreshed) showHeroModal(refreshed);
+          }
+        } catch {}
+      }, { passive: true });
+    });
+  }
+
   function HomePage() {}
   HomePage.title = 'Home';
   HomePage.render = () => {
@@ -1223,6 +1426,8 @@ const ChessPalPages = (() => {
     const h = hero || null;
     if (!h) return;
     const admin = isAdminMode();
+    const canLevelUp = admin || getOwnedHeroSet().has(String(h.id || ''));
+    const xp = expProgressMeta({ totalExp: h.totalExp || 0, level: h.level, curve: h.expCurve, maxLevel: h.maxLevel });
 
     // Remove existing
     const old = document.getElementById('cpHeroModalOverlay');
@@ -1248,6 +1453,11 @@ const ChessPalPages = (() => {
                 <span class="cp-chip">${esc(elementLabel(h.element))}</span>
                 <span class="cp-chip">${esc(renderStars(h.rarity))}</span>
                 <span class="cp-chip">Lv ${esc(h.level)} / ${esc(h.maxLevel)}</span>
+                ${canLevelUp ? `<button class="cp-tool-btn" type="button" id="cpHeroLevelUpBtn">Level Up</button>` : ``}
+              </div>
+              <div class="cp-expwrap" aria-label="EXP progress">
+                <div class="cp-expbar"><div class="cp-expfill" style="width:${esc(Math.round(xp.pct * 100))}%"></div></div>
+                <div class="cp-exptext">${esc(xp.cur)} / ${esc(xp.need)} EXP</div>
               </div>
               <div class="cp-hero-stats">
                 <div class="cp-stat"><b>HP</b> ${esc(h.hp)}</div>
@@ -1307,6 +1517,12 @@ const ChessPalPages = (() => {
           showHeroAdminEditModal(h.id);
         });
       }
+    }
+    const lvlBtn = overlay.querySelector('#cpHeroLevelUpBtn');
+    if (lvlBtn) {
+      lvlBtn.addEventListener('click', () => {
+        showLevelUpModal({ kind: 'hero', id: String(h.id || ''), name: String(h.name || '') });
+      }, { passive: true });
     }
   }
 
@@ -1457,7 +1673,7 @@ const ChessPalPages = (() => {
     host.innerHTML = list.map(h => `
       <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
         <div class="cp-hero-mini">
-          <img src="${esc(h.img || h.mini)}" alt="${esc(h.name)}">
+          <img src="${esc(h.mini || h.img)}" alt="${esc(h.name)}" decoding="async" loading="lazy">
           ${(!admin && owned && !owned.has(h.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(h.level)}</div>`}
           ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
         </div>
@@ -1478,6 +1694,7 @@ const ChessPalPages = (() => {
         if (hero) showHeroModal(hero);
       });
     });
+    try { preloadImages(list.map(x => x.mini || x.img).filter(Boolean), 36); } catch {}
   };
 
   // ----------------------------
@@ -1540,14 +1757,37 @@ const ChessPalPages = (() => {
     const o = (monsterOverrides && b.id && monsterOverrides[b.id]) ? monsterOverrides[b.id] : {};
     const active = b.activeSkill && typeof b.activeSkill === 'object' ? b.activeSkill : { name: 'Skill', cd: 0, text: '', params: {} };
     const passive = b.passiveSkill && typeof b.passiveSkill === 'object' ? b.passiveSkill : { name: 'Passive', text: '', params: {} };
+    const rarity = (o.rarity != null) ? Number(o.rarity) : b.rarity;
+    const maxLevel = (o.maxLevel != null) ? Number(o.maxLevel) : b.maxLevel;
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || 99));
+    const curve = monsterExpCurveForRarity(rarity);
+    const totalExp = b.id ? getMonsterTotalExp(b.id) : 0;
+    const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, curve, cap)));
+
+    // Base stats (optionally overridden by admin)
+    const baseHp = (o.hp != null) ? Number(o.hp) : b.hp;
+    const baseAtk = (o.atk != null) ? Number(o.atk) : b.atk;
+    const baseRcv = (o.rcv != null) ? Number(o.rcv) : b.rcv;
+    // Simple growth for monsters: +5% per level above 1
+    const mult = 1 + Math.max(0, derivedLevel - 1) * 0.05;
+    const scaledHp = Math.max(1, Math.floor((Number(baseHp) || 1) * mult));
+    const scaledAtk = Math.max(0, Math.floor((Number(baseAtk) || 0) * mult));
+    const scaledRcv = Math.max(0, Math.floor((Number(baseRcv) || 0) * mult));
+
+    const admin = isAdminMode();
+    const overrideLevel = (o.level != null) ? Number(o.level) : b.level;
+    const level = (admin && o.level != null) ? Math.max(1, Math.min(cap, Math.floor(Number(overrideLevel) || 1))) : derivedLevel;
+
     return {
       ...b,
-      rarity: (o.rarity != null) ? Number(o.rarity) : b.rarity,
-      level: (o.level != null) ? Number(o.level) : b.level,
-      maxLevel: (o.maxLevel != null) ? Number(o.maxLevel) : b.maxLevel,
-      hp: (o.hp != null) ? Number(o.hp) : b.hp,
-      atk: (o.atk != null) ? Number(o.atk) : b.atk,
-      rcv: (o.rcv != null) ? Number(o.rcv) : b.rcv,
+      rarity,
+      level,
+      maxLevel: cap,
+      expCurve: curve,
+      totalExp,
+      hp: scaledHp,
+      atk: scaledAtk,
+      rcv: scaledRcv,
       activeSkill: {
         ...active,
         cd: (o.activeCd != null) ? Number(o.activeCd) : active.cd,
@@ -1568,6 +1808,8 @@ const ChessPalPages = (() => {
     const m = monster || null;
     if (!m) return;
     const admin = isAdminMode();
+    const canLevelUp = admin || getSeenMonsterSet().has(String(m.id || ''));
+    const xp = expProgressMeta({ totalExp: m.totalExp || 0, level: m.level, curve: m.expCurve, maxLevel: m.maxLevel });
     const old = document.getElementById('cpMonsterModalOverlay');
     if (old) old.remove();
 
@@ -1591,6 +1833,11 @@ const ChessPalPages = (() => {
                 <span class="cp-chip">${esc(elementLabel(m.element))}</span>
                 <span class="cp-chip">${esc(renderStars(m.rarity))}</span>
                 <span class="cp-chip">Lv ${esc(m.level)} / ${esc(m.maxLevel)}</span>
+                ${canLevelUp ? `<button class="cp-tool-btn" type="button" id="cpMonsterLevelUpBtn">Level Up</button>` : ``}
+              </div>
+              <div class="cp-expwrap" aria-label="EXP progress">
+                <div class="cp-expbar"><div class="cp-expfill" style="width:${esc(Math.round(xp.pct * 100))}%"></div></div>
+                <div class="cp-exptext">${esc(xp.cur)} / ${esc(xp.need)} EXP</div>
               </div>
               <div class="cp-hero-stats">
                 <div class="cp-stat"><b>HP</b> ${esc(m.hp)}</div>
@@ -1639,6 +1886,12 @@ const ChessPalPages = (() => {
           showMonsterAdminEditModal(m.id);
         });
       }
+    }
+    const lvlBtn = overlay.querySelector('#cpMonsterLevelUpBtn');
+    if (lvlBtn) {
+      lvlBtn.addEventListener('click', () => {
+        showLevelUpModal({ kind: 'monster', id: String(m.id || ''), name: String(m.name || '') });
+      }, { passive: true });
     }
   }
 
@@ -1780,7 +2033,7 @@ const ChessPalPages = (() => {
     host.innerHTML = list.map(m => `
       <button class="cp-hero-card ${(!admin && seen && !seen.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}">
         <div class="cp-hero-mini">
-          ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
+          ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}" decoding="async" loading="lazy">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
           ${(!admin && seen && !seen.has(m.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(m.level)}</div>`}
         </div>
         <div class="cp-hero-mini-meta">
@@ -1800,6 +2053,7 @@ const ChessPalPages = (() => {
         if (m) showMonsterModal(m);
       });
     });
+    try { preloadImages(list.map(x => x.mini || x.img).filter(Boolean), 36); } catch {}
   };
 
   // ----------------------------
@@ -1908,12 +2162,12 @@ const ChessPalPages = (() => {
           <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Unit')}</div>
           <div class="cp-muted" style="margin-top:6px;">Pick a Hero or Monster.</div>
 
-          <div class="cp-row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:nowrap !important; overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; padding-bottom:6px;">
-            <div style="min-width:200px; flex:0 0 auto;">
+          <div class="cp-row" style="margin-top:12px; gap:8px; align-items:flex-end; flex-wrap:nowrap; max-width:100%;">
+            <div style="min-width:120px; flex: 1 1 220px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Search</div>
               <input class="cp-input" id="cpPickUnitSearch" placeholder="Search name or id" />
             </div>
-            <div style="min-width:190px; flex:0 0 auto;">
+            <div style="min-width:110px; flex: 0 1 150px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Filter</div>
               <select class="cp-select" id="cpPickUnitFilterMode">
                 <option value="none">None</option>
@@ -1923,8 +2177,8 @@ const ChessPalPages = (() => {
                 <option value="element">Element</option>
               </select>
             </div>
-            <div style="min-width:190px; flex:0 0 auto;" id="cpPickUnitFilterValueWrap"></div>
-            <div style="min-width:170px; flex:0 0 auto;">
+            <div style="min-width:110px; flex: 0 1 150px;" id="cpPickUnitFilterValueWrap"></div>
+            <div style="min-width:100px; flex: 0 1 130px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Sort</div>
               <select class="cp-select" id="cpPickUnitSortKey">
                 <option value="level">Level</option>
@@ -1932,7 +2186,7 @@ const ChessPalPages = (() => {
                 <option value="name">Name</option>
               </select>
             </div>
-            <div style="min-width:170px; flex:0 0 auto;">
+            <div style="min-width:110px; flex: 0 1 150px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Order</div>
               <select class="cp-select" id="cpPickUnitSortDir">
                 <option value="desc">High to Low</option>
@@ -2087,7 +2341,7 @@ const ChessPalPages = (() => {
       grid.innerHTML = list.map(u => `
         <button class="cp-hero-card" type="button" data-pick-unit="${esc(u.key)}" data-element="${esc(String(u.element || ''))}">
           <div class="cp-hero-mini">
-            ${u.mini ? `<img src="${esc(u.mini)}" alt="${esc(u.name)}">` : `<div class="cp-mini-placeholder">${esc(u.name)}</div>`}
+            ${u.mini ? `<img src="${esc(u.mini)}" alt="${esc(u.name)}" decoding="async" loading="lazy">` : `<div class="cp-mini-placeholder">${esc(u.name)}</div>`}
             <div class="cp-mini-lv">Lv ${esc(String(u.level || 1))}</div>
             ${jewelIconSrcForElement(u.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(u.element))}" alt="" aria-hidden="true">` : ``}
           </div>
@@ -2330,7 +2584,7 @@ const ChessPalPages = (() => {
     for (const fb of fallbacks) {
       onerr += `if(this.src.indexOf('${fb}')===-1){this.onerror=null;this.src='${fb}';return;}`;
     }
-    return `<img class="${esc(c)}" src="${esc(s)}" alt="${esc(a)}" ${onerr ? `onerror="${esc(onerr)}"` : ''}>`;
+    return `<img class="${esc(c)}" src="${esc(s)}" alt="${esc(a)}" decoding="async" loading="lazy" ${onerr ? `onerror="${esc(onerr)}"` : ''}>`;
   }
 
   function normalizeStorageSlots(slots) {
