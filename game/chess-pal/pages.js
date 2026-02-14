@@ -1670,17 +1670,18 @@ const ChessPalPages = (() => {
     await loadHeroOverrides();
     const admin = isAdminMode();
     const owned = admin ? null : getOwnedHeroSet();
-    const list = getAllHeroes();
+    const all = getAllHeroes();
+    const list = admin ? all : all.filter(h => owned && owned.has(h.id));
     host.innerHTML = list.map(h => `
-      <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
+      <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini || h.img)}" alt="${esc(h.name)}" decoding="async" loading="lazy">
-          ${(!admin && owned && !owned.has(h.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(h.level)}</div>`}
+          <div class="cp-mini-lv">Lv ${esc(h.level)}</div>
           ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
         </div>
         <div class="cp-hero-mini-meta">
-          <div class="cp-hero-mini-name">${(!admin && owned && !owned.has(h.id)) ? '' : esc(h.name)}</div>
-          <div class="cp-hero-mini-sub">${(!admin && owned && !owned.has(h.id)) ? 'Locked' : `#${esc(h.id)} · ${esc(elementLabel(h.element))}`}</div>
+          <div class="cp-hero-mini-name">${esc(h.name)}</div>
+          <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
         </div>
       </button>
     `).join('');
@@ -2030,16 +2031,17 @@ const ChessPalPages = (() => {
     await loadMonsterOverrides();
     const admin = isAdminMode();
     const seen = admin ? null : getSeenMonsterSet();
-    const list = getAllMonsters();
+    const all = getAllMonsters();
+    const list = admin ? all : all.filter(m => seen && seen.has(m.id));
     host.innerHTML = list.map(m => `
-      <button class="cp-hero-card ${(!admin && seen && !seen.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}">
+      <button class="cp-hero-card" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}">
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}" decoding="async" loading="lazy">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
-          ${(!admin && seen && !seen.has(m.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(m.level)}</div>`}
+          <div class="cp-mini-lv">Lv ${esc(m.level)}</div>
         </div>
         <div class="cp-hero-mini-meta">
-          <div class="cp-hero-mini-name">${(!admin && seen && !seen.has(m.id)) ? '' : esc(m.name)}</div>
-          <div class="cp-hero-mini-sub">${(!admin && seen && !seen.has(m.id)) ? 'Locked' : `#${esc(m.id)} · ${esc(elementLabel(m.element))}`}</div>
+          <div class="cp-hero-mini-name">${esc(m.name)}</div>
+          <div class="cp-hero-mini-sub">#${esc(m.id)} · ${esc(elementLabel(m.element))}</div>
         </div>
       </button>
     `).join('');

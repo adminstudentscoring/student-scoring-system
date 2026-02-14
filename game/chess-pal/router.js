@@ -149,9 +149,13 @@ const Router = (() => {
     setTopToolsForPath(p);
     updateSidebarCoins();
 
-    // Hide top bar on game-like pages
+    // Hide top bar on pages that use tile/grid UI
     try {
-      document.body.classList.toggle('cp-hide-topbar', (p === '/practice' || p === '/test-game' || p === '/summon' || p === '/mode' || p.startsWith('/mode/')));
+      const hideTopbar =
+        (p === '/practice' || p === '/test-game' || p === '/summon' || p === '/mode' || p.startsWith('/mode/')) ||
+        (p === '/home' || p === '/pal' || p === '/heroes' || p === '/monsters' || p === '/team' || p === '/storage' || p === '/settings') ||
+        (p === '/shop' || p.startsWith('/shop/'));
+      document.body.classList.toggle('cp-hide-topbar', hideTopbar);
     } catch {}
 
     container.style.opacity = '0';
