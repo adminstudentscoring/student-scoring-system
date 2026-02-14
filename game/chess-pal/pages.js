@@ -282,32 +282,62 @@ const ChessPalPages = (() => {
   function ModePage() {}
   ModePage.title = 'Mode';
   ModePage.render = () => {
+    const s = getGeneralSettings();
     return `
       <div class="cp-square-grid" aria-label="Mode">
-        <button class="cp-square-tile" type="button" data-cp-modego="/mode/story" aria-label="Story Mode">
+        <button class="cp-square-tile" type="button" data-cp-mode="story" aria-label="Story Mode">
           ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Story Mode', 'cp-square-img')}
           <div class="cp-square-label">Story Mode</div>
         </button>
-        <button class="cp-square-tile" type="button" data-cp-modego="/mode/challenge" aria-label="Challenge Mode">
-          ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Challenge Mode', 'cp-square-img')}
+        <button class="cp-square-tile" type="button" data-cp-mode="challenge" aria-label="Challenge Mode">
+          ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Challenge Mode', 'cp-square-img')}
           <div class="cp-square-label">Challenge Mode</div>
         </button>
-        <button class="cp-square-tile" type="button" data-cp-modego="/practice" aria-label="Practice Mode">
-          ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Practice Mode', 'cp-square-img')}
+        <button class="cp-square-tile" type="button" data-cp-mode="practice" aria-label="Practice Mode">
+          ${renderImgWithFallback(String(s.practiceBg || 'images/Mode/Practice/Map/Map001-Grassland.jpg'), 'Practice Mode', 'cp-square-img')}
           <div class="cp-square-label">Practice Mode</div>
         </button>
       </div>
     `;
   };
   ModePage.init = () => {
-    document.querySelectorAll('[data-cp-modego]').forEach((btn) => {
+    document.querySelectorAll('[data-cp-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const r = String(btn.getAttribute('data-cp-modego') || '').trim();
-        if (!r) return;
-        Router.goTo(r);
+        const key = String(btn.getAttribute('data-cp-mode') || '').trim();
+        if (key === 'practice') Router.goTo('/practice');
+        else if (key === 'story') Router.goTo('/mode/story');
+        else if (key === 'challenge') Router.goTo('/mode/challenge');
       }, { passive: true });
     });
   };
+
+  function ModeStoryPage() {}
+  ModeStoryPage.title = 'Story Mode';
+  ModeStoryPage.render = () => `
+    <div class="cp-square-grid" aria-label="Story Mode">
+      <button class="cp-square-tile" type="button" data-cp-modeback aria-label="Back">
+        ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Back', 'cp-square-img')}
+        <div class="cp-square-label">Back</div>
+      </button>
+    </div>
+  `;
+  ModeStoryPage.init = () => {
+    document.querySelectorAll('[data-cp-modeback]').forEach(btn => {
+      btn.addEventListener('click', () => Router.goTo('/mode'), { passive: true });
+    });
+  };
+
+  function ModeChallengePage() {}
+  ModeChallengePage.title = 'Challenge Mode';
+  ModeChallengePage.render = () => `
+    <div class="cp-square-grid" aria-label="Challenge Mode">
+      <button class="cp-square-tile" type="button" data-cp-modeback aria-label="Back">
+        ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Back', 'cp-square-img')}
+        <div class="cp-square-label">Back</div>
+      </button>
+    </div>
+  `;
+  ModeChallengePage.init = ModeStoryPage.init;
 
   function PracticePage() {}
   PracticePage.title = 'Practice';
@@ -1878,12 +1908,12 @@ const ChessPalPages = (() => {
           <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Unit')}</div>
           <div class="cp-muted" style="margin-top:6px;">Pick a Hero or Monster.</div>
 
-          <div class="cp-row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px;">
-            <div style="min-width:220px;">
+          <div class="cp-row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:nowrap !important; overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; padding-bottom:6px;">
+            <div style="min-width:200px; flex:0 0 auto;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Search</div>
               <input class="cp-input" id="cpPickUnitSearch" placeholder="Search name or id" />
             </div>
-            <div style="min-width:200px;">
+            <div style="min-width:190px; flex:0 0 auto;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Filter</div>
               <select class="cp-select" id="cpPickUnitFilterMode">
                 <option value="none">None</option>
@@ -1893,8 +1923,8 @@ const ChessPalPages = (() => {
                 <option value="element">Element</option>
               </select>
             </div>
-            <div style="min-width:200px;" id="cpPickUnitFilterValueWrap"></div>
-            <div style="min-width:180px;">
+            <div style="min-width:190px; flex:0 0 auto;" id="cpPickUnitFilterValueWrap"></div>
+            <div style="min-width:170px; flex:0 0 auto;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Sort</div>
               <select class="cp-select" id="cpPickUnitSortKey">
                 <option value="level">Level</option>
@@ -1902,7 +1932,7 @@ const ChessPalPages = (() => {
                 <option value="name">Name</option>
               </select>
             </div>
-            <div style="min-width:180px;">
+            <div style="min-width:170px; flex:0 0 auto;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Order</div>
               <select class="cp-select" id="cpPickUnitSortDir">
                 <option value="desc">High to Low</option>
@@ -3016,6 +3046,8 @@ const ChessPalPages = (() => {
     routes: {
       '/home': HomePage,
       '/mode': ModePage,
+      '/mode/story': ModeStoryPage,
+      '/mode/challenge': ModeChallengePage,
       '/practice': PracticePage,
       '/test-game': TestGamePage,
       '/team': TeamPage,
