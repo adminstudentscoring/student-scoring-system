@@ -797,7 +797,7 @@ const ChessPalPages = (() => {
         slot.setAttribute('data-team-slot', String(i));
         slot.innerHTML = unit
           ? `
-            <img src="${esc(unit.img || unit.mini)}" alt="${esc(unit.name)}">
+            <img src="${esc(unit.mini || unit.img)}" alt="${esc(unit.name)}">
             <div class="cp-practice-atk cp-elem-${esc(String(unit.element || ''))}" data-practice-atk></div>
             ${jewelIconSrcForElement(unit.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(unit.element))}" alt="" aria-hidden="true">` : ``}
           `
@@ -1452,7 +1452,7 @@ const ChessPalPages = (() => {
     const owned = admin ? null : getOwnedHeroSet();
     const list = getAllHeroes();
     host.innerHTML = list.map(h => `
-      <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}">
+      <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
         <div class="cp-hero-mini">
           <img src="${esc(h.img || h.mini)}" alt="${esc(h.name)}">
           ${(!admin && owned && !owned.has(h.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(h.level)}</div>`}
@@ -1775,7 +1775,7 @@ const ChessPalPages = (() => {
     const seen = admin ? null : getSeenMonsterSet();
     const list = getAllMonsters();
     host.innerHTML = list.map(m => `
-      <button class="cp-hero-card ${(!admin && seen && !seen.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}">
+      <button class="cp-hero-card ${(!admin && seen && !seen.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}">
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
           ${(!admin && seen && !seen.has(m.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(m.level)}</div>`}
@@ -2082,7 +2082,7 @@ const ChessPalPages = (() => {
       list = applyFilter(list);
       list = sortList(list);
       grid.innerHTML = list.map(u => `
-        <button class="cp-hero-card" type="button" data-pick-unit="${esc(u.key)}">
+        <button class="cp-hero-card" type="button" data-pick-unit="${esc(u.key)}" data-element="${esc(String(u.element || ''))}">
           <div class="cp-hero-mini">
             ${u.mini ? `<img src="${esc(u.mini)}" alt="${esc(u.name)}">` : `<div class="cp-mini-placeholder">${esc(u.name)}</div>`}
             <div class="cp-mini-lv">Lv ${esc(String(u.level || 1))}</div>
