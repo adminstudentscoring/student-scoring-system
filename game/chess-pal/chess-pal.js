@@ -2,7 +2,7 @@
 const ELEMENTS = ['light', 'dark', 'fire', 'water', 'wood', 'heart'];
 const BOARD_ROWS = 6;
 const BOARD_COLS = 6;
-const TURN_TIME_MS = 20000;
+const TURN_TIME_MS = 10000;
 const CELL_PX = 66;
 const GAP_PX = 8;
 

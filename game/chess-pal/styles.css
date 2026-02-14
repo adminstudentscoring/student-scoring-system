@@ -993,6 +993,80 @@ body {
   line-height: 1.4;
 }
 
+/* Level up modal */
+.cp-levelup-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 520px){
+  .cp-levelup-grid{ grid-template-columns: 1fr; }
+}
+.cp-levelup-item{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: var(--cp-text);
+  cursor: pointer;
+  text-align: left;
+}
+.cp-levelup-item:disabled{
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.cp-levelup-img{
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.cp-levelup-meta{ min-width: 0; }
+.cp-levelup-name{
+  font-weight: 1000;
+  font-size: 14px;
+}
+.cp-levelup-sub{
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.25;
+}
+
+/* EXP bar (hero and monster modal) */
+.cp-expwrap{
+  margin-top: 10px;
+  padding: 10px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
+.cp-expbar{
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.22);
+}
+.cp-expfill{
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(124,58,237,0.92), rgba(59,130,246,0.92));
+  opacity: 0.92;
+}
+.cp-exptext{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.72);
+  font-weight: 900;
+}
+
 .cp-skill-head{
   display:flex;
   align-items:center;

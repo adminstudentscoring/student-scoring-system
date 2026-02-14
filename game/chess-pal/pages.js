@@ -369,9 +369,9 @@ const ChessPalPages = (() => {
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
 
     const expDefs = [
-      { itemId: 'exp_pawn', label: 'EXP Pawn', exp: 500 },
-      { itemId: 'exp_knight', label: 'EXP Knight', exp: 1500 },
-      { itemId: 'exp_bishop', label: 'EXP Bishop', exp: 2500 },
+      { itemId: 'exp_pawn', label: 'EXP Pawn', exp: 500, desc: 'Small EXP.' },
+      { itemId: 'exp_knight', label: 'EXP Knight', exp: 1500, desc: 'Medium EXP.' },
+      { itemId: 'exp_bishop', label: 'EXP Bishop', exp: 2500, desc: 'Large EXP.' },
     ];
     const grid = overlay.querySelector('#cpLevelUpGrid');
     const slots = loadStorage();
@@ -392,10 +392,11 @@ const ChessPalPages = (() => {
       const def = getStorageItemDef(d.itemId);
       return `
         <button class="cp-levelup-item" type="button" data-exp-item="${esc(d.itemId)}" ${q > 0 ? '' : 'disabled'}>
-          ${def?.img ? `<img src="${esc(def.img)}" alt="${esc(def.name || d.label)}" decoding="async" loading="lazy">` : ''}
+          ${def?.img ? `<img class="cp-levelup-img" src="${esc(def.img)}" alt="${esc(def.name || d.label)}" decoding="async" loading="lazy">` : ''}
           <div class="cp-levelup-meta">
             <div class="cp-levelup-name">${esc(d.label)}</div>
-            <div class="cp-levelup-sub">+${esc(String(d.exp))} EXP · ×${esc(String(q))}</div>
+            <div class="cp-levelup-sub">${esc(String(d.desc || ''))} +${esc(String(d.exp))} EXP.</div>
+            <div class="cp-levelup-sub">Qty ×${esc(String(q))}.</div>
           </div>
         </button>
       `;
@@ -2162,12 +2163,12 @@ const ChessPalPages = (() => {
           <div class="cp-h1" style="font-size:18px;">${esc(title || 'Pick Unit')}</div>
           <div class="cp-muted" style="margin-top:6px;">Pick a Hero or Monster.</div>
 
-          <div class="cp-row" style="margin-top:12px; gap:8px; align-items:flex-end; flex-wrap:nowrap; max-width:100%;">
-            <div style="min-width:120px; flex: 1 1 220px;">
+          <div class="cp-row" style="margin-top:12px; gap:6px; align-items:flex-end; flex-wrap:nowrap; max-width:100%;">
+            <div style="min-width:140px; flex: 1 1 180px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Search</div>
               <input class="cp-input" id="cpPickUnitSearch" placeholder="Search name or id" />
             </div>
-            <div style="min-width:110px; flex: 0 1 150px;">
+            <div style="min-width:100px; flex: 0 1 120px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Filter</div>
               <select class="cp-select" id="cpPickUnitFilterMode">
                 <option value="none">None</option>
@@ -2177,8 +2178,8 @@ const ChessPalPages = (() => {
                 <option value="element">Element</option>
               </select>
             </div>
-            <div style="min-width:110px; flex: 0 1 150px;" id="cpPickUnitFilterValueWrap"></div>
-            <div style="min-width:100px; flex: 0 1 130px;">
+            <div style="min-width:100px; flex: 0 1 120px;" id="cpPickUnitFilterValueWrap"></div>
+            <div style="min-width:90px; flex: 0 1 110px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Sort</div>
               <select class="cp-select" id="cpPickUnitSortKey">
                 <option value="level">Level</option>
@@ -2186,7 +2187,7 @@ const ChessPalPages = (() => {
                 <option value="name">Name</option>
               </select>
             </div>
-            <div style="min-width:110px; flex: 0 1 150px;">
+            <div style="min-width:90px; flex: 0 1 110px;">
               <div class="cp-setting-label" style="margin-bottom:6px;">Order</div>
               <select class="cp-select" id="cpPickUnitSortDir">
                 <option value="desc">High to Low</option>
@@ -2604,6 +2605,13 @@ const ChessPalPages = (() => {
     });
   }
 
+  function compactStorageSlots(slots) {
+    const v = Array.isArray(slots) ? slots : [];
+    const items = v.filter(s => s && typeof s === 'object');
+    while (items.length < STORAGE_SLOT_COUNT) items.push(null);
+    return items.slice(0, STORAGE_SLOT_COUNT);
+  }
+
   function loadStorage() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -2617,7 +2625,9 @@ const ChessPalPages = (() => {
 
   function saveStorage(slots) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ slots: normalizeStorageSlots(slots) }));
+      const normalized = normalizeStorageSlots(slots);
+      const compacted = compactStorageSlots(normalized);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ slots: compacted }));
     } catch {}
     try {
       window.dispatchEvent(new Event('cpStorageChanged'));
@@ -2726,9 +2736,15 @@ const ChessPalPages = (() => {
       }).join('');
     };
 
-    const persist = () => { saveStorage(slots); };
-    const refresh = () => { render(); persist(); };
+    const persist = () => {
+      // Keep UI compacted too (not just storage save)
+      slots = compactStorageSlots(normalizeStorageSlots(slots));
+      saveStorage(slots);
+    };
+    const refresh = () => { persist(); render(); };
 
+    // Start in compacted order
+    slots = compactStorageSlots(normalizeStorageSlots(slots));
     render();
 
     host.querySelectorAll('[data-slot]').forEach(btn => {
@@ -2821,31 +2837,26 @@ const ChessPalPages = (() => {
   ShopGetCoinsPage.render = () => {
     const canClaim = canClaimFreeSilverToday();
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Get Coins</div>
-        <div class="cp-muted">Daily rewards.</div>
-
-        <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
-          <div class="cp-setting-item">
-            <div class="cp-setting-label">Free Coin Today</div>
-            <div class="cp-setting-help">Claim once per day to receive 10 Silver Coins.</div>
-            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-              <button class="cp-primary" type="button" id="cpClaimFreeSilver" ${canClaim ? '' : 'disabled'}>${canClaim ? 'Claim 10 Silver' : 'Claimed Today'}</button>
-              <button class="cp-tool-btn" type="button" id="cpBackShop">Back</button>
-              <div class="cp-muted" id="cpClaimMsg"></div>
-            </div>
-          </div>
-
-          <div class="cp-setting-item" style="opacity:0.65;">
-            <div class="cp-setting-label">Reward #2</div>
-            <div class="cp-setting-help">Coming soon.</div>
-          </div>
-
-          <div class="cp-setting-item" style="opacity:0.65;">
-            <div class="cp-setting-label">Reward #3</div>
-            <div class="cp-setting-help">Coming soon.</div>
-          </div>
+      <div>
+        <div class="cp-square-grid" aria-label="Get Coins rewards">
+          <button class="cp-square-tile" type="button" id="cpClaimFreeSilver" ${canClaim ? '' : 'disabled'} aria-label="Free Coin Today">
+            ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Free Coin Today', 'cp-square-img')}
+            <div class="cp-square-label">${canClaim ? 'Free Coin Today' : 'Claimed Today'}</div>
+          </button>
+          <button class="cp-square-tile" type="button" id="cpRewardChesscom" aria-label="Chess.com game play">
+            ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Chess.com game play', 'cp-square-img')}
+            <div class="cp-square-label">Chess.com game play</div>
+          </button>
+          <button class="cp-square-tile" type="button" id="cpRewardPuzzle" aria-label="Puzzle Reward">
+            ${renderImgWithFallback('images/Storage/S003-Exp-Pawn.png', 'Puzzle Reward', 'cp-square-img')}
+            <div class="cp-square-label">Puzzle Reward</div>
+          </button>
+          <button class="cp-square-tile" type="button" id="cpBackShop" aria-label="Back">
+            ${renderImgWithFallback('images/Storage/S001-Gold-Coin.png', 'Back', 'cp-square-img')}
+            <div class="cp-square-label">Back</div>
+          </button>
         </div>
+        <div class="cp-muted" id="cpClaimMsg" style="margin-top:12px;"></div>
       </div>
     `;
   };
@@ -2874,6 +2885,13 @@ const ChessPalPages = (() => {
       } catch (e) {
         setMsg(String(e?.message || e || 'Failed'));
       }
+    }, { passive: true });
+
+    document.getElementById('cpRewardChesscom')?.addEventListener('click', () => {
+      setMsg('Reward #2 is coming soon.');
+    }, { passive: true });
+    document.getElementById('cpRewardPuzzle')?.addEventListener('click', () => {
+      setMsg('Reward #3 is coming soon.');
     }, { passive: true });
   };
 
