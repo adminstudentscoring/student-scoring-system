@@ -797,8 +797,7 @@ const ChessPalPages = (() => {
         slot.setAttribute('data-team-slot', String(i));
         slot.innerHTML = unit
           ? `
-            <img src="${esc(unit.mini)}" alt="${esc(unit.name)}">
-            <div class="cp-mini-lv">Lv ${esc(unit.level)}</div>
+            <img src="${esc(unit.img || unit.mini)}" alt="${esc(unit.name)}">
             <div class="cp-practice-atk cp-elem-${esc(String(unit.element || ''))}" data-practice-atk></div>
             ${jewelIconSrcForElement(unit.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(unit.element))}" alt="" aria-hidden="true">` : ``}
           `
@@ -894,13 +893,17 @@ const ChessPalPages = (() => {
               <button class="cp-tool-btn" type="button" data-skill-cancel>Cancel</button>
             </div>
           `;
+          // Prevent nested button clicks from re-triggering the slot click handler
+          panel.addEventListener('click', (e2) => { try { e2.stopPropagation(); } catch {} }, { passive: false });
           slotBtn.appendChild(panel);
           panel.querySelector('[data-skill-cancel]')?.addEventListener('click', (e2) => {
             e2.preventDefault();
+            try { e2.stopPropagation(); } catch {}
             closeSkillPanels();
           }, { passive: false });
           panel.querySelector('[data-skill-confirm]')?.addEventListener('click', (e2) => {
             e2.preventDefault();
+            try { e2.stopPropagation(); } catch {}
             castSkill(u);
             closeSkillPanels();
           }, { passive: false });
@@ -1451,7 +1454,7 @@ const ChessPalPages = (() => {
     host.innerHTML = list.map(h => `
       <button class="cp-hero-card ${(!admin && owned && !owned.has(h.id)) ? 'is-locked' : ''}" type="button" data-hero-id="${esc(h.id)}">
         <div class="cp-hero-mini">
-          <img src="${esc(h.mini)}" alt="${esc(h.name)}">
+          <img src="${esc(h.img || h.mini)}" alt="${esc(h.name)}">
           ${(!admin && owned && !owned.has(h.id)) ? '' : `<div class="cp-mini-lv">Lv ${esc(h.level)}</div>`}
           ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
         </div>
