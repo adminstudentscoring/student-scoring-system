@@ -180,6 +180,162 @@ const ChessPalPages = (() => {
   try { window.cpAddOwnedMonster = addOwnedMonsterId; } catch {}
 
   // ----------------------------
+  // Story Mode stages (Admin can edit; UI-only for now)
+  // Stored as: { "1": [{monsterId, level} x5], "2": ... }
+  // ----------------------------
+  const STORY_STAGES_KEY = 'chessPalStoryStages';
+
+  function defaultStoryStagesForChapter(chapterId) {
+    const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
+    // Sensible defaults (admin can overwrite any time)
+    if (ch === 1) {
+      return [
+        { monsterId: '017', level: 1 },
+        { monsterId: '018', level: 1 },
+        { monsterId: '021', level: 2 },
+        { monsterId: '027', level: 2 },
+        { monsterId: '004', level: 1 },
+      ];
+    }
+    return [
+      { monsterId: '011', level: 1 },
+      { monsterId: '014', level: 1 },
+      { monsterId: '017', level: 1 },
+      { monsterId: '020', level: 1 },
+      { monsterId: '004', level: 1 },
+    ];
+  }
+
+  function loadStoryStages() {
+    try {
+      const raw = localStorage.getItem(STORY_STAGES_KEY);
+      if (!raw) return {};
+      const v = JSON.parse(raw);
+      return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveStoryStages(s) {
+    try { localStorage.setItem(STORY_STAGES_KEY, JSON.stringify(s || {})); } catch {}
+    try { window.dispatchEvent(new Event('cpStoryStagesChanged')); } catch {}
+  }
+
+  function getStoryStagesForChapter(chapterId) {
+    const ch = String(Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1))));
+    const all = loadStoryStages();
+    const arr = Array.isArray(all?.[ch]) ? all[ch] : null;
+    if (arr && arr.length) return arr;
+    return defaultStoryStagesForChapter(ch);
+  }
+
+  function setStoryStagesForChapter(chapterId, stages) {
+    const ch = String(Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1))));
+    const next = loadStoryStages();
+    next[ch] = Array.isArray(stages) ? stages : defaultStoryStagesForChapter(ch);
+    saveStoryStages(next);
+  }
+
+  function showAdminEditStoryStagesModal(chapterId) {
+    if (!isAdminMode()) return;
+    const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
+    const current = getStoryStagesForChapter(ch);
+    const allMonsters = getAllMonsters();
+
+    const monsterOptions = allMonsters
+      .slice()
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map(m => `<option value="${esc(String(m.id))}">#${esc(m.id)} ${esc(m.name)} · ${esc(elementLabel(m.element))} · ${esc(renderStars(m.rarity))}</option>`)
+      .join('');
+
+    const old = document.getElementById('cpEditStagesOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpEditStagesOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Edit stages">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Edit stages · Chapter ${esc(String(ch))}</div>
+          <div class="cp-muted" style="margin-top:6px;">Pick Monster and Level for each stage. Stage 5 is always labeled Boss Stage.</div>
+
+          <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
+            ${Array.from({ length: 5 }, (_, i) => {
+              const s = current[i] || { monsterId: '004', level: 1 };
+              const label = (i === 4) ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`;
+              return `
+                <div class="cp-setting-item">
+                  <div class="cp-setting-label">${esc(label)}</div>
+                  <div class="cp-row" style="margin-top:10px;">
+                    <div style="flex:1 1 260px; min-width: 240px;">
+                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
+                      <select class="cp-select" data-stage-monster="${esc(String(i))}">
+                        ${monsterOptions}
+                      </select>
+                    </div>
+                    <div style="width: 140px;">
+                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
+                      <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(s.level) || 1))))}" data-stage-level="${esc(String(i))}">
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="cp-row" style="justify-content:flex-end;">
+            <button class="cp-tool-btn" type="button" id="cpEditStagesCancel">Cancel</button>
+            <button class="cp-primary" type="button" id="cpEditStagesSave">Save</button>
+          </div>
+          <div class="cp-muted" id="cpEditStagesMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // set default selected values
+    for (let i = 0; i < 5; i += 1) {
+      const s = current[i] || { monsterId: '004', level: 1 };
+      const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`);
+      if (sel) sel.value = String(s.monsterId || '004').trim().padStart(3, '0');
+    }
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    overlay.querySelector('#cpEditStagesCancel')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    const msg = overlay.querySelector('#cpEditStagesMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+
+    overlay.querySelector('#cpEditStagesSave')?.addEventListener('click', () => {
+      try {
+        setMsg('');
+        const stages = [];
+        for (let i = 0; i < 5; i += 1) {
+          const monsterId = String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`)?.value || '').trim().padStart(3, '0');
+          const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}"]`)?.value) || 1));
+          if (!/^\d{3}$/.test(monsterId)) throw new Error('Invalid monster id');
+          stages.push({ monsterId, level });
+        }
+        setStoryStagesForChapter(ch, stages);
+        setMsg('Saved.');
+        setTimeout(() => close(), 250);
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Save failed'));
+      }
+    }, { passive: true });
+  }
+
+  // ----------------------------
   // Hero progression (per-user): total EXP -> level
   // PAD-style curve (approx): totalExp(level) = floor((level-1)^2.5 * curve)
   // ----------------------------
@@ -546,6 +702,7 @@ const ChessPalPages = (() => {
   function ModeStoryPage() {}
   ModeStoryPage.title = 'Story Mode';
   ModeStoryPage.render = () => {
+    const admin = isAdminMode();
     const fallbackImg = 'images/Mode/Practice/Map/Map001-Grassland.jpg';
     const chapters = [
       { id: 1, title: 'Chapter 1 · Grassland Awakening', img: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg' },
@@ -562,10 +719,11 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-chapter-list" aria-label="Story chapters">
         ${chapters.map(c => `
-          <button class="cp-chapter-tile" type="button" data-cp-chapter="${esc(String(c.id))}" aria-label="${esc(c.title)}">
+          <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-chapter="${esc(String(c.id))}" aria-label="${esc(c.title)}">
             <img class="cp-chapter-img" src="${esc(String(c.img || fallbackImg))}" alt="${esc(c.title)}" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
             <div class="cp-chapter-label">${esc(c.title)}</div>
-          </button>
+            ${admin ? `<button class="cp-tool-btn cp-chapter-edit" type="button" data-cp-edit-stages="${esc(String(c.id))}">Edit stages</button>` : ``}
+          </div>
         `).join('')}
       </div>
     `;
@@ -576,6 +734,24 @@ const ChessPalPages = (() => {
         // UI first: stages coming next
       }, { passive: true });
     });
+    document.querySelectorAll('[data-cp-chapter]').forEach(tile => {
+      tile.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          try { ev.preventDefault(); } catch {}
+          try { tile.click(); } catch {}
+        }
+      });
+    });
+    if (isAdminMode()) {
+      document.querySelectorAll('[data-cp-edit-stages]').forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+          try { ev.preventDefault(); ev.stopPropagation(); } catch {}
+          const chap = Number(btn.getAttribute('data-cp-edit-stages'));
+          if (!Number.isFinite(chap)) return;
+          try { showAdminEditStoryStagesModal(chap); } catch {}
+        }, { passive: false });
+      });
+    }
   };
 
   function ModeChallengePage() {}
