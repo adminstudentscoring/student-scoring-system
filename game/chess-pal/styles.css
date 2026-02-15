@@ -1389,7 +1389,6 @@ body {
   align-items: stretch;
   height: 100%;
 }
-.cp-game-fullscreen .cp-practice-boss,
 .cp-game-fullscreen .cp-practice-team,
 .cp-game-fullscreen .cp-practice-hint{
   width: 100%;
@@ -1618,6 +1617,10 @@ body {
 /* Fullscreen: monster art fixed height, show full image */
 .cp-game-fullscreen .cp-practice-boss{
   --cp-boss-h: 6cm;
+  width: fit-content; /* match image width */
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
   height: var(--cp-boss-h);
   min-height: var(--cp-boss-h);
   aspect-ratio: auto;
@@ -1628,7 +1631,33 @@ body {
   --cp-boss-h: 8cm;
 }
 .cp-game-fullscreen .cp-practice-bossimg{
+  width: auto;
   object-fit: contain;
+}
+
+/* Fullscreen: monster HP bar width = 60% of monster image */
+.cp-game-fullscreen .cp-boss-hp{
+  width: 60%;
+}
+
+/* Monster HP bar: element-colored fill */
+.cp-practice-boss[data-element="fire"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(239,68,68,0.95), rgba(251,113,133,0.95));
+}
+.cp-practice-boss[data-element="water"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95));
+}
+.cp-practice-boss[data-element="wood"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(16,185,129,0.95), rgba(34,197,94,0.95));
+}
+.cp-practice-boss[data-element="light"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(250,204,21,0.95), rgba(253,224,71,0.95));
+}
+.cp-practice-boss[data-element="dark"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(99,102,241,0.95), rgba(168,85,247,0.95));
+}
+.cp-practice-boss[data-element="heart"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(236,72,153,0.95), rgba(251,113,133,0.95));
 }
 .cp-practice-team{
   margin-top: auto;
