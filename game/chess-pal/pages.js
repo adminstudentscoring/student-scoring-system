@@ -873,6 +873,23 @@ const ChessPalPages = (() => {
   };
   StoryBattlePage.prototype.init = function () {
     PracticePage.init();
+    // Stage intro banner (Story only)
+    try {
+      const st = window.__cpStoryStage;
+      if (st && Number(st.chapter) && Number(st.stage)) {
+        const old = document.getElementById('cpStageIntro');
+        if (old) old.remove();
+        const wrap = document.createElement('div');
+        wrap.id = 'cpStageIntro';
+        wrap.className = 'cp-stage-intro';
+        const t = document.createElement('div');
+        t.className = 'cp-stage-intro-text';
+        t.textContent = `Chapter ${Math.max(1, Math.floor(Number(st.chapter) || 1))}: Stage ${Math.max(1, Math.floor(Number(st.stage) || 1))}`;
+        wrap.appendChild(t);
+        document.body.appendChild(wrap);
+        setTimeout(() => { try { wrap.remove(); } catch {} }, 3100);
+      }
+    } catch {}
   };
   StoryBattlePage.prototype.destroy = function () {
     try { delete window.__cpStoryStage; } catch {}
@@ -912,8 +929,8 @@ const ChessPalPages = (() => {
             <div class="cp-boss-hp" aria-label="Monster HP">
               <div class="cp-boss-hpbar">
                 <div class="cp-boss-hpfill" id="cpBossHpFill"></div>
+                <div class="cp-boss-hpoverlay" id="cpBossHpOverlay"></div>
               </div>
-              <div class="cp-boss-hptext" id="cpBossHpText"></div>
             </div>
           </div>
           <div class="cp-practice-hint" id="cpPracticeHint" aria-live="polite" style="display:none;"></div>
@@ -946,7 +963,7 @@ const ChessPalPages = (() => {
     const hpText = document.getElementById('cpTeamHpText');
     const rcvOverlay = document.getElementById('cpTeamRcvOverlay');
     const bossHpFill = document.getElementById('cpBossHpFill');
-    const bossHpText = document.getElementById('cpBossHpText');
+    const bossHpOverlay = document.getElementById('cpBossHpOverlay');
     const hintEl = document.getElementById('cpPracticeHint');
 
     const syncPracticeBg = () => {
@@ -990,13 +1007,12 @@ const ChessPalPages = (() => {
       const pHp = Math.max(0, Math.min(pMax, Number(b.playerHp) || 0));
       const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
       const mHp = Math.max(0, Math.min(mMax, Number(b.monsterHp) || 0));
-      const mLv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1));
       const bossBox = document.querySelector('.cp-practice-boss');
 
       if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
       if (hpText) hpText.textContent = pMax > 0 ? `${pHp}/${pMax} HP` : '0/0 HP';
       if (bossHpFill) bossHpFill.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
-      if (bossHpText) bossHpText.textContent = mMax > 0 ? `Lv ${mLv} · ${mHp}/${mMax} HP` : '';
+      if (bossHpOverlay) bossHpOverlay.textContent = mMax > 0 ? `${mHp}/${mMax}` : '';
 
       // If monster is dead, allow it to stay hidden
       try {
@@ -1377,7 +1393,7 @@ const ChessPalPages = (() => {
         const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
         const bossHp = Math.max(0, Math.floor(Number(boss?.hp) || 0));
         if (bossHpFill) bossHpFill.style.width = bossHp > 0 ? '100%' : '0%';
-        if (bossHpText) bossHpText.textContent = bossHp > 0 ? `${bossHp} HP` : '';
+        if (bossHpOverlay) bossHpOverlay.textContent = bossHp > 0 ? `${bossHp}/${bossHp}` : '';
       } catch {}
 
       for (let i = 0; i < 4; i += 1) {

@@ -67,6 +67,69 @@ body {
   transform: translateY(1px);
 }
 
+/* Gear menu modal (narrow) */
+.cp-gear-modal{
+  width: 30vw; /* requested: 30% */
+  max-width: 360px;
+  min-width: 260px;
+  max-height: min(70vh, 620px);
+}
+.cp-gear-head{
+  font-weight: 1100;
+  font-size: 18px;
+  text-align: center;
+  margin-top: 2px;
+}
+.cp-gear-mid{
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+}
+.cp-gear-row{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cp-gear-row .cp-setting-select{
+  margin-top: 0;
+  min-width: 150px;
+}
+.cp-gear-foot{
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Story stage intro (3 seconds) */
+.cp-stage-intro{
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events: none;
+}
+.cp-stage-intro-text{
+  font-size: clamp(44px, 6vw, 78px);
+  font-weight: 1100;
+  letter-spacing: 0.6px;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 22px 48px rgba(0,0,0,0.75);
+  opacity: 0;
+  animation: cp-stage-intro 3000ms ease-in-out both;
+}
+@keyframes cp-stage-intro{
+  0%{ opacity: 0; transform: translateY(8px) scale(0.98); }
+  12%{ opacity: 1; transform: translateY(0) scale(1); }
+  78%{ opacity: 1; transform: translateY(0) scale(1); }
+  100%{ opacity: 0; transform: translateY(-6px) scale(1.01); }
+}
+
 .cp-sidebar{
   width: var(--cp-side-w);
   flex: 0 0 auto;
@@ -1005,6 +1068,34 @@ body {
   box-shadow: 0 26px 60px rgba(0,0,0,0.55);
   position: relative;
 }
+
+/* Gear (in-game menu) */
+.cp-gear-modal{
+  width: 30vw;
+  max-width: 360px;
+  min-width: 260px;
+}
+.cp-gear-head{
+  text-align: center;
+  font-weight: 1100;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+.cp-gear-mid{
+  margin-top: 12px;
+}
+.cp-gear-row{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.cp-gear-foot{
+  margin-top: 18px;
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+}
 .cp-modal-close{
   position: absolute;
   right: 10px;
@@ -1276,6 +1367,10 @@ body {
   position: relative;
   z-index: 1;
 }
+
+.cp-game-fullscreen .cp-practice{
+  min-height: 100dvh;
+}
 @media (max-width: 980px){
   .cp-practice{
     grid-template-columns: 1fr;
@@ -1299,6 +1394,7 @@ body {
   overflow:hidden;
   min-height: 240px;
   position: relative;
+  aspect-ratio: 16 / 10; /* stabilize layout while boss image loads */
 }
 .cp-beam{
   position: absolute;
@@ -1492,6 +1588,17 @@ body {
   background: transparent;
   padding: 0;
 }
+.cp-practice-hint{
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  box-shadow: 0 18px 38px rgba(0,0,0,0.25);
+  backdrop-filter: blur(8px);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.55);
+}
 .cp-team-hpwrap{
   margin-bottom: 2px;
 }
@@ -1557,11 +1664,30 @@ body {
   100%{ opacity: 0; transform: translate(-50%, -85%) scale(1.06); }
 }
 .cp-boss-hpbar{
+  position: relative;
   height: 10px;
   border-radius: 999px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.12);
   background: rgba(0,0,0,0.22);
+}
+.cp-boss-hpoverlay{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 10px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.90);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.75);
+  pointer-events: none;
+}
+.cp-boss-hp{
+  position: relative;
 }
 .cp-boss-hpfill{
   height: 100%;
@@ -1570,12 +1696,19 @@ body {
   opacity: 0.92;
 }
 .cp-boss-hptext{
-  margin-top: 4px;
-  text-align: center;
-  font-size: 11px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 10px;
   font-weight: 1000;
-  color: rgba(255,255,255,0.86);
-  text-shadow: 0 10px 20px rgba(0,0,0,0.70);
+  color: rgba(255,255,255,0.90);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.75);
+  pointer-events: none;
 }
 .cp-practice-teamrow{
   display:grid;
@@ -1678,7 +1811,7 @@ body {
   align-items:center;
   width: max-content;
   align-self: center; /* keep board vertically centered */
-  margin-left: 10px;
+  margin-left: 105px; /* shift right ~2.5cm */
   /* shrink board (grid + content) by 10% */
   --cp-cell: calc(66px * 0.9);
   --cp-gap: calc(8px * 0.9);

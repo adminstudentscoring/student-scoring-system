@@ -170,12 +170,13 @@ const Router = (() => {
     } catch {}
 
     container.style.opacity = '0';
+    // Use a real fade-out then swap content (smooth for all pages)
     setTimeout(() => {
       container.innerHTML = page?.render?.() || '';
       try { page?.init?.(); } catch {}
       updateSidebarCoins();
-      setTimeout(() => { container.style.opacity = '1'; }, 10);
-    }, 80);
+      setTimeout(() => { container.style.opacity = '1'; }, 20);
+    }, 220);
   }
 
   function renderCurrent() {
@@ -289,26 +290,26 @@ const Router = (() => {
       const piece = String(s.pieceStyle || 'none').toLowerCase();
 
       overlay.innerHTML = `
-        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Game menu">
+        <div class="cp-modal cp-gear-modal" role="dialog" aria-modal="true" aria-label="Game menu">
           <button class="cp-modal-close" type="button" aria-label="Close">×</button>
           <div class="cp-modal-body">
-            <div class="cp-h1" style="font-size:18px;">Game Menu</div>
+            <div class="cp-gear-head">Game Manu</div>
 
-            <div style="margin-top:12px;">
-              <div class="cp-setting-label">Piece style</div>
-              <div class="cp-setting-help">Change chess piece style.</div>
-              <select class="cp-setting-select" id="cpGearPieceSelect" style="margin-top:8px;">
+            <div class="cp-gear-mid">
+              <div class="cp-gear-row">
+                <div class="cp-setting-label" style="margin:0;">Piece style</div>
+                <select class="cp-setting-select" id="cpGearPieceSelect">
                 <option value="none" ${piece === 'none' ? 'selected' : ''}>No style</option>
                 <option value="nyxblade" ${piece === 'nyxblade' ? 'selected' : ''}>Nyxblade</option>
                 <option value="rivenhart" ${piece === 'rivenhart' ? 'selected' : ''}>Rivenhart</option>
                 <option value="seraphix" ${piece === 'seraphix' ? 'selected' : ''}>Seraphix</option>
-              </select>
+                </select>
+              </div>
             </div>
 
-            <div style="margin-top:16px;">
+            <div class="cp-gear-foot">
               <button class="cp-primary" type="button" id="cpGearExitBtn">Exit game</button>
-              <div class="cp-muted" id="cpGearExitHint" style="margin-top:8px;"></div>
-              <div id="cpGearExitConfirmRow" style="display:none; gap:8px; margin-top:10px;" class="cp-row">
+              <div id="cpGearExitConfirmRow" style="display:none; gap:8px; margin-top:10px; justify-content:center;" class="cp-row">
                 <button class="cp-primary" type="button" id="cpGearExitConfirm">Confirm exit</button>
                 <button class="cp-tool-btn" type="button" id="cpGearExitCancel">Cancel</button>
               </div>
@@ -334,16 +335,12 @@ const Router = (() => {
       }, { passive: true });
 
       const exitBtn = overlay.querySelector('#cpGearExitBtn');
-      const hint = overlay.querySelector('#cpGearExitHint');
       const row2 = overlay.querySelector('#cpGearExitConfirmRow');
-      const setHint = (t) => { if (hint) hint.textContent = String(t || ''); };
       exitBtn?.addEventListener('click', () => {
         if (row2) row2.style.display = '';
-        setHint('Exit game needs confirmation.');
       }, { passive: true });
       overlay.querySelector('#cpGearExitCancel')?.addEventListener('click', () => {
         if (row2) row2.style.display = 'none';
-        setHint('');
       }, { passive: true });
       overlay.querySelector('#cpGearExitConfirm')?.addEventListener('click', () => {
         try { close(); } catch {}
