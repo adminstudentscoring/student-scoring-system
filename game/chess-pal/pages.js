@@ -914,6 +914,25 @@ const ChessPalPages = (() => {
   PracticePage.render = () => {
     const s = getGeneralSettings();
     const story = window.__cpStoryStage;
+    const storyBg = (() => {
+      const ch = Math.max(1, Math.min(10, Math.floor(Number(story?.chapter) || 0)));
+      if (!ch) return '';
+      const fallbackImg = 'images/Mode/Practice/Map/Map001-Grassland.jpg';
+      const map = {
+        1: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg',
+        2: 'images/Mode/Story/Chapter002-Riverbound_Oath/Chapter002-Riverbound_Oath.jpg',
+        3: 'images/Mode/Story/Chapter003-Ember_Trial/Chapter003-Ember_Trial.jpg',
+        4: 'images/Mode/Story/Chapter004-Cathedral_of_Thorns/Chapter004-Cathedral_of_Thorns.jpg',
+        5: 'images/Mode/Story/Chapter005-Halo_and_Dusk/Chapter005-Halo_and_Dusk.jpg',
+        6: 'images/Mode/Story/Chapter006-The_First_Bloom/Chapter006-The_First_Bloom.jpg',
+        7: 'images/Mode/Story/Chapter007-Lost_Bestiary/Chapter007-Lost_Bestiary.jpg',
+        8: 'images/Mode/Story/Chapter008-Castling_Keep_Siege/Chapter008-Castling_Keep_Siege.jpg',
+        9: 'images/Mode/Story/Chapter009-The_Board_Rewrites/Chapter009-The_Board_Rewrites.jpg',
+        10: fallbackImg,
+      };
+      return String(map[ch] || fallbackImg);
+    })();
+    const bgSrc = String(storyBg || s.practiceBg || '').trim();
     const monsterId = story?.monsterId ? String(story.monsterId).trim().padStart(3, '0') : '004';
     const m = getMonsterFromDbQuick(monsterId);
     const monsterName = String(m?.name || 'Verdant Maw');
@@ -921,7 +940,7 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-practice">
         <div class="cp-practice-bg" aria-hidden="true">
-          <img id="cpPracticeBgImg" class="cp-practice-bgimg" src="${esc(String(s.practiceBg || ''))}" alt="" aria-hidden="true">
+          <img id="cpPracticeBgImg" class="cp-practice-bgimg" src="${esc(bgSrc)}" alt="" aria-hidden="true">
         </div>
         <div class="cp-practice-left">
           <div class="cp-practice-boss" aria-label="Boss preview">
@@ -968,8 +987,27 @@ const ChessPalPages = (() => {
 
     const syncPracticeBg = () => {
       if (!bgImg) return;
+      const st = window.__cpStoryStage;
+      const storySrc = (() => {
+        const ch = Math.max(1, Math.min(10, Math.floor(Number(st?.chapter) || 0)));
+        if (!ch) return '';
+        const fallbackImg = 'images/Mode/Practice/Map/Map001-Grassland.jpg';
+        const map = {
+          1: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg',
+          2: 'images/Mode/Story/Chapter002-Riverbound_Oath/Chapter002-Riverbound_Oath.jpg',
+          3: 'images/Mode/Story/Chapter003-Ember_Trial/Chapter003-Ember_Trial.jpg',
+          4: 'images/Mode/Story/Chapter004-Cathedral_of_Thorns/Chapter004-Cathedral_of_Thorns.jpg',
+          5: 'images/Mode/Story/Chapter005-Halo_and_Dusk/Chapter005-Halo_and_Dusk.jpg',
+          6: 'images/Mode/Story/Chapter006-The_First_Bloom/Chapter006-The_First_Bloom.jpg',
+          7: 'images/Mode/Story/Chapter007-Lost_Bestiary/Chapter007-Lost_Bestiary.jpg',
+          8: 'images/Mode/Story/Chapter008-Castling_Keep_Siege/Chapter008-Castling_Keep_Siege.jpg',
+          9: 'images/Mode/Story/Chapter009-The_Board_Rewrites/Chapter009-The_Board_Rewrites.jpg',
+          10: fallbackImg,
+        };
+        return String(map[ch] || fallbackImg);
+      })();
       const s = getGeneralSettings();
-      const src = String(s?.practiceBg || '').trim();
+      const src = String(storySrc || s?.practiceBg || '').trim();
       if (!src) return;
       if (bgImg.getAttribute('src') !== src) bgImg.setAttribute('src', src);
       bgImg.onerror = function() {
