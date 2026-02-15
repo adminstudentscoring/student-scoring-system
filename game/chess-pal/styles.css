@@ -1374,7 +1374,8 @@ body {
 .cp-game-fullscreen .cp-practice{
   height: 100dvh;
   width: 100vw;
-  padding: 14px;
+  --cp-game-pad: 14px;
+  padding: var(--cp-game-pad);
   box-sizing: border-box;
   /* Left/right split: 60% / 40% (gap handled by fr units) */
   grid-template-columns: minmax(320px, 60fr) 40fr;
@@ -1616,13 +1617,15 @@ body {
 
 /* Fullscreen: monster art fixed height, show full image */
 .cp-game-fullscreen .cp-practice-boss{
-  height: 6cm;
-  min-height: 6cm;
+  --cp-boss-h: 6cm;
+  height: var(--cp-boss-h);
+  min-height: var(--cp-boss-h);
   aspect-ratio: auto;
+  /* Monster image bottom anchored around screen middle */
+  margin-top: clamp(0px, calc(50dvh - var(--cp-game-pad, 14px) - var(--cp-boss-h)), 999px);
 }
 .cp-game-fullscreen .cp-practice[data-story-stage="5"] .cp-practice-boss{
-  height: 8cm;
-  min-height: 8cm;
+  --cp-boss-h: 8cm;
 }
 .cp-game-fullscreen .cp-practice-bossimg{
   object-fit: contain;
@@ -1687,7 +1690,7 @@ body {
   left: 50%;
   bottom: 10px;
   transform: translateX(-50%);
-  width: 50%;
+  width: 60%;
   pointer-events: none;
 }
 .cp-dmg-float{
@@ -1733,30 +1736,18 @@ body {
   text-shadow: 0 10px 20px rgba(0,0,0,0.75);
   pointer-events: none;
 }
-.cp-boss-hp{
-  position: relative;
-}
 .cp-boss-hpfill{
   height: 100%;
   width: 100%;
   background: linear-gradient(90deg, rgba(34,197,94,0.92), rgba(16,185,129,0.92));
   opacity: 0.92;
 }
-.cp-boss-hptext{
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 10px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size: 10px;
-  font-weight: 1000;
-  color: rgba(255,255,255,0.90);
-  text-shadow: 0 10px 20px rgba(0,0,0,0.75);
-  pointer-events: none;
-}
+
+.cp-practice-boss[data-element="fire"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(239,68,68,0.92), rgba(251,113,133,0.92)); }
+.cp-practice-boss[data-element="water"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(59,130,246,0.92), rgba(147,197,253,0.92)); }
+.cp-practice-boss[data-element="wood"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(16,185,129,0.92), rgba(34,197,94,0.92)); }
+.cp-practice-boss[data-element="light"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(250,204,21,0.92), rgba(253,224,71,0.92)); }
+.cp-practice-boss[data-element="dark"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(99,102,241,0.92), rgba(167,139,250,0.92)); }
 .cp-practice-teamrow{
   display:grid;
   grid-template-columns: repeat(4, 1fr);

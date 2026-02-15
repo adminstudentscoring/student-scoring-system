@@ -944,6 +944,7 @@ const ChessPalPages = (() => {
     const m = getMonsterFromDbQuick(monsterId);
     const monsterName = String(m?.name || 'Verdant Maw');
     const monsterImg = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
+    const monsterEl = String(m?.element || '').trim().toLowerCase();
     const storyStage = story?.stage ? Math.max(1, Math.min(5, Math.floor(Number(story.stage) || 1))) : 0;
     return `
       <div class="cp-practice" ${storyStage ? `data-story-stage="${esc(String(storyStage))}"` : ``}>
@@ -951,7 +952,7 @@ const ChessPalPages = (() => {
           <img id="cpPracticeBgImg" class="cp-practice-bgimg" src="${esc(bgSrc)}" alt="" aria-hidden="true">
         </div>
         <div class="cp-practice-left">
-          <div class="cp-practice-boss" aria-label="Boss preview">
+          <div class="cp-practice-boss" aria-label="Boss preview" ${monsterEl ? `data-element="${esc(monsterEl)}"` : ``}>
             <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="lazy">
             <div class="cp-boss-hp" aria-label="Monster HP">
               <div class="cp-boss-hpbar">
@@ -1356,10 +1357,16 @@ const ChessPalPages = (() => {
                     const m = getMonsterFromDbQuick(monsterId);
                     const img = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
                     const nm = String(m?.name || 'Monster');
+                    const el = String(m?.element || '').trim().toLowerCase();
                     const bossImgEl = document.getElementById('cpPracticeBossImg');
+                    const bossBoxEl = document.querySelector('.cp-practice-boss');
                     if (bossImgEl) {
                       bossImgEl.setAttribute('src', img);
                       bossImgEl.setAttribute('alt', nm);
+                    }
+                    if (bossBoxEl) {
+                      if (el) bossBoxEl.setAttribute('data-element', el);
+                      else bossBoxEl.removeAttribute('data-element');
                     }
                   } catch {}
 
