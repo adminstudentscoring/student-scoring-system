@@ -741,7 +741,13 @@ const ChessPalPages = (() => {
     document.querySelectorAll('[data-cp-chapter]').forEach(btn => {
       btn.addEventListener('click', () => {
         const ch = Math.max(1, Math.min(10, Math.floor(Number(btn.getAttribute('data-cp-chapter')) || 1)));
-        if (ch === 1) Router.goTo('/mode/story/ch1');
+        if (ch === 1) {
+          // Directly enter gameplay (no stage select screen)
+          let cleared = 0;
+          try { cleared = Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(1)) || 0)); } catch {}
+          const next = (cleared >= 5) ? 1 : Math.min(5, cleared + 1);
+          Router.goTo(`/mode/story/ch1/s${next}`);
+        }
         else setMsg('Coming soon.');
       }, { passive: true });
     });
@@ -852,7 +858,8 @@ const ChessPalPages = (() => {
   StoryBattlePage.prototype.render = function () {
     const cfg = getStoryStageConfig(this._ch, this._st);
     window.__cpStoryStage = cfg;
-    // Always start fresh when entering a Story stage (fixes hidden/0HP carry-over)
+    // Entering Story battle route should start fresh.
+    // (Stage-to-stage progression happens in-place without reloading the board.)
     try { window.__cpPracticeBattleState = {}; } catch {}
     try { window.__cpPracticeElementScores = {}; } catch {}
     // elements pool by stage
@@ -1081,17 +1088,41 @@ const ChessPalPages = (() => {
       };
     };
 
-    // Story: show boss opening hint (1 line)
+    const showStoryHintIfAny = () => {
+      try {
+        const st = window.__cpStoryStage;
+        if (hintEl && st && Number(st.stage) === 5) {
+          const t = String(st.hint || '').trim() || 'Tip: Tap a hero to use a skill, then press Confirm.';
+          hintEl.textContent = t;
+          hintEl.style.display = '';
+        } else if (hintEl) {
+          hintEl.textContent = '';
+          hintEl.style.display = 'none';
+        }
+      } catch {}
+    };
+    showStoryHintIfAny();
+
+    const showStageIntro = (chapter, stage) => {
+      try {
+        const old = document.getElementById('cpStageIntro');
+        if (old) old.remove();
+        const wrap = document.createElement('div');
+        wrap.id = 'cpStageIntro';
+        wrap.className = 'cp-stage-intro';
+        const t = document.createElement('div');
+        t.className = 'cp-stage-intro-text';
+        const ch = Math.max(1, Math.floor(Number(chapter) || 1));
+        const st = Math.max(1, Math.floor(Number(stage) || 1));
+        t.textContent = `Chapter ${ch}: Stage ${st}`;
+        wrap.appendChild(t);
+        document.body.appendChild(wrap);
+        setTimeout(() => { try { wrap.remove(); } catch {} }, 3100);
+      } catch {}
+    };
     try {
       const st = window.__cpStoryStage;
-      if (hintEl && st && Number(st.stage) === 5) {
-        const t = String(st.hint || '').trim() || 'Tip: Tap a hero to use a skill, then press Confirm.';
-        hintEl.textContent = t;
-        hintEl.style.display = '';
-      } else if (hintEl) {
-        hintEl.textContent = '';
-        hintEl.style.display = 'none';
-      }
+      if (st && Number(st.chapter) && Number(st.stage)) showStageIntro(st.chapter, st.stage);
     } catch {}
 
     const getCenter = (el) => {
@@ -1295,15 +1326,71 @@ const ChessPalPages = (() => {
             if (st && Number(st.chapter) && Number(st.stage)) {
               try { window.ChessPalStory?.markStageCleared?.(st.chapter, st.stage); } catch {}
               const nextStage = Math.max(1, Math.floor(Number(st.stage) || 1)) + 1;
-              setTimeout(() => {
+
+              const advanceInPlace = () => {
                 try {
-                  // Ensure next stage starts with fresh battle state
-                  try { window.__cpPracticeBattleState = {}; } catch {}
-                  try { window.__cpPracticeElementScores = {}; } catch {}
-                  if (nextStage <= 5) Router.goTo(`/mode/story/ch1/s${nextStage}`);
-                  else Router.goTo('/mode/story');
+                  if (nextStage > 5) {
+                    Router.goTo('/mode/story');
+                    return;
+                  }
+
+                  // Update story config (no route change, keep board contents)
+                  const cfg = getStoryStageConfig(Number(st.chapter) || 1, nextStage);
+                  window.__cpStoryStage = cfg;
+                  const stageAttr = String(Math.max(1, Math.min(5, Math.floor(Number(cfg.stage) || 1))));
+                  const practiceRoot = document.querySelector('.cp-practice');
+                  if (practiceRoot) practiceRoot.setAttribute('data-story-stage', stageAttr);
+
+                  // Update element pool: Stage 1-3 use scheme B (pool changes affect future spawns only)
+                  try {
+                    const team = getTeam();
+                    const units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
+                    window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, units);
+                    const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
+                    if (Array.isArray(fixed) && fixed.length) window.__cpBoardElements = fixed.slice();
+                  } catch {}
+
+                  // Update boss art
+                  try {
+                    const monsterId = String(cfg.monsterId || '004').trim().padStart(3, '0');
+                    const m = getMonsterFromDbQuick(monsterId);
+                    const img = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
+                    const nm = String(m?.name || 'Monster');
+                    const bossImgEl = document.getElementById('cpPracticeBossImg');
+                    if (bossImgEl) {
+                      bossImgEl.setAttribute('src', img);
+                      bossImgEl.setAttribute('alt', nm);
+                    }
+                  } catch {}
+
+                  // Reset monster (keep player HP as the run is connected)
+                  try {
+                    const b2 = getBattle();
+                    b2.monsterLevel = Math.max(1, Math.floor(Number(cfg.monsterLevel) || 1));
+                    const eff2 = getBossEffective(b2.monsterLevel);
+                    b2.monsterMaxHp = eff2.hpMax;
+                    b2.monsterAtk = eff2.atk;
+                    b2.monsterHp = eff2.hpMax;
+                    // clear per-turn scores
+                    window.__cpPracticeElementScores = {};
+                    applyElementScoresToUI();
+                  } catch {}
+
+                  // Ensure visible + update hint + intro
+                  try {
+                    const bossBox2 = document.querySelector('.cp-practice-boss');
+                    if (bossBox2) {
+                      bossBox2.style.display = '';
+                      bossBox2.classList.remove('cp-dead');
+                    }
+                  } catch {}
+                  try { showStoryHintIfAny(); } catch {}
+                  try { showStageIntro(cfg.chapter, cfg.stage); } catch {}
+                  try { updateHpUI(); } catch {}
                 } catch {}
-              }, 350);
+              };
+
+              setTimeout(advanceInPlace, 350);
               return;
             }
 
