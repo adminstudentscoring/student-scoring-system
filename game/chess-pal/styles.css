@@ -1393,6 +1393,23 @@ body {
 .cp-game-fullscreen .cp-practice-hint{
   width: 100%;
 }
+.cp-game-fullscreen .cp-practice-hint{
+  width: auto;
+}
+.cp-practice-rightcol{
+  width: fit-content;
+  max-width: 100%;
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+}
+.cp-practice-hint--board{
+  margin-top: 10px;
+  text-align: center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
 .cp-game-fullscreen .cp-practice-right{
   margin-left: 0;
   width: 100%;

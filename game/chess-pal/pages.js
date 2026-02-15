@@ -961,7 +961,6 @@ const ChessPalPages = (() => {
               </div>
             </div>
           </div>
-          <div class="cp-practice-hint" id="cpPracticeHint" aria-live="polite" style="display:none;"></div>
           <div class="cp-practice-team" aria-label="Team preview">
             <div class="cp-team-hpwrap" aria-label="Player HP">
               <div class="cp-team-hpbar">
@@ -975,7 +974,10 @@ const ChessPalPages = (() => {
         </div>
 
         <div class="cp-practice-right">
-          <div id="chessPalGame" class="puzzle-monster-root"></div>
+          <div class="cp-practice-rightcol">
+            <div id="chessPalGame" class="puzzle-monster-root"></div>
+            <div class="cp-practice-hint cp-practice-hint--board" id="cpPracticeHint" aria-live="polite" style="display:none;"></div>
+          </div>
         </div>
       </div>
     `;
