@@ -1392,7 +1392,7 @@ body {
   margin-left: 0;
   width: 100%;
   /* Fit board to fullscreen available space */
-  --cp-board-size: min(78dvh, 60vw);
+  --cp-board-size: min(55dvh, 60vw);
   --cp-gap: clamp(6px, calc(var(--cp-board-size) / 90), 12px);
   --cp-cell: calc((var(--cp-board-size) - (5 * var(--cp-gap))) / 6);
 }
