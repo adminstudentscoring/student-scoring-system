@@ -628,48 +628,43 @@ const ChessPalPages = (() => {
   function HomePage() {}
   HomePage.title = 'Home';
   HomePage.render = () => {
-    const preset = getPreset() || { key: 'standard', label: 'Standard', turnTimeMs: 20000 };
+    // Home is a simple launcher hub (tile UI)
+    const fallbackImg = 'images/Mode/Practice/Map/Map001-Grassland.jpg';
     return `
-      <div class="cp-page-card">
-        <div class="cp-h1">Home</div>
-        <div class="cp-muted">Pick a preset. Practice mode uses it automatically.</div>
-
-        <div class="cp-preset-grid" role="list">
-          ${[
-            { key: 'relaxed', label: 'Relaxed', desc: 'More time per turn.', turnTimeMs: 30000 },
-            { key: 'standard', label: 'Standard', desc: 'Default timer.', turnTimeMs: 20000 },
-            { key: 'speed', label: 'Speed', desc: 'Fast hands.', turnTimeMs: 12000 },
-          ].map(p => `
-            <button class="cp-preset ${p.key === preset.key ? 'is-active' : ''}" type="button" data-cp-preset="${esc(p.key)}">
-              <div class="cp-preset-title">${esc(p.label)}</div>
-              <div class="cp-preset-desc">${esc(p.desc)}</div>
-              <div class="cp-preset-meta">Turn: ${(p.turnTimeMs/1000).toFixed(0)}s · Board: 6×6</div>
-            </button>
-          `).join('')}
+      <div class="cp-chapter-list" aria-label="Home">
+        <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="story" aria-label="Story Mode">
+          <img class="cp-chapter-img" src="images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg" alt="Story Mode" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <div class="cp-chapter-label">Story Mode</div>
         </div>
 
-        <div class="cp-row">
-          <button class="cp-primary" type="button" data-cp-go="/practice">Go Practice</button>
-          <div class="cp-muted">Current: <b>${esc(preset.label)}</b></div>
+        <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="shop" aria-label="Shop">
+          <img class="cp-chapter-img" src="images/Summon/Su001-Castling.jpg" alt="Shop" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <div class="cp-chapter-label">Shop</div>
+        </div>
+
+        <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="pal" aria-label="Pal">
+          <img class="cp-chapter-img" src="images/Heros/003-Rivenhart/003-Rivenhart.png" alt="Pal" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <div class="cp-chapter-label">Pal</div>
         </div>
       </div>
     `;
   };
   HomePage.init = () => {
-    document.querySelectorAll('[data-cp-preset]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = String(btn.getAttribute('data-cp-preset') || 'standard');
-        const map = {
-          relaxed: { key: 'relaxed', label: 'Relaxed', turnTimeMs: 30000 },
-          standard: { key: 'standard', label: 'Standard', turnTimeMs: 20000 },
-          speed: { key: 'speed', label: 'Speed', turnTimeMs: 12000 },
-        };
-        setPreset(map[key] || map.standard);
-        try { Router.renderCurrent(); } catch {}
-      }, { passive: true });
+    const go = (key) => {
+      if (key === 'shop') Router.goTo('/shop');
+      else if (key === 'pal') Router.goTo('/pal');
+      else Router.goTo('/mode/story');
+    };
+
+    document.querySelectorAll('[data-cp-home]').forEach((tile) => {
+      tile.addEventListener('click', () => go(String(tile.getAttribute('data-cp-home') || '').trim()), { passive: true });
+      tile.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          try { ev.preventDefault(); } catch {}
+          try { tile.click(); } catch {}
+        }
+      });
     });
-    const goBtn = document.querySelector('[data-cp-go="/practice"]');
-    if (goBtn) goBtn.addEventListener('click', () => Router.goTo('/practice'), { passive: true });
   };
 
   function ModePage() {}
@@ -3701,6 +3696,12 @@ const ChessPalPages = (() => {
       '/home': HomePage,
       '/mode': ModePage,
       '/mode/story': ModeStoryPage,
+      '/mode/story/ch1': StoryCh1Page,
+      '/mode/story/ch1/s1': new StoryBattlePage(1, 1),
+      '/mode/story/ch1/s2': new StoryBattlePage(1, 2),
+      '/mode/story/ch1/s3': new StoryBattlePage(1, 3),
+      '/mode/story/ch1/s4': new StoryBattlePage(1, 4),
+      '/mode/story/ch1/s5': new StoryBattlePage(1, 5),
       '/mode/challenge': ModeChallengePage,
       '/practice': PracticePage,
       '/test-game': TestGamePage,
