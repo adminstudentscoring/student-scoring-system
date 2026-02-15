@@ -55,6 +55,10 @@
     const st = clampInt(stageIdx1, 1, 5);
     // Chapter 1 Stage 1: only Dark, Wood, Water
     if (ch === 1 && st === 1) return ['dark', 'wood', 'water'];
+    // Chapter 1 Stage 2: all attack elements (no Heart)
+    if (ch === 1 && st === 2) return ['light', 'dark', 'fire', 'water', 'wood'];
+    // Chapter 1 Stage 3: Heart begins to appear (scheme B request)
+    if (ch === 1 && st === 3) return ['light', 'dark', 'fire', 'water', 'wood', 'heart'];
     return null;
   }
 

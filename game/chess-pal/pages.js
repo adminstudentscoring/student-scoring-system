@@ -199,19 +199,19 @@ const ChessPalPages = (() => {
     // Sensible defaults (admin can overwrite any time)
     if (ch === 1) {
       return [
-        { monsterId: '017', level: 1 },
-        { monsterId: '018', level: 1 },
-        { monsterId: '021', level: 2 },
-        { monsterId: '027', level: 2 },
-        { monsterId: '004', level: 1 },
+        { monsterId: '017', level: 1, drops: [] },
+        { monsterId: '018', level: 1, drops: [] },
+        { monsterId: '021', level: 2, drops: [] },
+        { monsterId: '027', level: 2, drops: [] },
+        { monsterId: '004', level: 1, drops: [] },
       ];
     }
     return [
-      { monsterId: '011', level: 1 },
-      { monsterId: '014', level: 1 },
-      { monsterId: '017', level: 1 },
-      { monsterId: '020', level: 1 },
-      { monsterId: '004', level: 1 },
+      { monsterId: '011', level: 1, drops: [] },
+      { monsterId: '014', level: 1, drops: [] },
+      { monsterId: '017', level: 1, drops: [] },
+      { monsterId: '020', level: 1, drops: [] },
+      { monsterId: '004', level: 1, drops: [] },
     ];
   }
 
@@ -252,6 +252,20 @@ const ChessPalPages = (() => {
     const current = getStoryStagesForChapter(ch);
     const allMonsters = getAllMonsters();
 
+    const itemOptions = (() => {
+      try {
+        const defs = Object.values(STORAGE_ITEM_DEFS || {}).filter(Boolean);
+        const opts = defs
+          .slice()
+          .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)))
+          .map(d => `<option value="${esc(String(d.id))}">${esc(String(d.name || d.id))}</option>`)
+          .join('');
+        return `<option value="">(No drop)</option>${opts}`;
+      } catch {
+        return `<option value="">(No drop)</option>`;
+      }
+    })();
+
     const monsterOptions = allMonsters
       .slice()
       .sort((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -273,11 +287,20 @@ const ChessPalPages = (() => {
 
           <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
             ${Array.from({ length: 5 }, (_, i) => {
-              const s = current[i] || { monsterId: '004', level: 1 };
+              const s = current[i] || { monsterId: '004', level: 1, drops: [] };
               const label = (i === 4) ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`;
+              const monsterId0 = String(s.monsterId || '004').trim().padStart(3, '0');
+              const mon0 = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === monsterId0) || null;
+              const monImg0 = String(mon0?.img || '');
+              const d0 = Array.isArray(s.drops) ? s.drops : [];
               return `
                 <div class="cp-setting-item">
                   <div class="cp-setting-label">${esc(label)}</div>
+                  <div class="cp-row" style="margin-top:10px; align-items:flex-start;">
+                    <div style="width: 76px;">
+                      ${monImg0 ? `<img src="${esc(monImg0)}" alt="" style="width:76px;height:76px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy" data-stage-monster-prev="${esc(String(i))}">` : `<div style="width:76px;height:76px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" data-stage-monster-prev="${esc(String(i))}"></div>`}
+                    </div>
+                    <div style="flex:1 1 auto; min-width: 240px;">
                   <div class="cp-row" style="margin-top:10px;">
                     <div style="flex:1 1 260px; min-width: 240px;">
                       <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
@@ -288,6 +311,32 @@ const ChessPalPages = (() => {
                     <div style="width: 140px;">
                       <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
                       <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(s.level) || 1))))}" data-stage-level="${esc(String(i))}">
+                    </div>
+                  </div>
+                      <div class="cp-setting-help" style="margin-top:10px;">Drops (one item per clear)</div>
+                      <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+                        ${Array.from({ length: 3 }, (_, j) => {
+                          const dj = d0[j] || {};
+                          const itemId = String(dj.itemId || '').trim().toLowerCase();
+                          const chance = Math.max(0, Math.floor(Number(dj.chance) || 0));
+                          const def = itemId ? getStorageItemDef(itemId) : null;
+                          return `
+                            <div class="cp-row" style="margin-top:0; gap:10px; align-items:center;">
+                              <div style="width:46px;height:46px;flex:0 0 auto;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);display:flex;align-items:center;justify-content:center;" data-stage-drop-prev="${esc(String(i))}-${esc(String(j))}">
+                                ${def?.img ? renderImgWithFallback(def.img, def.name || def.id, 'cp-levelup-img') : ``}
+                              </div>
+                              <div style="flex:1 1 auto; min-width: 210px;">
+                                <select class="cp-select" data-stage-drop-item="${esc(String(i))}-${esc(String(j))}">
+                                  ${itemOptions}
+                                </select>
+                              </div>
+                              <div style="width: 120px;">
+                                <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(chance))}" placeholder="Chance %" data-stage-drop-chance="${esc(String(i))}-${esc(String(j))}">
+                              </div>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
                     </div>
                   </div>
                   ${(i === 4) ? `
@@ -311,9 +360,46 @@ const ChessPalPages = (() => {
 
     // set default selected values
     for (let i = 0; i < 5; i += 1) {
-      const s = current[i] || { monsterId: '004', level: 1 };
+      const s = current[i] || { monsterId: '004', level: 1, drops: [] };
       const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`);
       if (sel) sel.value = String(s.monsterId || '004').trim().padStart(3, '0');
+      const drops = Array.isArray(s.drops) ? s.drops : [];
+      for (let j = 0; j < 3; j += 1) {
+        const d = drops[j] || {};
+        const itemSel = overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
+        if (itemSel) itemSel.value = String(d.itemId || '').trim().toLowerCase();
+      }
+    }
+
+    // live previews
+    for (let i = 0; i < 5; i += 1) {
+      const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`);
+      sel?.addEventListener('change', () => {
+        try {
+          const id = String(sel.value || '').trim().padStart(3, '0');
+          const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === id) || null;
+          const prev = overlay.querySelector(`[data-stage-monster-prev="${CSS.escape(String(i))}"]`);
+          const src = String(mon?.img || '').trim();
+          if (prev && prev.tagName === 'IMG') {
+            if (src) prev.setAttribute('src', src);
+          } else if (prev && src) {
+            prev.innerHTML = `<img src="${esc(src)}" alt="" style="width:76px;height:76px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy">`;
+          }
+        } catch {}
+      }, { passive: true });
+
+      for (let j = 0; j < 3; j += 1) {
+        const itemSel = overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
+        itemSel?.addEventListener('change', () => {
+          try {
+            const key = String(itemSel.value || '').trim().toLowerCase();
+            const def = key ? getStorageItemDef(key) : null;
+            const box = overlay.querySelector(`[data-stage-drop-prev="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
+            if (!box) return;
+            box.innerHTML = def?.img ? renderImgWithFallback(def.img, def.name || def.id, 'cp-levelup-img') : '';
+          } catch {}
+        }, { passive: true });
+      }
     }
 
     const close = () => {
@@ -338,7 +424,16 @@ const ChessPalPages = (() => {
           const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}"]`)?.value) || 1));
           if (!/^\d{3}$/.test(monsterId)) throw new Error('Invalid monster id');
           const hint = (i === 4) ? String(overlay.querySelector(`[data-stage-hint="${CSS.escape(String(i))}"]`)?.value || '').trim() : '';
-          stages.push({ monsterId, level, hint });
+          const drops = [];
+          for (let j = 0; j < 3; j += 1) {
+            const itemId = String(overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`)?.value || '').trim().toLowerCase();
+            const chance = Math.max(0, Math.floor(Number(overlay.querySelector(`[data-stage-drop-chance="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`)?.value) || 0));
+            if (!itemId) continue;
+            if (!getStorageItemDef(itemId)) continue;
+            if (chance <= 0) continue;
+            drops.push({ itemId, chance });
+          }
+          stages.push({ monsterId, level, hint, drops });
         }
         setStoryStagesForChapter(ch, stages);
         setMsg('Saved.');
@@ -817,7 +912,10 @@ const ChessPalPages = (() => {
     const stage = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
     const core = ['light', 'dark', 'fire', 'water', 'wood'];
     if (stage === 4 || stage === 5) return [...core, 'heart'];
-    if (stage === 2 || stage === 3) return core;
+    // Stage 2: all attack elements
+    if (stage === 2) return core;
+    // Stage 3: Heart starts dropping
+    if (stage === 3) return [...core, 'heart'];
     // stage 1: only starting elements (from current team)
     const elems = (Array.isArray(teamUnits) ? teamUnits : [])
       .map(u => String(u?.element || '').toLowerCase())
@@ -840,13 +938,14 @@ const ChessPalPages = (() => {
     const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
     const st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
     const stages = getStoryStagesForChapter(ch);
-    const cfg = stages[st - 1] || { monsterId: '004', level: 1, hint: '' };
+    const cfg = stages[st - 1] || { monsterId: '004', level: 1, hint: '', drops: [] };
     return {
       chapter: ch,
       stage: st,
       monsterId: String(cfg.monsterId || '004').trim().padStart(3, '0'),
       monsterLevel: Math.max(1, Math.floor(Number(cfg.level) || 1)),
       hint: String(cfg.hint || '').trim(),
+      drops: Array.isArray(cfg.drops) ? cfg.drops : [],
     };
   }
 
@@ -1106,6 +1205,52 @@ const ChessPalPages = (() => {
     };
     showStoryHintIfAny();
 
+    const awardStoryDropIfAny = (cfg) => {
+      try {
+        // One item per clear.
+        // Treat each chance as a percent. If total < 100, the remaining percent is "no drop".
+        const drops = Array.isArray(cfg?.drops) ? cfg.drops : [];
+        const pool = drops
+          .map(d => ({
+            itemId: String(d?.itemId || '').trim().toLowerCase(),
+            chance: Math.max(0, Math.min(100, Math.floor(Number(d?.chance) || 0)))
+          }))
+          .filter(d => d.itemId && d.chance > 0 && !!getStorageItemDef(d.itemId));
+        if (!pool.length) return null;
+
+        const total = pool.reduce((s, d) => s + d.chance, 0);
+        if (!(total > 0)) return null;
+
+        const rollMax = total < 100 ? 100 : total;
+        let r = Math.random() * rollMax;
+        if (total < 100 && r >= total) return null; // no drop region
+
+        let pick = null;
+        for (const d of pool) {
+          r -= d.chance;
+          if (r <= 0) { pick = d; break; }
+        }
+        const itemId = pick?.itemId;
+        if (!itemId) return null;
+
+        let slots = loadStorage();
+        const before = JSON.stringify(slots);
+        slots = addItemToStorage(slots, itemId, 1);
+        if (JSON.stringify(slots) === before) return null; // storage full or no change
+
+        saveStorage(slots);
+        const def = getStorageItemDef(itemId);
+        if (hintEl) {
+          hintEl.textContent = def ? `Drop: ${String(def.name || itemId)}` : `Drop: ${itemId}`;
+          hintEl.style.display = '';
+          setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 2200);
+        }
+        return itemId;
+      } catch {
+        return null;
+      }
+    };
+
     const showStageIntro = (chapter, stage) => {
       try {
         const old = document.getElementById('cpStageIntro');
@@ -1327,6 +1472,8 @@ const ChessPalPages = (() => {
             // Story Mode: clear stage and auto-advance (no respawn/level-up loop)
             const st = window.__cpStoryStage;
             if (st && Number(st.chapter) && Number(st.stage)) {
+              // Drops (award for the cleared stage config)
+              try { awardStoryDropIfAny(getStoryStageConfig(Number(st.chapter) || 1, Number(st.stage) || 1)); } catch {}
               try { window.ChessPalStory?.markStageCleared?.(st.chapter, st.stage); } catch {}
               const nextStage = Math.max(1, Math.floor(Number(st.stage) || 1)) + 1;
 
@@ -1345,13 +1492,18 @@ const ChessPalPages = (() => {
                   if (practiceRoot) practiceRoot.setAttribute('data-story-stage', stageAttr);
 
                   // Update element pool: Stage 1-3 use scheme B (pool changes affect future spawns only)
+                  // Ensure pool always updates (so Stage 2/3 spawn rules actually change).
+                  let units = [];
                   try {
                     const team = getTeam();
-                    const units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
-                    window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, units);
-                    const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
-                    if (Array.isArray(fixed) && fixed.length) window.__cpBoardElements = fixed.slice();
+                    units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
                   } catch {}
+                  let pool = getDefaultStoryElementsForStage(cfg.stage, units);
+                  try {
+                    const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
+                    if (Array.isArray(fixed) && fixed.length) pool = fixed.slice();
+                  } catch {}
+                  try { window.__cpBoardElements = pool; } catch {}
 
                   // Update boss art
                   try {
