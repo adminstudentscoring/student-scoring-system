@@ -45,6 +45,9 @@ body {
 .cp-game-fullscreen .cp-main{
   width: 100vw;
 }
+.cp-game-fullscreen .cp-container{
+  padding: 0;
+}
 
 .cp-gear-btn{
   position: fixed;
@@ -1370,6 +1373,31 @@ body {
 
 .cp-game-fullscreen .cp-practice{
   min-height: 100dvh;
+  width: 100vw;
+  padding: 14px;
+  box-sizing: border-box;
+  grid-template-columns: minmax(320px, 34vw) 1fr;
+  gap: clamp(12px, 2vw, 20px);
+}
+.cp-game-fullscreen .cp-practice-left{
+  width: 100%;
+  align-items: stretch;
+}
+.cp-game-fullscreen .cp-practice-boss,
+.cp-game-fullscreen .cp-practice-team,
+.cp-game-fullscreen .cp-practice-hint{
+  width: 100%;
+}
+.cp-game-fullscreen .cp-practice-right{
+  margin-left: 0;
+  width: 100%;
+  /* Fit board to fullscreen available space */
+  --cp-board-size: min(78dvh, 60vw);
+  --cp-gap: clamp(6px, calc(var(--cp-board-size) / 90), 12px);
+  --cp-cell: calc((var(--cp-board-size) - (5 * var(--cp-gap))) / 6);
+}
+.cp-game-fullscreen .pmf-board{
+  padding: clamp(8px, 1.2vw, 14px);
 }
 @media (max-width: 980px){
   .cp-practice{

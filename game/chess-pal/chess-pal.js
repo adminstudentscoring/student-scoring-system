@@ -841,11 +841,25 @@ const ChessPal = (() => {
 
   async function animateFalls(falls) {
     await nextFrame();
+    const getStepPx = () => {
+      try {
+        const el = state.boardEl || document.documentElement;
+        const cs = window.getComputedStyle(el);
+        const cell = parseFloat(String(cs.getPropertyValue('--cp-cell') || '').trim());
+        const gap = parseFloat(String(cs.getPropertyValue('--cp-gap') || '').trim());
+        const c = Number.isFinite(cell) ? cell : CELL_PX;
+        const g = Number.isFinite(gap) ? gap : GAP_PX;
+        return Math.max(1, c + g);
+      } catch {
+        return CELL_PX + GAP_PX;
+      }
+    };
+    const stepPx = getStepPx();
     falls.forEach(fall => {
       const element = state.boardEl?.querySelector(`[data-id="${fall.jewel.id}"]`);
       if (element) {
         element.animate([
-          { transform: `translateY(${-(fall.distance * (CELL_PX + GAP_PX))}px)` },
+          { transform: `translateY(${-(fall.distance * stepPx)}px)` },
           { transform: 'translateY(0px)' }
         ], { duration: 180, easing: 'ease-in' });
       }
