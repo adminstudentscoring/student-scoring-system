@@ -1372,17 +1372,21 @@ body {
 }
 
 .cp-game-fullscreen .cp-practice{
-  min-height: 100dvh;
+  height: 100dvh;
   width: 100vw;
   padding: 14px;
   box-sizing: border-box;
   /* Left/right split: 60% / 40% (gap handled by fr units) */
   grid-template-columns: minmax(320px, 60fr) 40fr;
   gap: clamp(12px, 2vw, 20px);
+  /* Remove vertical centering gaps; let columns fill the viewport height */
+  align-content: stretch;
+  align-items: stretch;
 }
 .cp-game-fullscreen .cp-practice-left{
   width: 100%;
   align-items: stretch;
+  height: 100%;
 }
 .cp-game-fullscreen .cp-practice-boss,
 .cp-game-fullscreen .cp-practice-team,
