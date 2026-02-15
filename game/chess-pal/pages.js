@@ -87,6 +87,15 @@ const ChessPalPages = (() => {
   // Apply once on load (so it affects all pages)
   applyGeneralSettings(getGeneralSettings());
 
+  // Expose for other modules (router gear menu, future story modules)
+  try {
+    window.ChessPalSettings = {
+      getGeneralSettings,
+      applyGeneralSettings,
+      saveGeneralSettings,
+    };
+  } catch {}
+
   // ----------------------------
   // Ownership (heroes) + Seen (monsters)
   // ----------------------------
@@ -843,6 +852,9 @@ const ChessPalPages = (() => {
   StoryBattlePage.prototype.render = function () {
     const cfg = getStoryStageConfig(this._ch, this._st);
     window.__cpStoryStage = cfg;
+    // Always start fresh when entering a Story stage (fixes hidden/0HP carry-over)
+    try { window.__cpPracticeBattleState = {}; } catch {}
+    try { window.__cpPracticeElementScores = {}; } catch {}
     // elements pool by stage
     try {
       const team = getTeam();
@@ -1227,15 +1239,12 @@ const ChessPalPages = (() => {
             const st = window.__cpStoryStage;
             if (st && Number(st.chapter) && Number(st.stage)) {
               try { window.ChessPalStory?.markStageCleared?.(st.chapter, st.stage); } catch {}
-              // Ensure next stage starts with fresh monster HP
-              try {
-                const b2 = getBattle();
-                b2.monsterHp = null;
-                b2.monsterMaxHp = null;
-              } catch {}
               const nextStage = Math.max(1, Math.floor(Number(st.stage) || 1)) + 1;
               setTimeout(() => {
                 try {
+                  // Ensure next stage starts with fresh battle state
+                  try { window.__cpPracticeBattleState = {}; } catch {}
+                  try { window.__cpPracticeElementScores = {}; } catch {}
                   if (nextStage <= 5) Router.goTo(`/mode/story/ch1/s${nextStage}`);
                   else Router.goTo('/mode/story');
                 } catch {}

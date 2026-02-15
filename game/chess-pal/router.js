@@ -158,6 +158,17 @@ const Router = (() => {
       document.body.classList.toggle('cp-hide-topbar', hideTopbar);
     } catch {}
 
+    // Fullscreen gameplay pages: hide sidebar, show gear
+    try {
+      const isGame =
+        (p === '/practice' || p === '/test-game' || p.startsWith('/mode/story/ch1/s'));
+      document.body.classList.toggle('cp-game-fullscreen', isGame);
+      ensureGearUI();
+      const gearBtn = document.getElementById('cpGearBtn');
+      if (gearBtn) gearBtn.style.display = isGame ? '' : 'none';
+      if (isGame) closeSidebarIfOverlay();
+    } catch {}
+
     container.style.opacity = '0';
     setTimeout(() => {
       container.innerHTML = page?.render?.() || '';
@@ -251,6 +262,96 @@ const Router = (() => {
       return;
     }
     renderCurrent();
+  }
+
+  function ensureGearUI() {
+    if (document.getElementById('cpGearBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'cpGearBtn';
+    btn.type = 'button';
+    btn.className = 'cp-gear-btn';
+    btn.setAttribute('aria-label', 'Game menu');
+    btn.textContent = '⚙';
+    btn.style.display = 'none';
+    document.body.appendChild(btn);
+
+    const open = () => {
+      const old = document.getElementById('cpGearOverlay');
+      if (old) old.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'cpGearOverlay';
+      overlay.className = 'cp-modal-overlay';
+
+      const s = (() => {
+        try { return window.ChessPalSettings?.getGeneralSettings?.() || {}; } catch { return {}; }
+      })();
+      const piece = String(s.pieceStyle || 'none').toLowerCase();
+
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Game menu">
+          <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+          <div class="cp-modal-body">
+            <div class="cp-h1" style="font-size:18px;">Game Menu</div>
+
+            <div style="margin-top:12px;">
+              <div class="cp-setting-label">Piece style</div>
+              <div class="cp-setting-help">Change chess piece style.</div>
+              <select class="cp-setting-select" id="cpGearPieceSelect" style="margin-top:8px;">
+                <option value="none" ${piece === 'none' ? 'selected' : ''}>No style</option>
+                <option value="nyxblade" ${piece === 'nyxblade' ? 'selected' : ''}>Nyxblade</option>
+                <option value="rivenhart" ${piece === 'rivenhart' ? 'selected' : ''}>Rivenhart</option>
+                <option value="seraphix" ${piece === 'seraphix' ? 'selected' : ''}>Seraphix</option>
+              </select>
+            </div>
+
+            <div style="margin-top:16px;">
+              <button class="cp-primary" type="button" id="cpGearExitBtn">Exit game</button>
+              <div class="cp-muted" id="cpGearExitHint" style="margin-top:8px;"></div>
+              <div id="cpGearExitConfirmRow" style="display:none; gap:8px; margin-top:10px;" class="cp-row">
+                <button class="cp-primary" type="button" id="cpGearExitConfirm">Confirm exit</button>
+                <button class="cp-tool-btn" type="button" id="cpGearExitCancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      const close = () => { try { overlay.remove(); } catch {} };
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+
+      const pieceSel = overlay.querySelector('#cpGearPieceSelect');
+      pieceSel?.addEventListener('change', () => {
+        const val = String(pieceSel.value || 'none').toLowerCase();
+        try {
+          const next = window.ChessPalSettings?.getGeneralSettings?.() || {};
+          next.pieceStyle = val;
+          window.ChessPalSettings?.applyGeneralSettings?.(next);
+          window.ChessPalSettings?.saveGeneralSettings?.(next);
+        } catch {}
+      }, { passive: true });
+
+      const exitBtn = overlay.querySelector('#cpGearExitBtn');
+      const hint = overlay.querySelector('#cpGearExitHint');
+      const row2 = overlay.querySelector('#cpGearExitConfirmRow');
+      const setHint = (t) => { if (hint) hint.textContent = String(t || ''); };
+      exitBtn?.addEventListener('click', () => {
+        if (row2) row2.style.display = '';
+        setHint('Exit game needs confirmation.');
+      }, { passive: true });
+      overlay.querySelector('#cpGearExitCancel')?.addEventListener('click', () => {
+        if (row2) row2.style.display = 'none';
+        setHint('');
+      }, { passive: true });
+      overlay.querySelector('#cpGearExitConfirm')?.addEventListener('click', () => {
+        try { close(); } catch {}
+        try { goTo('/mode'); } catch {}
+      }, { passive: true });
+    };
+
+    btn.addEventListener('click', open, { passive: true });
   }
 
   return {
