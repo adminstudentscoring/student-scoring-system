@@ -281,6 +281,10 @@ const ChessPalPages = (() => {
                       <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(s.level) || 1))))}" data-stage-level="${esc(String(i))}">
                     </div>
                   </div>
+                  ${(i === 4) ? `
+                    <div class="cp-setting-help" style="margin-top:10px;">Boss opening hint</div>
+                    <input class="cp-input" type="text" value="${esc(String(s.hint || 'Tip: Tap a hero to use a skill, then press Confirm.'))}" data-stage-hint="${esc(String(i))}">
+                  ` : ``}
                 </div>
               `;
             }).join('')}
@@ -324,7 +328,8 @@ const ChessPalPages = (() => {
           const monsterId = String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`)?.value || '').trim().padStart(3, '0');
           const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}"]`)?.value) || 1));
           if (!/^\d{3}$/.test(monsterId)) throw new Error('Invalid monster id');
-          stages.push({ monsterId, level });
+          const hint = (i === 4) ? String(overlay.querySelector(`[data-stage-hint="${CSS.escape(String(i))}"]`)?.value || '').trim() : '';
+          stages.push({ monsterId, level, hint });
         }
         setStoryStagesForChapter(ch, stages);
         setMsg('Saved.');
@@ -731,7 +736,9 @@ const ChessPalPages = (() => {
   ModeStoryPage.init = () => {
     document.querySelectorAll('[data-cp-chapter]').forEach(btn => {
       btn.addEventListener('click', () => {
-        // UI first: stages coming next
+        const ch = Math.max(1, Math.min(10, Math.floor(Number(btn.getAttribute('data-cp-chapter')) || 1)));
+        if (ch === 1) Router.goTo('/mode/story/ch1');
+        else setMsg('Coming soon.');
       }, { passive: true });
     });
     document.querySelectorAll('[data-cp-chapter]').forEach(tile => {
@@ -754,6 +761,107 @@ const ChessPalPages = (() => {
     }
   };
 
+  function StoryCh1Page() {}
+  StoryCh1Page.title = 'Chapter 1';
+  StoryCh1Page.render = () => {
+    const fallbackImg = 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg';
+    const stages = [
+      { id: 1, title: 'Stage 1', img: fallbackImg, desc: 'Only starting elements.' },
+      { id: 2, title: 'Stage 2', img: fallbackImg, desc: 'All elements except Heart.' },
+      { id: 3, title: 'Stage 3', img: fallbackImg, desc: 'All elements except Heart.' },
+      { id: 4, title: 'Stage 4', img: fallbackImg, desc: 'Heart appears.' },
+      { id: 5, title: 'Boss Stage', img: fallbackImg, desc: 'Boss Stage.' },
+    ];
+    return `
+      <div class="cp-chapter-list" aria-label="Chapter 1 stages">
+        ${stages.map(s => `
+          <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-ch1-stage="${esc(String(s.id))}" aria-label="${esc(s.title)}">
+            <img class="cp-chapter-img" src="${esc(String(s.img || fallbackImg))}" alt="${esc(s.title)}" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+            <div class="cp-chapter-label">${esc(s.title)}</div>
+            <div class="cp-chapter-sub">${esc(s.desc || '')}</div>
+          </div>
+        `).join('')}
+        <button class="cp-tool-btn" type="button" data-cp-go="/mode/story">Back</button>
+      </div>
+    `;
+  };
+  StoryCh1Page.init = () => {
+    document.querySelectorAll('[data-cp-go]').forEach(btn => btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/story')), { passive: true }));
+    document.querySelectorAll('[data-cp-ch1-stage]').forEach(tile => {
+      tile.addEventListener('click', () => {
+        const s = Math.max(1, Math.min(5, Math.floor(Number(tile.getAttribute('data-cp-ch1-stage')) || 1)));
+        Router.goTo(`/mode/story/ch1/s${s}`);
+      }, { passive: true });
+      tile.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { try { ev.preventDefault(); } catch {} try { tile.click(); } catch {} }
+      });
+    });
+  };
+
+  function getDefaultStoryElementsForStage(stageIdx1, teamUnits) {
+    const stage = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
+    const core = ['light', 'dark', 'fire', 'water', 'wood'];
+    if (stage === 4 || stage === 5) return [...core, 'heart'];
+    if (stage === 2 || stage === 3) return core;
+    // stage 1: only starting elements (from current team)
+    const elems = (Array.isArray(teamUnits) ? teamUnits : [])
+      .map(u => String(u?.element || '').toLowerCase())
+      .filter(e => core.includes(e));
+    const uniq = Array.from(new Set(elems));
+    return uniq.length ? uniq : core;
+  }
+
+  function getMonsterFromDbQuick(monsterId) {
+    const id = String(monsterId || '').trim().padStart(3, '0');
+    const arr = window.CP_DATA?.MONSTER_DB;
+    if (Array.isArray(arr)) {
+      const m = arr.find(x => String(x?.id || '').trim().padStart(3, '0') === id);
+      if (m) return m;
+    }
+    return null;
+  }
+
+  function getStoryStageConfig(chapterId, stageIdx1) {
+    const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
+    const st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
+    const stages = getStoryStagesForChapter(ch);
+    const cfg = stages[st - 1] || { monsterId: '004', level: 1, hint: '' };
+    return {
+      chapter: ch,
+      stage: st,
+      monsterId: String(cfg.monsterId || '004').trim().padStart(3, '0'),
+      monsterLevel: Math.max(1, Math.floor(Number(cfg.level) || 1)),
+      hint: String(cfg.hint || '').trim(),
+    };
+  }
+
+  function StoryBattlePage(chapterId, stageIdx1) {
+    this._ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
+    this._st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
+  }
+  StoryBattlePage.prototype.title = 'Story Battle';
+  StoryBattlePage.prototype.render = function () {
+    const cfg = getStoryStageConfig(this._ch, this._st);
+    window.__cpStoryStage = cfg;
+    // elements pool by stage
+    try {
+      const team = getTeam();
+      const units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
+      window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, units);
+    } catch {
+      window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, []);
+    }
+    return PracticePage.render();
+  };
+  StoryBattlePage.prototype.init = function () {
+    PracticePage.init();
+  };
+  StoryBattlePage.prototype.destroy = function () {
+    try { delete window.__cpStoryStage; } catch {}
+    try { delete window.__cpBoardElements; } catch {}
+    try { PracticePage.destroy(); } catch {}
+  };
+
   function ModeChallengePage() {}
   ModeChallengePage.title = 'Challenge Mode';
   ModeChallengePage.render = () => `
@@ -770,6 +878,11 @@ const ChessPalPages = (() => {
   PracticePage.title = 'Practice';
   PracticePage.render = () => {
     const s = getGeneralSettings();
+    const story = window.__cpStoryStage;
+    const monsterId = story?.monsterId ? String(story.monsterId).trim().padStart(3, '0') : '004';
+    const m = getMonsterFromDbQuick(monsterId);
+    const monsterName = String(m?.name || 'Verdant Maw');
+    const monsterImg = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
     return `
       <div class="cp-practice">
         <div class="cp-practice-bg" aria-hidden="true">
@@ -777,7 +890,7 @@ const ChessPalPages = (() => {
         </div>
         <div class="cp-practice-left">
           <div class="cp-practice-boss" aria-label="Boss preview">
-            <img class="cp-practice-bossimg" src="images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png" alt="Verdant Maw">
+            <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="lazy">
             <div class="cp-boss-hp" aria-label="Monster HP">
               <div class="cp-boss-hpbar">
                 <div class="cp-boss-hpfill" id="cpBossHpFill"></div>
@@ -785,6 +898,7 @@ const ChessPalPages = (() => {
               <div class="cp-boss-hptext" id="cpBossHpText"></div>
             </div>
           </div>
+          <div class="cp-practice-hint" id="cpPracticeHint" aria-live="polite" style="display:none;"></div>
           <div class="cp-practice-team" aria-label="Team preview">
             <div class="cp-team-hpwrap" aria-label="Player HP">
               <div class="cp-team-hpbar">
@@ -815,6 +929,7 @@ const ChessPalPages = (() => {
     const rcvOverlay = document.getElementById('cpTeamRcvOverlay');
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpText = document.getElementById('cpBossHpText');
+    const hintEl = document.getElementById('cpPracticeHint');
 
     const syncPracticeBg = () => {
       if (!bgImg) return;
@@ -874,7 +989,8 @@ const ChessPalPages = (() => {
     };
 
     const getBossBase = () => {
-      try { return getAllMonsters().find(m => String(m.id) === '004') || null; } catch { return null; }
+      const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '004';
+      try { return getAllMonsters().find(m => String(m.id) === sid) || null; } catch { return null; }
     };
     const getBossEffective = (level) => {
       const lv = Math.max(1, Math.floor(Number(level) || 1));
@@ -891,6 +1007,19 @@ const ChessPalPages = (() => {
         rcv: Math.max(0, Math.floor(baseRcv * mult)),
       };
     };
+
+    // Story: show boss opening hint (1 line)
+    try {
+      const st = window.__cpStoryStage;
+      if (hintEl && st && Number(st.stage) === 5) {
+        const t = String(st.hint || '').trim() || 'Tip: Tap a hero to use a skill, then press Confirm.';
+        hintEl.textContent = t;
+        hintEl.style.display = '';
+      } else if (hintEl) {
+        hintEl.textContent = '';
+        hintEl.style.display = 'none';
+      }
+    } catch {}
 
     const getCenter = (el) => {
       try {
@@ -1342,11 +1471,19 @@ const ChessPalPages = (() => {
 
       // Init / update battle state & HP UI
       try {
+        // Story stage: mark monster as seen on entry
+        try {
+          const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '';
+          if (sid) addSeenMonsterId(sid);
+        } catch {}
         const b = getBattle();
         const pMax = Math.max(0, totalHp);
         b.playerMaxHp = pMax;
         b.playerHp = Number.isFinite(Number(b.playerHp)) ? Math.max(0, Math.min(pMax, Number(b.playerHp))) : pMax;
-        const lv = Number.isFinite(Number(b.monsterLevel)) ? Math.max(1, Math.floor(Number(b.monsterLevel))) : 1;
+        const storyLv = window.__cpStoryStage?.monsterLevel;
+        const lv = Number.isFinite(Number(storyLv))
+          ? Math.max(1, Math.floor(Number(storyLv)))
+          : (Number.isFinite(Number(b.monsterLevel)) ? Math.max(1, Math.floor(Number(b.monsterLevel))) : 1);
         b.monsterLevel = lv;
         const eff = getBossEffective(lv);
         b.monsterMaxHp = eff.hpMax;

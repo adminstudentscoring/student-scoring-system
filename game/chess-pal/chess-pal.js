@@ -44,6 +44,17 @@ const ChessPal = (() => {
     }
   }
 
+  function getElementPool() {
+    try {
+      const pool = window.__cpBoardElements;
+      if (Array.isArray(pool) && pool.length) {
+        const out = pool.map(x => String(x || '').trim().toLowerCase()).filter(Boolean);
+        if (out.length) return out;
+      }
+    } catch {}
+    return ELEMENTS;
+  }
+
   function getPieceStyle() {
     try {
       const v = document.documentElement?.getAttribute('data-cp-piece-style');
@@ -338,12 +349,13 @@ const ChessPal = (() => {
 
   function generateInitialBoard() {
     state.board = []; // Reset
+    const pool = getElementPool();
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       const currentRow = [];
       for (let col = 0; col < BOARD_COLS; col += 1) {
         let element;
         do {
-          element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
+          element = pool[Math.floor(Math.random() * pool.length)];
         } while (createsStartingMatch(currentRow, row, col, element));
         currentRow.push(createJewel(element));
       }
@@ -612,7 +624,8 @@ const ChessPal = (() => {
   }
 
   function randomElement() {
-    return ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
+    const pool = getElementPool();
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   async function resolveCascades() {
