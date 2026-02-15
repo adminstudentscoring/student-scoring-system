@@ -1616,7 +1616,7 @@ body {
 
 /* Fullscreen: monster art fixed height, show full image */
 .cp-game-fullscreen .cp-practice-boss{
-  --cp-boss-h: 6cm;
+  --cp-boss-h: 9cm;
   width: fit-content; /* match image width */
   max-width: 100%;
   margin-left: auto;
@@ -1624,14 +1624,15 @@ body {
   height: var(--cp-boss-h);
   min-height: var(--cp-boss-h);
   aspect-ratio: auto;
-  /* Monster image bottom anchored around screen middle */
-  margin-top: clamp(0px, calc(50dvh - var(--cp-game-pad, 14px) - var(--cp-boss-h)), 999px);
+  /* Monster image bottom anchored at ~60% viewport height */
+  margin-top: clamp(0px, calc(60dvh - var(--cp-game-pad, 14px) - var(--cp-boss-h)), 999px);
 }
 .cp-game-fullscreen .cp-practice[data-story-stage="5"] .cp-practice-boss{
-  --cp-boss-h: 8cm;
+  --cp-boss-h: 12cm;
 }
 .cp-game-fullscreen .cp-practice-bossimg{
   width: auto;
+  max-width: 100%;
   object-fit: contain;
 }
 
