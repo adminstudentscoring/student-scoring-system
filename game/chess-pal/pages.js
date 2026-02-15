@@ -937,8 +937,9 @@ const ChessPalPages = (() => {
     const m = getMonsterFromDbQuick(monsterId);
     const monsterName = String(m?.name || 'Verdant Maw');
     const monsterImg = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
+    const storyStage = story?.stage ? Math.max(1, Math.min(5, Math.floor(Number(story.stage) || 1))) : 0;
     return `
-      <div class="cp-practice">
+      <div class="cp-practice" ${storyStage ? `data-story-stage="${esc(String(storyStage))}"` : ``}>
         <div class="cp-practice-bg" aria-hidden="true">
           <img id="cpPracticeBgImg" class="cp-practice-bgimg" src="${esc(bgSrc)}" alt="" aria-hidden="true">
         </div>

@@ -1613,6 +1613,20 @@ body {
   display:block;
   filter: saturate(1.04);
 }
+
+/* Fullscreen: monster art fixed height, show full image */
+.cp-game-fullscreen .cp-practice-boss{
+  height: 6cm;
+  min-height: 6cm;
+  aspect-ratio: auto;
+}
+.cp-game-fullscreen .cp-practice[data-story-stage="5"] .cp-practice-boss{
+  height: 8cm;
+  min-height: 8cm;
+}
+.cp-game-fullscreen .cp-practice-bossimg{
+  object-fit: contain;
+}
 .cp-practice-team{
   margin-top: auto;
   width: 100%;
