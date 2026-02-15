@@ -546,23 +546,24 @@ const ChessPalPages = (() => {
   function ModeStoryPage() {}
   ModeStoryPage.title = 'Story Mode';
   ModeStoryPage.render = () => {
+    const fallbackImg = 'images/Mode/Practice/Map/Map001-Grassland.jpg';
     const chapters = [
-      { id: 1, title: 'Chapter 1 · Grassland Awakening' },
-      { id: 2, title: 'Chapter 2 · Riverbound Oath' },
-      { id: 3, title: 'Chapter 3 · Ember Trial' },
-      { id: 4, title: 'Chapter 4 · Cathedral of Thorns' },
-      { id: 5, title: 'Chapter 5 · Halo and Dusk' },
-      { id: 6, title: 'Chapter 6 · The First Bloom' },
-      { id: 7, title: 'Chapter 7 · Lost Bestiary' },
-      { id: 8, title: 'Chapter 8 · Castling Keep Siege' },
-      { id: 9, title: 'Chapter 9 · The Board Rewrites' },
-      { id: 10, title: 'Chapter 10 · Dawn Seraph Verdict' },
+      { id: 1, title: 'Chapter 1 · Grassland Awakening', img: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg' },
+      { id: 2, title: 'Chapter 2 · Riverbound Oath', img: 'images/Mode/Story/Chapter002-Riverbound_Oath/Chapter002-Riverbound_Oath.jpg' },
+      { id: 3, title: 'Chapter 3 · Ember Trial', img: 'images/Mode/Story/Chapter003-Ember_Trial/Chapter003-Ember_Trial.jpg' },
+      { id: 4, title: 'Chapter 4 · Cathedral of Thorns', img: 'images/Mode/Story/Chapter004-Cathedral_of_Thorns/Chapter004-Cathedral_of_Thorns.jpg' },
+      { id: 5, title: 'Chapter 5 · Halo and Dusk', img: 'images/Mode/Story/Chapter005-Halo_and_Dusk/Chapter005-Halo_and_Dusk.jpg' },
+      { id: 6, title: 'Chapter 6 · The First Bloom', img: 'images/Mode/Story/Chapter006-The_First_Bloom/Chapter006-The_First_Bloom.jpg' },
+      { id: 7, title: 'Chapter 7 · Lost Bestiary', img: 'images/Mode/Story/Chapter007-Lost_Bestiary/Chapter007-Lost_Bestiary.jpg' },
+      { id: 8, title: 'Chapter 8 · Castling Keep Siege', img: 'images/Mode/Story/Chapter008-Castling_Keep_Siege/Chapter008-Castling_Keep_Siege.jpg' },
+      { id: 9, title: 'Chapter 9 · The Board Rewrites', img: 'images/Mode/Story/Chapter009-The_Board_Rewrites/Chapter009-The_Board_Rewrites.jpg' },
+      { id: 10, title: 'Chapter 10 · Dawn Seraph Verdict', img: fallbackImg },
     ];
     return `
       <div class="cp-chapter-list" aria-label="Story chapters">
         ${chapters.map(c => `
           <button class="cp-chapter-tile" type="button" data-cp-chapter="${esc(String(c.id))}" aria-label="${esc(c.title)}">
-            ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', c.title, 'cp-chapter-img')}
+            <img class="cp-chapter-img" src="${esc(String(c.img || fallbackImg))}" alt="${esc(c.title)}" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
             <div class="cp-chapter-label">${esc(c.title)}</div>
           </button>
         `).join('')}
