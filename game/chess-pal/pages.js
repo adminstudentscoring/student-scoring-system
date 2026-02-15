@@ -760,6 +760,9 @@ const ChessPalPages = (() => {
   StoryCh1Page.title = 'Chapter 1';
   StoryCh1Page.render = () => {
     const fallbackImg = 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg';
+    const cleared = (() => {
+      try { return Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(1)) || 0)); } catch { return 0; }
+    })();
     const stages = [
       { id: 1, title: 'Stage 1', img: fallbackImg, desc: 'Only starting elements.' },
       { id: 2, title: 'Stage 2', img: fallbackImg, desc: 'All elements except Heart.' },
@@ -770,10 +773,10 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-chapter-list" aria-label="Chapter 1 stages">
         ${stages.map(s => `
-          <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-ch1-stage="${esc(String(s.id))}" aria-label="${esc(s.title)}">
+          <div class="cp-chapter-tile ${s.id > (cleared + 1) ? 'is-locked' : ''}" role="button" tabindex="0" data-cp-ch1-stage="${esc(String(s.id))}" data-cp-locked="${s.id > (cleared + 1) ? '1' : '0'}" aria-label="${esc(s.title)}">
             <img class="cp-chapter-img" src="${esc(String(s.img || fallbackImg))}" alt="${esc(s.title)}" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
             <div class="cp-chapter-label">${esc(s.title)}</div>
-            <div class="cp-chapter-sub">${esc(s.desc || '')}</div>
+            <div class="cp-chapter-sub">${esc(s.id > (cleared + 1) ? 'Locked' : (s.desc || ''))}</div>
           </div>
         `).join('')}
         <button class="cp-tool-btn" type="button" data-cp-go="/mode/story">Back</button>
@@ -784,6 +787,8 @@ const ChessPalPages = (() => {
     document.querySelectorAll('[data-cp-go]').forEach(btn => btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/story')), { passive: true }));
     document.querySelectorAll('[data-cp-ch1-stage]').forEach(tile => {
       tile.addEventListener('click', () => {
+        const locked = String(tile.getAttribute('data-cp-locked') || '0') === '1';
+        if (locked) { try { setMsg('Clear the previous stage first.'); } catch {} return; }
         const s = Math.max(1, Math.min(5, Math.floor(Number(tile.getAttribute('data-cp-ch1-stage')) || 1)));
         Router.goTo(`/mode/story/ch1/s${s}`);
       }, { passive: true });
@@ -843,8 +848,14 @@ const ChessPalPages = (() => {
       const team = getTeam();
       const units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
       window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, units);
+      const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
+      if (Array.isArray(fixed) && fixed.length) window.__cpBoardElements = fixed.slice();
     } catch {
       window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, []);
+      try {
+        const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
+        if (Array.isArray(fixed) && fixed.length) window.__cpBoardElements = fixed.slice();
+      } catch {}
     }
     return PracticePage.render();
   };
@@ -1212,6 +1223,26 @@ const ChessPalPages = (() => {
             }
           } catch {}
           try {
+            // Story Mode: clear stage and auto-advance (no respawn/level-up loop)
+            const st = window.__cpStoryStage;
+            if (st && Number(st.chapter) && Number(st.stage)) {
+              try { window.ChessPalStory?.markStageCleared?.(st.chapter, st.stage); } catch {}
+              // Ensure next stage starts with fresh monster HP
+              try {
+                const b2 = getBattle();
+                b2.monsterHp = null;
+                b2.monsterMaxHp = null;
+              } catch {}
+              const nextStage = Math.max(1, Math.floor(Number(st.stage) || 1)) + 1;
+              setTimeout(() => {
+                try {
+                  if (nextStage <= 5) Router.goTo(`/mode/story/ch1/s${nextStage}`);
+                  else Router.goTo('/mode/story');
+                } catch {}
+              }, 350);
+              return;
+            }
+
             // Respawn (Lv + 1)
             const nextLv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1) + 1);
             b.monsterLevel = nextLv;
