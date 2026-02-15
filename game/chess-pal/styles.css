@@ -1745,6 +1745,10 @@ body {
   gap: 10px;
   width: 100%;
 }
+.cp-game-fullscreen .cp-practice-teamrow{
+  width: 60%;
+  margin: 0 auto;
+}
 .cp-practice-slot{
   aspect-ratio: 1 / 1;
   border-radius: 14px;
