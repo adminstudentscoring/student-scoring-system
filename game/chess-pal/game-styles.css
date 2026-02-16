@@ -1,0 +1,863 @@
+/* Chess Pal: in-game layout + board + fullscreen/portrait + combat FX
+   This file is intentionally separate from `styles.css` to prevent
+   fullscreen/portrait rules from affecting other pages. */
+
+/* Practice (left boss + team, right board) */
+.cp-practice{
+  display:grid;
+  grid-template-columns: 420px max-content;
+  gap: 14px;
+  justify-content: center;
+  align-items: stretch;
+  align-content: center;
+  /* Fill viewport (minus topbar + page padding) so left team can dock bottom */
+  min-height: calc(100dvh - 86px);
+  position: relative;
+}
+.cp-practice-bg{
+  position:absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow:hidden;
+  border-radius: 18px;
+}
+.cp-practice-bgimg{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+  opacity: 0.60;
+  filter: saturate(1.06) contrast(1.05) blur(0.2px);
+}
+.cp-practice-left,
+.cp-practice-right{
+  position: relative;
+  z-index: 1;
+}
+
+.cp-game-fullscreen .cp-practice{
+  height: 100dvh;
+  width: 100vw;
+  --cp-game-pad: 14px;
+  padding: var(--cp-game-pad);
+  box-sizing: border-box;
+  /* Left/right split: 60% / 40% (gap handled by fr units) */
+  grid-template-columns: minmax(320px, 60fr) 40fr;
+  gap: clamp(12px, 2vw, 20px);
+  /* Remove vertical centering gaps; let columns fill the viewport height */
+  align-content: stretch;
+  align-items: stretch;
+}
+.cp-game-fullscreen .cp-practice-left{
+  width: 100%;
+  align-items: stretch;
+  height: 100%;
+}
+.cp-game-fullscreen .cp-practice-team,
+.cp-game-fullscreen .cp-practice-hint{
+  width: 100%;
+}
+.cp-game-fullscreen .cp-practice-hint{
+  width: auto;
+}
+.cp-practice-rightcol{
+  width: fit-content;
+  max-width: 100%;
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+}
+.cp-practice-hint--board{
+  margin-top: 10px;
+  text-align: center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.cp-game-fullscreen .cp-practice-right{
+  margin-left: 0;
+  width: 100%;
+  /* Fit board to fullscreen available space */
+  --cp-board-size: min(54dvh, 72vw);
+  --cp-gap: clamp(4px, calc(var(--cp-board-size) / 120), 9px);
+  --cp-cell: calc((var(--cp-board-size) - (5 * var(--cp-gap))) / 6);
+}
+.cp-game-fullscreen .pmf-board{
+  padding: clamp(8px, 1.2vw, 14px);
+}
+
+/* Mobile portrait: one screen, no scroll (top monster, middle heroes, bottom board) */
+@media (max-width: 820px) and (orientation: portrait){
+  .cp-game-fullscreen .cp-practice{
+    grid-template-columns: 1fr;
+    /* Portrait: 3 sections (monster, heroes, board) to avoid huge blank area */
+    grid-template-rows: auto auto 1fr;
+    padding: 0;
+    overflow: hidden;
+    gap: 0; /* hero grid touches pmf-stage */
+  }
+  .cp-game-fullscreen .cp-practice-left{
+    /* We'll place monster (row 1) and heroes (row 2) separately */
+    grid-row: auto;
+    display: contents;
+  }
+  .cp-game-fullscreen .cp-practice-boss{
+    grid-row: 1;
+  }
+  .cp-game-fullscreen .cp-practice-team{
+    grid-row: 2;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .cp-game-fullscreen .cp-practice-right{
+    grid-row: 3;
+    /* Force row 3 content to start at the top (avoid any flex centering from base rules) */
+    display: block;
+    align-self: stretch !important;
+    /* In portrait, allow board to use more width */
+    /* Reduce height so the whole board fits without scrolling */
+    /* Portrait: board area ≈ 50% of viewport height */
+    --cp-board-size: min(50dvh, 100vw);
+  }
+  .cp-game-fullscreen .cp-practice-rightcol{
+    margin: 0 auto; /* keep board centered horizontally while sticking to top */
+  }
+  /* Monster sticks to top; can grow/shrink based on remaining space */
+  .cp-game-fullscreen .cp-practice-boss{
+    margin-top: 0;
+    flex: 1 1 auto;
+    min-height: 120px;
+    height: auto;
+  }
+  .cp-game-fullscreen .cp-practice-bossimg{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: 50% 0%; /* stick monster art to top (remove big top gap) */
+  }
+  /* Hero block is fixed just above the board */
+  .cp-game-fullscreen .cp-practice-team{
+    margin-top: 0;
+  }
+  .cp-game-fullscreen .cp-practice-teamrow{
+    width: min(92vw, 520px);
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 0;
+  }
+  .cp-game-fullscreen .cp-team-hpwrap{
+    width: min(92vw, 520px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .cp-game-fullscreen .cp-practice-rightcol{
+    width: 100%;
+  }
+  /* Portrait: force stage to stick to top */
+  .cp-game-fullscreen .cp-practice-rightcol{
+    align-items: stretch;
+  }
+  .cp-game-fullscreen .pmf-stage{
+    align-self: flex-start;
+  }
+
+  /* Portrait: board touches screen edges */
+  .cp-game-fullscreen .pmf-wrapper,
+  .cp-game-fullscreen .pmf-stage{
+    width: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+  .cp-game-fullscreen .cp-practice-right .pmf-wrapper{
+    margin: 0 !important;
+  }
+  .cp-game-fullscreen .pmf-board-shell{
+    margin-top: 3px;
+  }
+  .cp-game-fullscreen .pmf-board{
+    width: 100vw; /* edge-to-edge container */
+    justify-content: center; /* keep jewels centered */
+    padding: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+}
+@media (max-width: 980px){
+  .cp-practice{
+    grid-template-columns: 1fr;
+    min-height: auto;
+    align-content: start;
+  }
+}
+.cp-practice-left{
+  display:flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: flex-start;
+  align-items: center; /* horizontal centering */
+  height: 100%;
+}
+.cp-practice-boss{
+  width: 100%;
+  border-radius: 18px;
+  border: 0;
+  background: transparent;
+  overflow:hidden;
+  min-height: 240px;
+  position: relative;
+  aspect-ratio: 16 / 10; /* stabilize layout while boss image loads */
+}
+.cp-beam{
+  position: absolute;
+  left: -70%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 70%;
+  height: 14px; /* thick beam */
+  border-radius: 999px;
+  opacity: 0.95;
+  pointer-events: none;
+  filter: blur(0.2px) drop-shadow(0 14px 22px rgba(0,0,0,0.55));
+  animation: cp-beam-ltr 680ms ease-out both;
+}
+.cp-beamline{
+  position: fixed;
+  z-index: 9999;
+  height: 14px;
+  transform: translateY(-50%) rotate(var(--cp-angle, 0rad));
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+.cp-beamline-inner{
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  opacity: 0.95;
+  filter: blur(0.2px) drop-shadow(0 14px 22px rgba(0,0,0,0.55));
+  transform-origin: 0 50%;
+  animation: cp-beamline-scale 520ms ease-out both;
+}
+.cp-beamline.is-player .cp-beamline-inner{
+  background: linear-gradient(90deg,
+    rgba(147,197,253,0) 0%,
+    rgba(147,197,253,0.88) 20%,
+    rgba(255,255,255,0.95) 50%,
+    rgba(147,197,253,0.82) 80%,
+    rgba(147,197,253,0) 100%
+  );
+}
+.cp-beamline.is-monster .cp-beamline-inner{
+  background: linear-gradient(90deg,
+    rgba(239,68,68,0) 0%,
+    rgba(239,68,68,0.92) 20%,
+    rgba(255,255,255,0.92) 50%,
+    rgba(239,68,68,0.85) 80%,
+    rgba(239,68,68,0) 100%
+  );
+}
+@keyframes cp-beamline-scale{
+  0%{ transform: scaleX(0.05); opacity: 0; }
+  15%{ opacity: 0.95; }
+  80%{ transform: scaleX(1); opacity: 0.90; }
+  100%{ transform: scaleX(1); opacity: 0; }
+}
+
+.cp-dead{
+  animation: cp-dead-blink 900ms ease-out both;
+  filter: grayscale(1);
+}
+@keyframes cp-dead-blink{
+  0%{ opacity: 1; }
+  10%{ opacity: 0.15; }
+  20%{ opacity: 1; }
+  30%{ opacity: 0.15; }
+  40%{ opacity: 1; }
+  55%{ opacity: 0.15; }
+  70%{ opacity: 1; }
+  100%{ opacity: 0; }
+}
+
+.cp-respawn{
+  display: block;
+  opacity: 0;
+  animation: cp-respawn-fade 650ms ease-out both;
+}
+@keyframes cp-respawn-fade{
+  0%{ opacity: 0; filter: grayscale(1) saturate(0.9); transform: scale(0.99); }
+  100%{ opacity: 1; filter: grayscale(0) saturate(1.04); transform: scale(1); }
+}
+
+.cp-beam.is-player{
+  background: linear-gradient(90deg, rgba(147,197,253,0) 0%, rgba(147,197,253,0.85) 25%, rgba(255,255,255,0.95) 55%, rgba(147,197,253,0.75) 80%, rgba(147,197,253,0) 100%);
+}
+.cp-beam.is-monster{
+  left: auto;
+  right: -70%;
+  background: linear-gradient(270deg, rgba(239,68,68,0) 0%, rgba(239,68,68,0.92) 25%, rgba(255,255,255,0.92) 55%, rgba(239,68,68,0.85) 80%, rgba(239,68,68,0) 100%);
+  animation: cp-beam-rtl 680ms ease-out both;
+}
+@keyframes cp-beam-ltr{
+  from{ transform: translate(-10%, -50%) scaleX(0.95); opacity: 0.0; }
+  10%{ opacity: 0.95; }
+  to{ transform: translate(260%, -50%) scaleX(1.05); opacity: 0.0; }
+}
+@keyframes cp-beam-rtl{
+  from{ transform: translate(10%, -50%) scaleX(0.95); opacity: 0.0; }
+  10%{ opacity: 0.95; }
+  to{ transform: translate(-260%, -50%) scaleX(1.05); opacity: 0.0; }
+}
+.cp-shake{
+  animation: cp-shake 420ms ease-in-out both;
+}
+@keyframes cp-shake{
+  0%{ transform: translate3d(0,0,0); }
+  20%{ transform: translate3d(-4px, 0, 0); }
+  40%{ transform: translate3d(4px, 0, 0); }
+  60%{ transform: translate3d(-3px, 0, 0); }
+  80%{ transform: translate3d(3px, 0, 0); }
+  100%{ transform: translate3d(0,0,0); }
+}
+.cp-practice-bossimg{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+  filter: saturate(1.04);
+}
+
+/* Fullscreen: monster art fixed height, show full image */
+.cp-game-fullscreen .cp-practice-boss{
+  --cp-boss-h: 9cm;
+  width: fit-content; /* match image width */
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  height: var(--cp-boss-h);
+  min-height: var(--cp-boss-h);
+  aspect-ratio: auto;
+  /* Monster image bottom anchored at ~60% viewport height */
+  margin-top: clamp(0px, calc(60dvh - var(--cp-game-pad, 14px) - var(--cp-boss-h)), 999px);
+}
+.cp-game-fullscreen .cp-practice[data-story-stage="5"] .cp-practice-boss{
+  --cp-boss-h: 12cm;
+}
+.cp-game-fullscreen .cp-practice-bossimg{
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* Mobile portrait override (must be after fullscreen bossimg rule) */
+@media (max-width: 820px) and (orientation: portrait){
+  .cp-game-fullscreen .cp-practice-boss{
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    /* Override fullscreen midline anchoring + fixed cm height */
+    margin-top: 0 !important;
+    height: auto !important;
+    min-height: 72px !important;
+    max-height: 26dvh !important; /* +20% */
+    aspect-ratio: auto !important;
+    flex: 0 1 auto;
+  }
+  .cp-game-fullscreen .cp-practice-bossimg{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: 50% 0% !important;
+  }
+}
+
+/* Fullscreen: monster HP bar width = 60% of monster image */
+.cp-game-fullscreen .cp-boss-hp{
+  width: 30%;
+}
+
+/* Monster HP bar: element-colored fill */
+.cp-practice-boss[data-element="fire"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(239,68,68,0.95), rgba(251,113,133,0.95));
+}
+.cp-practice-boss[data-element="water"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95));
+}
+.cp-practice-boss[data-element="wood"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(16,185,129,0.95), rgba(34,197,94,0.95));
+}
+.cp-practice-boss[data-element="light"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(250,204,21,0.95), rgba(253,224,71,0.95));
+}
+.cp-practice-boss[data-element="dark"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(99,102,241,0.95), rgba(168,85,247,0.95));
+}
+.cp-practice-boss[data-element="heart"] .cp-boss-hpfill{
+  background: linear-gradient(90deg, rgba(236,72,153,0.95), rgba(251,113,133,0.95));
+}
+.cp-practice-team{
+  margin-top: auto;
+  width: 100%;
+  border-radius: 18px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.cp-practice-hint{
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  box-shadow: 0 18px 38px rgba(0,0,0,0.25);
+  backdrop-filter: blur(8px);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.55);
+}
+.cp-team-hpwrap{
+  margin-bottom: 2px;
+}
+.cp-team-hpbar{
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+}
+.cp-team-hpoverlay{
+  position: absolute;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 10px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.90);
+  text-shadow: 0 8px 18px rgba(0,0,0,0.60);
+  pointer-events: none;
+}
+.cp-team-hpoverlay--heal{
+  justify-content: flex-end;
+  padding-right: 8px;
+  color: rgba(34,197,94,0.92);
+}
+.cp-team-hpfill{
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(34,197,94,0.92), rgba(16,185,129,0.92));
+  opacity: 0.90;
+}
+.cp-team-hptext{
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.86);
+}
+
+.cp-boss-hp{
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  width: 60%;
+  pointer-events: none;
+}
+.cp-dmg-float{
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  font-weight: 900;
+  font-size: 36px; /* 2x */
+  letter-spacing: 0.2px;
+  text-shadow: 0 14px 26px rgba(0,0,0,0.70);
+  pointer-events: none;
+  opacity: 0;
+  animation: cp-dmg-float 1100ms ease-out both;
+}
+.cp-dmg-float.is-adv{ font-size: 52px; font-weight: 1000; }
+.cp-dmg-float.is-dis{ font-size: 30px; font-weight: 700; opacity: 0.95; }
+@keyframes cp-dmg-float{
+  0%{ opacity: 0; transform: translate(-50%, -40%) scale(0.92); }
+  15%{ opacity: 1; }
+  100%{ opacity: 0; transform: translate(-50%, -85%) scale(1.06); }
+}
+.cp-boss-hpbar{
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.22);
+}
+.cp-boss-hpoverlay{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 10px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.90);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.75);
+  pointer-events: none;
+}
+.cp-boss-hpfill{
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(34,197,94,0.92), rgba(16,185,129,0.92));
+  opacity: 0.92;
+}
+
+.cp-practice-boss[data-element="fire"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(239,68,68,0.92), rgba(251,113,133,0.92)); }
+.cp-practice-boss[data-element="water"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(59,130,246,0.92), rgba(147,197,253,0.92)); }
+.cp-practice-boss[data-element="wood"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(16,185,129,0.92), rgba(34,197,94,0.92)); }
+.cp-practice-boss[data-element="light"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(250,204,21,0.92), rgba(253,224,71,0.92)); }
+.cp-practice-boss[data-element="dark"] .cp-boss-hpfill{ background: linear-gradient(90deg, rgba(99,102,241,0.92), rgba(167,139,250,0.92)); }
+
+.cp-practice-teamrow{
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+.cp-game-fullscreen .cp-practice-teamrow{
+  width: 66%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Fullscreen: player HP bar width matches hero grid */
+.cp-game-fullscreen .cp-team-hpwrap{
+  width: 66%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.cp-game-fullscreen .cp-team-hptext{
+  text-align: center;
+}
+.cp-practice-slot{
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  border: 2px solid rgba(255,255,255,0.10);
+  background: transparent;
+  overflow:hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+.cp-practice-slot[data-element="fire"]{ border-color: rgba(239,68,68,0.75); }
+.cp-practice-slot[data-element="water"]{ border-color: rgba(59,130,246,0.75); }
+.cp-practice-slot[data-element="wood"]{ border-color: rgba(16,185,129,0.75); }
+.cp-practice-slot[data-element="light"]{ border-color: rgba(250,204,21,0.75); }
+.cp-practice-slot[data-element="dark"]{ border-color: rgba(99,102,241,0.85); }
+.cp-practice-slot[data-element="heart"]{ border-color: rgba(236,72,153,0.75); }
+.cp-practice-atk{
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 1000;
+  background: rgba(0,0,0,0.40);
+  border: 1px solid rgba(255,255,255,0.12);
+  text-shadow: 0 10px 20px rgba(0,0,0,0.70);
+  pointer-events: none;
+}
+.cp-elem-fire{ color: rgba(239,68,68,0.95); }
+.cp-elem-water{ color: rgba(59,130,246,0.95); }
+.cp-elem-wood{ color: rgba(16,185,129,0.95); }
+.cp-elem-light{ color: rgba(250,204,21,0.95); }
+.cp-elem-dark{ color: rgba(99,102,241,0.98); }
+.cp-elem-heart{ color: rgba(236,72,153,0.95); }
+.cp-practice-slot.is-leader{
+  border-color: rgba(124,58,237,0.55);
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.14);
+}
+.cp-practice-slot img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+}
+.cp-practice-slot-empty{
+  width: 100%;
+  height: 100%;
+}
+
+.cp-practice-slot.is-skill-open{
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.10);
+  overflow: visible;
+}
+.cp-practice-skillpanel{
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 10px);
+  width: min(260px, 70vw);
+  padding: 10px 10px 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.78);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+  z-index: 20;
+  backdrop-filter: blur(6px);
+}
+.cp-practice-skilltitle{
+  font-size: 13px;
+  font-weight: 1000;
+  color: rgba(255,255,255,0.92);
+}
+.cp-practice-skilldesc{
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.78);
+}
+.cp-practice-skillmeta{
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.60);
+}
+.cp-practice-skillbtnrow{
+  margin-top: 10px;
+  display:flex;
+  gap: 8px;
+  justify-content: center;
+}
+.cp-practice-right{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  width: max-content;
+  align-self: center; /* keep board vertically centered */
+  margin-left: 105px; /* shift right ~2.5cm */
+  /* shrink board (grid + content) by 10% */
+  --cp-cell: calc(66px * 0.9);
+  --cp-gap: calc(6px * 0.9);
+}
+.cp-practice-right .pmf-wrapper{
+  width: auto;
+  margin: 0;
+  display:flex;
+  grid-template-columns: none;
+}
+.cp-practice-right .pmf-stage{
+  width: fit-content;
+}
+.cp-practice-right .pmf-timer-wrapper{
+  width: 100%;
+}
+.cp-practice-right .pmf-timer-bar{
+  width: 100%;
+}
+
+.pmf-wrapper{
+  width: min(1200px, calc(100vw - 28px));
+  margin: 12px auto 16px;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 14px;
+}
+
+@media (max-width: 980px){
+  .pmf-wrapper{
+    grid-template-columns: 1fr;
+  }
+}
+
+.pmf-stage, .pmf-card{
+  background: var(--cp-panel);
+  border: 1px solid var(--cp-border);
+  border-radius: 14px;
+  box-shadow: 0 18px 38px rgba(0,0,0,0.35);
+}
+
+.pmf-stage{
+  padding: 0;
+}
+
+.pmf-timer-bar{
+  position: relative;
+  height: 10px; /* ~30% of 34px */
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--cp-border);
+  background: rgba(255,255,255,0.04);
+}
+.pmf-timer-fill{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(196,181,253,0.92), rgba(167,139,250,0.92));
+  opacity: 0.85;
+}
+.pmf-timer-text{
+  position: relative;
+  z-index: 1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height: 100%;
+  font-weight: 900;
+  font-size: 9px;
+}
+
+.pmf-board-shell{
+  margin-top: 6px;
+  display:flex;
+  justify-content:center;
+}
+
+.pmf-board{
+  display:grid;
+  grid-template-columns: repeat(6, var(--cp-cell));
+  grid-template-rows: repeat(6, var(--cp-cell));
+  gap: var(--cp-gap);
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: rgba(0,0,0,0.22);
+}
+@media (max-width: 520px){
+  :root{ --cp-cell: 44px; --cp-gap: 6px; }
+}
+
+.pmf-cell{
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.05);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position: relative;
+  transition: transform .08s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.pmf-cell:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,0.22); }
+.pmf-cell.selected{ box-shadow: 0 0 0 3px rgba(124,58,237,0.35); border-color: rgba(124,58,237,0.65); }
+.pmf-cell.valid-move{ box-shadow: 0 0 0 3px rgba(59,130,246,0.28); border-color: rgba(59,130,246,0.55); }
+
+.pmf-knight-image{
+  /* Same visual size as a jewel tile */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
+}
+
+/* element colors */
+.pmf-fire{ background: rgba(239,68,68,var(--cp-jewel-alpha)); }
+.pmf-water{ background: rgba(59,130,246,var(--cp-jewel-alpha)); }
+.pmf-light{ background: rgba(250,204,21,var(--cp-jewel-alpha)); }
+.pmf-dark{ background: rgba(99,102,241,var(--cp-jewel-alpha)); }
+.pmf-wood{ background: rgba(16,185,129,var(--cp-jewel-alpha)); }
+.pmf-heart{ background: rgba(236,72,153,var(--cp-jewel-alpha)); }
+.pmf-empty-cell{ background: rgba(255,255,255,0.02); }
+
+[data-cp-jewel-set="set_a"] .pmf-cell{
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-fire{ background-image: url("images/Jewel/Set_A/Set_A-Fire.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-water{ background-image: url("images/Jewel/Set_A/Set_A-Water.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-wood{ background-image: url("images/Jewel/Set_A/Set_A-Wood.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-light{ background-image: url("images/Jewel/Set_A/Set_A-Light.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-dark{ background-image: url("images/Jewel/Set_A/Set_A-Dark.png"); }
+[data-cp-jewel-set="set_a"] .pmf-cell.pmf-heart{ background-image: url("images/Jewel/Set_A/Set_A-Heart.png"); }
+
+.pmf-controls{
+  margin-top: 12px;
+  display:flex;
+  justify-content:center;
+}
+
+.pmf-primary{
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(124,58,237,0.45);
+  background: rgba(124,58,237,0.92);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+.pmf-primary:disabled{
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pmf-side{
+  display:flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pmf-card{
+  padding: 12px;
+}
+.pmf-card h3{
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--cp-muted);
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
+.pmf-log{
+  max-height: 220px;
+  overflow:auto;
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pmf-log-entry{
+  font-size: 12px;
+  color: rgba(255,255,255,0.82);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.pmf-move-list, .pmf-cascade-list{
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pmf-score-total{
+  font-weight: 1000;
+  color: rgba(255,255,255,0.92);
+}
+.pmf-move-item, .pmf-cascade-item, .pmf-empty{
+  font-size: 12px;
+  color: rgba(255,255,255,0.82);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.pmf-move-item .color{
+  display:inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.pmf-move-item .color.fire{ background: rgba(239,68,68,0.95); }
+.pmf-move-item .color.water{ background: rgba(59,130,246,0.95); }
+.pmf-move-item .color.light{ background: rgba(250,204,21,0.95); }
+.pmf-move-item .color.dark{ background: rgba(99,102,241,0.95); }
+.pmf-move-item .color.wood{ background: rgba(16,185,129,0.95); }
+.pmf-move-item .color.heart{ background: rgba(236,72,153,0.95); }
