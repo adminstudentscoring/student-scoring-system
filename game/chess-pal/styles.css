@@ -1443,6 +1443,7 @@ body {
     grid-row: 2;
     align-self: stretch;
     justify-content: center;
+    align-items: flex-start; /* prevent pmf-stage vertical centering gap */
     /* In portrait, allow board to use more width */
     /* Reduce height so the whole board fits without scrolling */
     /* Portrait: board area ≈ 50% of viewport height */
