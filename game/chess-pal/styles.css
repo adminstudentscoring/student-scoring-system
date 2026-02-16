@@ -1449,7 +1449,7 @@ body {
     grid-row: 3;
     align-self: stretch;
     justify-content: center;
-    align-items: flex-start; /* prevent pmf-stage vertical centering gap */
+    align-items: flex-start !important; /* prevent pmf-stage vertical centering gap */
     /* In portrait, allow board to use more width */
     /* Reduce height so the whole board fits without scrolling */
     /* Portrait: board area ≈ 50% of viewport height */
@@ -1470,7 +1470,7 @@ body {
   }
   /* Hero block is fixed just above the board */
   .cp-game-fullscreen .cp-practice-team{
-    margin-top: auto;
+    margin-top: 0;
   }
   .cp-game-fullscreen .cp-practice-teamrow{
     width: min(92vw, 520px);
