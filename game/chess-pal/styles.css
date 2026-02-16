@@ -1456,6 +1456,11 @@ body {
   .cp-game-fullscreen .cp-practice-rightcol{
     width: 100%;
   }
+
+  /* Portrait: don't anchor monster block to viewport midline */
+  .cp-game-fullscreen .cp-practice-boss{
+    margin-top: 0;
+  }
 }
 @media (max-width: 980px){
   .cp-practice{
