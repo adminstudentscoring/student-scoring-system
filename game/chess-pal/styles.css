@@ -1717,9 +1717,10 @@ body {
     /* Override fullscreen midline anchoring + fixed cm height */
     margin-top: 0 !important;
     height: auto !important;
-    min-height: 120px !important;
+    min-height: 60px !important;
+    max-height: 22dvh !important; /* ~half of previous visible monster area */
     aspect-ratio: auto !important;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
   .cp-game-fullscreen .cp-practice-bossimg{
     width: 100%;
