@@ -1429,7 +1429,7 @@ body {
     grid-template-rows: 1fr auto;
     padding: 0;
     overflow: hidden;
-    gap: 10px;
+    gap: 0; /* hero grid touches pmf-stage */
   }
   .cp-game-fullscreen .cp-practice-left{
     grid-row: 1;
@@ -1445,7 +1445,8 @@ body {
     justify-content: center;
     /* In portrait, allow board to use more width */
     /* Reduce height so the whole board fits without scrolling */
-    --cp-board-size: min(40dvh, 100vw);
+    /* Portrait: board area ≈ 50% of viewport height */
+    --cp-board-size: min(50dvh, 100vw);
   }
   /* Monster sticks to top; can grow/shrink based on remaining space */
   .cp-game-fullscreen .cp-practice-boss{
