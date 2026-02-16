@@ -1442,18 +1442,21 @@ body {
   }
   .cp-game-fullscreen .cp-practice-team{
     grid-row: 2;
-    margin-top: 2cm; /* portrait: add spacing between row 1 (monster) and row 2 (heroes) */
+    margin-top: 0;
     margin-bottom: 0;
   }
   .cp-game-fullscreen .cp-practice-right{
     grid-row: 3;
-    align-self: stretch;
-    justify-content: flex-start; /* keep board stuck to top of row 3 (removes perceived vertical centering of rows 1-2) */
-    align-items: flex-start !important; /* prevent pmf-stage vertical centering gap */
+    /* Force row 3 content to start at the top (avoid any flex centering from base rules) */
+    display: block;
+    align-self: stretch !important;
     /* In portrait, allow board to use more width */
     /* Reduce height so the whole board fits without scrolling */
     /* Portrait: board area ≈ 50% of viewport height */
     --cp-board-size: min(50dvh, 100vw);
+  }
+  .cp-game-fullscreen .cp-practice-rightcol{
+    margin: 0 auto; /* keep board centered horizontally while sticking to top */
   }
   /* Monster sticks to top; can grow/shrink based on remaining space */
   .cp-game-fullscreen .cp-practice-boss{
@@ -1470,7 +1473,7 @@ body {
   }
   /* Hero block is fixed just above the board */
   .cp-game-fullscreen .cp-practice-team{
-    margin-top: 2cm; /* keep consistent with row 2 spacing */
+    margin-top: 0;
   }
   .cp-game-fullscreen .cp-practice-teamrow{
     width: min(92vw, 520px);
