@@ -1456,6 +1456,7 @@ body {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    object-position: 50% 0%; /* stick monster art to top (remove big top gap) */
   }
   /* Hero block is fixed just above the board */
   .cp-game-fullscreen .cp-practice-team{
