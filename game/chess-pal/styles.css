@@ -1442,7 +1442,7 @@ body {
   }
   .cp-game-fullscreen .cp-practice-team{
     grid-row: 2;
-    margin-top: 0;
+    margin-top: 2cm; /* portrait: add spacing between row 1 (monster) and row 2 (heroes) */
     margin-bottom: 0;
   }
   .cp-game-fullscreen .cp-practice-right{
@@ -1470,7 +1470,7 @@ body {
   }
   /* Hero block is fixed just above the board */
   .cp-game-fullscreen .cp-practice-team{
-    margin-top: 0;
+    margin-top: 2cm; /* keep consistent with row 2 spacing */
   }
   .cp-game-fullscreen .cp-practice-teamrow{
     width: min(92vw, 520px);
