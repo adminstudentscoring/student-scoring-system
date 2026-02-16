@@ -1448,7 +1448,7 @@ body {
   .cp-game-fullscreen .cp-practice-right{
     grid-row: 3;
     align-self: stretch;
-    justify-content: center;
+    justify-content: flex-start; /* keep board stuck to top of row 3 (removes perceived vertical centering of rows 1-2) */
     align-items: flex-start !important; /* prevent pmf-stage vertical centering gap */
     /* In portrait, allow board to use more width */
     /* Reduce height so the whole board fits without scrolling */
