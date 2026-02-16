@@ -1479,6 +1479,13 @@ body {
   .cp-game-fullscreen .cp-practice-rightcol{
     width: 100%;
   }
+  /* Portrait: force stage to stick to top */
+  .cp-game-fullscreen .cp-practice-rightcol{
+    align-items: stretch;
+  }
+  .cp-game-fullscreen .pmf-stage{
+    align-self: flex-start;
+  }
 
   /* Portrait: board touches screen edges */
   .cp-game-fullscreen .pmf-wrapper,
