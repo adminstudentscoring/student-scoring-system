@@ -92,9 +92,6 @@ const ChessPal = (() => {
           <div class="pmf-board-shell">
             <div class="pmf-board" id="pmfBoard" role="grid" aria-label="Puzzle board"></div>
           </div>
-          <div class="pmf-controls">
-            <button id="pmfStartTurn" class="pmf-primary hidden" disabled>Start</button>
-          </div>
         </div>
       </div>
     `;
@@ -108,8 +105,7 @@ const ChessPal = (() => {
     state.cascadeListEl = document.getElementById('pmfCascadeList');
     state.scoreListEl = document.getElementById('pmfScoreList');
     state.scoreTotalEl = document.getElementById('pmfScoreTotal');
-    state.startButtonEl = container.querySelector('#pmfStartTurn');
-    state.startButtonEl.addEventListener('click', startPlayerTurn);
+    state.startButtonEl = null;
 
     // Live update when user changes Piece setting
     try {
@@ -190,7 +186,7 @@ const ChessPal = (() => {
     renderScoreBreakdown(null);
     updateTimerDisplay(1);
     updateStartButtonState();
-    pushLog('Board initialized. Select a starting position for the knight.');
+    pushLog('Board initialized. Tap a jewel to place the knight and start the timer.');
   }
 
   function destroy() {
@@ -460,10 +456,10 @@ const ChessPal = (() => {
       state.knightPosition = { row, col };
       state.selectedPosition = null;
       state.validMoves = [];
-      pushLog(`Knight starting position set to (${row}, ${col}).`);
-      updateStartButtonState();
-      renderBoard();
-      renderMoveHistory();
+      // Start timer immediately when the knight is placed
+      startPlayerTurn();
+      // Treat the placement tile as a consumed jewel and score it
+      try { consumeJewelPath({ row, col }, { row, col }); } catch {}
       return;
     }
 

@@ -2030,7 +2030,7 @@ body {
 }
 
 .pmf-stage{
-  padding: 12px;
+  padding: 0;
 }
 
 .pmf-timer-bar{
@@ -2045,7 +2045,7 @@ body {
   position: absolute;
   inset: 0;
   width: 100%;
-  background: linear-gradient(90deg, rgba(34,197,94,0.92), rgba(16,185,129,0.92));
+  background: linear-gradient(90deg, rgba(196,181,253,0.92), rgba(167,139,250,0.92));
   opacity: 0.85;
 }
 .pmf-timer-text{
@@ -2060,7 +2060,7 @@ body {
 }
 
 .pmf-board-shell{
-  margin-top: 12px;
+  margin-top: 6px;
   display:flex;
   justify-content:center;
 }
