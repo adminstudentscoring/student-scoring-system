@@ -9,7 +9,7 @@
   --cp-accent: #7c3aed;
   --cp-side-w: 150px;
   --cp-cell: 66px;
-  --cp-gap: 8px;
+  --cp-gap: 6px;
   --cp-jewel-alpha: 0.22; /* configurable */
 }
 
@@ -1415,7 +1415,7 @@ body {
   width: 100%;
   /* Fit board to fullscreen available space */
   --cp-board-size: min(45dvh, 60vw);
-  --cp-gap: clamp(6px, calc(var(--cp-board-size) / 90), 12px);
+  --cp-gap: clamp(4px, calc(var(--cp-board-size) / 120), 9px);
   --cp-cell: calc((var(--cp-board-size) - (5 * var(--cp-gap))) / 6);
 }
 .cp-game-fullscreen .pmf-board{
@@ -1990,7 +1990,7 @@ body {
   margin-left: 105px; /* shift right ~2.5cm */
   /* shrink board (grid + content) by 10% */
   --cp-cell: calc(66px * 0.9);
-  --cp-gap: calc(8px * 0.9);
+  --cp-gap: calc(6px * 0.9);
 }
 .cp-practice-right .pmf-wrapper{
   width: auto;
