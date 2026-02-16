@@ -1444,7 +1444,8 @@ body {
     align-self: stretch;
     justify-content: center;
     /* In portrait, allow board to use more width */
-    --cp-board-size: min(54dvh, 100vw);
+    /* Reduce height so the whole board fits without scrolling */
+    --cp-board-size: min(40dvh, 100vw);
   }
   /* Monster sticks to top; can grow/shrink based on remaining space */
   .cp-game-fullscreen .cp-practice-boss{
@@ -1484,12 +1485,19 @@ body {
     margin: 0;
     border-radius: 0;
   }
+  .cp-game-fullscreen .cp-practice-right .pmf-wrapper{
+    margin: 0 !important;
+  }
   .cp-game-fullscreen .pmf-board-shell{
-    margin-top: 6px;
+    margin-top: 3px;
   }
   .cp-game-fullscreen .pmf-board{
     width: 100vw; /* edge-to-edge container */
     justify-content: center; /* keep jewels centered */
+    padding: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
   }
 }
 @media (max-width: 980px){
