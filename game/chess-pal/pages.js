@@ -1064,9 +1064,9 @@ const ChessPalPages = (() => {
             <div class="cp-team-hpwrap" aria-label="Player HP">
               <div class="cp-team-hpbar">
                 <div class="cp-team-hpfill" id="cpTeamHpFill"></div>
-                <div class="cp-team-hpoverlay" id="cpTeamRcvOverlay"></div>
+                <div class="cp-team-hpoverlay" id="cpTeamHpOverlay"></div>
+                <div class="cp-team-hpoverlay cp-team-hpoverlay--heal" id="cpTeamRcvOverlay"></div>
               </div>
-              <div class="cp-team-hptext" id="cpTeamHpText"></div>
             </div>
             <div class="cp-practice-teamrow" id="cpPracticeTeamRow"></div>
           </div>
@@ -1089,7 +1089,7 @@ const ChessPalPages = (() => {
     const row = document.getElementById('cpPracticeTeamRow');
     const bgImg = document.getElementById('cpPracticeBgImg');
     const hpFill = document.getElementById('cpTeamHpFill');
-    const hpText = document.getElementById('cpTeamHpText');
+    const hpOverlay = document.getElementById('cpTeamHpOverlay');
     const rcvOverlay = document.getElementById('cpTeamRcvOverlay');
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpOverlay = document.getElementById('cpBossHpOverlay');
@@ -1158,7 +1158,7 @@ const ChessPalPages = (() => {
       const bossBox = document.querySelector('.cp-practice-boss');
 
       if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
-      if (hpText) hpText.textContent = pMax > 0 ? `${pHp}/${pMax} HP` : '0/0 HP';
+      if (hpOverlay) hpOverlay.textContent = pMax > 0 ? `${pHp}/${pMax}` : '0/0';
       if (bossHpFill) bossHpFill.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
       if (bossHpOverlay) bossHpOverlay.textContent = mMax > 0 ? `${mHp}/${mMax}` : '';
 
@@ -1670,7 +1670,7 @@ const ChessPalPages = (() => {
         }
       }
       if (hpFill) hpFill.style.width = '100%';
-      if (hpText) hpText.textContent = totalHp > 0 ? `${totalHp} HP` : '0 HP';
+      if (hpOverlay) hpOverlay.textContent = totalHp > 0 ? `${totalHp}/${totalHp}` : '0/0';
       // Keep RCV total for future use (not displayed yet)
       try { window.__cpPlayerRcvTotal = totalRcv; } catch {}
       if (rcvOverlay) rcvOverlay.textContent = '';

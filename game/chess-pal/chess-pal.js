@@ -185,7 +185,6 @@ const ChessPal = (() => {
     renderCascades([]);
     renderScoreBreakdown(null);
     updateTimerDisplay(1);
-    updateStartButtonState();
     pushLog('Board initialized. Tap a jewel to place the knight and start the timer.');
   }
 
@@ -540,7 +539,6 @@ const ChessPal = (() => {
     pushLog('Turn started. Use knight moves to consume jewels.');
     renderMoveHistory();
     renderCascades([]);
-    updateStartButtonState();
   }
 
   function handleTimerTick() {
@@ -570,7 +568,6 @@ const ChessPal = (() => {
       state.startingKnight = null;
       state.knightPosition = null;
       emitElementScores(computeElementScores([], []), 'final');
-      updateStartButtonState();
       return;
     }
 
@@ -595,7 +592,6 @@ const ChessPal = (() => {
         state.startingKnight = null;
         state.knightPosition = null;
         state.moveHistory = [];
-        updateStartButtonState();
         state.isAnimating = false;
       });
     });
@@ -750,17 +746,6 @@ const ChessPal = (() => {
         Chain ${index + 1}: ${cascade.matches.map(match => `${match.element.toUpperCase()}×${match.count}`).join(', ')}
       </li>
     `).join('');
-  }
-
-  function updateStartButtonState() {
-    if (!state.startButtonEl) return;
-    if (!state.isPlayerTurn && state.startingKnight) {
-      state.startButtonEl.classList.remove('hidden');
-      state.startButtonEl.disabled = false;
-    } else {
-      state.startButtonEl.classList.add('hidden');
-      state.startButtonEl.disabled = true;
-    }
   }
 
   function updateTimerDisplay(ratio) {
