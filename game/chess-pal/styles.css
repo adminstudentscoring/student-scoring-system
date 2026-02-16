@@ -1479,6 +1479,7 @@ body {
     width: min(92vw, 520px);
     margin-left: auto;
     margin-right: auto;
+    margin-bottom: 0; /* portrait: remove fullscreen (landscape) 100px bottom offset */
   }
   .cp-game-fullscreen .cp-team-hpwrap{
     width: min(92vw, 520px);
