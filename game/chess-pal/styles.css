@@ -1714,6 +1714,12 @@ body {
     width: 100%;
     margin-left: 0;
     margin-right: 0;
+    /* Override fullscreen midline anchoring + fixed cm height */
+    margin-top: 0 !important;
+    height: auto !important;
+    min-height: 120px !important;
+    aspect-ratio: auto !important;
+    flex: 1 1 auto;
   }
   .cp-game-fullscreen .cp-practice-bossimg{
     width: 100%;
