@@ -1052,7 +1052,7 @@ const ChessPalPages = (() => {
         </div>
         <div class="cp-practice-left">
           <div class="cp-practice-boss" aria-label="Boss preview" ${monsterEl ? `data-element="${esc(monsterEl)}"` : ``}>
-            <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="eager" fetchpriority="high">
+            <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="lazy">
             <div class="cp-boss-hp" aria-label="Monster HP">
               <div class="cp-boss-hpbar">
                 <div class="cp-boss-hpfill" id="cpBossHpFill"></div>
@@ -1094,6 +1094,22 @@ const ChessPalPages = (() => {
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpOverlay = document.getElementById('cpBossHpOverlay');
     const hintEl = document.getElementById('cpPracticeHint');
+    const bossImgEl = document.getElementById('cpPracticeBossImg');
+
+    const fadeInImage = (imgEl) => {
+      if (!imgEl) return;
+      try { imgEl.classList.add('is-fadein'); } catch {}
+      const done = () => { try { imgEl.classList.remove('is-fadein'); } catch {} };
+      try {
+        if (imgEl.complete && imgEl.naturalWidth > 0) {
+          requestAnimationFrame(() => requestAnimationFrame(done));
+          return;
+        }
+      } catch {}
+      try { imgEl.addEventListener('load', done, { once: true }); } catch {}
+      try { imgEl.addEventListener('error', done, { once: true }); } catch {}
+    };
+    fadeInImage(bossImgEl);
 
     const syncPracticeBg = () => {
       if (!bgImg) return;
@@ -1505,7 +1521,7 @@ const ChessPalPages = (() => {
                   } catch {}
                   try { window.__cpBoardElements = pool; } catch {}
 
-                  // Update boss art
+                  // Update boss art (fade-in on change; no preloading)
                   try {
                     const monsterId = String(cfg.monsterId || '004').trim().padStart(3, '0');
                     const m = getMonsterFromDbQuick(monsterId);
@@ -1517,27 +1533,26 @@ const ChessPalPages = (() => {
                     if (bossImgEl) {
                       const nextSrc = img;
                       const curSrc = String(bossImgEl.getAttribute('src') || '');
-                      // Preload the next monster image first to avoid layout/paint jank on stage transitions.
+                      const reveal = () => { try { bossImgEl.classList.remove('is-img-hidden'); } catch {} };
+                      // Hide immediately (no fade-out), then fade-in once the new image is ready.
+                      try {
+                        bossImgEl.style.transition = 'none';
+                        bossImgEl.classList.add('is-img-hidden');
+                        void bossImgEl.offsetWidth; // force reflow so next transition applies
+                        bossImgEl.style.transition = '';
+                      } catch {}
                       if (nextSrc && nextSrc !== curSrc) {
-                        try {
-                          const pre = new Image();
-                          pre.decoding = 'async';
-                          pre.onload = () => {
-                            try { bossImgEl.setAttribute('src', nextSrc); } catch {}
-                            try { bossImgEl.setAttribute('alt', nm); } catch {}
-                          };
-                          pre.onerror = () => {
-                            try { bossImgEl.setAttribute('src', nextSrc); } catch {}
-                            try { bossImgEl.setAttribute('alt', nm); } catch {}
-                          };
-                          pre.src = nextSrc;
-                        } catch {
-                          bossImgEl.setAttribute('src', nextSrc);
-                          bossImgEl.setAttribute('alt', nm);
-                        }
-                      } else {
-                        bossImgEl.setAttribute('alt', nm);
+                        try { bossImgEl.setAttribute('src', nextSrc); } catch {}
                       }
+                      try { bossImgEl.setAttribute('alt', nm); } catch {}
+                      try {
+                        if (bossImgEl.complete && bossImgEl.naturalWidth > 0) {
+                          requestAnimationFrame(() => requestAnimationFrame(reveal));
+                        } else {
+                          bossImgEl.addEventListener('load', reveal, { once: true });
+                          bossImgEl.addEventListener('error', reveal, { once: true });
+                        }
+                      } catch { reveal(); }
                     }
                     if (bossBoxEl) {
                       if (el) bossBoxEl.setAttribute('data-element', el);

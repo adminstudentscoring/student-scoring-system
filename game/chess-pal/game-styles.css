@@ -332,6 +332,13 @@
   object-fit: cover;
   display:block;
   filter: saturate(1.04);
+  opacity: 1;
+  transition: opacity 260ms ease;
+  will-change: opacity;
+}
+.cp-practice-bossimg.is-img-hidden,
+.cp-practice-bossimg.is-fadein{
+  opacity: 0;
 }
 
 /* Fullscreen: monster art fixed height, show full image */
