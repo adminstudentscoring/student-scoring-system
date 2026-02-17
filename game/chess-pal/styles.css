@@ -1118,6 +1118,19 @@ body {
   overflow: auto;
   max-height: 86vh;
 }
+
+/* Admin: Edit stages modal (single vertical scroll list) */
+.cp-editstages-modal{
+  width: min(760px, 100%);
+}
+.cp-editstages-list{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cp-editstages-stage{
+  width: 100%;
+}
 .cp-hero-modal-grid{
   display:grid;
   grid-template-columns: 1fr 1fr;

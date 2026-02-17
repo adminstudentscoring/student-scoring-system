@@ -295,20 +295,20 @@ const ChessPalPages = (() => {
     overlay.id = 'cpEditStagesOverlay';
     overlay.className = 'cp-modal-overlay';
     overlay.innerHTML = `
-      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Edit stages">
+      <div class="cp-modal cp-editstages-modal" role="dialog" aria-modal="true" aria-label="Edit stages">
         <button class="cp-modal-close" type="button" aria-label="Close">×</button>
         <div class="cp-modal-body">
           <div class="cp-h1" style="font-size:18px;">Edit stages · Chapter ${esc(String(ch))}</div>
           <div class="cp-muted" style="margin-top:6px;">Pick Monster and Level for each stage. Stage 5 is always labeled Boss Stage.</div>
 
-          <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
+          <div class="cp-editstages-list" style="margin-top:12px;">
             ${Array.from({ length: 5 }, (_, i) => {
               const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
               const label = (i === 4) ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`;
               const mons0 = normalizeStageMonsters(s);
               const d0 = Array.isArray(s.drops) ? s.drops : [];
               return `
-                <div class="cp-setting-item">
+                <div class="cp-setting-item cp-editstages-stage">
                   <div class="cp-setting-label">${esc(label)}</div>
                   <div class="cp-setting-help" style="margin-top:10px;">Monsters (tap Add/Remove to change count)</div>
                   <div class="cp-row" style="margin-top:8px; justify-content:flex-end; gap:8px;">
