@@ -107,7 +107,7 @@
   }
   .cp-game-fullscreen .cp-practice-team{
     grid-row: 2;
-    margin-top: 0;
+    margin-top: 70px; /* portrait: spacing between row 1 and row 2 */
     margin-bottom: 0;
   }
   .cp-game-fullscreen .cp-practice-right{
@@ -125,7 +125,7 @@
   }
   /* Monster sticks to top; can grow/shrink based on remaining space */
   .cp-game-fullscreen .cp-practice-boss{
-    margin-top: 0;
+    margin-top: 20px; /* portrait: add 20px top offset for row 1 */
     flex: 1 1 auto;
     min-height: 120px;
     height: auto;
@@ -138,7 +138,7 @@
   }
   /* Hero block is fixed just above the board */
   .cp-game-fullscreen .cp-practice-team{
-    margin-top: 0;
+    margin-top: 70px; /* portrait: spacing between row 1 and row 2 */
   }
   .cp-game-fullscreen .cp-practice-teamrow{
     width: min(92vw, 520px);
