@@ -32,6 +32,12 @@
     return cleared;
   }
 
+  function hasClaimedChapterReward(chapterId) {
+    const ch = String(clampInt(chapterId, 1, 10));
+    const p = loadProgress();
+    return !!(p?.[ch]?.chapterRewardClaimed);
+  }
+
   function markStageCleared(chapterId, stageIdx1) {
     const ch = String(clampInt(chapterId, 1, 10));
     const st = clampInt(stageIdx1, 1, 5);
@@ -41,6 +47,13 @@
     p[ch] = { ...(p[ch] && typeof p[ch] === 'object' ? p[ch] : {}), clearedStage: next };
     saveProgress(p);
     return next;
+  }
+
+  function markChapterRewardClaimed(chapterId) {
+    const ch = String(clampInt(chapterId, 1, 10));
+    const p = loadProgress();
+    p[ch] = { ...(p[ch] && typeof p[ch] === 'object' ? p[ch] : {}), chapterRewardClaimed: true };
+    saveProgress(p);
   }
 
   function isStageUnlocked(chapterId, stageIdx1) {
@@ -65,6 +78,8 @@
   window.ChessPalStory = {
     getClearedStage,
     markStageCleared,
+    hasClaimedChapterReward,
+    markChapterRewardClaimed,
     isStageUnlocked,
     getFixedElementPool,
   };

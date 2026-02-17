@@ -190,28 +190,44 @@ const ChessPalPages = (() => {
 
   // ----------------------------
   // Story Mode stages (Admin can edit; UI-only for now)
-  // Stored as: { "1": [{monsterId, level} x5], "2": ... }
+  // Stored as: { "1": [{ monsters: [{monsterId, level}, ...], hint, drops } x5], "2": ... }
+  // Back-compat: older saves may store {monsterId, level, hint, drops} per stage.
   // ----------------------------
   const STORY_STAGES_KEY = 'chessPalStoryStages';
+
+  function normalizeStageMonsters(stageLike) {
+    const raw = stageLike && typeof stageLike === 'object' ? stageLike : {};
+    const arr = Array.isArray(raw.monsters) ? raw.monsters : null;
+    const list = (arr && arr.length)
+      ? arr
+      : [{ monsterId: raw.monsterId || '004', level: raw.level || 1 }];
+    const out = list
+      .map(x => ({
+        monsterId: String(x?.monsterId || '004').trim().padStart(3, '0'),
+        level: Math.max(1, Math.floor(Number(x?.level) || 1)),
+      }))
+      .filter(x => /^\d{3}$/.test(x.monsterId));
+    return out.length ? out : [{ monsterId: '004', level: 1 }];
+  }
 
   function defaultStoryStagesForChapter(chapterId) {
     const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
     // Sensible defaults (admin can overwrite any time)
     if (ch === 1) {
       return [
-        { monsterId: '017', level: 1, drops: [] },
-        { monsterId: '018', level: 1, drops: [] },
-        { monsterId: '021', level: 2, drops: [] },
-        { monsterId: '027', level: 2, drops: [] },
-        { monsterId: '004', level: 1, drops: [] },
+        { monsters: [{ monsterId: '017', level: 1 }], drops: [] },
+        { monsters: [{ monsterId: '018', level: 1 }], drops: [] },
+        { monsters: [{ monsterId: '021', level: 2 }], drops: [] },
+        { monsters: [{ monsterId: '027', level: 2 }], drops: [] },
+        { monsters: [{ monsterId: '004', level: 1 }], drops: [] },
       ];
     }
     return [
-      { monsterId: '011', level: 1, drops: [] },
-      { monsterId: '014', level: 1, drops: [] },
-      { monsterId: '017', level: 1, drops: [] },
-      { monsterId: '020', level: 1, drops: [] },
-      { monsterId: '004', level: 1, drops: [] },
+      { monsters: [{ monsterId: '011', level: 1 }], drops: [] },
+      { monsters: [{ monsterId: '014', level: 1 }], drops: [] },
+      { monsters: [{ monsterId: '017', level: 1 }], drops: [] },
+      { monsters: [{ monsterId: '020', level: 1 }], drops: [] },
+      { monsters: [{ monsterId: '004', level: 1 }], drops: [] },
     ];
   }
 
@@ -287,32 +303,47 @@ const ChessPalPages = (() => {
 
           <div class="cp-setting-grid" style="margin-top:12px; grid-template-columns: 1fr;">
             ${Array.from({ length: 5 }, (_, i) => {
-              const s = current[i] || { monsterId: '004', level: 1, drops: [] };
+              const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
               const label = (i === 4) ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`;
-              const monsterId0 = String(s.monsterId || '004').trim().padStart(3, '0');
-              const mon0 = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === monsterId0) || null;
-              const monImg0 = String(mon0?.img || '');
+              const mons0 = normalizeStageMonsters(s);
               const d0 = Array.isArray(s.drops) ? s.drops : [];
               return `
                 <div class="cp-setting-item">
                   <div class="cp-setting-label">${esc(label)}</div>
-                  <div class="cp-row" style="margin-top:10px; align-items:flex-start;">
-                    <div style="width: 76px;">
-                      ${monImg0 ? `<img src="${esc(monImg0)}" alt="" style="width:76px;height:76px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy" data-stage-monster-prev="${esc(String(i))}">` : `<div style="width:76px;height:76px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" data-stage-monster-prev="${esc(String(i))}"></div>`}
-                    </div>
-                    <div style="flex:1 1 auto; min-width: 240px;">
-                  <div class="cp-row" style="margin-top:10px;">
-                    <div style="flex:1 1 260px; min-width: 240px;">
-                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
-                      <select class="cp-select" data-stage-monster="${esc(String(i))}">
-                        ${monsterOptions}
-                      </select>
-                    </div>
-                    <div style="width: 140px;">
-                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
-                      <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(s.level) || 1))))}" data-stage-level="${esc(String(i))}">
-                    </div>
+                  <div class="cp-setting-help" style="margin-top:10px;">Monsters (tap Add/Remove to change count)</div>
+                  <div class="cp-row" style="margin-top:8px; justify-content:flex-end; gap:8px;">
+                    <button class="cp-tool-btn" type="button" data-stage-mon-add="${esc(String(i))}">Add</button>
+                    <button class="cp-tool-btn" type="button" data-stage-mon-remove="${esc(String(i))}">Remove</button>
                   </div>
+                  <div style="display:grid; grid-template-columns: 1fr; gap:10px; margin-top:10px;" data-stage-monsters-box="${esc(String(i))}">
+                    ${mons0.map((mm, k) => {
+                      const mid = String(mm.monsterId || '004').trim().padStart(3, '0');
+                      const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === mid) || null;
+                      const src = String(mon?.img || '').trim();
+                      return `
+                        <div class="cp-row" style="margin-top:0; align-items:flex-start;" data-stage-monster-row="${esc(String(i))}-${esc(String(k))}">
+                          <div style="width: 64px;">
+                            ${src ? `<img src="${esc(src)}" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy" data-stage-monster-prev="${esc(String(i))}-${esc(String(k))}">` : `<div style="width:64px;height:64px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" data-stage-monster-prev="${esc(String(i))}-${esc(String(k))}"></div>`}
+                          </div>
+                          <div style="flex:1 1 auto; min-width: 240px;">
+                            <div class="cp-row" style="margin-top:0;">
+                              <div style="flex:1 1 260px; min-width: 240px;">
+                                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
+                                <select class="cp-select" data-stage-monster="${esc(String(i))}-${esc(String(k))}">
+                                  ${monsterOptions}
+                                </select>
+                              </div>
+                              <div style="width: 140px;">
+                                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
+                                <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(mm.level) || 1))))}" data-stage-level="${esc(String(i))}-${esc(String(k))}">
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+
                       <div class="cp-setting-help" style="margin-top:10px;">Drops (one item per clear)</div>
                       <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
                         ${Array.from({ length: 3 }, (_, j) => {
@@ -360,9 +391,13 @@ const ChessPalPages = (() => {
 
     // set default selected values
     for (let i = 0; i < 5; i += 1) {
-      const s = current[i] || { monsterId: '004', level: 1, drops: [] };
-      const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`);
-      if (sel) sel.value = String(s.monsterId || '004').trim().padStart(3, '0');
+      const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
+      const mons0 = normalizeStageMonsters(s);
+      for (let k = 0; k < mons0.length; k += 1) {
+        const mm = mons0[k] || {};
+        const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        if (sel) sel.value = String(mm.monsterId || '004').trim().padStart(3, '0');
+      }
       const drops = Array.isArray(s.drops) ? s.drops : [];
       for (let j = 0; j < 3; j += 1) {
         const d = drops[j] || {};
@@ -373,20 +408,24 @@ const ChessPalPages = (() => {
 
     // live previews
     for (let i = 0; i < 5; i += 1) {
-      const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`);
-      sel?.addEventListener('change', () => {
-        try {
-          const id = String(sel.value || '').trim().padStart(3, '0');
-          const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === id) || null;
-          const prev = overlay.querySelector(`[data-stage-monster-prev="${CSS.escape(String(i))}"]`);
-          const src = String(mon?.img || '').trim();
-          if (prev && prev.tagName === 'IMG') {
-            if (src) prev.setAttribute('src', src);
-          } else if (prev && src) {
-            prev.innerHTML = `<img src="${esc(src)}" alt="" style="width:76px;height:76px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy">`;
-          }
-        } catch {}
-      }, { passive: true });
+      const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
+      const mons0 = normalizeStageMonsters(s);
+      for (let k = 0; k < mons0.length; k += 1) {
+        const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        sel?.addEventListener('change', () => {
+          try {
+            const id = String(sel.value || '').trim().padStart(3, '0');
+            const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === id) || null;
+            const prev = overlay.querySelector(`[data-stage-monster-prev="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+            const src = String(mon?.img || '').trim();
+            if (prev && prev.tagName === 'IMG') {
+              if (src) prev.setAttribute('src', src);
+            } else if (prev && src) {
+              prev.innerHTML = `<img src="${esc(src)}" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy">`;
+            }
+          } catch {}
+        }, { passive: true });
+      }
 
       for (let j = 0; j < 3; j += 1) {
         const itemSel = overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
@@ -400,6 +439,80 @@ const ChessPalPages = (() => {
           } catch {}
         }, { passive: true });
       }
+    }
+
+    // Add/remove monster rows
+    const makeMonsterRowHtml = (i, k, monsterId, level) => {
+      const mid = String(monsterId || '004').trim().padStart(3, '0');
+      const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === mid) || null;
+      const src = String(mon?.img || '').trim();
+      return `
+        <div class="cp-row" style="margin-top:0; align-items:flex-start;" data-stage-monster-row="${esc(String(i))}-${esc(String(k))}">
+          <div style="width: 64px;">
+            ${src ? `<img src="${esc(src)}" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy" data-stage-monster-prev="${esc(String(i))}-${esc(String(k))}">` : `<div style="width:64px;height:64px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" data-stage-monster-prev="${esc(String(i))}-${esc(String(k))}"></div>`}
+          </div>
+          <div style="flex:1 1 auto; min-width: 240px;">
+            <div class="cp-row" style="margin-top:0;">
+              <div style="flex:1 1 260px; min-width: 240px;">
+                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
+                <select class="cp-select" data-stage-monster="${esc(String(i))}-${esc(String(k))}">
+                  ${monsterOptions}
+                </select>
+              </div>
+              <div style="width: 140px;">
+                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
+                <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(level) || 1))))}" data-stage-level="${esc(String(i))}-${esc(String(k))}">
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+    for (let i = 0; i < 5; i += 1) {
+      const addBtn = overlay.querySelector(`[data-stage-mon-add="${CSS.escape(String(i))}"]`);
+      const rmBtn = overlay.querySelector(`[data-stage-mon-remove="${CSS.escape(String(i))}"]`);
+      const box = overlay.querySelector(`[data-stage-monsters-box="${CSS.escape(String(i))}"]`);
+      const hookRow = (k) => {
+        const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        sel?.addEventListener('change', () => {
+          try {
+            const id = String(sel.value || '').trim().padStart(3, '0');
+            const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === id) || null;
+            const prev = overlay.querySelector(`[data-stage-monster-prev="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+            const src = String(mon?.img || '').trim();
+            if (prev && prev.tagName === 'IMG') {
+              if (src) prev.setAttribute('src', src);
+            } else if (prev && src) {
+              prev.innerHTML = `<img src="${esc(src)}" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy">`;
+            }
+          } catch {}
+        }, { passive: true });
+      };
+      addBtn?.addEventListener('click', () => {
+        try {
+          if (!box) return;
+          const rows = Array.from(box.querySelectorAll('[data-stage-monster-row]'));
+          if (rows.length >= 4) return;
+          const k = rows.length;
+          box.insertAdjacentHTML('beforeend', makeMonsterRowHtml(i, k, '004', 1));
+          const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+          if (sel) sel.value = '004';
+          hookRow(k);
+        } catch {}
+      }, { passive: true });
+      rmBtn?.addEventListener('click', () => {
+        try {
+          if (!box) return;
+          const rows = Array.from(box.querySelectorAll('[data-stage-monster-row]'));
+          if (rows.length <= 1) return;
+          rows[rows.length - 1]?.remove();
+        } catch {}
+      }, { passive: true });
+      // ensure initial rows have preview hooks
+      try {
+        const rows = Array.from(box?.querySelectorAll('[data-stage-monster-row]') || []);
+        rows.forEach((_, k) => hookRow(k));
+      } catch {}
     }
 
     const close = () => {
@@ -420,9 +533,15 @@ const ChessPalPages = (() => {
         setMsg('');
         const stages = [];
         for (let i = 0; i < 5; i += 1) {
-          const monsterId = String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}"]`)?.value || '').trim().padStart(3, '0');
-          const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}"]`)?.value) || 1));
-          if (!/^\d{3}$/.test(monsterId)) throw new Error('Invalid monster id');
+          const box = overlay.querySelector(`[data-stage-monsters-box="${CSS.escape(String(i))}"]`);
+          const rows = Array.from(box?.querySelectorAll('[data-stage-monster-row]') || []);
+          const monsters = rows
+            .map((_, k) => ({
+              monsterId: String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value || '').trim().padStart(3, '0'),
+              level: Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value) || 1)),
+            }))
+            .filter(x => /^\d{3}$/.test(x.monsterId));
+          if (!monsters.length) throw new Error('Stage must have at least 1 monster');
           const hint = (i === 4) ? String(overlay.querySelector(`[data-stage-hint="${CSS.escape(String(i))}"]`)?.value || '').trim() : '';
           const drops = [];
           for (let j = 0; j < 3; j += 1) {
@@ -433,7 +552,8 @@ const ChessPalPages = (() => {
             if (chance <= 0) continue;
             drops.push({ itemId, chance });
           }
-          stages.push({ monsterId, level, hint, drops });
+          // Back-compat: keep monsterId/level in sync with the first monster
+          stages.push({ monsters, monsterId: monsters[0].monsterId, level: monsters[0].level, hint, drops });
         }
         setStoryStagesForChapter(ch, stages);
         setMsg('Saved.');
@@ -939,11 +1059,15 @@ const ChessPalPages = (() => {
     const st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
     const stages = getStoryStagesForChapter(ch);
     const cfg = stages[st - 1] || { monsterId: '004', level: 1, hint: '', drops: [] };
+    const monsters = normalizeStageMonsters(cfg);
+    const first = monsters[0] || { monsterId: '004', level: 1 };
     return {
       chapter: ch,
       stage: st,
-      monsterId: String(cfg.monsterId || '004').trim().padStart(3, '0'),
-      monsterLevel: Math.max(1, Math.floor(Number(cfg.level) || 1)),
+      monsters,
+      // Back-compat: first monster is still exposed as monsterId/monsterLevel
+      monsterId: String(first.monsterId || '004').trim().padStart(3, '0'),
+      monsterLevel: Math.max(1, Math.floor(Number(first.level) || 1)),
       hint: String(cfg.hint || '').trim(),
       drops: Array.isArray(cfg.drops) ? cfg.drops : [],
     };
@@ -1039,11 +1163,30 @@ const ChessPalPages = (() => {
       return String(map[ch] || fallbackImg);
     })();
     const bgSrc = String(storyBg || s.practiceBg || '').trim();
-    const monsterId = story?.monsterId ? String(story.monsterId).trim().padStart(3, '0') : '004';
-    const m = getMonsterFromDbQuick(monsterId);
-    const monsterName = String(m?.name || 'Verdant Maw');
-    const monsterImg = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
-    const monsterEl = String(m?.element || '').trim().toLowerCase();
+    const stageMonsters = (() => {
+      try {
+        const ms = Array.isArray(story?.monsters) ? story.monsters : null;
+        if (ms && ms.length) return ms;
+      } catch {}
+      const monsterId = story?.monsterId ? String(story.monsterId).trim().padStart(3, '0') : '004';
+      const monsterLevel = Number.isFinite(Number(story?.monsterLevel)) ? Math.max(1, Math.floor(Number(story.monsterLevel))) : 1;
+      return [{ monsterId, level: monsterLevel }];
+    })();
+    const monstersMeta = stageMonsters.map((mm) => {
+      const id = String(mm?.monsterId || '004').trim().padStart(3, '0');
+      const m = getMonsterFromDbQuick(id);
+      return {
+        monsterId: id,
+        level: Math.max(1, Math.floor(Number(mm?.level) || 1)),
+        name: String(m?.name || 'Monster'),
+        img: String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png'),
+        element: String(m?.element || '').trim().toLowerCase(),
+      };
+    });
+    const firstMon = monstersMeta[0] || { name: 'Verdant Maw', img: 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png', element: '' };
+    const monsterName = String(firstMon.name || 'Verdant Maw');
+    const monsterImg = String(firstMon.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
+    const monsterEl = String(firstMon.element || '').trim().toLowerCase();
     const storyStage = story?.stage ? Math.max(1, Math.min(5, Math.floor(Number(story.stage) || 1))) : 0;
     return `
       <div class="cp-practice" ${storyStage ? `data-story-stage="${esc(String(storyStage))}"` : ``}>
@@ -1059,6 +1202,16 @@ const ChessPalPages = (() => {
                 <div class="cp-boss-hpoverlay" id="cpBossHpOverlay"></div>
               </div>
             </div>
+          </div>
+          <div class="cp-bosslist" id="cpBossList" aria-label="Monster targets" ${monstersMeta.length > 1 ? `` : `style="display:none;"`}>
+            ${monstersMeta.length > 1 ? monstersMeta.map((mm, idx) => `
+              <button class="cp-bosschip ${idx === 0 ? 'is-active' : ''}" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="${idx === 0 ? 'true' : 'false'}">
+                <img class="cp-bosschip-img" src="${esc(mm.img)}" alt="${esc(mm.name)}" decoding="async" loading="lazy">
+                <div class="cp-bosschip-bar" aria-hidden="true">
+                  <div class="cp-bosschip-fill" data-boss-chipfill="${esc(String(idx))}"></div>
+                </div>
+              </button>
+            `).join('') : ``}
           </div>
           <div class="cp-practice-team" aria-label="Team preview">
             <div class="cp-team-hpwrap" aria-label="Player HP">
@@ -1094,6 +1247,70 @@ const ChessPalPages = (() => {
     const bossHpFill = document.getElementById('cpBossHpFill');
     const bossHpOverlay = document.getElementById('cpBossHpOverlay');
     const hintEl = document.getElementById('cpPracticeHint');
+    const bossList = document.getElementById('cpBossList');
+
+    const setActiveMonsterUI = (idx, opts = {}) => {
+      const b = getBattle();
+      const monsters = Array.isArray(b.monsters) ? b.monsters : [];
+      const i = Math.max(0, Math.min(monsters.length - 1, Math.floor(Number(idx) || 0)));
+      const t = monsters[i];
+      if (!t) return;
+      b.targetMonsterIdx = i;
+      // If user explicitly clicked a target, we keep it until they change it.
+      if (typeof opts?.manual === 'boolean') b.userPickedTarget = !!opts.manual;
+      // Keep back-compat single-monster fields in sync with current target
+      b.monsterLevel = t.level;
+      b.monsterMaxHp = t.maxHp;
+      b.monsterAtk = t.atk;
+      b.monsterHp = t.hp;
+
+      // Update main boss image + element
+      try {
+        const bossImgEl = document.getElementById('cpPracticeBossImg');
+        const bossBoxEl = document.querySelector('.cp-practice-boss');
+        if (bossBoxEl) {
+          if (t.element) bossBoxEl.setAttribute('data-element', String(t.element));
+          else bossBoxEl.removeAttribute('data-element');
+          bossBoxEl.classList.remove('cp-dead');
+          bossBoxEl.style.display = '';
+        }
+        if (bossImgEl) {
+          const nextSrc = String(t.img || '').trim();
+          const curSrc = String(bossImgEl.getAttribute('src') || '');
+          const reveal = () => { try { bossImgEl.classList.remove('is-img-hidden'); } catch {} };
+          if (nextSrc && nextSrc !== curSrc) {
+            try {
+              bossImgEl.style.transition = 'none';
+              bossImgEl.classList.add('is-img-hidden');
+              void bossImgEl.offsetWidth;
+              bossImgEl.style.transition = '';
+            } catch {}
+            try { bossImgEl.setAttribute('src', nextSrc); } catch {}
+            try { bossImgEl.setAttribute('alt', String(t.name || 'Monster')); } catch {}
+            try {
+              if (bossImgEl.complete && bossImgEl.naturalWidth > 0) {
+                requestAnimationFrame(() => requestAnimationFrame(reveal));
+              } else {
+                bossImgEl.addEventListener('load', reveal, { once: true });
+                bossImgEl.addEventListener('error', reveal, { once: true });
+              }
+            } catch { reveal(); }
+          } else {
+            try { bossImgEl.setAttribute('alt', String(t.name || 'Monster')); } catch {}
+            reveal();
+          }
+        }
+      } catch {}
+      updateHpUI();
+    };
+
+    bossList?.addEventListener('click', (ev) => {
+      const btn = ev?.target?.closest?.('[data-boss-idx]');
+      if (!btn) return;
+      try { ev.preventDefault(); } catch {}
+      const idx = Math.floor(Number(btn.getAttribute('data-boss-idx')) || 0);
+      setActiveMonsterUI(idx, { manual: true });
+    }, { passive: false });
     const bossImgEl = document.getElementById('cpPracticeBossImg');
 
     const fadeInImage = (imgEl) => {
@@ -1169,9 +1386,22 @@ const ChessPalPages = (() => {
       const b = getBattle();
       const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
       const pHp = Math.max(0, Math.min(pMax, Number(b.playerHp) || 0));
-      const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
-      const mHp = Math.max(0, Math.min(mMax, Number(b.monsterHp) || 0));
       const bossBox = document.querySelector('.cp-practice-boss');
+      const monsters = Array.isArray(b.monsters) ? b.monsters : null;
+      const alive = (monsters || []).filter(x => (Number(x?.hp) || 0) > 0);
+      let targetIdx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+      if (monsters && monsters.length) {
+        if (!(targetIdx >= 0 && targetIdx < monsters.length && (Number(monsters[targetIdx]?.hp) || 0) > 0)) {
+          const firstAliveIdx = monsters.findIndex(x => (Number(x?.hp) || 0) > 0);
+          targetIdx = firstAliveIdx >= 0 ? firstAliveIdx : 0;
+          b.targetMonsterIdx = targetIdx;
+        }
+      } else {
+        targetIdx = 0;
+      }
+      const t = monsters && monsters.length ? (monsters[targetIdx] || null) : null;
+      const mMax = t ? Math.max(0, Number(t.maxHp) || 0) : Math.max(0, Number(b.monsterMaxHp) || 0);
+      const mHp = t ? Math.max(0, Math.min(mMax, Number(t.hp) || 0)) : Math.max(0, Math.min(mMax, Number(b.monsterHp) || 0));
 
       if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
       if (hpOverlay) hpOverlay.textContent = pMax > 0 ? `${pHp}/${pMax}` : '0/0';
@@ -1180,19 +1410,39 @@ const ChessPalPages = (() => {
 
       // If monster is dead, allow it to stay hidden
       try {
-        if (bossBox && (Number(b.monsterHp) || 0) <= 0) {
+        const dead = monsters && monsters.length ? alive.length === 0 : (Number(b.monsterHp) || 0) <= 0;
+        if (bossBox && dead) {
           bossBox.classList.add('cp-dead');
+        }
+      } catch {}
+
+      // Update chips (if any)
+      try {
+        if (monsters && monsters.length) {
+          const list = document.getElementById('cpBossList');
+          monsters.forEach((mm, idx) => {
+            const mx = Math.max(0, Number(mm?.maxHp) || 0);
+            const mh = Math.max(0, Math.min(mx, Number(mm?.hp) || 0));
+            const fill = document.querySelector(`[data-boss-chipfill="${CSS.escape(String(idx))}"]`);
+            if (fill) fill.style.width = mx > 0 ? `${Math.max(0, Math.min(1, mh / mx)) * 100}%` : '0%';
+            const chip = list?.querySelector(`[data-boss-idx="${CSS.escape(String(idx))}"]`);
+            if (chip) {
+              chip.classList.toggle('is-active', idx === targetIdx);
+              chip.setAttribute('aria-pressed', idx === targetIdx ? 'true' : 'false');
+              chip.classList.toggle('is-dead', mh <= 0);
+            }
+          });
         }
       } catch {}
     };
 
-    const getBossBase = () => {
-      const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '004';
+    const getMonsterBase = (monsterId) => {
+      const sid = String(monsterId || '').trim().padStart(3, '0') || '004';
       try { return getAllMonsters().find(m => String(m.id) === sid) || null; } catch { return null; }
     };
-    const getBossEffective = (level) => {
+    const getMonsterEffective = (monsterId, level) => {
       const lv = Math.max(1, Math.floor(Number(level) || 1));
-      const base = getBossBase();
+      const base = getMonsterBase(monsterId);
       const baseHp = Math.max(0, Math.floor(Number(base?.hp) || 0));
       const baseAtk = Math.max(0, Math.floor(Number(base?.atk) || 0));
       const baseRcv = Math.max(0, Math.floor(Number(base?.rcv) || 0));
@@ -1204,6 +1454,14 @@ const ChessPalPages = (() => {
         atk: Math.max(0, Math.floor(baseAtk * mult)),
         rcv: Math.max(0, Math.floor(baseRcv * mult)),
       };
+    };
+    const getBossBase = () => {
+      const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '004';
+      return getMonsterBase(sid);
+    };
+    const getBossEffective = (level) => {
+      const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '004';
+      return getMonsterEffective(sid, level);
     };
 
     const showStoryHintIfAny = () => {
@@ -1376,7 +1634,6 @@ const ChessPalPages = (() => {
           bossBox.appendChild(el);
           setTimeout(() => { try { el.remove(); } catch {} }, 1200);
         };
-        const bossEl = String(getBossBase()?.element || '').toLowerCase();
         const elemMult = (att, def) => {
           const a = String(att || '').toLowerCase();
           const d = String(def || '').toLowerCase();
@@ -1388,6 +1645,52 @@ const ChessPalPages = (() => {
           if (adv[d] === a) return 0.75;
           return 1;
         };
+        const monsters = Array.isArray(b.monsters) ? b.monsters : null;
+        const aliveMons = (monsters || []).filter(x => (Number(x?.hp) || 0) > 0);
+        // Auto-target: if user didn't pick, attack the monster with highest expected total damage.
+        try {
+          if (monsters && monsters.length > 1 && !b.userPickedTarget) {
+            const predictFor = (defEl) => {
+              const dEl = String(defEl || '').toLowerCase();
+              let sum = 0;
+              for (let i = 0; i < 4; i += 1) {
+                const id = team[i];
+                const unit = id ? getTeamUnit(id) : null;
+                if (!unit) continue;
+                const el = String(unit.element || '');
+                const elScore = Number(elementScores?.[el] || 0);
+                const atk = Math.max(0, Number(unit.atk) || 0);
+                const mult = elemMult(el, dEl);
+                const teamAtkBonus = Number.isFinite(Number(b.teamAtkBonus)) ? Number(b.teamAtkBonus) : 0;
+                const elemBonus = (b.teamElemBonus && typeof b.teamElemBonus === 'object') ? Number(b.teamElemBonus[el] || 0) : 0;
+                const atkMultThisTurn = Number.isFinite(Number(b.teamAtkMultThisTurn)) ? Number(b.teamAtkMultThisTurn) : 1;
+                const dmg = Math.max(0, Math.round(atk * elScore * atkMul * mult * (1 + teamAtkBonus) * (1 + elemBonus) * atkMultThisTurn));
+                sum += dmg;
+              }
+              return sum;
+            };
+            let bestIdx = 0;
+            let bestVal = -1;
+            monsters.forEach((m, idx) => {
+              if ((Number(m?.hp) || 0) <= 0) return;
+              const val = predictFor(m?.element);
+              if (val > bestVal) { bestVal = val; bestIdx = idx; }
+            });
+            setActiveMonsterUI(bestIdx, { manual: false });
+          }
+        } catch {}
+
+        const bossEl = (() => {
+          try {
+            if (monsters && monsters.length) {
+              const idx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+              const t = monsters[Math.max(0, Math.min(monsters.length - 1, idx))];
+              const el = String(t?.element || '').toLowerCase();
+              if (el) return el;
+            }
+          } catch {}
+          return String(getBossBase()?.element || '').toLowerCase();
+        })();
 
         // Reset per-round buffs
         try {
@@ -1471,19 +1774,40 @@ const ChessPalPages = (() => {
           showDamageFloat(dmg, el, mult);
           const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
           b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - dmg));
-          updateHpUI();
-          if ((Number(b.monsterHp) || 0) <= 0) break;
-        }
-
-        // Monster death: blink + disappear (image + hp), then respawn at next level (fade in)
-        if ((Number(b.monsterHp) || 0) <= 0) {
+          // Sync into multi-monster pool (if any)
           try {
-            if (bossBox) {
-              bossBox.classList.add('cp-dead');
-              await new Promise((r) => setTimeout(r, 1000));
-              bossBox.style.display = 'none';
+            if (monsters && monsters.length) {
+              const ti = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+              const t = monsters[Math.max(0, Math.min(monsters.length - 1, ti))];
+              if (t) t.hp = Number(b.monsterHp) || 0;
             }
           } catch {}
+          updateHpUI();
+          if ((Number(b.monsterHp) || 0) <= 0) {
+            // If there are other alive monsters, switch target and continue the remaining attacks.
+            try {
+              if (monsters && monsters.length) {
+                const alive = monsters.filter(x => (Number(x?.hp) || 0) > 0);
+                if (alive.length > 0) {
+                  const nextIdx = monsters.findIndex(x => (Number(x?.hp) || 0) > 0);
+                  if (nextIdx >= 0) setActiveMonsterUI(nextIdx, { manual: false });
+                  continue;
+                }
+              }
+            } catch {}
+            break;
+          }
+        }
+
+        const allDead = (() => {
+          try {
+            if (monsters && monsters.length) return monsters.every(x => (Number(x?.hp) || 0) <= 0);
+          } catch {}
+          return (Number(b.monsterHp) || 0) <= 0;
+        })();
+
+        // Monster(s) death: if all dead, handle stage clear/respawn
+        if (allDead) {
           try {
             // Story Mode: clear stage and auto-advance (no respawn/level-up loop)
             const st = window.__cpStoryStage;
@@ -1491,6 +1815,25 @@ const ChessPalPages = (() => {
               // Drops (award for the cleared stage config)
               try { awardStoryDropIfAny(getStoryStageConfig(Number(st.chapter) || 1, Number(st.stage) || 1)); } catch {}
               try { window.ChessPalStory?.markStageCleared?.(st.chapter, st.stage); } catch {}
+              // Chapter first-clear reward: Gold Coin x1 (only once per chapter)
+              try {
+                const ch = Number(st.chapter) || 0;
+                const isChapterClear = Math.floor(Number(st.stage) || 0) === 5;
+                if (ch && window.ChessPalStory?.hasClaimedChapterReward && window.ChessPalStory?.markChapterRewardClaimed) {
+                  const claimed = !!window.ChessPalStory.hasClaimedChapterReward(ch);
+                  if (isChapterClear && !claimed) {
+                    let slots = loadStorage();
+                    slots = addItemToStorage(slots, 'gold_coin', 1);
+                    saveStorage(slots);
+                    window.ChessPalStory.markChapterRewardClaimed(ch);
+                    if (hintEl) {
+                      hintEl.textContent = 'Reward: Gold Coin × 1';
+                      hintEl.style.display = '';
+                      setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 2200);
+                    }
+                  }
+                }
+              } catch {}
               const nextStage = Math.max(1, Math.floor(Number(st.stage) || 1)) + 1;
 
               const advanceInPlace = () => {
@@ -1521,57 +1864,53 @@ const ChessPalPages = (() => {
                   } catch {}
                   try { window.__cpBoardElements = pool; } catch {}
 
-                  // Update boss art (fade-in on change; no preloading)
+                  // Reset multi-monster pool + target chips for the new stage
                   try {
-                    const monsterId = String(cfg.monsterId || '004').trim().padStart(3, '0');
-                    const m = getMonsterFromDbQuick(monsterId);
-                    const img = String(m?.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
-                    const nm = String(m?.name || 'Monster');
-                    const el = String(m?.element || '').trim().toLowerCase();
-                    const bossImgEl = document.getElementById('cpPracticeBossImg');
-                    const bossBoxEl = document.querySelector('.cp-practice-boss');
-                    if (bossImgEl) {
-                      const nextSrc = img;
-                      const curSrc = String(bossImgEl.getAttribute('src') || '');
-                      const reveal = () => { try { bossImgEl.classList.remove('is-img-hidden'); } catch {} };
-                      // Hide immediately (no fade-out), then fade-in once the new image is ready.
-                      try {
-                        bossImgEl.style.transition = 'none';
-                        bossImgEl.classList.add('is-img-hidden');
-                        void bossImgEl.offsetWidth; // force reflow so next transition applies
-                        bossImgEl.style.transition = '';
-                      } catch {}
-                      if (nextSrc && nextSrc !== curSrc) {
-                        try { bossImgEl.setAttribute('src', nextSrc); } catch {}
+                    b.userPickedTarget = false;
+                    b.targetMonsterIdx = 0;
+                    const stageMons = Array.isArray(cfg?.monsters) && cfg.monsters.length ? cfg.monsters : [{ monsterId: cfg?.monsterId || '004', level: cfg?.monsterLevel || 1 }];
+                    const nextMonsters = stageMons.map((mm, idx) => {
+                      const mid = String(mm?.monsterId || '004').trim().padStart(3, '0');
+                      const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
+                      const eff = getMonsterEffective(mid, lv);
+                      const m = getMonsterFromDbQuick(mid);
+                      return {
+                        idx,
+                        monsterId: mid,
+                        level: lv,
+                        name: String(m?.name || 'Monster'),
+                        element: String(m?.element || '').trim().toLowerCase(),
+                        img: String(m?.img || ''),
+                        maxHp: eff.hpMax,
+                        atk: eff.atk,
+                        hp: eff.hpMax,
+                      };
+                    });
+                    b.monsters = nextMonsters;
+                    // Re-render target chips
+                    if (bossList) {
+                      if (nextMonsters.length > 1) {
+                        bossList.style.display = '';
+                        bossList.innerHTML = nextMonsters.map((mm, idx) => `
+                          <button class="cp-bosschip ${idx === 0 ? 'is-active' : ''}" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="${idx === 0 ? 'true' : 'false'}">
+                            <img class="cp-bosschip-img" src="${esc(String(mm.img || ''))}" alt="${esc(String(mm.name || 'Monster'))}" decoding="async" loading="lazy">
+                            <div class="cp-bosschip-bar" aria-hidden="true">
+                              <div class="cp-bosschip-fill" data-boss-chipfill="${esc(String(idx))}"></div>
+                            </div>
+                          </button>
+                        `).join('');
+                      } else {
+                        bossList.style.display = 'none';
+                        bossList.innerHTML = '';
                       }
-                      try { bossImgEl.setAttribute('alt', nm); } catch {}
-                      try {
-                        if (bossImgEl.complete && bossImgEl.naturalWidth > 0) {
-                          requestAnimationFrame(() => requestAnimationFrame(reveal));
-                        } else {
-                          bossImgEl.addEventListener('load', reveal, { once: true });
-                          bossImgEl.addEventListener('error', reveal, { once: true });
-                        }
-                      } catch { reveal(); }
                     }
-                    if (bossBoxEl) {
-                      if (el) bossBoxEl.setAttribute('data-element', el);
-                      else bossBoxEl.removeAttribute('data-element');
-                    }
+                    // Activate first monster (updates big image + bar)
+                    setActiveMonsterUI(0);
                   } catch {}
 
-                  // Reset monster (keep player HP as the run is connected)
-                  try {
-                    const b2 = getBattle();
-                    b2.monsterLevel = Math.max(1, Math.floor(Number(cfg.monsterLevel) || 1));
-                    const eff2 = getBossEffective(b2.monsterLevel);
-                    b2.monsterMaxHp = eff2.hpMax;
-                    b2.monsterAtk = eff2.atk;
-                    b2.monsterHp = eff2.hpMax;
-                    // clear per-turn scores
-                    window.__cpPracticeElementScores = {};
-                    applyElementScoresToUI();
-                  } catch {}
+                  // clear per-turn scores
+                  try { window.__cpPracticeElementScores = {}; } catch {}
+                  try { applyElementScoresToUI(); } catch {}
 
                   // Ensure visible + update hint + intro
                   try {
@@ -1847,22 +2186,56 @@ const ChessPalPages = (() => {
       try {
         // Story stage: mark monster as seen on entry
         try {
-          const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '';
-          if (sid) addSeenMonsterId(sid);
+          const st = window.__cpStoryStage;
+          const mons = Array.isArray(st?.monsters) ? st.monsters : null;
+          if (mons && mons.length) mons.forEach(mm => { try { addSeenMonsterId(String(mm?.monsterId || '').trim().padStart(3, '0')); } catch {} });
+          else {
+            const sid = st?.monsterId ? String(st.monsterId).trim().padStart(3, '0') : '';
+            if (sid) addSeenMonsterId(sid);
+          }
         } catch {}
         const b = getBattle();
         const pMax = Math.max(0, totalHp);
         b.playerMaxHp = pMax;
         b.playerHp = Number.isFinite(Number(b.playerHp)) ? Math.max(0, Math.min(pMax, Number(b.playerHp))) : pMax;
-        const storyLv = window.__cpStoryStage?.monsterLevel;
-        const lv = Number.isFinite(Number(storyLv))
-          ? Math.max(1, Math.floor(Number(storyLv)))
-          : (Number.isFinite(Number(b.monsterLevel)) ? Math.max(1, Math.floor(Number(b.monsterLevel))) : 1);
-        b.monsterLevel = lv;
-        const eff = getBossEffective(lv);
-        b.monsterMaxHp = eff.hpMax;
-        b.monsterAtk = eff.atk;
-        b.monsterHp = Number.isFinite(Number(b.monsterHp)) ? Math.max(0, Math.min(eff.hpMax, Number(b.monsterHp))) : eff.hpMax;
+        const st = window.__cpStoryStage;
+        const stageMons = Array.isArray(st?.monsters) && st.monsters.length ? st.monsters : [{ monsterId: st?.monsterId || '004', level: st?.monsterLevel || 1 }];
+        const nextMonsters = stageMons.map((mm, idx) => {
+          const mid = String(mm?.monsterId || '004').trim().padStart(3, '0');
+          const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
+          const eff = getMonsterEffective(mid, lv);
+          const m = getMonsterFromDbQuick(mid);
+          return {
+            idx,
+            monsterId: mid,
+            level: lv,
+            name: String(m?.name || 'Monster'),
+            element: String(m?.element || '').trim().toLowerCase(),
+            img: String(m?.img || ''),
+            maxHp: eff.hpMax,
+            atk: eff.atk,
+            hp: eff.hpMax,
+          };
+        });
+        // If continuing in-place within the same stage, try to preserve HP/target by matching ids.
+        const prev = Array.isArray(b.monsters) ? b.monsters : null;
+        if (prev && prev.length) {
+          nextMonsters.forEach((nm) => {
+            const hit = prev.find(x => String(x?.monsterId || '') === nm.monsterId);
+            if (hit) nm.hp = Number.isFinite(Number(hit.hp)) ? Math.max(0, Math.min(nm.maxHp, Number(hit.hp))) : nm.hp;
+          });
+        }
+        b.monsters = nextMonsters;
+        // Back-compat single-monster fields follow the current target (default to 0)
+        b.targetMonsterIdx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+        const tIdx = Math.max(0, Math.min(nextMonsters.length - 1, Number(b.targetMonsterIdx) || 0));
+        const t = nextMonsters[tIdx] || nextMonsters[0];
+        if (t) {
+          b.monsterLevel = t.level;
+          b.monsterMaxHp = t.maxHp;
+          b.monsterAtk = t.atk;
+          b.monsterHp = t.hp;
+        }
         // If previously hidden due to death, ensure it is visible on init
         const bossBox = document.querySelector('.cp-practice-boss');
         if (bossBox && bossBox.style.display === 'none') bossBox.style.display = '';
