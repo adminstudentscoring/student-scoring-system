@@ -1052,7 +1052,7 @@ const ChessPalPages = (() => {
         </div>
         <div class="cp-practice-left">
           <div class="cp-practice-boss" aria-label="Boss preview" ${monsterEl ? `data-element="${esc(monsterEl)}"` : ``}>
-            <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="lazy">
+            <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="eager" fetchpriority="high">
             <div class="cp-boss-hp" aria-label="Monster HP">
               <div class="cp-boss-hpbar">
                 <div class="cp-boss-hpfill" id="cpBossHpFill"></div>
@@ -1515,8 +1515,29 @@ const ChessPalPages = (() => {
                     const bossImgEl = document.getElementById('cpPracticeBossImg');
                     const bossBoxEl = document.querySelector('.cp-practice-boss');
                     if (bossImgEl) {
-                      bossImgEl.setAttribute('src', img);
-                      bossImgEl.setAttribute('alt', nm);
+                      const nextSrc = img;
+                      const curSrc = String(bossImgEl.getAttribute('src') || '');
+                      // Preload the next monster image first to avoid layout/paint jank on stage transitions.
+                      if (nextSrc && nextSrc !== curSrc) {
+                        try {
+                          const pre = new Image();
+                          pre.decoding = 'async';
+                          pre.onload = () => {
+                            try { bossImgEl.setAttribute('src', nextSrc); } catch {}
+                            try { bossImgEl.setAttribute('alt', nm); } catch {}
+                          };
+                          pre.onerror = () => {
+                            try { bossImgEl.setAttribute('src', nextSrc); } catch {}
+                            try { bossImgEl.setAttribute('alt', nm); } catch {}
+                          };
+                          pre.src = nextSrc;
+                        } catch {
+                          bossImgEl.setAttribute('src', nextSrc);
+                          bossImgEl.setAttribute('alt', nm);
+                        }
+                      } else {
+                        bossImgEl.setAttribute('alt', nm);
+                      }
                     }
                     if (bossBoxEl) {
                       if (el) bossBoxEl.setAttribute('data-element', el);
