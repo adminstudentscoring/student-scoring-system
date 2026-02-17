@@ -337,13 +337,14 @@
 /* Fullscreen: monster art fixed height, show full image */
 .cp-game-fullscreen .cp-practice-boss{
   --cp-boss-h: 9cm;
-  width: fit-content; /* match image width */
+  /* Keep a stable box even before image loads (prevents layout shift) */
+  width: min(100%, var(--cp-boss-h));
   max-width: 100%;
   margin-left: auto;
   margin-right: auto;
   height: var(--cp-boss-h);
   min-height: var(--cp-boss-h);
-  aspect-ratio: auto;
+  aspect-ratio: 1 / 1;
   /* Monster image bottom anchored at ~60% viewport height */
   margin-top: clamp(0px, calc(60dvh - var(--cp-game-pad, 14px) - var(--cp-boss-h)), 999px);
 }
