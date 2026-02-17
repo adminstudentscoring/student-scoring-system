@@ -517,7 +517,8 @@ const ChessPalPages = (() => {
       try { window.removeEventListener('keydown', onKey); } catch {}
     };
     const onKey = (ev) => { if (ev.key === 'Escape') close(); };
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    // Keep Edit Stages modal open when clicking outside.
+    // Close is only via X, Cancel, or Save flow.
     overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
     overlay.querySelector('#cpEditStagesCancel')?.addEventListener('click', close, { passive: true });
     window.addEventListener('keydown', onKey);
