@@ -4003,57 +4003,274 @@ const ChessPalPages = (() => {
     }, { passive: true });
   };
 
+  const MALL_CONFIG_KEY = 'chessPalMallConfig';
+
+  function defaultMallConfig() {
+    const now = Date.now();
+    return {
+      updatedAt: now,
+      offers: [
+        { id: 'offer_exp_pawn', itemId: 'exp_pawn', currencyId: 'gold_coin', price: 1, limitHours: 0, enabled: true },
+        { id: 'offer_exp_knight', itemId: 'exp_knight', currencyId: 'gold_coin', price: 3, limitHours: 0, enabled: true },
+        { id: 'offer_exp_bishop', itemId: 'exp_bishop', currencyId: 'gold_coin', price: 5, limitHours: 0, enabled: true },
+      ],
+    };
+  }
+
+  function normalizeMallConfig(raw) {
+    const base = defaultMallConfig();
+    const defs = STORAGE_ITEM_DEFS || {};
+    const offersIn = Array.isArray(raw?.offers) ? raw.offers : base.offers;
+    const offers = offersIn
+      .map((o, idx) => {
+        const itemId = String(o?.itemId || '').trim().toLowerCase();
+        if (!itemId || !defs[itemId]) return null;
+        const currencyIdRaw = String(o?.currencyId || '').trim().toLowerCase();
+        const currencyId = (currencyIdRaw && defs[currencyIdRaw]) ? currencyIdRaw : 'gold_coin';
+        const price = Math.max(1, Math.floor(Number(o?.price) || 1));
+        const limitHours = Math.max(0, Math.floor(Number(o?.limitHours) || 0));
+        const enabled = o?.enabled !== false;
+        const id = String(o?.id || `offer_${idx + 1}`).trim() || `offer_${idx + 1}`;
+        return { id, itemId, currencyId, price, limitHours, enabled };
+      })
+      .filter(Boolean);
+    return {
+      updatedAt: Number.isFinite(Number(raw?.updatedAt)) ? Math.floor(Number(raw.updatedAt)) : base.updatedAt,
+      offers: offers.length ? offers : base.offers,
+    };
+  }
+
+  function loadMallConfig() {
+    try {
+      const raw = localStorage.getItem(MALL_CONFIG_KEY);
+      if (!raw) return normalizeMallConfig(defaultMallConfig());
+      return normalizeMallConfig(JSON.parse(raw));
+    } catch {
+      return normalizeMallConfig(defaultMallConfig());
+    }
+  }
+
+  function saveMallConfig(cfg) {
+    try {
+      const next = normalizeMallConfig(cfg);
+      next.updatedAt = Date.now();
+      localStorage.setItem(MALL_CONFIG_KEY, JSON.stringify(next));
+    } catch {}
+    try { window.dispatchEvent(new Event('cpMallConfigChanged')); } catch {}
+  }
+
+  function getMallOffersForNow() {
+    const cfg = loadMallConfig();
+    const now = Date.now();
+    const startAt = Math.max(0, Number(cfg.updatedAt) || 0);
+    return (Array.isArray(cfg.offers) ? cfg.offers : [])
+      .filter(o => o && o.enabled !== false)
+      .map((o) => {
+        const limitHours = Math.max(0, Math.floor(Number(o.limitHours) || 0));
+        const expiresAt = limitHours > 0 ? (startAt + limitHours * 3600000) : 0;
+        return { ...o, expiresAt, expired: expiresAt > 0 ? now >= expiresAt : false };
+      })
+      .filter(o => !o.expired);
+  }
+
+  function mallTimeText(expiresAt) {
+    const t = Math.floor(Number(expiresAt) || 0);
+    if (!(t > 0)) return '';
+    const ms = t - Date.now();
+    if (ms <= 0) return 'Expired';
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    if (h > 0) return `${h}h ${m}m left`;
+    return `${m}m left`;
+  }
+
+  function showMallAdminSettingsModal(onSaved) {
+    if (!isAdminMode()) return;
+    const old = document.getElementById('cpMallAdminOverlay');
+    if (old) old.remove();
+
+    const cfg = loadMallConfig();
+    const defs = Object.values(STORAGE_ITEM_DEFS || {}).filter(Boolean);
+    const itemOptions = defs
+      .slice()
+      .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)))
+      .map(d => `<option value="${esc(String(d.id))}">${esc(String(d.name || d.id))}</option>`)
+      .join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpMallAdminOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Mall setting">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Mall Setting</div>
+          <div class="cp-muted" style="margin-top:6px;">Set sale item, price item, price amount, and time limit.</div>
+          <div id="cpMallAdminRows" style="display:grid; gap:10px; margin-top:12px;"></div>
+          <div class="cp-row" style="margin-top:12px; justify-content:space-between;">
+            <button class="cp-tool-btn" type="button" id="cpMallAdminAdd">Add item</button>
+            <div style="display:flex; gap:8px;">
+              <button class="cp-tool-btn" type="button" id="cpMallAdminCancel">Cancel</button>
+              <button class="cp-primary" type="button" id="cpMallAdminSave">Save</button>
+            </div>
+          </div>
+          <div class="cp-muted" id="cpMallAdminMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const rowsHost = overlay.querySelector('#cpMallAdminRows');
+    const msg = overlay.querySelector('#cpMallAdminMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+
+    const makeRow = (o, idx) => {
+      const key = String(o?.id || `offer_${idx + 1}`).trim() || `offer_${idx + 1}`;
+      const itemId = String(o?.itemId || 'exp_pawn').trim().toLowerCase();
+      const currencyId = String(o?.currencyId || 'gold_coin').trim().toLowerCase();
+      const price = Math.max(1, Math.floor(Number(o?.price) || 1));
+      const limitHours = Math.max(0, Math.floor(Number(o?.limitHours) || 0));
+      const enabled = o?.enabled !== false;
+      return `
+        <div class="cp-setting-item" data-mall-row="${esc(key)}">
+          <div class="cp-row" style="margin-top:0; align-items:flex-end; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1 1 220px; min-width: 180px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Sell item</div>
+              <select class="cp-select" data-mall-item>${itemOptions}</select>
+            </div>
+            <div style="flex:1 1 220px; min-width: 180px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Price item</div>
+              <select class="cp-select" data-mall-currency>${itemOptions}</select>
+            </div>
+            <div style="width: 120px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Price</div>
+              <input class="cp-input" type="number" min="1" step="1" value="${esc(String(price))}" data-mall-price>
+            </div>
+            <div style="width: 140px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Limit (hours)</div>
+              <input class="cp-input" type="number" min="0" step="1" value="${esc(String(limitHours))}" data-mall-limit>
+            </div>
+            <label class="cp-setting-help" style="display:flex; align-items:center; gap:6px; margin:0 0 10px;">
+              <input type="checkbox" ${enabled ? 'checked' : ''} data-mall-enabled>
+              Enabled
+            </label>
+            <button class="cp-tool-btn" type="button" data-mall-remove style="margin-bottom:6px;">Remove</button>
+          </div>
+        </div>
+      `;
+    };
+
+    const renderRows = (offers) => {
+      rowsHost.innerHTML = offers.map((o, idx) => makeRow(o, idx)).join('');
+      rowsHost.querySelectorAll('[data-mall-row]').forEach((rowEl, idx) => {
+        const rowData = offers[idx] || {};
+        const sellSel = rowEl.querySelector('[data-mall-item]');
+        const curSel = rowEl.querySelector('[data-mall-currency]');
+        if (sellSel) sellSel.value = String(rowData.itemId || 'exp_pawn');
+        if (curSel) curSel.value = String(rowData.currencyId || 'gold_coin');
+        rowEl.querySelector('[data-mall-remove]')?.addEventListener('click', () => {
+          const id = String(rowEl.getAttribute('data-mall-row') || '');
+          const next = offers.filter(x => String(x?.id || '') !== id);
+          renderRows(next);
+        }, { passive: true });
+      });
+    };
+
+    const initial = Array.isArray(cfg.offers) && cfg.offers.length ? cfg.offers : defaultMallConfig().offers;
+    renderRows(initial);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    overlay.querySelector('#cpMallAdminCancel')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    overlay.querySelector('#cpMallAdminAdd')?.addEventListener('click', () => {
+      const nowOffers = Array.from(rowsHost.querySelectorAll('[data-mall-row]')).map((el, idx) => {
+        const id = String(el.getAttribute('data-mall-row') || `offer_${idx + 1}`);
+        return {
+          id,
+          itemId: String(el.querySelector('[data-mall-item]')?.value || 'exp_pawn').trim().toLowerCase(),
+          currencyId: String(el.querySelector('[data-mall-currency]')?.value || 'gold_coin').trim().toLowerCase(),
+          price: Math.max(1, Math.floor(Number(el.querySelector('[data-mall-price]')?.value) || 1)),
+          limitHours: Math.max(0, Math.floor(Number(el.querySelector('[data-mall-limit]')?.value) || 0)),
+          enabled: !!el.querySelector('[data-mall-enabled]')?.checked,
+        };
+      });
+      nowOffers.push({
+        id: `offer_${Date.now()}`,
+        itemId: 'exp_pawn',
+        currencyId: 'gold_coin',
+        price: 1,
+        limitHours: 0,
+        enabled: true,
+      });
+      renderRows(nowOffers);
+    }, { passive: true });
+
+    overlay.querySelector('#cpMallAdminSave')?.addEventListener('click', () => {
+      try {
+        const rows = Array.from(rowsHost.querySelectorAll('[data-mall-row]'));
+        const offers = rows.map((el, idx) => {
+          const id = String(el.getAttribute('data-mall-row') || `offer_${idx + 1}`).trim() || `offer_${idx + 1}`;
+          const itemId = String(el.querySelector('[data-mall-item]')?.value || '').trim().toLowerCase();
+          const currencyId = String(el.querySelector('[data-mall-currency]')?.value || '').trim().toLowerCase() || 'gold_coin';
+          const price = Math.max(1, Math.floor(Number(el.querySelector('[data-mall-price]')?.value) || 1));
+          const limitHours = Math.max(0, Math.floor(Number(el.querySelector('[data-mall-limit]')?.value) || 0));
+          const enabled = !!el.querySelector('[data-mall-enabled]')?.checked;
+          return { id, itemId, currencyId, price, limitHours, enabled };
+        }).filter(o => !!getStorageItemDef(o.itemId));
+        if (!offers.length) throw new Error('Need at least one valid mall item.');
+        saveMallConfig({ updatedAt: Date.now(), offers });
+        setMsg('Saved.');
+        try { onSaved && onSaved(); } catch {}
+        setTimeout(() => close(), 220);
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Save failed'));
+      }
+    }, { passive: true });
+  }
+
   function ShopMallPage() {}
   ShopMallPage.title = 'Mall';
   ShopMallPage.render = () => {
+    const offers = getMallOffersForNow();
+    const admin = isAdminMode();
     return `
       <div class="cp-page-card">
-        <div class="cp-h1">Mall</div>
+        <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
+          <div class="cp-h1">Mall</div>
+          ${admin ? `<button class="cp-tool-btn" type="button" id="cpMallSettingBtn">Setting</button>` : ``}
+        </div>
         <div class="cp-mall-grid" style="margin-top:12px;">
-          <div class="cp-mall-item">
-            <div class="cp-mall-icon">
-              ${renderImgWithFallback('images/Storage/S003-Exp-Pawn.png', 'EXP Pawn', '')}
-            </div>
-            <div class="cp-mall-meta">
-              <div class="cp-setting-label">EXP Pawn</div>
-              <div class="cp-setting-help">Gives a small amount of EXP to one hero.</div>
-              <div class="cp-mall-price" aria-label="Price">
-                ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
-                <span class="cp-mall-x">×5</span>
+          ${offers.map((o, idx) => {
+            const item = getStorageItemDef(o.itemId);
+            const cur = getStorageItemDef(o.currencyId || 'gold_coin');
+            const itemName = String(item?.name || o.itemId || 'Item');
+            const curName = String(cur?.name || o.currencyId || 'Coin');
+            const limitText = mallTimeText(o.expiresAt);
+            return `
+              <div class="cp-mall-item">
+                <div class="cp-mall-icon">
+                  ${item?.img ? renderImgWithFallback(item.img, itemName, '') : ``}
+                </div>
+                <div class="cp-mall-meta">
+                  <div class="cp-setting-label">${esc(itemName)}</div>
+                  <div class="cp-setting-help">Buy 1 × ${esc(itemName)}</div>
+                  <div class="cp-mall-price" aria-label="Price">
+                    ${cur?.img ? renderImgWithFallback(cur.img, curName, 'cp-mall-coin') : ``}
+                    <span class="cp-mall-x">×${esc(String(Math.max(1, Math.floor(Number(o.price) || 1))))}</span>
+                  </div>
+                  ${limitText ? `<div class="cp-setting-help" style="margin-top:6px;">${esc(limitText)}</div>` : ``}
+                </div>
+                <button class="cp-primary" type="button" data-cp-mall-buy="${esc(String(idx))}">Buy</button>
               </div>
-            </div>
-            <button class="cp-primary" type="button" id="cpBuyExpSoldier">Buy</button>
-          </div>
-
-          <div class="cp-mall-item">
-            <div class="cp-mall-icon">
-              ${renderImgWithFallback('images/Storage/S004-Exp-Knight.png', 'EXP Knight', '')}
-            </div>
-            <div class="cp-mall-meta">
-              <div class="cp-setting-label">EXP Knight</div>
-              <div class="cp-setting-help">Gives a medium amount of EXP to one hero.</div>
-              <div class="cp-mall-price" aria-label="Price">
-                ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
-                <span class="cp-mall-x">×15</span>
-              </div>
-            </div>
-            <button class="cp-primary" type="button" id="cpBuyExpKnight">Buy</button>
-          </div>
-
-          <div class="cp-mall-item">
-            <div class="cp-mall-icon">
-              ${renderImgWithFallback('images/Storage/S005-Exp-Bishop.png', 'EXP Bishop', '')}
-            </div>
-            <div class="cp-mall-meta">
-              <div class="cp-setting-label">EXP Bishop</div>
-              <div class="cp-setting-help">Gives a large amount of EXP to one hero.</div>
-              <div class="cp-mall-price" aria-label="Price">
-                ${renderImgWithFallback('images/Storage/S002-Silver-Coin.png', 'Silver coin', 'cp-mall-coin')}
-                <span class="cp-mall-x">×25</span>
-              </div>
-            </div>
-            <button class="cp-primary" type="button" id="cpBuyExpBishop">Buy</button>
-          </div>
+            `;
+          }).join('')}
+          ${offers.length ? `` : `<div class="cp-muted">No items available right now.</div>`}
         </div>
         <div class="cp-row" style="margin-top:12px;">
           <button class="cp-tool-btn" type="button" id="cpBackShop2">Back</button>
@@ -4066,13 +4283,28 @@ const ChessPalPages = (() => {
     document.getElementById('cpBackShop2')?.addEventListener('click', () => Router.goTo('/shop'), { passive: true });
     const msg = document.getElementById('cpMallMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-    const buy = (cost, itemId) => {
+    document.getElementById('cpMallSettingBtn')?.addEventListener('click', () => {
+      showMallAdminSettingsModal(() => {
+        try { Router.renderCurrent(); } catch {}
+      });
+    }, { passive: true });
+    const buy = (offerIdx) => {
       try {
         setMsg('');
+        const offers = getMallOffersForNow();
+        const offer = offers[Math.max(0, Math.floor(Number(offerIdx) || 0))];
+        if (!offer) {
+          setMsg('Offer is unavailable.');
+          return;
+        }
+        const cost = Math.max(1, Math.floor(Number(offer.price) || 1));
+        const itemId = String(offer.itemId || '').trim().toLowerCase();
+        const currencyId = String(offer.currencyId || 'gold_coin').trim().toLowerCase();
+        const currencyDef = getStorageItemDef(currencyId);
         let slots = loadStorage();
-        const spent = spendFromStorage(slots, 'silver_coin', cost);
+        const spent = spendFromStorage(slots, currencyId, cost);
         if (!spent.ok) {
-          setMsg('Not enough Silver Coins.');
+          setMsg(`Not enough ${String(currencyDef?.name || 'coins')}.`);
           return;
         }
         slots = spent.slots;
@@ -4088,9 +4320,9 @@ const ChessPalPages = (() => {
         setMsg(String(e?.message || e || 'Purchase failed'));
       }
     };
-    document.getElementById('cpBuyExpSoldier')?.addEventListener('click', () => buy(5, 'exp_pawn'), { passive: true });
-    document.getElementById('cpBuyExpKnight')?.addEventListener('click', () => buy(15, 'exp_knight'), { passive: true });
-    document.getElementById('cpBuyExpBishop')?.addEventListener('click', () => buy(25, 'exp_bishop'), { passive: true });
+    document.querySelectorAll('[data-cp-mall-buy]').forEach((btn) => {
+      btn.addEventListener('click', () => buy(btn.getAttribute('data-cp-mall-buy')), { passive: true });
+    });
   };
 
   function spendFromStorage(slots, itemId, qty) {
