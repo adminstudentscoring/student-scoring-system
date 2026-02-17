@@ -343,32 +343,29 @@ const ChessPalPages = (() => {
                       `;
                     }).join('')}
                   </div>
-
-                      <div class="cp-setting-help" style="margin-top:10px;">Drops (one item per clear)</div>
-                      <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
-                        ${Array.from({ length: 3 }, (_, j) => {
-                          const dj = d0[j] || {};
-                          const itemId = String(dj.itemId || '').trim().toLowerCase();
-                          const chance = Math.max(0, Math.floor(Number(dj.chance) || 0));
-                          const def = itemId ? getStorageItemDef(itemId) : null;
-                          return `
-                            <div class="cp-row" style="margin-top:0; gap:10px; align-items:center;">
-                              <div style="width:46px;height:46px;flex:0 0 auto;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);display:flex;align-items:center;justify-content:center;" data-stage-drop-prev="${esc(String(i))}-${esc(String(j))}">
-                                ${def?.img ? renderImgWithFallback(def.img, def.name || def.id, 'cp-levelup-img') : ``}
-                              </div>
-                              <div style="flex:1 1 auto; min-width: 210px;">
-                                <select class="cp-select" data-stage-drop-item="${esc(String(i))}-${esc(String(j))}">
-                                  ${itemOptions}
-                                </select>
-                              </div>
-                              <div style="width: 120px;">
-                                <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(chance))}" placeholder="Chance %" data-stage-drop-chance="${esc(String(i))}-${esc(String(j))}">
-                              </div>
-                            </div>
-                          `;
-                        }).join('')}
-                      </div>
-                    </div>
+                  <div class="cp-setting-help" style="margin-top:12px;">Drops (one item per clear)</div>
+                  <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+                    ${Array.from({ length: 3 }, (_, j) => {
+                      const dj = d0[j] || {};
+                      const itemId = String(dj.itemId || '').trim().toLowerCase();
+                      const chance = Math.max(0, Math.floor(Number(dj.chance) || 0));
+                      const def = itemId ? getStorageItemDef(itemId) : null;
+                      return `
+                        <div class="cp-row" style="margin-top:0; gap:10px; align-items:center;">
+                          <div style="width:46px;height:46px;flex:0 0 auto;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);display:flex;align-items:center;justify-content:center;" data-stage-drop-prev="${esc(String(i))}-${esc(String(j))}">
+                            ${def?.img ? renderImgWithFallback(def.img, def.name || def.id, 'cp-levelup-img') : ``}
+                          </div>
+                          <div style="flex:1 1 auto; min-width: 210px;">
+                            <select class="cp-select" data-stage-drop-item="${esc(String(i))}-${esc(String(j))}">
+                              ${itemOptions}
+                            </select>
+                          </div>
+                          <div style="width: 120px;">
+                            <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(chance))}" placeholder="Chance %" data-stage-drop-chance="${esc(String(i))}-${esc(String(j))}">
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
                   </div>
                   ${(i === 4) ? `
                     <div class="cp-setting-help" style="margin-top:10px;">Boss opening hint</div>
