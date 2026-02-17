@@ -101,7 +101,7 @@
       mini: 'images/Heros/005-Valkor/005-Valkor-mini.png'
     },
 
-    // Generated roster (006-055): 1★..10★, 5 heroes each
+    // Generated roster (006-060): 1★..10★, 5 heroes each + extra 10★ set
     { id: '006', name: 'Emberwick', element: 'fire', role: 'striker', rarity: 1, level: 1, maxLevel: 30, hp1: 120, atk1: 90, rcv1: 20, hpMax: 900, atkMax: 420, rcvMax: 110,
       leaderSkill: { text: 'Fire heroes ATK ×1.1 (rookie).', params: { atkMult: 1.1 } },
       activeSkill: { name: 'Spark', cd: 6, text: 'Convert 1 random tile to Fire.', params: { convert: { count: 1, to: 'fire' } } },
@@ -310,7 +310,28 @@
     { id: '055', name: 'UmbralEclipseSaint', element: 'dark', role: 'healer', rarity: 10, level: 1, maxLevel: 110, hp1: 580, atk1: 420, rcv1: 320, hpMax: 14000, atkMax: 4500, rcvMax: 4200,
       leaderSkill: { text: 'Dark heroes RCV ×1.55.', params: { rcvMult: 1.55 } },
       activeSkill: { name: 'Eclipse Sanctum', cd: 16, text: 'Heal an extreme amount (placeholder).', params: { healFlat: 2600 } },
-      img: 'images/Heros/055-UmbralEclipseSaint/055-UmbralEclipseSaint.png', mini: 'images/Heros/055-UmbralEclipseSaint/055-UmbralEclipseSaint-mini.png' }
+      img: 'images/Heros/055-UmbralEclipseSaint/055-UmbralEclipseSaint.png', mini: 'images/Heros/055-UmbralEclipseSaint/055-UmbralEclipseSaint-mini.png' },
+
+    { id: '056', name: 'BlazeCrownArchon', element: 'fire', role: 'striker', rarity: 10, level: 1, maxLevel: 110, hp1: 560, atk1: 560, rcv1: 110, hpMax: 12800, atkMax: 5900, rcvMax: 1450,
+      leaderSkill: { text: 'Fire heroes ATK ×1.58.', params: { atkMult: 1.58 } },
+      activeSkill: { name: 'Solar Cataclysm', cd: 16, text: 'Convert 6 tiles to Fire; Fire ATK ×1.12 this turn.', params: { convert: { count: 6, to: 'fire' }, atkMultThisTurn: 1.12 } },
+      img: 'images/Heros/056-BlazeCrownArchon/056-BlazeCrownArchon.png', mini: 'images/Heros/056-BlazeCrownArchon/056-BlazeCrownArchon-mini.png' },
+    { id: '057', name: 'TideglassSovereign', element: 'water', role: 'support', rarity: 10, level: 1, maxLevel: 110, hp1: 640, atk1: 390, rcv1: 300, hpMax: 14600, atkMax: 4450, rcvMax: 3700,
+      leaderSkill: { text: 'Water heroes RCV ×1.58.', params: { rcvMult: 1.58 } },
+      activeSkill: { name: 'Ocean Prayer', cd: 16, text: 'Convert 4 tiles to Water and 4 tiles to Heart; +1.0s action time this turn.', params: { convert: [{ count: 4, to: 'water' }, { count: 4, to: 'heart' }], extraTimeSec: 1.0 } },
+      img: 'images/Heros/057-TideglassSovereign/057-TideglassSovereign.png', mini: 'images/Heros/057-TideglassSovereign/057-TideglassSovereign-mini.png' },
+    { id: '058', name: 'VerdantAegisPrime', element: 'wood', role: 'tank', rarity: 10, level: 1, maxLevel: 110, hp1: 900, atk1: 360, rcv1: 120, hpMax: 17800, atkMax: 3700, rcvMax: 1300,
+      leaderSkill: { text: 'Wood heroes HP ×1.58.', params: { hpMult: 1.58 } },
+      activeSkill: { name: 'Ancient Bulwark', cd: 16, text: 'Reduce damage -36% this turn; convert 2 tiles to Wood.', params: { damageReduction: 0.36, convert: { count: 2, to: 'wood' } } },
+      img: 'images/Heros/058-VerdantAegisPrime/058-VerdantAegisPrime.png', mini: 'images/Heros/058-VerdantAegisPrime/058-VerdantAegisPrime-mini.png' },
+    { id: '059', name: 'AuroraJudicatorPrime', element: 'light', role: 'balanced', rarity: 10, level: 1, maxLevel: 110, hp1: 620, atk1: 520, rcv1: 180, hpMax: 13600, atkMax: 5600, rcvMax: 2100,
+      leaderSkill: { text: 'Light heroes HP ×1.18 and ATK ×1.35.', params: { hpMult: 1.18, atkMult: 1.35 } },
+      activeSkill: { name: 'Prism Verdict', cd: 16, text: 'Convert 5 tiles to Light and 2 tiles to Heart.', params: { convert: [{ count: 5, to: 'light' }, { count: 2, to: 'heart' }] } },
+      img: 'images/Heros/059-AuroraJudicatorPrime/059-AuroraJudicatorPrime.png', mini: 'images/Heros/059-AuroraJudicatorPrime/059-AuroraJudicatorPrime-mini.png' },
+    { id: '060', name: 'NightfallAbyssRegent', element: 'dark', role: 'healer', rarity: 10, level: 1, maxLevel: 110, hp1: 640, atk1: 450, rcv1: 340, hpMax: 15000, atkMax: 4900, rcvMax: 4500,
+      leaderSkill: { text: 'Dark heroes RCV ×1.58.', params: { rcvMult: 1.58 } },
+      activeSkill: { name: 'Abyss Benediction', cd: 16, text: 'Heal an extreme amount and convert 3 random tiles to Dark.', params: { healFlat: 3000, convert: { count: 3, to: 'dark' } } },
+      img: 'images/Heros/060-NightfallAbyssRegent/060-NightfallAbyssRegent.png', mini: 'images/Heros/060-NightfallAbyssRegent/060-NightfallAbyssRegent-mini.png' }
   ];
 })();
 
