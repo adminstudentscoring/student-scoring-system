@@ -474,6 +474,14 @@ body {
   padding: 0 12px;
   outline: none;
 }
+.cp-select option{
+  color: #111827; /* keep desktop dropdown options readable */
+  background: #ffffff;
+}
+.cp-select optgroup{
+  color: #111827;
+  background: #ffffff;
+}
 
 .cp-jewel-preview{
   margin-top: 10px;
