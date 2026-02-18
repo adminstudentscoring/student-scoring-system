@@ -161,7 +161,7 @@ const Router = (() => {
     // Fullscreen gameplay pages: hide sidebar, show gear
     try {
       const isGame =
-        (p === '/practice' || p === '/test-game' || p.startsWith('/mode/story/ch1/s'));
+        (p === '/practice' || p === '/test-game' || p.startsWith('/mode/story/ch'));
       document.body.classList.toggle('cp-game-fullscreen', isGame);
       ensureGearUI();
       const gearBtn = document.getElementById('cpGearBtn');

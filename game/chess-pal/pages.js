@@ -215,11 +215,11 @@ const ChessPalPages = (() => {
     // Sensible defaults (admin can overwrite any time)
     if (ch === 1) {
       return [
-        { monsters: [{ monsterId: '017', level: 1 }], drops: [] },
-        { monsters: [{ monsterId: '018', level: 1 }], drops: [] },
-        { monsters: [{ monsterId: '021', level: 2 }], drops: [] },
-        { monsters: [{ monsterId: '027', level: 2 }], drops: [] },
-        { monsters: [{ monsterId: '004', level: 1 }], drops: [] },
+        { monsters: [{ monsterId: '017', level: 1 }], hint: 'Match Dark, Wood, and Water to build control first.', drops: [] },
+        { monsters: [{ monsterId: '018', level: 1 }], hint: 'Attack colors are expanded. Build longer paths for bigger damage.', drops: [] },
+        { monsters: [{ monsterId: '021', level: 2 }], hint: 'Heart jewels are now available. Balance damage and recovery.', drops: [] },
+        { monsters: [{ monsterId: '027', level: 2 }], hint: 'Plan one turn ahead to prepare cascades before the boss.', drops: [] },
+        { monsters: [{ monsterId: '004', level: 1 }], hint: 'Boss Stage: Save skills and burst when your strongest color is ready.', drops: [] },
       ];
     }
     return [
@@ -367,10 +367,8 @@ const ChessPalPages = (() => {
                       `;
                     }).join('')}
                   </div>
-                  ${(i === 4) ? `
-                    <div class="cp-setting-help" style="margin-top:10px;">Boss opening hint</div>
-                    <input class="cp-input" type="text" value="${esc(String(s.hint || 'Tip: Tap a hero to use a skill, then press Confirm.'))}" data-stage-hint="${esc(String(i))}">
-                  ` : ``}
+                  <div class="cp-setting-help" style="margin-top:10px;">Stage hint</div>
+                  <input class="cp-input" type="text" value="${esc(String(s.hint || ''))}" data-stage-hint="${esc(String(i))}" placeholder="Leave empty to hide">
                 </div>
               `;
             }).join('')}
@@ -540,7 +538,7 @@ const ChessPalPages = (() => {
             }))
             .filter(x => /^\d{3}$/.test(x.monsterId));
           if (!monsters.length) throw new Error('Stage must have at least 1 monster');
-          const hint = (i === 4) ? String(overlay.querySelector(`[data-stage-hint="${CSS.escape(String(i))}"]`)?.value || '').trim() : '';
+          const hint = String(overlay.querySelector(`[data-stage-hint="${CSS.escape(String(i))}"]`)?.value || '').trim();
           const drops = [];
           for (let j = 0; j < 3; j += 1) {
             const itemId = String(overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`)?.value || '').trim().toLowerCase();
@@ -965,14 +963,11 @@ const ChessPalPages = (() => {
     document.querySelectorAll('[data-cp-chapter]').forEach(btn => {
       btn.addEventListener('click', () => {
         const ch = Math.max(1, Math.min(10, Math.floor(Number(btn.getAttribute('data-cp-chapter')) || 1)));
-        if (ch === 1) {
-          // Directly enter gameplay (no stage select screen)
-          let cleared = 0;
-          try { cleared = Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(1)) || 0)); } catch {}
-          const next = (cleared >= 5) ? 1 : Math.min(5, cleared + 1);
-          Router.goTo(`/mode/story/ch1/s${next}`);
-        }
-        else setMsg('Coming soon.');
+        // Directly enter gameplay (no stage select screen)
+        let cleared = 0;
+        try { cleared = Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(ch)) || 0)); } catch {}
+        const next = (cleared >= 5) ? 1 : Math.min(5, cleared + 1);
+        Router.goTo(`/mode/story/ch${ch}/s${next}`);
       }, { passive: true });
     });
     document.querySelectorAll('[data-cp-chapter]').forEach(tile => {
@@ -1476,8 +1471,13 @@ const ChessPalPages = (() => {
     const showStoryHintIfAny = () => {
       try {
         const st = window.__cpStoryStage;
-        if (hintEl && st && Number(st.stage) === 5) {
-          const t = String(st.hint || '').trim() || 'Tip: Tap a hero to use a skill, then press Confirm.';
+        if (hintEl && st) {
+          const t = String(st.hint || '').trim();
+          if (!t) {
+            hintEl.textContent = '';
+            hintEl.style.display = 'none';
+            return;
+          }
           hintEl.textContent = t;
           hintEl.style.display = '';
         } else if (hintEl) {
@@ -4874,6 +4874,51 @@ const ChessPalPages = (() => {
       '/mode/story/ch1/s3': new StoryBattlePage(1, 3),
       '/mode/story/ch1/s4': new StoryBattlePage(1, 4),
       '/mode/story/ch1/s5': new StoryBattlePage(1, 5),
+      '/mode/story/ch2/s1': new StoryBattlePage(2, 1),
+      '/mode/story/ch2/s2': new StoryBattlePage(2, 2),
+      '/mode/story/ch2/s3': new StoryBattlePage(2, 3),
+      '/mode/story/ch2/s4': new StoryBattlePage(2, 4),
+      '/mode/story/ch2/s5': new StoryBattlePage(2, 5),
+      '/mode/story/ch3/s1': new StoryBattlePage(3, 1),
+      '/mode/story/ch3/s2': new StoryBattlePage(3, 2),
+      '/mode/story/ch3/s3': new StoryBattlePage(3, 3),
+      '/mode/story/ch3/s4': new StoryBattlePage(3, 4),
+      '/mode/story/ch3/s5': new StoryBattlePage(3, 5),
+      '/mode/story/ch4/s1': new StoryBattlePage(4, 1),
+      '/mode/story/ch4/s2': new StoryBattlePage(4, 2),
+      '/mode/story/ch4/s3': new StoryBattlePage(4, 3),
+      '/mode/story/ch4/s4': new StoryBattlePage(4, 4),
+      '/mode/story/ch4/s5': new StoryBattlePage(4, 5),
+      '/mode/story/ch5/s1': new StoryBattlePage(5, 1),
+      '/mode/story/ch5/s2': new StoryBattlePage(5, 2),
+      '/mode/story/ch5/s3': new StoryBattlePage(5, 3),
+      '/mode/story/ch5/s4': new StoryBattlePage(5, 4),
+      '/mode/story/ch5/s5': new StoryBattlePage(5, 5),
+      '/mode/story/ch6/s1': new StoryBattlePage(6, 1),
+      '/mode/story/ch6/s2': new StoryBattlePage(6, 2),
+      '/mode/story/ch6/s3': new StoryBattlePage(6, 3),
+      '/mode/story/ch6/s4': new StoryBattlePage(6, 4),
+      '/mode/story/ch6/s5': new StoryBattlePage(6, 5),
+      '/mode/story/ch7/s1': new StoryBattlePage(7, 1),
+      '/mode/story/ch7/s2': new StoryBattlePage(7, 2),
+      '/mode/story/ch7/s3': new StoryBattlePage(7, 3),
+      '/mode/story/ch7/s4': new StoryBattlePage(7, 4),
+      '/mode/story/ch7/s5': new StoryBattlePage(7, 5),
+      '/mode/story/ch8/s1': new StoryBattlePage(8, 1),
+      '/mode/story/ch8/s2': new StoryBattlePage(8, 2),
+      '/mode/story/ch8/s3': new StoryBattlePage(8, 3),
+      '/mode/story/ch8/s4': new StoryBattlePage(8, 4),
+      '/mode/story/ch8/s5': new StoryBattlePage(8, 5),
+      '/mode/story/ch9/s1': new StoryBattlePage(9, 1),
+      '/mode/story/ch9/s2': new StoryBattlePage(9, 2),
+      '/mode/story/ch9/s3': new StoryBattlePage(9, 3),
+      '/mode/story/ch9/s4': new StoryBattlePage(9, 4),
+      '/mode/story/ch9/s5': new StoryBattlePage(9, 5),
+      '/mode/story/ch10/s1': new StoryBattlePage(10, 1),
+      '/mode/story/ch10/s2': new StoryBattlePage(10, 2),
+      '/mode/story/ch10/s3': new StoryBattlePage(10, 3),
+      '/mode/story/ch10/s4': new StoryBattlePage(10, 4),
+      '/mode/story/ch10/s5': new StoryBattlePage(10, 5),
       '/mode/challenge': ModeChallengePage,
       '/practice': PracticePage,
       '/test-game': TestGamePage,
