@@ -783,6 +783,9 @@ const ChessPalPages = (() => {
       { itemId: 'exp_pawn', label: 'EXP Pawn', exp: 500, desc: 'Small EXP.' },
       { itemId: 'exp_knight', label: 'EXP Knight', exp: 1500, desc: 'Medium EXP.' },
       { itemId: 'exp_bishop', label: 'EXP Bishop', exp: 2500, desc: 'Large EXP.' },
+      { itemId: 'exp_rook', label: 'EXP Rook', exp: 4000, desc: 'Very large EXP.' },
+      { itemId: 'exp_queen', label: 'EXP Queen', exp: 7000, desc: 'Massive EXP.' },
+      { itemId: 'exp_king', label: 'EXP King', exp: 12000, desc: 'Legendary EXP.' },
     ];
     const grid = overlay.querySelector('#cpLevelUpGrid');
     const slots = loadStorage();
@@ -893,6 +896,7 @@ const ChessPalPages = (() => {
   ModePage.title = 'Mode';
   ModePage.render = () => {
     const s = getGeneralSettings();
+    const admin = isAdminMode();
     return `
       <div class="cp-square-grid" aria-label="Mode">
         <button class="cp-square-tile" type="button" data-cp-mode="story" aria-label="Story Mode">
@@ -907,6 +911,12 @@ const ChessPalPages = (() => {
           ${renderImgWithFallback(String(s.practiceBg || 'images/Mode/Practice/Map/Map001-Grassland.jpg'), 'Practice Mode', 'cp-square-img')}
           <div class="cp-square-label">Practice Mode</div>
         </button>
+        ${admin ? `
+          <button class="cp-square-tile" type="button" data-cp-mode="test" aria-label="Test Game">
+            ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Test Game', 'cp-square-img')}
+            <div class="cp-square-label">Test Game</div>
+          </button>
+        ` : ``}
       </div>
     `;
   };
@@ -917,6 +927,7 @@ const ChessPalPages = (() => {
         if (key === 'practice') Router.goTo('/practice');
         else if (key === 'story') Router.goTo('/mode/story');
         else if (key === 'challenge') Router.goTo('/mode/challenge');
+        else if (key === 'test') Router.goTo('/test-game');
       }, { passive: true });
     });
   };
@@ -3632,6 +3643,9 @@ const ChessPalPages = (() => {
     exp_pawn: { id: 'exp_pawn', name: 'EXP Pawn', img: 'images/Storage/S003-Exp-Pawn.png' },
     exp_knight: { id: 'exp_knight', name: 'EXP Knight', img: 'images/Storage/S004-Exp-Knight.png' },
     exp_bishop: { id: 'exp_bishop', name: 'EXP Bishop', img: 'images/Storage/S005-Exp-Bishop.png' },
+    exp_rook: { id: 'exp_rook', name: 'EXP Rook', img: 'images/Storage/S006-Exp-Rook.png' },
+    exp_queen: { id: 'exp_queen', name: 'EXP Queen', img: 'images/Storage/S007-Exp-Queen.png' },
+    exp_king: { id: 'exp_king', name: 'EXP King', img: 'images/Storage/S008-Exp-King.png' },
   };
 
   function getStorageItemDef(itemId) {
@@ -3672,6 +3686,21 @@ const ChessPalPages = (() => {
       legacy.push('images/Storage/Exp-Bishop.png');
       legacy.unshift('images/Storage/S006-Exp-Bishop.png');
       legacy.unshift('images/Storage/S005-Exp-Bishop.png');
+    }
+    if (base.includes('Exp-Rook')) {
+      legacy.push('images/Storage/Exp-Rook.png');
+      legacy.unshift('images/Storage/S007-Exp-Rook.png');
+      legacy.unshift('images/Storage/S006-Exp-Rook.png');
+    }
+    if (base.includes('Exp-Queen')) {
+      legacy.push('images/Storage/Exp-Queen.png');
+      legacy.unshift('images/Storage/S008-Exp-Queen.png');
+      legacy.unshift('images/Storage/S007-Exp-Queen.png');
+    }
+    if (base.includes('Exp-King')) {
+      legacy.push('images/Storage/Exp-King.png');
+      legacy.unshift('images/Storage/S009-Exp-King.png');
+      legacy.unshift('images/Storage/S008-Exp-King.png');
     }
     // Legacy soldier naming (older builds)
     if (base.includes('Exp-Soldier')) {
@@ -4013,8 +4042,148 @@ const ChessPalPages = (() => {
         { id: 'offer_exp_pawn', itemId: 'exp_pawn', currencyId: 'gold_coin', price: 1, limitHours: 0, enabled: true },
         { id: 'offer_exp_knight', itemId: 'exp_knight', currencyId: 'gold_coin', price: 3, limitHours: 0, enabled: true },
         { id: 'offer_exp_bishop', itemId: 'exp_bishop', currencyId: 'gold_coin', price: 5, limitHours: 0, enabled: true },
+        { id: 'offer_exp_rook', itemId: 'exp_rook', currencyId: 'gold_coin', price: 8, limitHours: 0, enabled: true },
+        { id: 'offer_exp_queen', itemId: 'exp_queen', currencyId: 'gold_coin', price: 12, limitHours: 0, enabled: true },
+        { id: 'offer_exp_king', itemId: 'exp_king', currencyId: 'gold_coin', price: 18, limitHours: 0, enabled: true },
       ],
     };
+  }
+
+  const SUMMON_CONFIG_KEY = 'chessPalSummonConfig';
+
+  function defaultSummonConfig() {
+    return {
+      updatedAt: Date.now(),
+      currencyId: 'gold_coin',
+      cost: 1,
+      limitHours: 0,
+      enabled: true,
+    };
+  }
+
+  function normalizeSummonConfig(raw) {
+    const base = defaultSummonConfig();
+    const defs = STORAGE_ITEM_DEFS || {};
+    const currencyRaw = String(raw?.currencyId || base.currencyId).trim().toLowerCase();
+    const currencyId = defs[currencyRaw] ? currencyRaw : 'gold_coin';
+    const cost = Math.max(1, Math.floor(Number(raw?.cost) || base.cost));
+    const limitHours = Math.max(0, Math.floor(Number(raw?.limitHours) || 0));
+    const enabled = raw?.enabled !== false;
+    const updatedAt = Number.isFinite(Number(raw?.updatedAt)) ? Math.floor(Number(raw.updatedAt)) : base.updatedAt;
+    return { updatedAt, currencyId, cost, limitHours, enabled };
+  }
+
+  function loadSummonConfig() {
+    try {
+      const raw = localStorage.getItem(SUMMON_CONFIG_KEY);
+      if (!raw) return normalizeSummonConfig(defaultSummonConfig());
+      return normalizeSummonConfig(JSON.parse(raw));
+    } catch {
+      return normalizeSummonConfig(defaultSummonConfig());
+    }
+  }
+
+  function saveSummonConfig(cfg) {
+    try {
+      const next = normalizeSummonConfig(cfg);
+      next.updatedAt = Date.now();
+      localStorage.setItem(SUMMON_CONFIG_KEY, JSON.stringify(next));
+    } catch {}
+    try { window.dispatchEvent(new Event('cpSummonConfigChanged')); } catch {}
+  }
+
+  function getSummonConfigForNow() {
+    const cfg = loadSummonConfig();
+    const startAt = Math.max(0, Number(cfg.updatedAt) || 0);
+    const limitHours = Math.max(0, Math.floor(Number(cfg.limitHours) || 0));
+    const expiresAt = limitHours > 0 ? (startAt + limitHours * 3600000) : 0;
+    const expired = expiresAt > 0 ? Date.now() >= expiresAt : false;
+    return { ...cfg, expiresAt, expired, enabledNow: cfg.enabled && !expired };
+  }
+
+  function showSummonAdminSettingsModal(onSaved) {
+    if (!isAdminMode()) return;
+    const old = document.getElementById('cpSummonAdminOverlay');
+    if (old) old.remove();
+
+    const cfg = getSummonConfigForNow();
+    const defs = Object.values(STORAGE_ITEM_DEFS || {}).filter(Boolean);
+    const itemOptions = defs
+      .slice()
+      .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)))
+      .map(d => `<option value="${esc(String(d.id))}">${esc(String(d.name || d.id))}</option>`)
+      .join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'cpSummonAdminOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Summon setting">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Summon Setting</div>
+          <div class="cp-muted" style="margin-top:6px;">Set summon cost item, amount, and optional time limit.</div>
+          <div class="cp-setting-item" style="margin-top:12px;">
+            <div class="cp-row" style="margin-top:0; align-items:flex-end; gap:8px; flex-wrap:wrap;">
+              <div style="flex:1 1 260px; min-width: 200px;">
+                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Cost item</div>
+                <select class="cp-select" id="cpSummonCfgCurrency">${itemOptions}</select>
+              </div>
+              <div style="width: 140px;">
+                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Cost</div>
+                <input class="cp-input" id="cpSummonCfgCost" type="number" min="1" step="1" value="${esc(String(cfg.cost || 1))}">
+              </div>
+              <div style="width: 160px;">
+                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Limit (hours)</div>
+                <input class="cp-input" id="cpSummonCfgLimit" type="number" min="0" step="1" value="${esc(String(cfg.limitHours || 0))}">
+              </div>
+              <label class="cp-setting-help" style="display:flex; align-items:center; gap:6px; margin:0 0 10px;">
+                <input type="checkbox" id="cpSummonCfgEnabled" ${cfg.enabled ? 'checked' : ''}>
+                Enabled
+              </label>
+            </div>
+          </div>
+          <div class="cp-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">
+            <button class="cp-tool-btn" type="button" id="cpSummonCfgCancel">Cancel</button>
+            <button class="cp-primary" type="button" id="cpSummonCfgSave">Save</button>
+          </div>
+          <div class="cp-muted" id="cpSummonCfgMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const setMsg = (t) => {
+      const m = overlay.querySelector('#cpSummonCfgMsg');
+      if (m) m.textContent = String(t || '');
+    };
+    const currencySel = overlay.querySelector('#cpSummonCfgCurrency');
+    if (currencySel) currencySel.value = String(cfg.currencyId || 'gold_coin');
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    overlay.querySelector('#cpSummonCfgCancel')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    overlay.querySelector('#cpSummonCfgSave')?.addEventListener('click', () => {
+      try {
+        const currencyId = String(overlay.querySelector('#cpSummonCfgCurrency')?.value || '').trim().toLowerCase();
+        const cost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgCost')?.value) || 1));
+        const limitHours = Math.max(0, Math.floor(Number(overlay.querySelector('#cpSummonCfgLimit')?.value) || 0));
+        const enabled = !!overlay.querySelector('#cpSummonCfgEnabled')?.checked;
+        if (!getStorageItemDef(currencyId)) throw new Error('Invalid cost item.');
+        saveSummonConfig({ currencyId, cost, limitHours, enabled });
+        setMsg('Saved.');
+        try { onSaved && onSaved(); } catch {}
+        setTimeout(() => close(), 220);
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Save failed'));
+      }
+    }, { passive: true });
   }
 
   function normalizeMallConfig(raw) {
@@ -4342,18 +4511,28 @@ const ChessPalPages = (() => {
   SummonPage.title = 'Summon';
   SummonPage.render = () => {
     const s = getGeneralSettings();
+    const admin = isAdminMode();
+    const cfg = getSummonConfigForNow();
+    const curDef = getStorageItemDef(cfg.currencyId || 'gold_coin') || getStorageItemDef('gold_coin');
+    const curName = String(curDef?.name || 'Gold Coin');
+    const curImg = String(curDef?.img || 'images/Storage/S001-Gold-Coin.png');
+    const disabledText = !cfg.enabledNow ? (cfg.expired ? 'Summon is expired.' : 'Summon is disabled by Admin.') : '';
     return `
       <div class="cp-page-card cp-summon-page">
-        <button class="cp-summon-main" type="button" id="cpSummonHero" aria-label="Summon Hero">
+        <div class="cp-row" style="margin-top:0; justify-content:flex-end;">
+          ${admin ? `<button class="cp-tool-btn" type="button" id="cpSummonSettingBtn">Setting</button>` : ``}
+        </div>
+        <button class="cp-summon-main" type="button" id="cpSummonHero" aria-label="Summon Hero" ${cfg.enabledNow ? '' : 'disabled'}>
           <img class="cp-summon-mainimg" id="cpSummonBgImg" src="${esc(String(s.summonBg || ''))}" alt="Summon background" onerror="this.style.display='none';">
           <div class="cp-summon-overlay" aria-hidden="true">
             <div class="cp-summon-title">Summon Hero</div>
             <div class="cp-summon-cost" aria-label="Cost">
-              <img class="cp-summon-coin" src="images/Storage/S001-Gold-Coin.png" alt="Gold coin" onerror="this.onerror=null;if(this.src.indexOf('S002-Gold-Coin.png')===-1){this.src='images/Storage/S002-Gold-Coin.png';return;}this.src='images/Storage/Gold-Coin.png';">
-              <span class="cp-summon-x">× 1</span>
+              ${renderImgWithFallback(curImg, curName, 'cp-summon-coin')}
+              <span class="cp-summon-x">× ${esc(String(cfg.cost || 1))}</span>
             </div>
           </div>
         </button>
+        ${disabledText ? `<div class="cp-muted" style="margin-top:8px; text-align:center;">${esc(disabledText)}</div>` : ``}
         <div class="cp-muted" id="cpSummonMsg" style="margin-top:10px; text-align:center;"></div>
       </div>
     `;
@@ -4386,14 +4565,25 @@ const ChessPalPages = (() => {
     } catch {}
     window.__cpSummonBgListener = () => { try { syncSummonBg(); } catch {} };
     try { window.addEventListener('cpGeneralSettingsChanged', window.__cpSummonBgListener); } catch {}
+    document.getElementById('cpSummonSettingBtn')?.addEventListener('click', () => {
+      showSummonAdminSettingsModal(() => {
+        try { Router.renderCurrent(); } catch {}
+      });
+    }, { passive: true });
 
     document.getElementById('cpSummonHero')?.addEventListener('click', async () => {
       try {
         setMsg('');
+        const summonCfg = getSummonConfigForNow();
+        if (!summonCfg.enabledNow) {
+          setMsg(summonCfg.expired ? 'Summon is expired.' : 'Summon is disabled by Admin.');
+          return;
+        }
+        const costDef = getStorageItemDef(summonCfg.currencyId || 'gold_coin') || getStorageItemDef('gold_coin');
         let slots = loadStorage();
-        const spent = spendFromStorage(slots, 'gold_coin', 1);
+        const spent = spendFromStorage(slots, summonCfg.currencyId, summonCfg.cost);
         if (!spent.ok) {
-          setMsg('Not enough Gold Coins.');
+          setMsg(`Not enough ${String(costDef?.name || 'coins')}.`);
           return;
         }
         slots = spent.slots;
