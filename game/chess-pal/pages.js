@@ -1,6 +1,142 @@
 // Page components for Chess Pal (iPad-first)
 
 const ChessPalPages = (() => {
+  const CHESS_PAL_CLOUD_KEYS = [
+    'chessPalPreset',
+    'chessPalGeneralSettings',
+    'chessPalOwnedHeroes',
+    'chessPalOwnedMonsters',
+    'chessPalSeenMonsters',
+    'chessPalStoryStagesAdmin',
+    'chessPalStoryProgress',
+    'chessPalHeroProgress',
+    'chessPalMonsterProgress',
+    'chessPalTeams',
+    'chessPalStorage',
+    'chessPalFreeSilverClaimDate',
+    'chessPalMallConfig',
+    'chessPalSummonConfig',
+  ];
+  let cpCloudSyncReady = false;
+  let cpCloudHydrating = false;
+  let cpCloudSaveTimer = 0;
+  let cpCloudLastSig = '';
+  const CHESS_PAL_CLOUD_LOCAL_TS_KEY = 'chessPalCloudLocalUpdatedAt';
+
+  function exportChessPalCloudState() {
+    const out = {};
+    for (const k of CHESS_PAL_CLOUD_KEYS) {
+      try {
+        const v = localStorage.getItem(k);
+        if (v != null) out[k] = String(v);
+      } catch {}
+    }
+    return out;
+  }
+
+  function importChessPalCloudState(stateObj) {
+    const src = (stateObj && typeof stateObj === 'object' && !Array.isArray(stateObj)) ? stateObj : {};
+    for (const k of CHESS_PAL_CLOUD_KEYS) {
+      if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
+      const v = src[k];
+      if (typeof v !== 'string') continue;
+      try { localStorage.setItem(k, v); } catch {}
+    }
+  }
+
+  async function saveChessPalCloudStateNow() {
+    if (!cpCloudSyncReady || cpCloudHydrating) return;
+    try {
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
+      const state = exportChessPalCloudState();
+      const sig = JSON.stringify(state);
+      if (sig === cpCloudLastSig) return;
+      const resp = await window.authUtils.authenticatedFetch('/chess-pal/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state })
+      });
+      if (resp && resp.ok) {
+        cpCloudLastSig = sig;
+        try { localStorage.setItem(CHESS_PAL_CLOUD_LOCAL_TS_KEY, String(Date.now())); } catch {}
+      }
+    } catch {}
+  }
+
+  function queueChessPalCloudSave() {
+    if (!cpCloudSyncReady || cpCloudHydrating) return;
+    try { clearTimeout(cpCloudSaveTimer); } catch {}
+    cpCloudSaveTimer = setTimeout(() => { saveChessPalCloudStateNow(); }, 520);
+  }
+
+  async function initChessPalCloudStateSync() {
+    try {
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
+      cpCloudHydrating = true;
+      const localStateBefore = exportChessPalCloudState();
+      const localHasData = Object.keys(localStateBefore).length > 0;
+      let localTs = 0;
+      try { localTs = Math.max(0, Number(localStorage.getItem(CHESS_PAL_CLOUD_LOCAL_TS_KEY)) || 0); } catch {}
+
+      const resp = await window.authUtils.authenticatedFetch('/chess-pal/state', { method: 'GET' });
+      if (resp && resp.ok) {
+        const data = await resp.json();
+        const cloudState = (data && typeof data.state === 'object' && !Array.isArray(data.state)) ? data.state : {};
+        const cloudHasData = Object.keys(cloudState).length > 0;
+        const cloudTs = Math.max(0, Number(data?.updatedAt) || 0);
+        // Keep newer progress when cloud/local differ:
+        // - if cloud has newer/equal timestamp, use cloud
+        // - if local has data and is newer (or cloud empty), push local to cloud
+        if (cloudHasData && (!localHasData || cloudTs >= localTs)) {
+          importChessPalCloudState(cloudState);
+        } else if (localHasData) {
+          await window.authUtils.authenticatedFetch('/chess-pal/state', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ state: localStateBefore })
+          });
+          try { localStorage.setItem(CHESS_PAL_CLOUD_LOCAL_TS_KEY, String(Date.now())); } catch {}
+        }
+      }
+      try { applyGeneralSettings(getGeneralSettings()); } catch {}
+      cpCloudLastSig = JSON.stringify(exportChessPalCloudState());
+      cpCloudSyncReady = true;
+      cpCloudHydrating = false;
+      setTimeout(() => {
+        try {
+          if (window.Router && typeof window.Router.renderCurrent === 'function') window.Router.renderCurrent();
+        } catch {}
+      }, 0);
+    } catch {
+      cpCloudHydrating = false;
+    }
+  }
+
+  function patchLocalStorageForCloudSync() {
+    try {
+      if (window.__cpCloudStoragePatched) return;
+      const originalSetItem = localStorage.setItem.bind(localStorage);
+      const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+      localStorage.setItem = function patchedSetItem(key, value) {
+        const ret = originalSetItem(key, value);
+        try {
+          const k = String(key || '').trim();
+          if (CHESS_PAL_CLOUD_KEYS.includes(k)) queueChessPalCloudSave();
+        } catch {}
+        return ret;
+      };
+      localStorage.removeItem = function patchedRemoveItem(key) {
+        const ret = originalRemoveItem(key);
+        try {
+          const k = String(key || '').trim();
+          if (CHESS_PAL_CLOUD_KEYS.includes(k)) queueChessPalCloudSave();
+        } catch {}
+        return ret;
+      };
+      window.__cpCloudStoragePatched = true;
+    } catch {}
+  }
+
   function esc(s) {
     return String(s ?? '')
       .replace(/&/g, '&amp;')
@@ -17,6 +153,7 @@ const ChessPalPages = (() => {
 
   function setPreset(preset) {
     try { localStorage.setItem('chessPalPreset', JSON.stringify(preset)); } catch {}
+    try { window.dispatchEvent(new Event('cpPresetChanged')); } catch {}
   }
 
   function getGeneralSettings() {
@@ -82,6 +219,7 @@ const ChessPalPages = (() => {
 
   function saveGeneralSettings(s) {
     try { localStorage.setItem('chessPalGeneralSettings', JSON.stringify(s)); } catch {}
+    try { window.dispatchEvent(new Event('cpGeneralSettingsSaved')); } catch {}
   }
 
   // Apply once on load (so it affects all pages)
@@ -95,6 +233,27 @@ const ChessPalPages = (() => {
       saveGeneralSettings,
     };
   } catch {}
+
+  // Cloud sync listeners (DB-backed, per logged-in user)
+  [
+    'cpPresetChanged',
+    'cpGeneralSettingsSaved',
+    'cpOwnedHeroesChanged',
+    'cpOwnedMonstersChanged',
+    'cpSeenMonstersChanged',
+    'cpStoryStagesChanged',
+    'cpStoryProgressChanged',
+    'cpHeroProgressChanged',
+    'cpMonsterProgressChanged',
+    'cpTeamsChanged',
+    'cpStorageChanged',
+    'cpMallConfigChanged',
+    'cpSummonConfigChanged',
+  ].forEach((evName) => {
+    try { window.addEventListener(evName, queueChessPalCloudSave); } catch {}
+  });
+  try { patchLocalStorageForCloudSync(); } catch {}
+  try { initChessPalCloudStateSync(); } catch {}
 
   // ----------------------------
   // Ownership (heroes) + Seen (monsters)
@@ -190,7 +349,11 @@ const ChessPalPages = (() => {
       const mons = normalizeStageMonsters(st);
       if (mons.length) {
         mons.forEach((mm) => {
-          try { addSeenMonsterId(String(mm?.monsterId || '').trim().padStart(3, '0')); } catch {}
+          try {
+            const rawId = String(mm?.monsterId || mm?.id || '').trim();
+            const sid = rawId ? rawId.padStart(3, '0') : '';
+            if (sid) addSeenMonsterId(sid);
+          } catch {}
         });
       } else {
         const sid = st?.monsterId ? String(st.monsterId).trim().padStart(3, '0') : '';
@@ -3627,6 +3790,13 @@ const ChessPalPages = (() => {
               const picked = teamSlotKey(String(slotKey || '')[0] === 'M' ? 'monster' : 'hero', String(slotKey || '').slice(1));
               const id = picked || null;
               if (!id) return;
+              if (!isAdminMode()) {
+                const parsed = parseTeamSlot(id);
+                if (parsed?.kind === 'monster') {
+                  const ownedNow = getOwnedMonsterSet();
+                  if (!ownedNow.has(String(parsed.id || ''))) return;
+                }
+              }
               // Prevent duplicates in the same team
               if (team2.includes(id)) return;
               const nextState = loadTeams();

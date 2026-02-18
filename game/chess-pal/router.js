@@ -358,6 +358,8 @@ const Router = (() => {
   };
 })();
 
+try { window.Router = Router; } catch {}
+
 window.addEventListener('DOMContentLoaded', () => {
   try { Router.init(); } catch (e) { console.error(e); }
 });
