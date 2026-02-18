@@ -187,8 +187,8 @@ const ChessPalPages = (() => {
   function markStoryMonstersSeen(stageCfgLike) {
     try {
       const st = stageCfgLike && typeof stageCfgLike === 'object' ? stageCfgLike : {};
-      const mons = Array.isArray(st?.monsters) ? st.monsters : null;
-      if (mons && mons.length) {
+      const mons = normalizeStageMonsters(st);
+      if (mons.length) {
         mons.forEach((mm) => {
           try { addSeenMonsterId(String(mm?.monsterId || '').trim().padStart(3, '0')); } catch {}
         });
@@ -1282,6 +1282,8 @@ const ChessPalPages = (() => {
       b.monsterMaxHp = t.maxHp;
       b.monsterAtk = t.atk;
       b.monsterHp = t.hp;
+      // Seen-state is based on encounter. Ensure selected/visible monster is recorded.
+      try { addSeenMonsterId(String(t.monsterId || '').trim().padStart(3, '0')); } catch {}
 
       // Update main boss image + element
       try {
@@ -1913,6 +1915,10 @@ const ChessPalPages = (() => {
                       };
                     });
                     b.monsters = nextMonsters;
+                    // Robust seen-marking for all monsters in next stage.
+                    try {
+                      nextMonsters.forEach((m) => addSeenMonsterId(String(m?.monsterId || '').trim().padStart(3, '0')));
+                    } catch {}
                     // Re-render target chips
                     if (bossList) {
                       if (nextMonsters.length > 1) {
@@ -2244,6 +2250,10 @@ const ChessPalPages = (() => {
           });
         }
         b.monsters = nextMonsters;
+        // Robust seen-marking for all monsters in current stage.
+        try {
+          nextMonsters.forEach((m) => addSeenMonsterId(String(m?.monsterId || '').trim().padStart(3, '0')));
+        } catch {}
         // Back-compat single-monster fields follow the current target (default to 0)
         b.targetMonsterIdx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
         const tIdx = Math.max(0, Math.min(nextMonsters.length - 1, Number(b.targetMonsterIdx) || 0));
@@ -3543,26 +3553,24 @@ const ChessPalPages = (() => {
 
     const ownedHeroSet = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
     const ownedHeroIds = Array.from(ownedHeroSet);
-    const allowedMonsterSet = isAdminMode() ? new Set(getAllMonsters().map(m => m.id)) : getOwnedMonsterSet();
+    const allowedMonsterSet = getOwnedMonsterSet();
     const allowedMonsterIds = Array.from(allowedMonsterSet);
 
-    // Enforce rule: only owned monsters can stay in team slots (non-admin).
-    if (!isAdminMode()) {
-      let mutated = false;
-      const nextState = normalizeTeamState(state);
-      for (let ti = 0; ti < 5; ti += 1) {
-        for (let si = 0; si < 4; si += 1) {
-          const parsed = parseTeamSlot(nextState.teams?.[ti]?.[si]);
-          if (parsed?.kind === 'monster' && !allowedMonsterSet.has(String(parsed.id || ''))) {
-            nextState.teams[ti][si] = null;
-            mutated = true;
-          }
+    // Enforce rule: only owned monsters can stay in team slots.
+    let mutated = false;
+    const nextState = normalizeTeamState(state);
+    for (let ti = 0; ti < 5; ti += 1) {
+      for (let si = 0; si < 4; si += 1) {
+        const parsed = parseTeamSlot(nextState.teams?.[ti]?.[si]);
+        if (parsed?.kind === 'monster' && !allowedMonsterSet.has(String(parsed.id || ''))) {
+          nextState.teams[ti][si] = null;
+          mutated = true;
         }
       }
-      if (mutated) {
-        state = nextState;
-        saveTeams(state);
-      }
+    }
+    if (mutated) {
+      state = nextState;
+      saveTeams(state);
     }
 
     const render = () => {
