@@ -184,6 +184,21 @@ const ChessPalPages = (() => {
     try { window.dispatchEvent(new Event('cpSeenMonstersChanged')); } catch {}
   }
 
+  function markStoryMonstersSeen(stageCfgLike) {
+    try {
+      const st = stageCfgLike && typeof stageCfgLike === 'object' ? stageCfgLike : {};
+      const mons = Array.isArray(st?.monsters) ? st.monsters : null;
+      if (mons && mons.length) {
+        mons.forEach((mm) => {
+          try { addSeenMonsterId(String(mm?.monsterId || '').trim().padStart(3, '0')); } catch {}
+        });
+      } else {
+        const sid = st?.monsterId ? String(st.monsterId).trim().padStart(3, '0') : '';
+        if (sid) addSeenMonsterId(sid);
+      }
+    } catch {}
+  }
+
   // For future battle integration
   try { window.cpMarkMonsterSeen = addSeenMonsterId; } catch {}
   try { window.cpAddOwnedMonster = addOwnedMonsterId; } catch {}
@@ -1855,6 +1870,8 @@ const ChessPalPages = (() => {
                   // Update story config (no route change, keep board contents)
                   const cfg = getStoryStageConfig(Number(st.chapter) || 1, nextStage);
                   window.__cpStoryStage = cfg;
+                  // Auto-advance keeps same page, so mark seen for the new stage here.
+                  try { markStoryMonstersSeen(cfg); } catch {}
                   const stageAttr = String(Math.max(1, Math.min(5, Math.floor(Number(cfg.stage) || 1))));
                   const practiceRoot = document.querySelector('.cp-practice');
                   if (practiceRoot) practiceRoot.setAttribute('data-story-stage', stageAttr);
@@ -2193,16 +2210,8 @@ const ChessPalPages = (() => {
 
       // Init / update battle state & HP UI
       try {
-        // Story stage: mark monster as seen on entry
-        try {
-          const st = window.__cpStoryStage;
-          const mons = Array.isArray(st?.monsters) ? st.monsters : null;
-          if (mons && mons.length) mons.forEach(mm => { try { addSeenMonsterId(String(mm?.monsterId || '').trim().padStart(3, '0')); } catch {} });
-          else {
-            const sid = st?.monsterId ? String(st.monsterId).trim().padStart(3, '0') : '';
-            if (sid) addSeenMonsterId(sid);
-          }
-        } catch {}
+        // Story stage: mark current stage monsters as seen
+        try { markStoryMonstersSeen(window.__cpStoryStage); } catch {}
         const b = getBattle();
         const pMax = Math.max(0, totalHp);
         b.playerMaxHp = pMax;
@@ -3534,7 +3543,27 @@ const ChessPalPages = (() => {
 
     const ownedHeroSet = isAdminMode() ? new Set(getAllHeroes().map(h => h.id)) : getOwnedHeroSet();
     const ownedHeroIds = Array.from(ownedHeroSet);
-    const allowedMonsterIds = isAdminMode() ? getAllMonsters().map(m => m.id) : Array.from(getSeenMonsterSet());
+    const allowedMonsterSet = isAdminMode() ? new Set(getAllMonsters().map(m => m.id)) : getOwnedMonsterSet();
+    const allowedMonsterIds = Array.from(allowedMonsterSet);
+
+    // Enforce rule: only owned monsters can stay in team slots (non-admin).
+    if (!isAdminMode()) {
+      let mutated = false;
+      const nextState = normalizeTeamState(state);
+      for (let ti = 0; ti < 5; ti += 1) {
+        for (let si = 0; si < 4; si += 1) {
+          const parsed = parseTeamSlot(nextState.teams?.[ti]?.[si]);
+          if (parsed?.kind === 'monster' && !allowedMonsterSet.has(String(parsed.id || ''))) {
+            nextState.teams[ti][si] = null;
+            mutated = true;
+          }
+        }
+      }
+      if (mutated) {
+        state = nextState;
+        saveTeams(state);
+      }
+    }
 
     const render = () => {
       const idx = Math.max(0, Math.min(4, Number(state.active) || 0));
