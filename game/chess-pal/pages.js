@@ -1422,10 +1422,11 @@ const ChessPalPages = (() => {
               </div>
             </div>
           </div>
-          <div class="cp-bosslist" id="cpBossList" aria-label="Monster targets" ${monstersMeta.length > 1 ? `` : `style="display:none;"`}>
-            ${monstersMeta.length > 1 ? monstersMeta.map((mm, idx) => `
-              <button class="cp-bosschip ${idx === 0 ? 'is-active' : ''}" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="${idx === 0 ? 'true' : 'false'}">
+          <div class="cp-bosslist" id="cpBossList" aria-label="Monster targets" ${monstersMeta.length > 0 ? `` : `style="display:none;"`}>
+            ${monstersMeta.length > 0 ? monstersMeta.map((mm, idx) => `
+              <button class="cp-bosschip" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="false">
                 <img class="cp-bosschip-img" src="${esc(mm.img)}" alt="${esc(mm.name)}" decoding="async" loading="lazy">
+                <div class="cp-bosschip-name">${esc(mm.name || 'Monster')}</div>
                 <div class="cp-bosschip-bar" aria-hidden="true">
                   <div class="cp-bosschip-fill" data-boss-chipfill="${esc(String(idx))}"></div>
                 </div>
@@ -1474,9 +1475,15 @@ const ChessPalPages = (() => {
       const i = Math.max(0, Math.min(monsters.length - 1, Math.floor(Number(idx) || 0)));
       const t = monsters[i];
       if (!t) return;
+      if (opts?.manual === true && (Number(t?.hp) || 0) <= 0) return;
       b.targetMonsterIdx = i;
       // If user explicitly clicked a target, we keep it until they change it.
-      if (typeof opts?.manual === 'boolean') b.userPickedTarget = !!opts.manual;
+      if (opts?.manual === true) {
+        b.userPickedTarget = true;
+        b.manualTargetIdx = i;
+      } else if (opts?.manual === false && !b.userPickedTarget) {
+        b.manualTargetIdx = -1;
+      }
       // Keep back-compat single-monster fields in sync with current target
       b.monsterLevel = t.level;
       b.monsterMaxHp = t.maxHp;
@@ -1532,6 +1539,18 @@ const ChessPalPages = (() => {
       const idx = Math.floor(Number(btn.getAttribute('data-boss-idx')) || 0);
       setActiveMonsterUI(idx, { manual: true });
     }, { passive: false });
+    const practiceRootForCancel = document.querySelector('.cp-practice');
+    practiceRootForCancel?.addEventListener('click', (ev) => {
+      const target = ev?.target;
+      if (!target || typeof target.closest !== 'function') return;
+      if (target.closest('[data-boss-idx]')) return;
+      if (target.closest('button, a, input, select, textarea, [role="button"], #chessPalGame, .cp-practice-team, .cp-top-tools, .cp-popover')) return;
+      const b = getBattle();
+      if (!b.userPickedTarget) return;
+      b.userPickedTarget = false;
+      b.manualTargetIdx = -1;
+      updateHpUI();
+    }, { passive: true });
     const bossImgEl = document.getElementById('cpPracticeBossImg');
 
     const fadeInImage = (imgEl) => {
@@ -1641,6 +1660,9 @@ const ChessPalPages = (() => {
       try {
         if (monsters && monsters.length) {
           const list = document.getElementById('cpBossList');
+          const manualIdx = (b.userPickedTarget && Number.isFinite(Number(b.manualTargetIdx)))
+            ? Math.max(0, Math.min(monsters.length - 1, Math.floor(Number(b.manualTargetIdx))))
+            : -1;
           monsters.forEach((mm, idx) => {
             const mx = Math.max(0, Number(mm?.maxHp) || 0);
             const mh = Math.max(0, Math.min(mx, Number(mm?.hp) || 0));
@@ -1648,8 +1670,8 @@ const ChessPalPages = (() => {
             if (fill) fill.style.width = mx > 0 ? `${Math.max(0, Math.min(1, mh / mx)) * 100}%` : '0%';
             const chip = list?.querySelector(`[data-boss-idx="${CSS.escape(String(idx))}"]`);
             if (chip) {
-              chip.classList.toggle('is-active', idx === targetIdx);
-              chip.setAttribute('aria-pressed', idx === targetIdx ? 'true' : 'false');
+              chip.classList.toggle('is-active', idx === manualIdx);
+              chip.setAttribute('aria-pressed', idx === manualIdx ? 'true' : 'false');
               chip.classList.toggle('is-dead', mh <= 0);
             }
           });
@@ -2095,6 +2117,7 @@ const ChessPalPages = (() => {
                   // Reset multi-monster pool + target chips for the new stage
                   try {
                     b.userPickedTarget = false;
+                    b.manualTargetIdx = -1;
                     b.targetMonsterIdx = 0;
                     const stageMons = Array.isArray(cfg?.monsters) && cfg.monsters.length ? cfg.monsters : [{ monsterId: cfg?.monsterId || '004', level: cfg?.monsterLevel || 1 }];
                     const nextMonsters = stageMons.map((mm, idx) => {
@@ -2121,11 +2144,12 @@ const ChessPalPages = (() => {
                     } catch {}
                     // Re-render target chips
                     if (bossList) {
-                      if (nextMonsters.length > 1) {
+                      if (nextMonsters.length > 0) {
                         bossList.style.display = '';
                         bossList.innerHTML = nextMonsters.map((mm, idx) => `
-                          <button class="cp-bosschip ${idx === 0 ? 'is-active' : ''}" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="${idx === 0 ? 'true' : 'false'}">
+                          <button class="cp-bosschip" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="false">
                             <img class="cp-bosschip-img" src="${esc(String(mm.img || ''))}" alt="${esc(String(mm.name || 'Monster'))}" decoding="async" loading="lazy">
+                            <div class="cp-bosschip-name">${esc(String(mm.name || 'Monster'))}</div>
                             <div class="cp-bosschip-bar" aria-hidden="true">
                               <div class="cp-bosschip-fill" data-boss-chipfill="${esc(String(idx))}"></div>
                             </div>
@@ -2450,6 +2474,10 @@ const ChessPalPages = (() => {
           });
         }
         b.monsters = nextMonsters;
+        b.userPickedTarget = !!b.userPickedTarget;
+        b.manualTargetIdx = (b.userPickedTarget && Number.isFinite(Number(b.manualTargetIdx)))
+          ? Math.max(0, Math.min(nextMonsters.length - 1, Math.floor(Number(b.manualTargetIdx))))
+          : -1;
         // Robust seen-marking for all monsters in current stage.
         try {
           nextMonsters.forEach((m) => addSeenMonsterId(String(m?.monsterId || '').trim().padStart(3, '0')));

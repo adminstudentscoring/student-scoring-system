@@ -343,36 +343,67 @@
 
 /* Multi-monster target chips (Story stages) */
 .cp-bosslist{
-  margin-top: 10px;
+  margin-top: 12px;
   display:flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 .cp-bosschip{
   flex: 0 0 auto;
-  width: 62px;
-  height: 78px;
-  border-radius: 14px;
+  width: 116px;
+  min-height: 138px;
+  border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(0,0,0,0.12);
-  padding: 6px;
+  background: rgba(7,13,27,0.62);
+  padding: 8px 8px 10px;
   cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, opacity 140ms ease;
+  position: relative;
+}
+.cp-bosschip:hover{
+  transform: translateY(-1px);
+}
+.cp-bosschip:active{
+  transform: translateY(0);
 }
 .cp-bosschip.is-active{
-  border-color: rgba(196,181,253,0.80);
-  box-shadow: 0 0 0 3px rgba(196,181,253,0.18);
+  border-color: rgba(191,219,254,0.92);
+  box-shadow: 0 0 0 2px rgba(191,219,254,0.20), 0 0 14px rgba(125,211,252,0.30);
+}
+.cp-bosschip.is-active::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 49px;
+  width: 72px;
+  height: 72px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 2px solid rgba(191,219,254,0.95);
+  box-shadow: 0 0 12px rgba(125,211,252,0.55);
+  pointer-events: none;
 }
 .cp-bosschip-img{
   width: 100%;
-  height: 52px;
+  height: 86px;
   object-fit: contain;
   display:block;
 }
+.cp-bosschip-name{
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  color: rgba(236,253,245,0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .cp-bosschip-bar{
-  margin-top: 6px;
+  margin-top: 8px;
   height: 6px;
   border-radius: 999px;
   overflow:hidden;
@@ -386,7 +417,7 @@
   opacity: 0.92;
 }
 .cp-bosschip.is-dead{
-  opacity: 0.35;
+  opacity: 0.42;
   filter: grayscale(1);
 }
 
