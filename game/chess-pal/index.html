@@ -59,6 +59,26 @@
             <div class="cp-main-topbar">
                 <button class="cp-hamburger" id="cpHamburger" type="button" aria-label="Toggle menu">☰</button>
                 <div class="cp-main-title" id="cpMainTitle">Home</div>
+                <div class="cp-top-status" id="cpTopStatus" aria-label="Player quick status">
+                    <div class="cp-top-level">
+                        <div class="cp-top-level-row">
+                            <span id="cpTopPlayerLevel">Lv.1</span>
+                        </div>
+                        <div class="cp-top-expbar" aria-label="Level progress">
+                            <div class="cp-top-expfill" id="cpTopPlayerExpFill"></div>
+                        </div>
+                    </div>
+                    <div class="cp-top-coins" aria-label="Coins">
+                        <div class="cp-top-coin">
+                            <img src="images/Storage/S001-Gold-Coin.png" alt="Gold coin" onerror="this.onerror=null;if(this.src.indexOf('S002-Gold-Coin.png')===-1){this.src='images/Storage/S002-Gold-Coin.png';return;}this.src='images/Storage/Gold-Coin.png';">
+                            <span id="cpTopGoldCoinVal">0</span>
+                        </div>
+                        <div class="cp-top-coin">
+                            <img src="images/Storage/S002-Silver-Coin.png" alt="Silver coin" onerror="this.onerror=null;if(this.src.indexOf('S001-Silver-Coin.png')===-1){this.src='images/Storage/S001-Silver-Coin.png';return;}this.src='images/Storage/Silver-Coin.png';">
+                            <span id="cpTopSilverCoinVal">0</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="cp-top-tools" id="cpTopTools"></div>
             </div>
             <div class="cp-top-popovers" id="cpTopPopovers"></div>

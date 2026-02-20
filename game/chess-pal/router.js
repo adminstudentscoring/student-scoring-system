@@ -131,10 +131,14 @@ const Router = (() => {
   function updateSidebarCoins() {
     const goldEl = document.getElementById('cpGoldCoinVal');
     const silverEl = document.getElementById('cpSilverCoinVal');
-    if (!goldEl && !silverEl) return;
+    const topGoldEl = document.getElementById('cpTopGoldCoinVal');
+    const topSilverEl = document.getElementById('cpTopSilverCoinVal');
+    if (!goldEl && !silverEl && !topGoldEl && !topSilverEl) return;
     const t = getCoinTotalsFromStorage();
     if (goldEl) goldEl.textContent = String(t.gold || 0);
     if (silverEl) silverEl.textContent = String(t.silver || 0);
+    if (topGoldEl) topGoldEl.textContent = String(t.gold || 0);
+    if (topSilverEl) topSilverEl.textContent = String(t.silver || 0);
   }
 
   function getSidebarPlayerName() {
@@ -152,7 +156,9 @@ const Router = (() => {
     const lvEl = document.getElementById('cpPlayerLevel');
     const nextEl = document.getElementById('cpPlayerLevelNext');
     const fillEl = document.getElementById('cpPlayerExpFill');
-    if (!nameEl && !lvEl && !nextEl && !fillEl) return;
+    const topLvEl = document.getElementById('cpTopPlayerLevel');
+    const topFillEl = document.getElementById('cpTopPlayerExpFill');
+    if (!nameEl && !lvEl && !nextEl && !fillEl && !topLvEl && !topFillEl) return;
     if (nameEl) nameEl.textContent = getSidebarPlayerName();
     let meta = null;
     try { meta = window.ChessPalPlayerProgress?.getPlayerProgressMeta?.() || null; } catch {}
@@ -162,6 +168,8 @@ const Router = (() => {
     if (lvEl) lvEl.textContent = `Lv.${level}`;
     if (nextEl) nextEl.textContent = `Next ${need}`;
     if (fillEl) fillEl.style.width = `${progress * 100}%`;
+    if (topLvEl) topLvEl.textContent = `Lv.${level}`;
+    if (topFillEl) topFillEl.style.width = `${progress * 100}%`;
   }
 
   function renderPath(path) {

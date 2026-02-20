@@ -339,6 +339,13 @@ body {
   touch-action: manipulation;
 }
 .cp-tool-btn:active{ transform: translateY(1px); }
+.cp-tool-btn:disabled{
+  background: rgba(148,163,184,0.14);
+  border-color: rgba(148,163,184,0.28);
+  color: rgba(203,213,225,0.62);
+  cursor: not-allowed;
+  opacity: 0.9;
+}
 
 .cp-top-popovers{
   position: sticky;
@@ -348,6 +355,10 @@ body {
   padding: 0 14px;
 }
 .cp-hide-topbar .cp-top-popovers{
+  display:none;
+}
+
+.cp-top-status{
   display:none;
 }
 
@@ -413,6 +424,65 @@ body {
     display: block;
   }
   .cp-hamburger{ display:inline-flex; align-items:center; justify-content:center; }
+  .cp-main-topbar{
+    gap: 8px;
+  }
+  .cp-main-title{
+    min-width: 56px;
+    font-size: 14px;
+  }
+  .cp-top-status{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    margin-left: auto;
+    min-width: 0;
+  }
+  .cp-top-level{
+    min-width: 78px;
+  }
+  .cp-top-level-row{
+    font-size: 11px;
+    font-weight: 1000;
+    line-height: 1;
+    color: rgba(255,255,255,0.92);
+  }
+  .cp-top-expbar{
+    margin-top: 4px;
+    height: 5px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.24);
+  }
+  .cp-top-expfill{
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, rgba(168,85,247,0.94), rgba(59,130,246,0.92));
+  }
+  .cp-top-coins{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+  }
+  .cp-top-coin{
+    display:flex;
+    align-items:center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 1000;
+    color: rgba(255,255,255,0.92);
+    white-space: nowrap;
+  }
+  .cp-top-coin img{
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+  }
+  .cp-top-tools{
+    margin-left: 0;
+    gap: 6px;
+  }
   .cp-sidebar{
     position: fixed;
     left: 0;
