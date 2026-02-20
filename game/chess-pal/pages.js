@@ -1832,12 +1832,15 @@ const ChessPalPages = (() => {
 
         b = getBattle();
         const hpBar = document.querySelector('.cp-team-hpbar');
+        const getBossVisualByIdx = (idxLike) => {
+          const idx = Math.max(0, Math.floor(Number(idxLike) || 0));
+          const box = document.querySelector(`[data-boss-card="${CSS.escape(String(idx))}"]`);
+          const img = document.querySelector(`[data-boss-img="${CSS.escape(String(idx))}"]`);
+          return { box, img };
+        };
         const getTargetBossVisual = () => {
           const idx = Number.isFinite(Number(b?.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
-          const safeIdx = Math.max(0, idx);
-          const box = document.querySelector(`[data-boss-card="${CSS.escape(String(safeIdx))}"]`);
-          const img = document.querySelector(`[data-boss-img="${CSS.escape(String(safeIdx))}"]`);
-          return { box, img };
+          return getBossVisualByIdx(idx);
         };
         const showDamageFloat = (value, element, mult, hostEl) => {
           const host = hostEl || getTargetBossVisual().box || getTargetBossVisual().img;
@@ -2165,26 +2168,55 @@ const ChessPalPages = (() => {
         }
 
         // Monster counter-attacks player: beam from monster center → HP bar, shake HP bar
-        let monsterAtk = 0;
-        try {
-          if (Number.isFinite(Number(b.monsterAtk))) {
-            monsterAtk = Math.max(0, Math.floor(Number(b.monsterAtk) || 0));
-          } else {
-            const lv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1));
-            monsterAtk = getBossEffective(lv).atk;
-            b.monsterAtk = monsterAtk;
+        const counterAttackers = (() => {
+          try {
+            if (Array.isArray(monsters) && monsters.length) {
+              return monsters
+                .map((m, idx) => ({ m, idx }))
+                .filter(({ m }) => (Number(m?.hp) || 0) > 0);
+            }
+          } catch {}
+          return [];
+        })();
+        if (counterAttackers.length > 0) {
+          for (const { m, idx } of counterAttackers) {
+            const rawAtk = Math.max(0, Math.floor(Number(m?.atk) || 0));
+            if (rawAtk <= 0) continue;
+            const visual = getBossVisualByIdx(idx);
+            const fromEl = visual.img || visual.box;
+            if (fromEl && hpBar) {
+              await playBeamBetween({ fromEl, toEl: hpBar, variant: 'monster' });
+            }
+            await shake(hpBar);
+            const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+            const dr = Number.isFinite(Number(b.playerDamageReduction)) ? Number(b.playerDamageReduction) : 0;
+            const effDmg = Math.max(0, Math.floor(rawAtk * (1 - Math.max(0, Math.min(0.9, dr)))));
+            b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - effDmg));
+            updateHpUI();
+            if ((Number(b.playerHp) || 0) <= 0) break;
           }
-        } catch {}
-        if (monsterAtk > 0) {
-          const targetVisual = getTargetBossVisual();
-          const fromEl = targetVisual.img || targetVisual.box;
-          await playBeamBetween({ fromEl, toEl: hpBar, variant: 'monster' });
-          await shake(hpBar);
-          const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
-          const dr = Number.isFinite(Number(b.playerDamageReduction)) ? Number(b.playerDamageReduction) : 0;
-          const effDmg = Math.max(0, Math.floor(monsterAtk * (1 - Math.max(0, Math.min(0.9, dr)))));
-          b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - effDmg));
-          updateHpUI();
+        } else {
+          let monsterAtk = 0;
+          try {
+            if (Number.isFinite(Number(b.monsterAtk))) {
+              monsterAtk = Math.max(0, Math.floor(Number(b.monsterAtk) || 0));
+            } else {
+              const lv = Math.max(1, Math.floor(Number(b.monsterLevel) || 1));
+              monsterAtk = getBossEffective(lv).atk;
+              b.monsterAtk = monsterAtk;
+            }
+          } catch {}
+          if (monsterAtk > 0) {
+            const targetVisual = getTargetBossVisual();
+            const fromEl = targetVisual.img || targetVisual.box;
+            await playBeamBetween({ fromEl, toEl: hpBar, variant: 'monster' });
+            await shake(hpBar);
+            const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+            const dr = Number.isFinite(Number(b.playerDamageReduction)) ? Number(b.playerDamageReduction) : 0;
+            const effDmg = Math.max(0, Math.floor(monsterAtk * (1 - Math.max(0, Math.min(0.9, dr)))));
+            b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - effDmg));
+            updateHpUI();
+          }
         }
       } finally {
         // Clear per-turn scores after combat so next turn starts clean

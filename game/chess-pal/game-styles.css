@@ -93,9 +93,6 @@
   .cp-game-fullscreen .cp-practice{
     --cp-portrait-boss-h: min(22dvh, 180px);
   }
-  .cp-game-fullscreen .cp-practice[data-story-stage="5"]{
-    --cp-portrait-boss-h: min(26dvh, 220px);
-  }
   .cp-game-fullscreen .cp-practice{
     grid-template-columns: 1fr;
     /* Portrait: 3 sections (monster, heroes, board) to avoid huge blank area */
@@ -213,11 +210,11 @@
   flex-wrap: nowrap;
   gap: 8px;
   align-items: stretch;
-  justify-content: flex-start;
+  justify-content: center;
   min-width: 0;
 }
 .cp-practice-boss{
-  flex: 1 1 0;
+  flex: 0 0 clamp(80px, 17vw, 135px);
   width: auto;
   min-width: 0;
   border-radius: 18px;
@@ -368,7 +365,7 @@
 }
 
 .cp-game-fullscreen .cp-boss-arena .cp-practice-boss{
-  flex: 1 1 0;
+  flex: 0 0 clamp(80px, 17vw, 135px);
   width: auto;
   min-width: 0;
   max-width: 100%;
@@ -466,23 +463,7 @@
   filter: grayscale(1);
 }
 
-/* Fullscreen: monster art fixed height, show full image */
-.cp-game-fullscreen .cp-practice-boss{
-  --cp-boss-h: 9cm;
-  /* Keep a stable box even before image loads (prevents layout shift) */
-  width: min(100%, var(--cp-boss-h));
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  height: var(--cp-boss-h);
-  min-height: var(--cp-boss-h);
-  aspect-ratio: 1 / 1;
-  /* Monster image bottom anchored at ~60% viewport height */
-  margin-top: clamp(0px, calc(60dvh - var(--cp-game-pad, 14px) - var(--cp-boss-h)), 999px);
-}
-.cp-game-fullscreen .cp-practice[data-story-stage="5"] .cp-practice-boss{
-  --cp-boss-h: 12cm;
-}
+/* Fullscreen monster cards use the same fixed card size regardless of stage/count. */
 .cp-game-fullscreen .cp-practice-bossimg{
   width: auto;
   max-width: 100%;
