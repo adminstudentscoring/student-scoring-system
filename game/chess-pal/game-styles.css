@@ -752,7 +752,7 @@
 
 .pmf-step-trail{
   position: fixed;
-  height: 4px;
+  height: 8px;
   border-radius: 999px;
   pointer-events: none;
   z-index: 70;
@@ -775,7 +775,7 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 80;
-  font-size: 11px;
+  font-size: 22px;
   font-weight: 1000;
   letter-spacing: 0.2px;
   color: #fff;

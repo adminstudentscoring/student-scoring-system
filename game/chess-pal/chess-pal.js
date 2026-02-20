@@ -489,7 +489,6 @@ const ChessPal = (() => {
           state.knightPosition
           && state.knightPosition.row === row
           && state.knightPosition.col === col
-          && !state.isPlayerTurn
         );
         if (isKnight) {
           cellClass += ' pmf-knight-cell';
@@ -658,10 +657,10 @@ const ChessPal = (() => {
 
     if (state.moveHistory.length === 0) {
       pushLog('No jewels consumed this turn.');
-      renderBoard();
       state.startingKnight = null;
       state.knightPosition = null;
       state.pathMultiplierEvents = [];
+      renderBoard();
       emitElementScores(computeElementScores([], []), 'final', { pathMultipliers: [] });
       return;
     }
@@ -683,11 +682,11 @@ const ChessPal = (() => {
         renderScoreBreakdown(breakdown);
         emitElementScores(breakdown?.elementScores || computeElementScores(state.moveHistory, cascades), 'final', { pathMultipliers: state.pathMultiplierEvents });
 
-        renderBoard();
         state.startingKnight = null;
         state.knightPosition = null;
         state.moveHistory = [];
         state.pathMultiplierEvents = [];
+        renderBoard();
         state.isAnimating = false;
       });
     });
