@@ -429,6 +429,7 @@ const ChessPalPages = (() => {
   // Back-compat: older saves may store {monsterId, level, hint, drops} per stage.
   // ----------------------------
   const STORY_STAGES_KEY = 'chessPalStoryStages';
+  const STORY_STAGES_UPDATED_AT_KEY = 'chessPalStoryStagesUpdatedAt';
 
   function normalizeStageMonsters(stageLike) {
     const raw = stageLike && typeof stageLike === 'object' ? stageLike : {};
@@ -494,6 +495,15 @@ const ChessPalPages = (() => {
     try { window.dispatchEvent(new Event('cpStoryStagesChanged')); } catch {}
   }
 
+  function getStoryStagesUpdatedAtLocal() {
+    try { return Math.max(0, Number(localStorage.getItem(STORY_STAGES_UPDATED_AT_KEY)) || 0); } catch {}
+    return 0;
+  }
+
+  function setStoryStagesUpdatedAtLocal(ts) {
+    try { localStorage.setItem(STORY_STAGES_UPDATED_AT_KEY, String(Math.max(0, Math.floor(Number(ts) || 0)))); } catch {}
+  }
+
   function getStoryStagesForChapter(chapterId) {
     const ch = String(Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1))));
     const all = loadStoryStages();
@@ -517,7 +527,11 @@ const ChessPalPages = (() => {
       const data = await resp.json();
       const stages = (data && typeof data.stages === 'object' && !Array.isArray(data.stages)) ? data.stages : null;
       if (!stages) return;
+      const serverTs = Math.max(0, Number(data?.updatedAt) || 0);
+      const localTs = getStoryStagesUpdatedAtLocal();
+      if (localTs > serverTs && localTs > 0) return;
       saveStoryStages(stages);
+      setStoryStagesUpdatedAtLocal(serverTs || Date.now());
       try {
         if (window.Router && typeof window.Router.renderCurrent === 'function') window.Router.renderCurrent();
       } catch {}
@@ -542,6 +556,10 @@ const ChessPalPages = (() => {
       } catch {}
       throw new Error(msg);
     }
+    const data = await resp.json().catch(() => ({}));
+    const stages = (data && typeof data.stages === 'object' && !Array.isArray(data.stages)) ? data.stages : payload;
+    const updatedAt = Math.max(0, Number(data?.updatedAt) || Date.now());
+    return { stages, updatedAt };
   }
 
   function showAdminEditStoryStagesModal(chapterId) {
@@ -887,8 +905,9 @@ const ChessPalPages = (() => {
         }
         const nextAll = loadStoryStages();
         nextAll[String(ch)] = stages;
-        await saveStoryStagesToServer(nextAll);
-        saveStoryStages(nextAll);
+        const saved = await saveStoryStagesToServer(nextAll);
+        saveStoryStages(saved?.stages || nextAll);
+        setStoryStagesUpdatedAtLocal(Number(saved?.updatedAt) || Date.now());
         setMsg('Saved globally.');
         setTimeout(() => close(), 250);
       } catch (e) {
