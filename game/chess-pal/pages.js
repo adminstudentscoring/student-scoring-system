@@ -2447,6 +2447,7 @@ const ChessPalPages = (() => {
             if (!anchor || !slotEl) continue;
             await playBeamBetween({ fromEl: anchor, toEl: slotEl, variant: 'player' });
             try { anchor.remove(); } catch {}
+            try { window.ChessPal?.removePathMultiplierFxById?.(pm?.fxId); } catch {}
           }
           await playBeamBetween({ fromEl: slotEl, toEl: targetEl, variant: 'player' });
           await shake(targetEl);

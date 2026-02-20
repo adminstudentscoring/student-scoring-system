@@ -26,6 +26,8 @@ const ChessPal = (() => {
     timeRemaining: TURN_TIME_MS,
     moveHistory: [],
     pathMultiplierEvents: [],
+    pathMultiplierFxMap: {},
+    pathMultiplierFxSeq: 0,
     cascades: [],
     lastScore: null,
     isPlayerTurn: false,
@@ -209,6 +211,7 @@ const ChessPal = (() => {
     state.validMoves = [];
     state.lastScore = null;
     state.pathMultiplierEvents = [];
+    clearAllPathMultiplierFx();
     try {
       if (window.__cpPieceListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
     } catch {}
@@ -355,6 +358,29 @@ const ChessPal = (() => {
     return events;
   }
 
+  function computeCascadeMultiplierEvents(matches) {
+    const arr = Array.isArray(matches) ? matches : [];
+    const events = [];
+    for (const match of arr) {
+      const positions = Array.isArray(match?.positions) ? match.positions : [];
+      const mult = Math.max(0, Math.floor(Number(positions.length) || 0));
+      if (mult < 3) continue;
+      const element = String(match?.element || '').toLowerCase();
+      const cx = positions.reduce((s, p) => s + (Number(p?.col) || 0), 0) / Math.max(1, positions.length);
+      const cy = positions.reduce((s, p) => s + (Number(p?.row) || 0), 0) / Math.max(1, positions.length);
+      const center = getCellCenterViewport(Math.round(cy), Math.round(cx));
+      events.push({
+        element,
+        multiplier: mult,
+        row: Math.round(cy),
+        col: Math.round(cx),
+        x: Number(center?.x) || 0,
+        y: Number(center?.y) || 0,
+      });
+    }
+    return events;
+  }
+
   function showPathMultiplierFx(evt) {
     try {
       const mult = Math.max(0, Math.floor(Number(evt?.multiplier) || 0));
@@ -368,8 +394,31 @@ const ChessPal = (() => {
       el.style.top = `${y}px`;
       el.textContent = `x${mult}`;
       document.body.appendChild(el);
-      setTimeout(() => { try { el.remove(); } catch {} }, 760);
+      state.pathMultiplierFxSeq = Math.max(0, Math.floor(Number(state.pathMultiplierFxSeq) || 0)) + 1;
+      const id = `pmf-mult-${Date.now()}-${state.pathMultiplierFxSeq}`;
+      state.pathMultiplierFxMap[id] = el;
+      if (evt && typeof evt === 'object') evt.fxId = id;
     } catch {}
+  }
+
+  function removePathMultiplierFxById(id) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    const el = state.pathMultiplierFxMap?.[key];
+    if (el) {
+      try { el.remove(); } catch {}
+      try { delete state.pathMultiplierFxMap[key]; } catch {}
+    }
+  }
+
+  function clearAllPathMultiplierFx() {
+    try {
+      const map = (state.pathMultiplierFxMap && typeof state.pathMultiplierFxMap === 'object') ? state.pathMultiplierFxMap : {};
+      Object.keys(map).forEach((k) => {
+        try { map[k]?.remove?.(); } catch {}
+      });
+    } catch {}
+    state.pathMultiplierFxMap = {};
   }
 
   function computeScoreBreakdown(moveHistory, cascades, timeLeftMs) {
@@ -623,6 +672,7 @@ const ChessPal = (() => {
       .filter(pos => isInsideBoard(pos.row, pos.col) && state.board[pos.row][pos.col]);
     state.moveHistory = [];
     state.pathMultiplierEvents = [];
+    clearAllPathMultiplierFx();
     state.cascades = [];
     state.lastScore = null;
     renderScoreBreakdown(null);
@@ -660,6 +710,7 @@ const ChessPal = (() => {
       state.startingKnight = null;
       state.knightPosition = null;
       state.pathMultiplierEvents = [];
+      clearAllPathMultiplierFx();
       renderBoard();
       emitElementScores(computeElementScores([], []), 'final', { pathMultipliers: [] });
       return;
@@ -721,6 +772,9 @@ const ChessPal = (() => {
     do {
       matches = findMatches();
       if (matches.length > 0) {
+        const cascadeMults = computeCascadeMultiplierEvents(matches);
+        cascadeMults.forEach((evt) => showPathMultiplierFx(evt));
+        state.pathMultiplierEvents = (Array.isArray(state.pathMultiplierEvents) ? state.pathMultiplierEvents : []).concat(cascadeMults);
         const cascade = matches.map(match => ({ element: match.element, count: match.positions.length }));
         cascades.push({ matches: cascade });
         await animateMatches(matches);
@@ -964,6 +1018,8 @@ const ChessPal = (() => {
   return {
     init,
     destroy,
+    removePathMultiplierFxById,
+    clearAllPathMultiplierFx,
     BOARD_ROWS,
     BOARD_COLS
   };

@@ -795,15 +795,13 @@
   letter-spacing: 0.2px;
   color: #fff;
   text-shadow: 0 2px 8px rgba(0,0,0,0.72);
-  animation: pmf-path-mult-flash 760ms ease-out both;
+  animation: pmf-path-mult-flash 520ms steps(1, end) infinite;
 }
 @keyframes pmf-path-mult-flash{
-  0%{ opacity: 0; color: #fff; transform: translate(-50%, -50%) scale(0.88); }
-  12%{ opacity: 1; color: #ef4444; }
-  24%{ color: #fff; }
-  36%{ color: #ef4444; }
-  48%{ color: #fff; }
-  100%{ opacity: 0; color: #ef4444; transform: translate(-50%, -85%) scale(1.02); }
+  0%, 24%{ color: #fff; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  25%, 49%{ color: #ef4444; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  50%, 74%{ color: #fff; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  75%, 100%{ color: #ef4444; opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 .cp-practice-skilltitle{
   font-size: 13px;
