@@ -3,7 +3,6 @@
 const ChessPalPages = (() => {
   const CHESS_PAL_CLOUD_KEYS = [
     'chessPalPreset',
-    'chessPalGeneralSettings',
     'chessPalOwnedHeroes',
     'chessPalOwnedMonsters',
     'chessPalSeenMonsters',
@@ -14,8 +13,6 @@ const ChessPalPages = (() => {
     'chessPalTeams',
     'chessPalStorage',
     'chessPalFreeSilverClaimDate',
-    'chessPalMallConfig',
-    'chessPalSummonConfig',
   ];
   let cpCloudSyncReady = false;
   let cpCloudHydrating = false;
@@ -99,6 +96,8 @@ const ChessPalPages = (() => {
         }
       }
       try { applyGeneralSettings(getGeneralSettings()); } catch {}
+      try { await syncChessPalGlobalConfigFromServer(); } catch {}
+      try { await syncStoryStagesFromServer(); } catch {}
       cpCloudLastSig = JSON.stringify(exportChessPalCloudState());
       cpCloudSyncReady = true;
       cpCloudHydrating = false;
@@ -220,6 +219,9 @@ const ChessPalPages = (() => {
   function saveGeneralSettings(s) {
     try { localStorage.setItem('chessPalGeneralSettings', JSON.stringify(s)); } catch {}
     try { window.dispatchEvent(new Event('cpGeneralSettingsSaved')); } catch {}
+    if (isAdminMode()) {
+      saveChessPalGlobalConfigToServer({ generalSettings: s }).catch(() => {});
+    }
   }
 
   // Apply once on load (so it affects all pages)
@@ -254,7 +256,43 @@ const ChessPalPages = (() => {
   });
   try { patchLocalStorageForCloudSync(); } catch {}
   try { initChessPalCloudStateSync(); } catch {}
-  try { syncStoryStagesFromServer(); } catch {}
+
+  async function syncChessPalGlobalConfigFromServer() {
+    try {
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
+      const resp = await window.authUtils.authenticatedFetch('/chess-pal/global-config', { method: 'GET' });
+      if (!resp || !resp.ok) return;
+      const data = await resp.json();
+      const generalSettings = (data && data.generalSettings && typeof data.generalSettings === 'object' && !Array.isArray(data.generalSettings)) ? data.generalSettings : null;
+      const summonConfig = (data && data.summonConfig && typeof data.summonConfig === 'object' && !Array.isArray(data.summonConfig)) ? data.summonConfig : null;
+      const mallConfig = (data && data.mallConfig && typeof data.mallConfig === 'object' && !Array.isArray(data.mallConfig)) ? data.mallConfig : null;
+      if (generalSettings) {
+        try { localStorage.setItem('chessPalGeneralSettings', JSON.stringify(generalSettings)); } catch {}
+      }
+      if (summonConfig) {
+        try { localStorage.setItem('chessPalSummonConfig', JSON.stringify(summonConfig)); } catch {}
+      }
+      if (mallConfig) {
+        try { localStorage.setItem('chessPalMallConfig', JSON.stringify(mallConfig)); } catch {}
+      }
+      try { applyGeneralSettings(getGeneralSettings()); } catch {}
+      try { window.dispatchEvent(new Event('cpSummonConfigChanged')); } catch {}
+      try { window.dispatchEvent(new Event('cpMallConfigChanged')); } catch {}
+    } catch {}
+  }
+
+  async function saveChessPalGlobalConfigToServer(patchLike) {
+    if (!isAdminMode()) return;
+    if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
+    const patch = (patchLike && typeof patchLike === 'object' && !Array.isArray(patchLike)) ? patchLike : {};
+    try {
+      await window.authUtils.authenticatedFetch('/admin/chess-pal/global-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+    } catch {}
+  }
 
   // ----------------------------
   // Ownership (heroes) + Seen (monsters)
@@ -4795,12 +4833,17 @@ const ChessPalPages = (() => {
   }
 
   function saveSummonConfig(cfg) {
+    let saved = null;
     try {
       const next = normalizeSummonConfig(cfg);
       next.updatedAt = Date.now();
       localStorage.setItem(SUMMON_CONFIG_KEY, JSON.stringify(next));
+      saved = next;
     } catch {}
     try { window.dispatchEvent(new Event('cpSummonConfigChanged')); } catch {}
+    if (saved && isAdminMode()) {
+      saveChessPalGlobalConfigToServer({ summonConfig: saved }).catch(() => {});
+    }
   }
 
   function getSummonConfigForNow() {
@@ -4997,12 +5040,17 @@ const ChessPalPages = (() => {
   }
 
   function saveMallConfig(cfg) {
+    let saved = null;
     try {
       const next = normalizeMallConfig(cfg);
       next.updatedAt = Date.now();
       localStorage.setItem(MALL_CONFIG_KEY, JSON.stringify(next));
+      saved = next;
     } catch {}
     try { window.dispatchEvent(new Event('cpMallConfigChanged')); } catch {}
+    if (saved && isAdminMode()) {
+      saveChessPalGlobalConfigToServer({ mallConfig: saved }).catch(() => {});
+    }
   }
 
   function getMallOffersForNow() {
@@ -5308,6 +5356,7 @@ const ChessPalPages = (() => {
   SummonPage.title = 'Summon';
   SummonPage.render = () => {
     const s = getGeneralSettings();
+    const monsterSummonBg = 'images/Summon/Su002-Castling.jpg';
     const admin = isAdminMode();
     const cfg = getSummonConfigForNow();
     const curDef = getStorageItemDef(cfg.currencyId || 'gold_coin') || getStorageItemDef('gold_coin');
@@ -5333,7 +5382,7 @@ const ChessPalPages = (() => {
             </div>
           </button>
           <button class="cp-summon-main" type="button" id="cpSummonMonster" aria-label="Summon Monster" ${cfg.enabledNow && !monsterDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" src="${esc(String(s.summonBg || ''))}" alt="Summon background" onerror="this.style.display='none';">
+            <img class="cp-summon-mainimg" src="${esc(monsterSummonBg)}" alt="Summon background" onerror="this.style.display='none';">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Summon Monster</div>
               <div class="cp-summon-cost" aria-label="Cost">

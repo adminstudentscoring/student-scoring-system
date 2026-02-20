@@ -356,6 +356,65 @@ function sanitizeChessPalStoryStages(raw) {
   return out;
 }
 
+function sanitizeChessPalGlobalConfig(raw) {
+  const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  const pickObj = (v) => ((v && typeof v === 'object' && !Array.isArray(v)) ? v : {});
+  const clampObj = (obj, maxBytes) => {
+    try {
+      const json = JSON.stringify(obj || {});
+      const bytes = Buffer.byteLength(json, 'utf8');
+      if (bytes > maxBytes) return {};
+      const parsed = JSON.parse(json);
+      return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+  return {
+    generalSettings: clampObj(pickObj(src.generalSettings), 250_000),
+    summonConfig: clampObj(pickObj(src.summonConfig), 500_000),
+    mallConfig: clampObj(pickObj(src.mallConfig), 500_000),
+  };
+}
+
+app.get('/api/chess-pal/global-config', authenticateUser, async (req, res) => {
+  try {
+    const data = await readData();
+    const cfg = sanitizeChessPalGlobalConfig(data?.chessPal?.globalConfig || {});
+    const updatedAt = Number.isFinite(Number(data?.chessPal?.globalConfigUpdatedAt))
+      ? Math.floor(Number(data.chessPal.globalConfigUpdatedAt))
+      : 0;
+    res.json({ ...cfg, updatedAt });
+  } catch (e) {
+    console.error('[chess-pal] GET /api/chess-pal/global-config failed:', e);
+    res.status(500).json({ error: 'Failed to load Chess Pal global config' });
+  }
+});
+
+app.put('/api/admin/chess-pal/global-config', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const body = (req && req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    const current = sanitizeChessPalGlobalConfig(data.chessPal.globalConfig || {});
+    const merged = {
+      generalSettings: Object.prototype.hasOwnProperty.call(body, 'generalSettings') ? body.generalSettings : current.generalSettings,
+      summonConfig: Object.prototype.hasOwnProperty.call(body, 'summonConfig') ? body.summonConfig : current.summonConfig,
+      mallConfig: Object.prototype.hasOwnProperty.call(body, 'mallConfig') ? body.mallConfig : current.mallConfig,
+    };
+    const next = sanitizeChessPalGlobalConfig(merged);
+    const now = Date.now();
+    data.chessPal.globalConfig = next;
+    data.chessPal.globalConfigUpdatedAt = now;
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+    res.json({ success: true, ...next, updatedAt: now });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/global-config failed:', e);
+    res.status(500).json({ error: 'Failed to save Chess Pal global config' });
+  }
+});
+
 app.get('/api/chess-pal/story-stages', authenticateUser, async (req, res) => {
   try {
     const data = await readData();
