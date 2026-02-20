@@ -6,6 +6,7 @@ const Router = (() => {
   let currentPath = '';
   let currentPage = null;
   let coinsListenerBound = false;
+  let suppressHashSync = false;
 
   function normalize(path) {
     const p = String(path || '').trim();
@@ -139,6 +140,18 @@ const Router = (() => {
   function renderPath(path) {
     if (!container) return;
     const p = normalize(path);
+    try {
+      if (currentPath && currentPath !== p && typeof window.__cpCanLeaveBattle === 'function') {
+        const ok = window.__cpCanLeaveBattle(currentPath, p);
+        if (!ok) {
+          if (window.location.hash !== `#${currentPath}`) {
+            suppressHashSync = true;
+            window.location.hash = `#${currentPath}`;
+          }
+          return;
+        }
+      }
+    } catch {}
     const page = routeMap[p] || routeMap['/home'];
     destroyCurrent();
     currentPage = page;
@@ -184,7 +197,14 @@ const Router = (() => {
   }
 
   function goTo(path) {
-    window.location.hash = `#${normalize(path)}`;
+    const next = normalize(path);
+    try {
+      if (currentPath && currentPath !== next && typeof window.__cpCanLeaveBattle === 'function') {
+        const ok = window.__cpCanLeaveBattle(currentPath, next);
+        if (!ok) return;
+      }
+    } catch {}
+    window.location.hash = `#${next}`;
   }
 
   function init() {
@@ -250,7 +270,13 @@ const Router = (() => {
     if (overlay) overlay.addEventListener('click', closeSidebar, { passive: true });
     window.closeSidebarIfOverlay = closeSidebarIfOverlay;
 
-    window.addEventListener('hashchange', renderCurrent);
+    window.addEventListener('hashchange', () => {
+      if (suppressHashSync) {
+        suppressHashSync = false;
+        return;
+      }
+      renderCurrent();
+    });
     if (!coinsListenerBound) {
       coinsListenerBound = true;
       window.addEventListener('cpStorageChanged', updateSidebarCoins);
@@ -308,9 +334,9 @@ const Router = (() => {
             </div>
 
             <div class="cp-gear-foot">
-              <button class="cp-primary" type="button" id="cpGearExitBtn">Exit game</button>
+              <button class="cp-primary" type="button" id="cpGearExitBtn">Resign</button>
               <div id="cpGearExitConfirmRow" style="display:none; gap:8px; margin-top:10px; justify-content:center;" class="cp-row">
-                <button class="cp-primary" type="button" id="cpGearExitConfirm">Confirm exit</button>
+                <button class="cp-primary" type="button" id="cpGearExitConfirm">Confirm resign</button>
                 <button class="cp-tool-btn" type="button" id="cpGearExitCancel">Cancel</button>
               </div>
             </div>
@@ -344,7 +370,13 @@ const Router = (() => {
       }, { passive: true });
       overlay.querySelector('#cpGearExitConfirm')?.addEventListener('click', () => {
         try { close(); } catch {}
-        try { goTo('/mode'); } catch {}
+        try {
+          if (typeof window.__cpResignStoryRun === 'function') {
+            window.__cpResignStoryRun();
+          } else {
+            goTo('/home');
+          }
+        } catch {}
       }, { passive: true });
     };
 

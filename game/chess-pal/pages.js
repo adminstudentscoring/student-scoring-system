@@ -8,6 +8,7 @@ const ChessPalPages = (() => {
     'chessPalOwnedMonsters',
     'chessPalSeenMonsters',
     'chessPalStoryProgress',
+    'chessPalPlayerProgress',
     'chessPalHeroProgress',
     'chessPalMonsterProgress',
     'chessPalTeams',
@@ -241,6 +242,7 @@ const ChessPalPages = (() => {
     'cpOwnedMonstersChanged',
     'cpSeenMonstersChanged',
     'cpStoryProgressChanged',
+    'cpPlayerProgressChanged',
     'cpHeroProgressChanged',
     'cpMonsterProgressChanged',
     'cpTeamsChanged',
@@ -837,6 +839,75 @@ const ChessPalPages = (() => {
         setMsg(String(e?.message || e || 'Save failed'));
       }
     }, { passive: true });
+  }
+
+  // ----------------------------
+  // Player progression (per-user): PAD-like EXP curve
+  // totalExp(level) = floor((level-1)^2.5 * curve)
+  // ----------------------------
+  const PLAYER_PROGRESS_KEY = 'chessPalPlayerProgress';
+  const PLAYER_MAX_LEVEL = 999;
+  const PLAYER_EXP_CURVE = 38;
+
+  function totalPlayerExpForLevel(level, curve = PLAYER_EXP_CURVE, maxLevel = PLAYER_MAX_LEVEL) {
+    const cap = Math.max(1, Math.floor(Number(maxLevel) || PLAYER_MAX_LEVEL));
+    const lv = Math.max(1, Math.min(cap, Math.floor(Number(level) || 1)));
+    const c = Math.max(1, Number(curve) || PLAYER_EXP_CURVE);
+    if (lv <= 1) return 0;
+    return Math.floor(Math.pow(lv - 1, 2.5) * c);
+  }
+
+  function playerLevelFromTotalExp(totalExp, curve = PLAYER_EXP_CURVE, maxLevel = PLAYER_MAX_LEVEL) {
+    const t = Math.max(0, Math.floor(Number(totalExp) || 0));
+    let lo = 1;
+    let hi = Math.max(1, Math.floor(Number(maxLevel) || PLAYER_MAX_LEVEL));
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (totalPlayerExpForLevel(mid, curve, hi) <= t) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
+
+  function loadPlayerProgress() {
+    try {
+      const raw = localStorage.getItem(PLAYER_PROGRESS_KEY);
+      if (!raw) return { totalExp: 0 };
+      const v = JSON.parse(raw);
+      return {
+        totalExp: Math.max(0, Math.floor(Number(v?.totalExp) || 0)),
+      };
+    } catch {
+      return { totalExp: 0 };
+    }
+  }
+
+  function savePlayerProgress(p) {
+    try { localStorage.setItem(PLAYER_PROGRESS_KEY, JSON.stringify({ totalExp: Math.max(0, Math.floor(Number(p?.totalExp) || 0)) })); } catch {}
+    try { window.dispatchEvent(new Event('cpPlayerProgressChanged')); } catch {}
+  }
+
+  function getPlayerProgressMeta() {
+    const p = loadPlayerProgress();
+    const totalExp = Math.max(0, Math.floor(Number(p?.totalExp) || 0));
+    const level = playerLevelFromTotalExp(totalExp, PLAYER_EXP_CURVE, PLAYER_MAX_LEVEL);
+    const curLevelExp = totalPlayerExpForLevel(level, PLAYER_EXP_CURVE, PLAYER_MAX_LEVEL);
+    const nextLevelExp = totalPlayerExpForLevel(Math.min(PLAYER_MAX_LEVEL, level + 1), PLAYER_EXP_CURVE, PLAYER_MAX_LEVEL);
+    const need = Math.max(0, nextLevelExp - totalExp);
+    const span = Math.max(1, nextLevelExp - curLevelExp);
+    const progress = Math.max(0, Math.min(1, (totalExp - curLevelExp) / span));
+    return { level, totalExp, curLevelExp, nextLevelExp, need, progress };
+  }
+
+  function addPlayerExp(deltaExp) {
+    const d = Math.max(0, Math.floor(Number(deltaExp) || 0));
+    if (d <= 0) return getPlayerProgressMeta();
+    const p = loadPlayerProgress();
+    const before = getPlayerProgressMeta();
+    p.totalExp = Math.max(0, Math.floor(Number(p.totalExp) || 0) + d);
+    savePlayerProgress(p);
+    const after = getPlayerProgressMeta();
+    return { before, after, gained: d, levelUp: after.level > before.level };
   }
 
   // ----------------------------
@@ -1760,8 +1831,9 @@ const ChessPalPages = (() => {
     };
     showStoryHintIfAny();
 
-    const awardStoryDropIfAny = (cfg) => {
+    const awardStoryDropIfAny = (cfg, opts = {}) => {
       try {
+        const applyNow = opts?.apply !== false;
         const mons = normalizeStageMonsters(cfg || {});
         const allItemDrops = [];
         const allMonsterDrops = [];
@@ -1786,20 +1858,24 @@ const ChessPalPages = (() => {
           return null;
         };
 
-        let slots = loadStorage();
+        let slots = applyNow ? loadStorage() : null;
         for (const mm of mons) {
           const itemId = rollOneItem(mm?.drops);
           if (itemId) {
-            const before = JSON.stringify(slots);
-            slots = addItemToStorage(slots, itemId, 1);
-            if (JSON.stringify(slots) !== before) allItemDrops.push(itemId);
+            if (applyNow) {
+              const before = JSON.stringify(slots);
+              slots = addItemToStorage(slots, itemId, 1);
+              if (JSON.stringify(slots) !== before) allItemDrops.push(itemId);
+            } else {
+              allItemDrops.push(itemId);
+            }
           }
 
           const joinChance = Math.max(0, Math.min(100, Math.floor(Number(mm?.monsterDropChance) || 0)));
           if (joinChance > 0 && Math.random() * 100 < joinChance) {
             const mid = String(mm?.monsterId || '').trim().padStart(3, '0');
             if (/^\d{3}$/.test(mid)) {
-              addOwnedMonsterId(mid);
+              if (applyNow) addOwnedMonsterId(mid);
               allMonsterDrops.push(mid);
             }
           }
@@ -1808,13 +1884,17 @@ const ChessPalPages = (() => {
         // Back-compat: if stage-level drops exist, roll one extra item.
         const extraStageItem = rollOneItem(cfg?.drops);
         if (extraStageItem) {
-          const before = JSON.stringify(slots);
-          slots = addItemToStorage(slots, extraStageItem, 1);
-          if (JSON.stringify(slots) !== before) allItemDrops.push(extraStageItem);
+          if (applyNow) {
+            const before = JSON.stringify(slots);
+            slots = addItemToStorage(slots, extraStageItem, 1);
+            if (JSON.stringify(slots) !== before) allItemDrops.push(extraStageItem);
+          } else {
+            allItemDrops.push(extraStageItem);
+          }
         }
 
-        saveStorage(slots);
-        if (hintEl) {
+        if (applyNow) saveStorage(slots);
+        if (applyNow && hintEl) {
           const itemNames = allItemDrops
             .map((id) => getStorageItemDef(id)?.name || id)
             .filter(Boolean);
@@ -1856,6 +1936,166 @@ const ChessPalPages = (() => {
     try {
       const st = window.__cpStoryStage;
       if (st && Number(st.chapter) && Number(st.stage)) showStageIntro(st.chapter, st.stage);
+    } catch {}
+
+    const isStoryBattleActive = () => {
+      try {
+        const st = window.__cpStoryStage;
+        return !!(st && Number(st.chapter) && Number(st.stage));
+      } catch {
+        return false;
+      }
+    };
+
+    const ensureStoryRunSession = () => {
+      try {
+        const st = window.__cpStoryStage;
+        if (!st || !Number(st.chapter)) return null;
+        const ch = Math.max(1, Math.min(10, Math.floor(Number(st.chapter) || 1)));
+        const existing = window.__cpStoryRunSession;
+        if (existing && existing.active && Number(existing.chapter) === ch) return existing;
+        const sess = {
+          active: true,
+          chapter: ch,
+          startedAt: Date.now(),
+          itemDrops: [],
+          monsterDrops: [],
+          expGain: 0,
+          defeatedMonsters: [],
+          completed: false,
+          resignHandled: false,
+        };
+        window.__cpStoryRunSession = sess;
+        return sess;
+      } catch {
+        return null;
+      }
+    };
+
+    const clearStoryRunSession = () => {
+      try { window.__cpStoryRunSession = null; } catch {}
+    };
+
+    const pushUnique = (arr, value) => {
+      const a = Array.isArray(arr) ? arr : [];
+      if (!a.includes(value)) a.push(value);
+      return a;
+    };
+
+    const calcStagePlayerExp = (cfg) => {
+      try {
+        const mons = normalizeStageMonsters(cfg || {});
+        let sum = 0;
+        for (const mm of mons) {
+          const id = String(mm?.monsterId || '').trim().padStart(3, '0');
+          const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
+          const mon = getMonsterFromDbQuick(id);
+          const rarity = Math.max(1, Math.min(10, Math.floor(Number(mon?.rarity) || 1)));
+          // PAD-like non-linear stage reward component by level/rarity.
+          sum += Math.floor(28 + (rarity * 14) + (Math.pow(lv, 1.15) * 6));
+        }
+        return Math.max(0, sum);
+      } catch {
+        return 0;
+      }
+    };
+
+    const showFailResignModal = () => {
+      const old = document.getElementById('cpResultOverlay');
+      if (old) old.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'cpResultOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Battle failed">
+          <div class="cp-modal-body" style="text-align:center; padding:24px;">
+            <div class="cp-h1" style="font-size:28px;">Fail</div>
+            <div class="cp-muted" style="margin-top:10px;">You resigned. Rewards from this chapter run were discarded.</div>
+            <div class="cp-row" style="justify-content:center; margin-top:16px;">
+              <button class="cp-primary" type="button" id="cpResultBackHome">Back to Home</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#cpResultBackHome')?.addEventListener('click', () => {
+        try { overlay.remove(); } catch {}
+        try { Router.goTo('/home'); } catch {}
+      }, { passive: true });
+    };
+
+    const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo }) => {
+      const old = document.getElementById('cpResultOverlay');
+      if (old) old.remove();
+      const itemRows = (Array.isArray(itemIds) ? itemIds : [])
+        .map((id) => {
+          const def = getStorageItemDef(id);
+          return `<li>${esc(String(def?.name || id))}</li>`;
+        }).join('');
+      const monRows = (Array.isArray(monsterIds) ? monsterIds : [])
+        .map((id) => {
+          const mon = getMonsterFromDbQuick(id);
+          return `<li>${esc(String(mon?.name || `#${id}`))}</li>`;
+        }).join('');
+      const overlay = document.createElement('div');
+      overlay.id = 'cpResultOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Chapter clear">
+          <div class="cp-modal-body" style="padding:22px;">
+            <div class="cp-h1" style="font-size:24px; text-align:center;">Chapter ${esc(String(chapter))} Clear</div>
+            <div class="cp-setting-help" style="margin-top:12px;">Player EXP</div>
+            <div class="cp-row" style="justify-content:space-between;">
+              <div>+${esc(String(expGain || 0))} EXP</div>
+              <div>Lv ${esc(String(levelInfo?.after?.level || levelInfo?.level || 1))}</div>
+            </div>
+            <div class="cp-setting-help" style="margin-top:12px;">Items</div>
+            <ul style="margin:6px 0 0 18px;">${itemRows || '<li>(None)</li>'}</ul>
+            <div class="cp-setting-help" style="margin-top:12px;">Monsters</div>
+            <ul style="margin:6px 0 0 18px;">${monRows || '<li>(None)</li>'}</ul>
+            <div class="cp-row" style="justify-content:center; margin-top:16px;">
+              <button class="cp-primary" type="button" id="cpResultBackStory">Back to Home</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#cpResultBackStory')?.addEventListener('click', () => {
+        try { overlay.remove(); } catch {}
+        try { Router.goTo('/home'); } catch {}
+      }, { passive: true });
+    };
+
+    const resignStoryRunIfAny = () => {
+      try {
+        if (!isStoryBattleActive()) return false;
+        const sess = window.__cpStoryRunSession;
+        if (!sess || !sess.active || sess.completed) return false;
+        if (sess.resignHandled) return true;
+        sess.resignHandled = true;
+        clearStoryRunSession();
+        showFailResignModal();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    try {
+      window.__cpResignStoryRun = resignStoryRunIfAny;
+      window.__cpCanLeaveBattle = (fromPath, toPath) => {
+        try {
+          const from = String(fromPath || '');
+          const to = String(toPath || '');
+          const inStory = from.startsWith('/mode/story/ch');
+          const stayStory = to.startsWith('/mode/story/ch');
+          if (!inStory || stayStory) return true;
+          if (resignStoryRunIfAny()) return false;
+          return true;
+        } catch {
+          return true;
+        }
+      };
     } catch {}
 
     const getCenter = (el) => {
@@ -2132,28 +2372,63 @@ const ChessPalPages = (() => {
             // Story Mode: clear stage and auto-advance (no respawn/level-up loop)
             const st = window.__cpStoryStage;
             if (st && Number(st.chapter) && Number(st.stage)) {
-              // Drops (award for the cleared stage config)
-              try { awardStoryDropIfAny(getStoryStageConfig(Number(st.chapter) || 1, Number(st.stage) || 1)); } catch {}
-              try { window.ChessPalStory?.markStageCleared?.(st.chapter, st.stage); } catch {}
-              // Chapter first-clear reward: Gold Coin x1 (only once per chapter)
+              const ch = Number(st.chapter) || 0;
+              const stageNum = Math.floor(Number(st.stage) || 0);
+              const isChapterClear = stageNum === 5;
+              const sess = ensureStoryRunSession();
+              const cfgNow = getStoryStageConfig(ch || 1, stageNum || 1);
               try {
-                const ch = Number(st.chapter) || 0;
-                const isChapterClear = Math.floor(Number(st.stage) || 0) === 5;
-                if (ch && window.ChessPalStory?.hasClaimedChapterReward && window.ChessPalStory?.markChapterRewardClaimed) {
-                  const claimed = !!window.ChessPalStory.hasClaimedChapterReward(ch);
-                  if (isChapterClear && !claimed) {
-                    let slots = loadStorage();
-                    slots = addItemToStorage(slots, 'gold_coin', 1);
-                    saveStorage(slots);
-                    window.ChessPalStory.markChapterRewardClaimed(ch);
-                    if (hintEl) {
-                      hintEl.textContent = 'Reward: Gold Coin × 1';
-                      hintEl.style.display = '';
-                      setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 2200);
-                    }
-                  }
+                const dropRes = awardStoryDropIfAny(cfgNow, { apply: false }) || { items: [], monsters: [] };
+                if (sess) {
+                  sess.itemDrops = (Array.isArray(sess.itemDrops) ? sess.itemDrops : []).concat(Array.isArray(dropRes.items) ? dropRes.items : []);
+                  sess.monsterDrops = (Array.isArray(sess.monsterDrops) ? sess.monsterDrops : []).concat(Array.isArray(dropRes.monsters) ? dropRes.monsters : []);
+                  sess.expGain = Math.max(0, Number(sess.expGain) || 0) + calcStagePlayerExp(cfgNow);
+                  const monsForStage = normalizeStageMonsters(cfgNow);
+                  sess.defeatedMonsters = Array.isArray(sess.defeatedMonsters) ? sess.defeatedMonsters : [];
+                  monsForStage.forEach((mm) => {
+                    const mid = String(mm?.monsterId || '').trim().padStart(3, '0');
+                    if (/^\d{3}$/.test(mid)) sess.defeatedMonsters = pushUnique(sess.defeatedMonsters, mid);
+                  });
                 }
               } catch {}
+
+              if (isChapterClear) {
+                try {
+                  let slots = loadStorage();
+                  const itemIds = (sess && Array.isArray(sess.itemDrops)) ? sess.itemDrops : [];
+                  itemIds.forEach((itemId) => { slots = addItemToStorage(slots, itemId, 1); });
+
+                  if (ch && window.ChessPalStory?.hasClaimedChapterReward && window.ChessPalStory?.markChapterRewardClaimed) {
+                    const claimed = !!window.ChessPalStory.hasClaimedChapterReward(ch);
+                    if (!claimed) {
+                      slots = addItemToStorage(slots, 'gold_coin', 1);
+                      itemIds.push('gold_coin');
+                      window.ChessPalStory.markChapterRewardClaimed(ch);
+                    }
+                  }
+
+                  saveStorage(slots);
+                  const monIds = (sess && Array.isArray(sess.monsterDrops)) ? sess.monsterDrops : [];
+                  monIds.forEach((mid) => addOwnedMonsterId(String(mid || '').trim().padStart(3, '0')));
+                  const expGain = Math.max(0, Math.floor(Number(sess?.expGain) || 0));
+                  const expResult = addPlayerExp(expGain);
+                  try { window.ChessPalStory?.markStageCleared?.(ch, 5); } catch {}
+                  if (sess) {
+                    sess.completed = true;
+                    sess.active = false;
+                  }
+                  showChapterClearModal({
+                    chapter: ch,
+                    itemIds,
+                    monsterIds: monIds,
+                    expGain,
+                    levelInfo: expResult,
+                  });
+                  clearStoryRunSession();
+                } catch {}
+                return;
+              }
+
               const nextStage = Math.max(1, Math.floor(Number(st.stage) || 1)) + 1;
 
               const advanceInPlace = () => {
@@ -2518,6 +2793,7 @@ const ChessPalPages = (() => {
 
       // Init / update battle state & HP UI
       try {
+        try { ensureStoryRunSession(); } catch {}
         // Story stage: mark current stage monsters as seen
         try { markStoryMonstersSeen(window.__cpStoryStage); } catch {}
         const b = getBattle();
