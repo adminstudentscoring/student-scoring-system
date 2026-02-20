@@ -215,6 +215,20 @@
   min-height: 240px;
   position: relative;
   aspect-ratio: 16 / 10; /* stabilize layout while boss image loads */
+  cursor: pointer;
+}
+.cp-practice-boss.is-selected::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: min(70%, 220px);
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 2px solid rgba(191,219,254,0.95);
+  box-shadow: 0 0 14px rgba(125,211,252,0.52), inset 0 0 10px rgba(125,211,252,0.18);
+  pointer-events: none;
 }
 .cp-beam{
   position: absolute;

@@ -1422,17 +1422,6 @@ const ChessPalPages = (() => {
               </div>
             </div>
           </div>
-          <div class="cp-bosslist" id="cpBossList" aria-label="Monster targets" ${monstersMeta.length > 0 ? `` : `style="display:none;"`}>
-            ${monstersMeta.length > 0 ? monstersMeta.map((mm, idx) => `
-              <button class="cp-bosschip" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="false">
-                <img class="cp-bosschip-img" src="${esc(mm.img)}" alt="${esc(mm.name)}" decoding="async" loading="lazy">
-                <div class="cp-bosschip-name">${esc(mm.name || 'Monster')}</div>
-                <div class="cp-bosschip-bar" aria-hidden="true">
-                  <div class="cp-bosschip-fill" data-boss-chipfill="${esc(String(idx))}"></div>
-                </div>
-              </button>
-            `).join('') : ``}
-          </div>
           <div class="cp-practice-team" aria-label="Team preview">
             <div class="cp-team-hpwrap" aria-label="Player HP">
               <div class="cp-team-hpbar">
@@ -1532,18 +1521,27 @@ const ChessPalPages = (() => {
       updateHpUI();
     };
 
-    bossList?.addEventListener('click', (ev) => {
-      const btn = ev?.target?.closest?.('[data-boss-idx]');
-      if (!btn) return;
+    const bossBoxForPick = document.querySelector('.cp-practice-boss');
+    bossBoxForPick?.addEventListener('click', (ev) => {
       try { ev.preventDefault(); } catch {}
-      const idx = Math.floor(Number(btn.getAttribute('data-boss-idx')) || 0);
-      setActiveMonsterUI(idx, { manual: true });
+      try { ev.stopPropagation(); } catch {}
+      const b = getBattle();
+      const monsters = Array.isArray(b.monsters) ? b.monsters : [];
+      if (!monsters.length) return;
+      const aliveIdx = monsters
+        .map((m, idx) => ((Number(m?.hp) || 0) > 0 ? idx : -1))
+        .filter((idx) => idx >= 0);
+      if (!aliveIdx.length) return;
+      const current = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : aliveIdx[0];
+      const pos = aliveIdx.indexOf(current);
+      const next = pos >= 0 ? aliveIdx[(pos + 1) % aliveIdx.length] : aliveIdx[0];
+      setActiveMonsterUI(next, { manual: true });
     }, { passive: false });
     const practiceRootForCancel = document.querySelector('.cp-practice');
     practiceRootForCancel?.addEventListener('click', (ev) => {
       const target = ev?.target;
       if (!target || typeof target.closest !== 'function') return;
-      if (target.closest('[data-boss-idx]')) return;
+      if (target.closest('.cp-practice-boss')) return;
       if (target.closest('button, a, input, select, textarea, [role="button"], #chessPalGame, .cp-practice-team, .cp-top-tools, .cp-popover')) return;
       const b = getBattle();
       if (!b.userPickedTarget) return;
@@ -1653,6 +1651,14 @@ const ChessPalPages = (() => {
         const dead = monsters && monsters.length ? alive.length === 0 : (Number(b.monsterHp) || 0) <= 0;
         if (bossBox && dead) {
           bossBox.classList.add('cp-dead');
+        }
+      } catch {}
+
+      // Visual target lock indicator on the main monster area
+      try {
+        if (bossBox) {
+          const locked = !!b.userPickedTarget && Number.isFinite(Number(b.manualTargetIdx)) && Number(b.manualTargetIdx) >= 0;
+          bossBox.classList.toggle('is-selected', locked);
         }
       } catch {}
 
