@@ -298,6 +298,63 @@ app.put('/api/admin/chess-pal/monsters', authenticateUser, authorizeRole('admin'
   }
 });
 
+// ----------------------------
+// Chess Pal per-user cloud state
+// ----------------------------
+function sanitizeChessPalState(raw) {
+  const out = {};
+  const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  for (const [k, v] of Object.entries(src)) {
+    const key = String(k || '').trim();
+    if (!key || key.length > 80) continue;
+    if (!/^chessPal[A-Za-z0-9_]+$/.test(key)) continue;
+    if (typeof v !== 'string') continue;
+    if (v.length > 2_000_000) continue;
+    out[key] = v;
+  }
+  return out;
+}
+
+app.get('/api/chess-pal/state', authenticateUser, async (req, res) => {
+  try {
+    const uid = String(req?.user?.id || '').trim();
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    const data = await readData();
+    const st = data?.chessPal?.userState?.[uid];
+    const state = sanitizeChessPalState(st?.state || {});
+    const updatedAt = Number.isFinite(Number(st?.updatedAt)) ? Math.floor(Number(st.updatedAt)) : 0;
+    res.json({ state, updatedAt });
+  } catch (e) {
+    console.error('[chess-pal] GET /api/chess-pal/state failed:', e);
+    res.status(500).json({ error: 'Failed to load Chess Pal state' });
+  }
+});
+
+app.put('/api/chess-pal/state', authenticateUser, async (req, res) => {
+  try {
+    const uid = String(req?.user?.id || '').trim();
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    const inState = sanitizeChessPalState(req?.body?.state || {});
+    const payloadBytes = Buffer.byteLength(JSON.stringify(inState), 'utf8');
+    if (payloadBytes > 2_500_000) {
+      return res.status(400).json({ error: 'State payload too large' });
+    }
+    const now = Date.now();
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    if (!data.chessPal.userState || typeof data.chessPal.userState !== 'object' || Array.isArray(data.chessPal.userState)) {
+      data.chessPal.userState = {};
+    }
+    data.chessPal.userState[uid] = { state: inState, updatedAt: now };
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+    res.json({ success: true, updatedAt: now });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/chess-pal/state failed:', e);
+    res.status(500).json({ error: 'Failed to save Chess Pal state' });
+  }
+});
+
 // Log whether level-badge assets exist at startup (helps diagnose production 404s).
 (async () => {
   try {
