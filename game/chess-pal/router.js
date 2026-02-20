@@ -137,6 +137,33 @@ const Router = (() => {
     if (silverEl) silverEl.textContent = String(t.silver || 0);
   }
 
+  function getSidebarPlayerName() {
+    try {
+      const u = window.authUtils?.getCurrentUser?.() || null;
+      const name = String(u?.name || u?.displayName || u?.username || u?.email || 'Player').trim();
+      return name || 'Player';
+    } catch {
+      return 'Player';
+    }
+  }
+
+  function updateSidebarPlayerProfile() {
+    const nameEl = document.getElementById('cpPlayerName');
+    const lvEl = document.getElementById('cpPlayerLevel');
+    const nextEl = document.getElementById('cpPlayerLevelNext');
+    const fillEl = document.getElementById('cpPlayerExpFill');
+    if (!nameEl && !lvEl && !nextEl && !fillEl) return;
+    if (nameEl) nameEl.textContent = getSidebarPlayerName();
+    let meta = null;
+    try { meta = window.ChessPalPlayerProgress?.getPlayerProgressMeta?.() || null; } catch {}
+    const level = Math.max(1, Math.floor(Number(meta?.level) || 1));
+    const need = Math.max(0, Math.floor(Number(meta?.need) || 0));
+    const progress = Math.max(0, Math.min(1, Number(meta?.progress) || 0));
+    if (lvEl) lvEl.textContent = `Lv.${level}`;
+    if (nextEl) nextEl.textContent = `Next ${need}`;
+    if (fillEl) fillEl.style.width = `${progress * 100}%`;
+  }
+
   function renderPath(path) {
     if (!container) return;
     const p = normalize(path);
@@ -161,6 +188,7 @@ const Router = (() => {
     setActiveNav(p);
     setTopToolsForPath(p);
     updateSidebarCoins();
+    updateSidebarPlayerProfile();
 
     // Hide top bar on pages that use tile/grid UI
     try {
@@ -168,7 +196,8 @@ const Router = (() => {
         (p === '/practice' || p === '/test-game' || p === '/summon' || p === '/mode' || p.startsWith('/mode/')) ||
         (p === '/home' || p === '/pal' || p === '/heroes' || p === '/monsters' || p === '/team' || p === '/storage' || p === '/settings') ||
         (p === '/shop' || p.startsWith('/shop/'));
-      document.body.classList.toggle('cp-hide-topbar', hideTopbar);
+      const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 980px)').matches);
+      document.body.classList.toggle('cp-hide-topbar', mobile ? false : hideTopbar);
     } catch {}
 
     // Fullscreen gameplay pages: hide sidebar, show gear
@@ -280,9 +309,12 @@ const Router = (() => {
     if (!coinsListenerBound) {
       coinsListenerBound = true;
       window.addEventListener('cpStorageChanged', updateSidebarCoins);
+      window.addEventListener('cpPlayerProgressChanged', updateSidebarPlayerProfile);
       window.addEventListener('storage', updateSidebarCoins);
+      window.addEventListener('storage', updateSidebarPlayerProfile);
     }
     updateSidebarCoins();
+    updateSidebarPlayerProfile();
 
     if (!window.location.hash || window.location.hash === '#') {
       window.location.hash = '#/home';

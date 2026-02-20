@@ -26,6 +26,16 @@
             </nav>
 
             <div class="cp-sidebar-bottom">
+                <div class="cp-player-card" id="cpPlayerCard" aria-label="Player profile">
+                    <div class="cp-player-name" id="cpPlayerName">Player</div>
+                    <div class="cp-player-level-row">
+                        <span class="cp-player-level" id="cpPlayerLevel">Lv.1</span>
+                        <span class="cp-player-level-next" id="cpPlayerLevelNext">Next 0</span>
+                    </div>
+                    <div class="cp-player-expbar" aria-label="Player EXP progress">
+                        <div class="cp-player-expfill" id="cpPlayerExpFill"></div>
+                    </div>
+                </div>
                 <div class="cp-coins" id="cpCoinsBar" aria-label="Coins">
                     <div class="cp-coin">
                         <img class="cp-coin-img" src="images/Storage/S001-Gold-Coin.png" alt="Gold coin" onerror="this.onerror=null;if(this.src.indexOf('S002-Gold-Coin.png')===-1){this.src='images/Storage/S002-Gold-Coin.png';return;}this.src='images/Storage/Gold-Coin.png';">

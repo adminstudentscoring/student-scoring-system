@@ -910,6 +910,13 @@ const ChessPalPages = (() => {
     return { before, after, gained: d, levelUp: after.level > before.level };
   }
 
+  try {
+    window.ChessPalPlayerProgress = {
+      getPlayerProgressMeta,
+      addPlayerExp,
+    };
+  } catch {}
+
   // ----------------------------
   // Hero progression (per-user): total EXP -> level
   // PAD-style curve (approx): totalExp(level) = floor((level-1)^2.5 * curve)
