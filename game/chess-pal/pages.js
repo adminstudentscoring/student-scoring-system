@@ -1402,10 +1402,22 @@ const ChessPalPages = (() => {
         element: String(m?.element || '').trim().toLowerCase(),
       };
     });
-    const firstMon = monstersMeta[0] || { name: 'Verdant Maw', img: 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png', element: '' };
-    const monsterName = String(firstMon.name || 'Verdant Maw');
-    const monsterImg = String(firstMon.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png');
-    const monsterEl = String(firstMon.element || '').trim().toLowerCase();
+    const renderBossCards = (list) => {
+      const mons = Array.isArray(list) && list.length
+        ? list
+        : [{ name: 'Verdant Maw', img: 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png', element: '', level: 1 }];
+      return mons.map((mm, idx) => `
+        <div class="cp-practice-boss" data-boss-idx="${esc(String(idx))}" data-boss-card="${esc(String(idx))}" aria-label="${esc(String(mm.name || 'Monster'))}" ${mm.element ? `data-element="${esc(String(mm.element))}"` : ``}>
+          <img class="cp-practice-bossimg" data-boss-img="${esc(String(idx))}" src="${esc(String(mm.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png'))}" alt="${esc(String(mm.name || 'Monster'))}" decoding="async" loading="lazy">
+          <div class="cp-boss-hp" aria-label="Monster HP">
+            <div class="cp-boss-hpbar">
+              <div class="cp-boss-hpfill" data-boss-hpfill="${esc(String(idx))}"></div>
+              <div class="cp-boss-hpoverlay" data-boss-hpoverlay="${esc(String(idx))}"></div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    };
     const storyStage = story?.stage ? Math.max(1, Math.min(5, Math.floor(Number(story.stage) || 1))) : 0;
     return `
       <div class="cp-practice" ${storyStage ? `data-story-stage="${esc(String(storyStage))}"` : ``}>
@@ -1413,14 +1425,8 @@ const ChessPalPages = (() => {
           <img id="cpPracticeBgImg" class="cp-practice-bgimg" src="${esc(bgSrc)}" alt="" aria-hidden="true">
         </div>
         <div class="cp-practice-left">
-          <div class="cp-practice-boss" aria-label="Boss preview" ${monsterEl ? `data-element="${esc(monsterEl)}"` : ``}>
-            <img class="cp-practice-bossimg" id="cpPracticeBossImg" src="${esc(monsterImg)}" alt="${esc(monsterName)}" decoding="async" loading="lazy">
-            <div class="cp-boss-hp" aria-label="Monster HP">
-              <div class="cp-boss-hpbar">
-                <div class="cp-boss-hpfill" id="cpBossHpFill"></div>
-                <div class="cp-boss-hpoverlay" id="cpBossHpOverlay"></div>
-              </div>
-            </div>
+          <div class="cp-boss-arena" id="cpBossArena" aria-label="Monster arena">
+            ${renderBossCards(monstersMeta)}
           </div>
           <div class="cp-practice-team" aria-label="Team preview">
             <div class="cp-team-hpwrap" aria-label="Player HP">
@@ -1453,10 +1459,26 @@ const ChessPalPages = (() => {
     const hpFill = document.getElementById('cpTeamHpFill');
     const hpOverlay = document.getElementById('cpTeamHpOverlay');
     const rcvOverlay = document.getElementById('cpTeamRcvOverlay');
-    const bossHpFill = document.getElementById('cpBossHpFill');
-    const bossHpOverlay = document.getElementById('cpBossHpOverlay');
     const hintEl = document.getElementById('cpPracticeHint');
-    const bossList = document.getElementById('cpBossList');
+    const bossArena = document.getElementById('cpBossArena');
+
+    const renderBossArena = (monstersLike) => {
+      if (!bossArena) return;
+      const mons = (Array.isArray(monstersLike) ? monstersLike : [])
+        .filter(Boolean)
+        .slice(0, 4);
+      bossArena.innerHTML = mons.map((mm, idx) => `
+        <div class="cp-practice-boss" data-boss-idx="${esc(String(idx))}" data-boss-card="${esc(String(idx))}" aria-label="${esc(String(mm.name || 'Monster'))}" ${mm.element ? `data-element="${esc(String(mm.element))}"` : ``}>
+          <img class="cp-practice-bossimg" data-boss-img="${esc(String(idx))}" src="${esc(String(mm.img || 'images/Monsters/M004-Verdant_Maw/M004-Verdant_Maw.png'))}" alt="${esc(String(mm.name || 'Monster'))}" decoding="async" loading="lazy">
+          <div class="cp-boss-hp" aria-label="Monster HP">
+            <div class="cp-boss-hpbar">
+              <div class="cp-boss-hpfill" data-boss-hpfill="${esc(String(idx))}"></div>
+              <div class="cp-boss-hpoverlay" data-boss-hpoverlay="${esc(String(idx))}"></div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    };
 
     const setActiveMonsterUI = (idx, opts = {}) => {
       const b = getBattle();
@@ -1480,68 +1502,22 @@ const ChessPalPages = (() => {
       b.monsterHp = t.hp;
       // Seen-state is based on encounter. Ensure selected/visible monster is recorded.
       try { addSeenMonsterId(String(t.monsterId || '').trim().padStart(3, '0')); } catch {}
-
-      // Update main boss image + element
-      try {
-        const bossImgEl = document.getElementById('cpPracticeBossImg');
-        const bossBoxEl = document.querySelector('.cp-practice-boss');
-        if (bossBoxEl) {
-          if (t.element) bossBoxEl.setAttribute('data-element', String(t.element));
-          else bossBoxEl.removeAttribute('data-element');
-          bossBoxEl.classList.remove('cp-dead');
-          bossBoxEl.style.display = '';
-        }
-        if (bossImgEl) {
-          const nextSrc = String(t.img || '').trim();
-          const curSrc = String(bossImgEl.getAttribute('src') || '');
-          const reveal = () => { try { bossImgEl.classList.remove('is-img-hidden'); } catch {} };
-          if (nextSrc && nextSrc !== curSrc) {
-            try {
-              bossImgEl.style.transition = 'none';
-              bossImgEl.classList.add('is-img-hidden');
-              void bossImgEl.offsetWidth;
-              bossImgEl.style.transition = '';
-            } catch {}
-            try { bossImgEl.setAttribute('src', nextSrc); } catch {}
-            try { bossImgEl.setAttribute('alt', String(t.name || 'Monster')); } catch {}
-            try {
-              if (bossImgEl.complete && bossImgEl.naturalWidth > 0) {
-                requestAnimationFrame(() => requestAnimationFrame(reveal));
-              } else {
-                bossImgEl.addEventListener('load', reveal, { once: true });
-                bossImgEl.addEventListener('error', reveal, { once: true });
-              }
-            } catch { reveal(); }
-          } else {
-            try { bossImgEl.setAttribute('alt', String(t.name || 'Monster')); } catch {}
-            reveal();
-          }
-        }
-      } catch {}
       updateHpUI();
     };
 
-    const bossBoxForPick = document.querySelector('.cp-practice-boss');
-    bossBoxForPick?.addEventListener('click', (ev) => {
+    bossArena?.addEventListener('click', (ev) => {
+      const card = ev?.target?.closest?.('[data-boss-idx]');
+      if (!card) return;
       try { ev.preventDefault(); } catch {}
       try { ev.stopPropagation(); } catch {}
-      const b = getBattle();
-      const monsters = Array.isArray(b.monsters) ? b.monsters : [];
-      if (!monsters.length) return;
-      const aliveIdx = monsters
-        .map((m, idx) => ((Number(m?.hp) || 0) > 0 ? idx : -1))
-        .filter((idx) => idx >= 0);
-      if (!aliveIdx.length) return;
-      const current = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : aliveIdx[0];
-      const pos = aliveIdx.indexOf(current);
-      const next = pos >= 0 ? aliveIdx[(pos + 1) % aliveIdx.length] : aliveIdx[0];
-      setActiveMonsterUI(next, { manual: true });
+      const idx = Math.max(0, Math.floor(Number(card.getAttribute('data-boss-idx')) || 0));
+      setActiveMonsterUI(idx, { manual: true });
     }, { passive: false });
     const practiceRootForCancel = document.querySelector('.cp-practice');
     practiceRootForCancel?.addEventListener('click', (ev) => {
       const target = ev?.target;
       if (!target || typeof target.closest !== 'function') return;
-      if (target.closest('.cp-practice-boss')) return;
+      if (target.closest('[data-boss-idx]')) return;
       if (target.closest('button, a, input, select, textarea, [role="button"], #chessPalGame, .cp-practice-team, .cp-top-tools, .cp-popover')) return;
       const b = getBattle();
       if (!b.userPickedTarget) return;
@@ -1549,7 +1525,6 @@ const ChessPalPages = (() => {
       b.manualTargetIdx = -1;
       updateHpUI();
     }, { passive: true });
-    const bossImgEl = document.getElementById('cpPracticeBossImg');
 
     const fadeInImage = (imgEl) => {
       if (!imgEl) return;
@@ -1564,7 +1539,7 @@ const ChessPalPages = (() => {
       try { imgEl.addEventListener('load', done, { once: true }); } catch {}
       try { imgEl.addEventListener('error', done, { once: true }); } catch {}
     };
-    fadeInImage(bossImgEl);
+    document.querySelectorAll('[data-boss-img]').forEach((img) => fadeInImage(img));
 
     const syncPracticeBg = () => {
       if (!bgImg) return;
@@ -1624,7 +1599,6 @@ const ChessPalPages = (() => {
       const b = getBattle();
       const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
       const pHp = Math.max(0, Math.min(pMax, Number(b.playerHp) || 0));
-      const bossBox = document.querySelector('.cp-practice-boss');
       const monsters = Array.isArray(b.monsters) ? b.monsters : null;
       const alive = (monsters || []).filter(x => (Number(x?.hp) || 0) > 0);
       let targetIdx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
@@ -1643,44 +1617,33 @@ const ChessPalPages = (() => {
 
       if (hpFill) hpFill.style.width = pMax > 0 ? `${Math.max(0, Math.min(1, pHp / pMax)) * 100}%` : '0%';
       if (hpOverlay) hpOverlay.textContent = pMax > 0 ? `${pHp}/${pMax}` : '0/0';
-      if (bossHpFill) bossHpFill.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
-      if (bossHpOverlay) bossHpOverlay.textContent = mMax > 0 ? `${mHp}/${mMax}` : '';
-
-      // If monster is dead, allow it to stay hidden
-      try {
-        const dead = monsters && monsters.length ? alive.length === 0 : (Number(b.monsterHp) || 0) <= 0;
-        if (bossBox && dead) {
-          bossBox.classList.add('cp-dead');
-        }
-      } catch {}
 
       // Visual target lock indicator on the main monster area
       try {
-        if (bossBox) {
-          const locked = !!b.userPickedTarget && Number.isFinite(Number(b.manualTargetIdx)) && Number(b.manualTargetIdx) >= 0;
-          bossBox.classList.toggle('is-selected', locked);
-        }
-      } catch {}
-
-      // Update chips (if any)
-      try {
         if (monsters && monsters.length) {
-          const list = document.getElementById('cpBossList');
           const manualIdx = (b.userPickedTarget && Number.isFinite(Number(b.manualTargetIdx)))
             ? Math.max(0, Math.min(monsters.length - 1, Math.floor(Number(b.manualTargetIdx))))
             : -1;
           monsters.forEach((mm, idx) => {
             const mx = Math.max(0, Number(mm?.maxHp) || 0);
             const mh = Math.max(0, Math.min(mx, Number(mm?.hp) || 0));
-            const fill = document.querySelector(`[data-boss-chipfill="${CSS.escape(String(idx))}"]`);
+            const fill = document.querySelector(`[data-boss-hpfill="${CSS.escape(String(idx))}"]`);
+            const overlay = document.querySelector(`[data-boss-hpoverlay="${CSS.escape(String(idx))}"]`);
+            const card = document.querySelector(`[data-boss-card="${CSS.escape(String(idx))}"]`);
             if (fill) fill.style.width = mx > 0 ? `${Math.max(0, Math.min(1, mh / mx)) * 100}%` : '0%';
-            const chip = list?.querySelector(`[data-boss-idx="${CSS.escape(String(idx))}"]`);
-            if (chip) {
-              chip.classList.toggle('is-active', idx === manualIdx);
-              chip.setAttribute('aria-pressed', idx === manualIdx ? 'true' : 'false');
-              chip.classList.toggle('is-dead', mh <= 0);
+            if (overlay) overlay.textContent = mx > 0 ? `${mh}/${mx}` : '';
+            if (card) {
+              card.classList.toggle('is-selected', idx === manualIdx);
+              card.classList.toggle('cp-dead', mh <= 0);
             }
           });
+        } else {
+          const card0 = document.querySelector('[data-boss-card="0"]');
+          const fill0 = document.querySelector('[data-boss-hpfill="0"]');
+          const overlay0 = document.querySelector('[data-boss-hpoverlay="0"]');
+          if (fill0) fill0.style.width = mMax > 0 ? `${Math.max(0, Math.min(1, mHp / mMax)) * 100}%` : '0%';
+          if (overlay0) overlay0.textContent = mMax > 0 ? `${mHp}/${mMax}` : '';
+          if (card0) card0.classList.toggle('cp-dead', (Number(b.monsterHp) || 0) <= 0);
         }
       } catch {}
     };
@@ -1868,11 +1831,17 @@ const ChessPalPages = (() => {
         const rcvMul = Number.isFinite(Number(gs?.rcvScale)) ? Number(gs.rcvScale) : 0.50;
 
         b = getBattle();
-        const bossBox = document.querySelector('.cp-practice-boss');
-        const bossImg = document.querySelector('.cp-practice-bossimg');
         const hpBar = document.querySelector('.cp-team-hpbar');
-        const showDamageFloat = (value, element, mult) => {
-          if (!bossBox) return;
+        const getTargetBossVisual = () => {
+          const idx = Number.isFinite(Number(b?.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+          const safeIdx = Math.max(0, idx);
+          const box = document.querySelector(`[data-boss-card="${CSS.escape(String(safeIdx))}"]`);
+          const img = document.querySelector(`[data-boss-img="${CSS.escape(String(safeIdx))}"]`);
+          return { box, img };
+        };
+        const showDamageFloat = (value, element, mult, hostEl) => {
+          const host = hostEl || getTargetBossVisual().box || getTargetBossVisual().img;
+          if (!host) return;
           const el = document.createElement('div');
           const m = Number(mult) || 1;
           const cls = m > 1 ? 'is-adv' : (m < 1 ? 'is-dis' : '');
@@ -1885,7 +1854,7 @@ const ChessPalPages = (() => {
             el.style.left = `calc(50% + ${ox}px)`;
             el.style.top = `calc(52% + ${oy}px)`;
           } catch {}
-          bossBox.appendChild(el);
+          host.appendChild(el);
           setTimeout(() => { try { el.remove(); } catch {} }, 1200);
         };
         const elemMult = (att, def) => {
@@ -1933,18 +1902,6 @@ const ChessPalPages = (() => {
             setActiveMonsterUI(bestIdx, { manual: false });
           }
         } catch {}
-
-        const bossEl = (() => {
-          try {
-            if (monsters && monsters.length) {
-              const idx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
-              const t = monsters[Math.max(0, Math.min(monsters.length - 1, idx))];
-              const el = String(t?.element || '').toLowerCase();
-              if (el) return el;
-            }
-          } catch {}
-          return String(getBossBase()?.element || '').toLowerCase();
-        })();
 
         // Reset per-round buffs
         try {
@@ -2012,6 +1969,16 @@ const ChessPalPages = (() => {
           const id = team[i];
           const unit = id ? getTeamUnit(id) : null;
           if (!unit) continue;
+          const currentTarget = (() => {
+            try {
+              if (monsters && monsters.length) {
+                const idx = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+                return monsters[Math.max(0, Math.min(monsters.length - 1, idx))] || null;
+              }
+            } catch {}
+            return null;
+          })();
+          const bossEl = String(currentTarget?.element || getBossBase()?.element || '').toLowerCase();
           const el = String(unit.element || '');
           const elScore = Number(elementScores?.[el] || 0);
           const atk = Math.max(0, Number(unit.atk) || 0);
@@ -2022,10 +1989,12 @@ const ChessPalPages = (() => {
           const dmg = Math.max(0, Math.round(atk * elScore * atkMul * mult * (1 + teamAtkBonus) * (1 + elemBonus) * atkMultThisTurn));
           if (dmg <= 0) continue;
 
+          const targetVisual = getTargetBossVisual();
+          const targetEl = targetVisual.img || targetVisual.box;
           const slotEl = row?.children?.[i] || null;
-          await playBeamBetween({ fromEl: slotEl, toEl: bossImg, variant: 'player' });
-          await shake(bossImg);
-          showDamageFloat(dmg, el, mult);
+          await playBeamBetween({ fromEl: slotEl, toEl: targetEl, variant: 'player' });
+          await shake(targetEl);
+          showDamageFloat(dmg, el, mult, targetVisual.box || targetVisual.img);
           const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
           b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - dmg));
           // Sync into multi-monster pool (if any)
@@ -2148,25 +2117,8 @@ const ChessPalPages = (() => {
                     try {
                       nextMonsters.forEach((m) => addSeenMonsterId(String(m?.monsterId || '').trim().padStart(3, '0')));
                     } catch {}
-                    // Re-render target chips
-                    if (bossList) {
-                      if (nextMonsters.length > 0) {
-                        bossList.style.display = '';
-                        bossList.innerHTML = nextMonsters.map((mm, idx) => `
-                          <button class="cp-bosschip" type="button" data-boss-idx="${esc(String(idx))}" aria-pressed="false">
-                            <img class="cp-bosschip-img" src="${esc(String(mm.img || ''))}" alt="${esc(String(mm.name || 'Monster'))}" decoding="async" loading="lazy">
-                            <div class="cp-bosschip-name">${esc(String(mm.name || 'Monster'))}</div>
-                            <div class="cp-bosschip-bar" aria-hidden="true">
-                              <div class="cp-bosschip-fill" data-boss-chipfill="${esc(String(idx))}"></div>
-                            </div>
-                          </button>
-                        `).join('');
-                      } else {
-                        bossList.style.display = 'none';
-                        bossList.innerHTML = '';
-                      }
-                    }
-                    // Activate first monster (updates big image + bar)
+                    renderBossArena(nextMonsters);
+                    // Activate first monster (updates battle target + bars)
                     setActiveMonsterUI(0);
                   } catch {}
 
@@ -2176,11 +2128,10 @@ const ChessPalPages = (() => {
 
                   // Ensure visible + update hint + intro
                   try {
-                    const bossBox2 = document.querySelector('.cp-practice-boss');
-                    if (bossBox2) {
-                      bossBox2.style.display = '';
-                      bossBox2.classList.remove('cp-dead');
-                    }
+                    document.querySelectorAll('[data-boss-card]').forEach((box) => {
+                      box.style.display = '';
+                      box.classList.remove('cp-dead');
+                    });
                   } catch {}
                   try { showStoryHintIfAny(); } catch {}
                   try { showStageIntro(cfg.chapter, cfg.stage); } catch {}
@@ -2200,6 +2151,7 @@ const ChessPalPages = (() => {
             b.monsterHp = eff.hpMax;
             b.monsterAtk = eff.atk;
 
+            const bossBox = document.querySelector('[data-boss-card="0"]');
             if (bossBox) {
               bossBox.style.display = '';
               bossBox.classList.remove('cp-dead');
@@ -2224,7 +2176,9 @@ const ChessPalPages = (() => {
           }
         } catch {}
         if (monsterAtk > 0) {
-          await playBeamBetween({ fromEl: bossImg, toEl: hpBar, variant: 'monster' });
+          const targetVisual = getTargetBossVisual();
+          const fromEl = targetVisual.img || targetVisual.box;
+          await playBeamBetween({ fromEl, toEl: hpBar, variant: 'monster' });
           await shake(hpBar);
           const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
           const dr = Number.isFinite(Number(b.playerDamageReduction)) ? Number(b.playerDamageReduction) : 0;
@@ -2311,14 +2265,6 @@ const ChessPalPages = (() => {
       // Keep RCV total for future use (not displayed yet)
       try { window.__cpPlayerRcvTotal = totalRcv; } catch {}
       if (rcvOverlay) rcvOverlay.textContent = '';
-
-      // Boss HP (Verdant Maw = monster id 004)
-      try {
-        const boss = getAllMonsters().find(m => String(m.id) === '004') || null;
-        const bossHp = Math.max(0, Math.floor(Number(boss?.hp) || 0));
-        if (bossHpFill) bossHpFill.style.width = bossHp > 0 ? '100%' : '0%';
-        if (bossHpOverlay) bossHpOverlay.textContent = bossHp > 0 ? `${bossHp}/${bossHp}` : '';
-      } catch {}
 
       for (let i = 0; i < 4; i += 1) {
         const id = team[i];
@@ -2480,6 +2426,7 @@ const ChessPalPages = (() => {
           });
         }
         b.monsters = nextMonsters;
+        renderBossArena(nextMonsters);
         b.userPickedTarget = !!b.userPickedTarget;
         b.manualTargetIdx = (b.userPickedTarget && Number.isFinite(Number(b.manualTargetIdx)))
           ? Math.max(0, Math.min(nextMonsters.length - 1, Math.floor(Number(b.manualTargetIdx))))
@@ -2498,10 +2445,11 @@ const ChessPalPages = (() => {
           b.monsterAtk = t.atk;
           b.monsterHp = t.hp;
         }
-        // If previously hidden due to death, ensure it is visible on init
-        const bossBox = document.querySelector('.cp-practice-boss');
-        if (bossBox && bossBox.style.display === 'none') bossBox.style.display = '';
-        try { bossBox?.classList.remove('cp-dead'); } catch {}
+        // Ensure boss cards are visible on init.
+        document.querySelectorAll('[data-boss-card]').forEach((box) => {
+          if (box.style.display === 'none') box.style.display = '';
+          try { box.classList.remove('cp-dead'); } catch {}
+        });
       } catch {}
       updateHpUI();
 
