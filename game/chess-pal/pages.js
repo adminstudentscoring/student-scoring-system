@@ -367,13 +367,23 @@ const ChessPalPages = (() => {
 
   // ----------------------------
   // Story Mode stages (Admin can edit; UI-only for now)
-  // Stored as: { "1": [{ monsters: [{monsterId, level}, ...], hint, drops } x5], "2": ... }
+  // Stored as: { "1": [{ monsters: [{monsterId, level, monsterDropChance, drops:[{itemId,chance}]}...], hint, drops } x5], "2": ... }
   // Back-compat: older saves may store {monsterId, level, hint, drops} per stage.
   // ----------------------------
   const STORY_STAGES_KEY = 'chessPalStoryStages';
 
   function normalizeStageMonsters(stageLike) {
     const raw = stageLike && typeof stageLike === 'object' ? stageLike : {};
+    const normalizeDrops = (dropsLike) => {
+      const arr = Array.isArray(dropsLike) ? dropsLike : [];
+      return arr
+        .map((d) => ({
+          itemId: String(d?.itemId || '').trim().toLowerCase(),
+          chance: Math.max(0, Math.min(100, Math.floor(Number(d?.chance) || 0))),
+        }))
+        .filter((d) => d.itemId && d.chance > 0 && !!getStorageItemDef(d.itemId))
+        .slice(0, 3);
+    };
     const arr = Array.isArray(raw.monsters) ? raw.monsters : null;
     const list = (arr && arr.length)
       ? arr
@@ -382,9 +392,11 @@ const ChessPalPages = (() => {
       .map(x => ({
         monsterId: String(x?.monsterId || '004').trim().padStart(3, '0'),
         level: Math.max(1, Math.floor(Number(x?.level) || 1)),
+        monsterDropChance: Math.max(0, Math.min(100, Math.floor(Number(x?.monsterDropChance ?? x?.captureChance) || 0))),
+        drops: normalizeDrops(x?.drops),
       }))
       .filter(x => /^\d{3}$/.test(x.monsterId));
-    return out.length ? out : [{ monsterId: '004', level: 1 }];
+    return out.length ? out : [{ monsterId: '004', level: 1, monsterDropChance: 0, drops: [] }];
   }
 
   function defaultStoryStagesForChapter(chapterId) {
@@ -518,10 +530,13 @@ const ChessPalPages = (() => {
               const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
               const label = (i === 4) ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`;
               const mons0 = normalizeStageMonsters(s);
-              const d0 = Array.isArray(s.drops) ? s.drops : [];
               return `
                 <div class="cp-setting-item cp-editstages-stage">
-                  <div class="cp-setting-label">${esc(label)}</div>
+                  <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
+                    <div class="cp-setting-label">${esc(label)}</div>
+                    <button class="cp-tool-btn" type="button" data-stage-toggle="${esc(String(i))}" aria-expanded="${i === 0 ? 'true' : 'false'}">${i === 0 ? 'Collapse' : 'Expand'}</button>
+                  </div>
+                  <div data-stage-body="${esc(String(i))}" style="${i === 0 ? '' : 'display:none;'}">
                   <div class="cp-setting-help" style="margin-top:10px;">Monsters (tap Add/Remove to change count)</div>
                   <div class="cp-row" style="margin-top:8px; justify-content:flex-end; gap:8px;">
                     <button class="cp-tool-btn" type="button" data-stage-mon-add="${esc(String(i))}">Add</button>
@@ -532,6 +547,8 @@ const ChessPalPages = (() => {
                       const mid = String(mm.monsterId || '004').trim().padStart(3, '0');
                       const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === mid) || null;
                       const src = String(mon?.img || '').trim();
+                      const monDrops = Array.isArray(mm?.drops) ? mm.drops : [];
+                      const joinChance = Math.max(0, Math.min(100, Math.floor(Number(mm?.monsterDropChance) || 0)));
                       return `
                         <div class="cp-row" style="margin-top:0; align-items:flex-start;" data-stage-monster-row="${esc(String(i))}-${esc(String(k))}">
                           <div style="width: 64px;">
@@ -550,30 +567,34 @@ const ChessPalPages = (() => {
                                 <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(mm.level) || 1))))}" data-stage-level="${esc(String(i))}-${esc(String(k))}">
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-                  <div class="cp-setting-help" style="margin-top:12px;">Drops (one item per clear)</div>
-                  <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
-                    ${Array.from({ length: 3 }, (_, j) => {
-                      const dj = d0[j] || {};
-                      const itemId = String(dj.itemId || '').trim().toLowerCase();
-                      const chance = Math.max(0, Math.floor(Number(dj.chance) || 0));
-                      const def = itemId ? getStorageItemDef(itemId) : null;
-                      return `
-                        <div class="cp-row" style="margin-top:0; gap:10px; align-items:center;">
-                          <div style="width:46px;height:46px;flex:0 0 auto;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);display:flex;align-items:center;justify-content:center;" data-stage-drop-prev="${esc(String(i))}-${esc(String(j))}">
-                            ${def?.img ? renderImgWithFallback(def.img, def.name || def.id, 'cp-levelup-img') : ``}
-                          </div>
-                          <div style="flex:1 1 auto; min-width: 210px;">
-                            <select class="cp-select" data-stage-drop-item="${esc(String(i))}-${esc(String(j))}">
-                              ${itemOptions}
-                            </select>
-                          </div>
-                          <div style="width: 120px;">
-                            <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(chance))}" placeholder="Chance %" data-stage-drop-chance="${esc(String(i))}-${esc(String(j))}">
+                            <div class="cp-row" style="margin-top:8px; justify-content:space-between; align-items:center;">
+                              <div class="cp-setting-help" style="margin:0;">Monster rewards</div>
+                              <button class="cp-tool-btn" type="button" data-stage-mon-drops-toggle="${esc(String(i))}-${esc(String(k))}" aria-expanded="false">Expand rewards</button>
+                            </div>
+                            <div data-stage-mon-dropspanel="${esc(String(i))}-${esc(String(k))}" style="display:none; margin-top:8px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.14);">
+                              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster join chance %</div>
+                              <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(joinChance))}" data-stage-mon-joinchance="${esc(String(i))}-${esc(String(k))}">
+                              <div class="cp-setting-help" style="margin-top:10px;">Item drops (roll one item for this monster)</div>
+                              <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:6px;">
+                                ${Array.from({ length: 3 }, (_, j) => {
+                                  const dj = monDrops[j] || {};
+                                  const itemId = String(dj.itemId || '').trim().toLowerCase();
+                                  const chance = Math.max(0, Math.floor(Number(dj.chance) || 0));
+                                  return `
+                                    <div class="cp-row" style="margin-top:0; gap:10px; align-items:center;">
+                                      <div style="flex:1 1 auto; min-width: 210px;">
+                                        <select class="cp-select" data-stage-mon-drop-item="${esc(String(i))}-${esc(String(k))}-${esc(String(j))}">
+                                          ${itemOptions}
+                                        </select>
+                                      </div>
+                                      <div style="width: 120px;">
+                                        <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(chance))}" placeholder="Chance %" data-stage-mon-drop-chance="${esc(String(i))}-${esc(String(k))}-${esc(String(j))}">
+                                      </div>
+                                    </div>
+                                  `;
+                                }).join('')}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       `;
@@ -581,6 +602,7 @@ const ChessPalPages = (() => {
                   </div>
                   <div class="cp-setting-help" style="margin-top:10px;">Stage hint</div>
                   <input class="cp-input" type="text" value="${esc(String(s.hint || ''))}" data-stage-hint="${esc(String(i))}" placeholder="Leave empty to hide">
+                  </div>
                 </div>
               `;
             }).join('')}
@@ -604,12 +626,14 @@ const ChessPalPages = (() => {
         const mm = mons0[k] || {};
         const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
         if (sel) sel.value = String(mm.monsterId || '004').trim().padStart(3, '0');
-      }
-      const drops = Array.isArray(s.drops) ? s.drops : [];
-      for (let j = 0; j < 3; j += 1) {
-        const d = drops[j] || {};
-        const itemSel = overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
-        if (itemSel) itemSel.value = String(d.itemId || '').trim().toLowerCase();
+        const join = overlay.querySelector(`[data-stage-mon-joinchance="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        if (join) join.value = String(Math.max(0, Math.min(100, Math.floor(Number(mm?.monsterDropChance) || 0))));
+        const mdrops = Array.isArray(mm?.drops) ? mm.drops : [];
+        for (let j = 0; j < 3; j += 1) {
+          const d = mdrops[j] || {};
+          const itemSel = overlay.querySelector(`[data-stage-mon-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(k))}-${CSS.escape(String(j))}"]`);
+          if (itemSel) itemSel.value = String(d.itemId || '').trim().toLowerCase();
+        }
       }
     }
 
@@ -634,25 +658,24 @@ const ChessPalPages = (() => {
         }, { passive: true });
       }
 
-      for (let j = 0; j < 3; j += 1) {
-        const itemSel = overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
-        itemSel?.addEventListener('change', () => {
-          try {
-            const key = String(itemSel.value || '').trim().toLowerCase();
-            const def = key ? getStorageItemDef(key) : null;
-            const box = overlay.querySelector(`[data-stage-drop-prev="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`);
-            if (!box) return;
-            box.innerHTML = def?.img ? renderImgWithFallback(def.img, def.name || def.id, 'cp-levelup-img') : '';
-          } catch {}
-        }, { passive: true });
-      }
+      const tbtn = overlay.querySelector(`[data-stage-toggle="${CSS.escape(String(i))}"]`);
+      const tbody = overlay.querySelector(`[data-stage-body="${CSS.escape(String(i))}"]`);
+      tbtn?.addEventListener('click', () => {
+        const isOpen = tbody?.style.display !== 'none';
+        if (tbody) tbody.style.display = isOpen ? 'none' : '';
+        if (tbtn) {
+          tbtn.textContent = isOpen ? 'Expand' : 'Collapse';
+          tbtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+        }
+      }, { passive: true });
     }
 
     // Add/remove monster rows
-    const makeMonsterRowHtml = (i, k, monsterId, level) => {
+    const makeMonsterRowHtml = (i, k, monsterId, level, monsterDropChance = 0, dropsLike = []) => {
       const mid = String(monsterId || '004').trim().padStart(3, '0');
       const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === mid) || null;
       const src = String(mon?.img || '').trim();
+      const monDrops = Array.isArray(dropsLike) ? dropsLike : [];
       return `
         <div class="cp-row" style="margin-top:0; align-items:flex-start;" data-stage-monster-row="${esc(String(i))}-${esc(String(k))}">
           <div style="width: 64px;">
@@ -669,6 +692,34 @@ const ChessPalPages = (() => {
               <div style="width: 140px;">
                 <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
                 <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(level) || 1))))}" data-stage-level="${esc(String(i))}-${esc(String(k))}">
+              </div>
+            </div>
+            <div class="cp-row" style="margin-top:8px; justify-content:space-between; align-items:center;">
+              <div class="cp-setting-help" style="margin:0;">Monster rewards</div>
+              <button class="cp-tool-btn" type="button" data-stage-mon-drops-toggle="${esc(String(i))}-${esc(String(k))}" aria-expanded="false">Expand rewards</button>
+            </div>
+            <div data-stage-mon-dropspanel="${esc(String(i))}-${esc(String(k))}" style="display:none; margin-top:8px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.14);">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster join chance %</div>
+              <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(Math.max(0, Math.min(100, Math.floor(Number(monsterDropChance) || 0)))))}" data-stage-mon-joinchance="${esc(String(i))}-${esc(String(k))}">
+              <div class="cp-setting-help" style="margin-top:10px;">Item drops (roll one item for this monster)</div>
+              <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:6px;">
+                ${Array.from({ length: 3 }, (_, j) => {
+                  const dj = monDrops[j] || {};
+                  const itemId = String(dj.itemId || '').trim().toLowerCase();
+                  const chance = Math.max(0, Math.floor(Number(dj.chance) || 0));
+                  return `
+                    <div class="cp-row" style="margin-top:0; gap:10px; align-items:center;">
+                      <div style="flex:1 1 auto; min-width: 210px;">
+                        <select class="cp-select" data-stage-mon-drop-item="${esc(String(i))}-${esc(String(k))}-${esc(String(j))}">
+                          ${itemOptions}
+                        </select>
+                      </div>
+                      <div style="width: 120px;">
+                        <input class="cp-input" type="number" min="0" max="100" step="1" value="${esc(String(chance))}" placeholder="Chance %" data-stage-mon-drop-chance="${esc(String(i))}-${esc(String(k))}-${esc(String(j))}">
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
               </div>
             </div>
           </div>
@@ -694,6 +745,16 @@ const ChessPalPages = (() => {
             }
           } catch {}
         }, { passive: true });
+        const dropsBtn = overlay.querySelector(`[data-stage-mon-drops-toggle="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        const dropsPanel = overlay.querySelector(`[data-stage-mon-dropspanel="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        dropsBtn?.addEventListener('click', () => {
+          const open = dropsPanel?.style.display !== 'none';
+          if (dropsPanel) dropsPanel.style.display = open ? 'none' : '';
+          if (dropsBtn) {
+            dropsBtn.textContent = open ? 'Expand rewards' : 'Collapse rewards';
+            dropsBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+          }
+        }, { passive: true });
       };
       addBtn?.addEventListener('click', () => {
         try {
@@ -701,7 +762,7 @@ const ChessPalPages = (() => {
           const rows = Array.from(box.querySelectorAll('[data-stage-monster-row]'));
           if (rows.length >= 4) return;
           const k = rows.length;
-          box.insertAdjacentHTML('beforeend', makeMonsterRowHtml(i, k, '004', 1));
+          box.insertAdjacentHTML('beforeend', makeMonsterRowHtml(i, k, '004', 1, 0, []));
           const sel = overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
           if (sel) sel.value = '004';
           hookRow(k);
@@ -744,22 +805,25 @@ const ChessPalPages = (() => {
           const box = overlay.querySelector(`[data-stage-monsters-box="${CSS.escape(String(i))}"]`);
           const rows = Array.from(box?.querySelectorAll('[data-stage-monster-row]') || []);
           const monsters = rows
-            .map((_, k) => ({
-              monsterId: String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value || '').trim().padStart(3, '0'),
-              level: Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value) || 1)),
-            }))
+            .map((_, k) => {
+              const monsterId = String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value || '').trim().padStart(3, '0');
+              const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value) || 1));
+              const monsterDropChance = Math.max(0, Math.min(100, Math.floor(Number(overlay.querySelector(`[data-stage-mon-joinchance="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value) || 0)));
+              const monDrops = [];
+              for (let j = 0; j < 3; j += 1) {
+                const itemId = String(overlay.querySelector(`[data-stage-mon-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(k))}-${CSS.escape(String(j))}"]`)?.value || '').trim().toLowerCase();
+                const chance = Math.max(0, Math.floor(Number(overlay.querySelector(`[data-stage-mon-drop-chance="${CSS.escape(String(i))}-${CSS.escape(String(k))}-${CSS.escape(String(j))}"]`)?.value) || 0));
+                if (!itemId) continue;
+                if (!getStorageItemDef(itemId)) continue;
+                if (chance <= 0) continue;
+                monDrops.push({ itemId, chance });
+              }
+              return { monsterId, level, monsterDropChance, drops: monDrops };
+            })
             .filter(x => /^\d{3}$/.test(x.monsterId));
           if (!monsters.length) throw new Error('Stage must have at least 1 monster');
           const hint = String(overlay.querySelector(`[data-stage-hint="${CSS.escape(String(i))}"]`)?.value || '').trim();
-          const drops = [];
-          for (let j = 0; j < 3; j += 1) {
-            const itemId = String(overlay.querySelector(`[data-stage-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`)?.value || '').trim().toLowerCase();
-            const chance = Math.max(0, Math.floor(Number(overlay.querySelector(`[data-stage-drop-chance="${CSS.escape(String(i))}-${CSS.escape(String(j))}"]`)?.value) || 0));
-            if (!itemId) continue;
-            if (!getStorageItemDef(itemId)) continue;
-            if (chance <= 0) continue;
-            drops.push({ itemId, chance });
-          }
+          const drops = []; // deprecated stage-level drops (kept for back-compat payload shape)
           // Back-compat: keep monsterId/level in sync with the first monster
           stages.push({ monsters, monsterId: monsters[0].monsterId, level: monsters[0].level, hint, drops });
         }
@@ -1279,7 +1343,7 @@ const ChessPalPages = (() => {
     const stages = getStoryStagesForChapter(ch);
     const cfg = stages[st - 1] || { monsterId: '004', level: 1, hint: '', drops: [] };
     const monsters = normalizeStageMonsters(cfg);
-    const first = monsters[0] || { monsterId: '004', level: 1 };
+    const first = monsters[0] || { monsterId: '004', level: 1, monsterDropChance: 0, drops: [] };
     return {
       chapter: ch,
       stage: st,
@@ -1698,45 +1762,75 @@ const ChessPalPages = (() => {
 
     const awardStoryDropIfAny = (cfg) => {
       try {
-        // One item per clear.
-        // Treat each chance as a percent. If total < 100, the remaining percent is "no drop".
-        const drops = Array.isArray(cfg?.drops) ? cfg.drops : [];
-        const pool = drops
-          .map(d => ({
-            itemId: String(d?.itemId || '').trim().toLowerCase(),
-            chance: Math.max(0, Math.min(100, Math.floor(Number(d?.chance) || 0)))
-          }))
-          .filter(d => d.itemId && d.chance > 0 && !!getStorageItemDef(d.itemId));
-        if (!pool.length) return null;
+        const mons = normalizeStageMonsters(cfg || {});
+        const allItemDrops = [];
+        const allMonsterDrops = [];
 
-        const total = pool.reduce((s, d) => s + d.chance, 0);
-        if (!(total > 0)) return null;
-
-        const rollMax = total < 100 ? 100 : total;
-        let r = Math.random() * rollMax;
-        if (total < 100 && r >= total) return null; // no drop region
-
-        let pick = null;
-        for (const d of pool) {
-          r -= d.chance;
-          if (r <= 0) { pick = d; break; }
-        }
-        const itemId = pick?.itemId;
-        if (!itemId) return null;
+        const rollOneItem = (dropsLike) => {
+          const pool = (Array.isArray(dropsLike) ? dropsLike : [])
+            .map((d) => ({
+              itemId: String(d?.itemId || '').trim().toLowerCase(),
+              chance: Math.max(0, Math.min(100, Math.floor(Number(d?.chance) || 0))),
+            }))
+            .filter((d) => d.itemId && d.chance > 0 && !!getStorageItemDef(d.itemId));
+          if (!pool.length) return null;
+          const total = pool.reduce((s, d) => s + d.chance, 0);
+          if (!(total > 0)) return null;
+          const rollMax = total < 100 ? 100 : total;
+          let r = Math.random() * rollMax;
+          if (total < 100 && r >= total) return null;
+          for (const d of pool) {
+            r -= d.chance;
+            if (r <= 0) return d.itemId;
+          }
+          return null;
+        };
 
         let slots = loadStorage();
-        const before = JSON.stringify(slots);
-        slots = addItemToStorage(slots, itemId, 1);
-        if (JSON.stringify(slots) === before) return null; // storage full or no change
+        for (const mm of mons) {
+          const itemId = rollOneItem(mm?.drops);
+          if (itemId) {
+            const before = JSON.stringify(slots);
+            slots = addItemToStorage(slots, itemId, 1);
+            if (JSON.stringify(slots) !== before) allItemDrops.push(itemId);
+          }
+
+          const joinChance = Math.max(0, Math.min(100, Math.floor(Number(mm?.monsterDropChance) || 0)));
+          if (joinChance > 0 && Math.random() * 100 < joinChance) {
+            const mid = String(mm?.monsterId || '').trim().padStart(3, '0');
+            if (/^\d{3}$/.test(mid)) {
+              addOwnedMonsterId(mid);
+              allMonsterDrops.push(mid);
+            }
+          }
+        }
+
+        // Back-compat: if stage-level drops exist, roll one extra item.
+        const extraStageItem = rollOneItem(cfg?.drops);
+        if (extraStageItem) {
+          const before = JSON.stringify(slots);
+          slots = addItemToStorage(slots, extraStageItem, 1);
+          if (JSON.stringify(slots) !== before) allItemDrops.push(extraStageItem);
+        }
 
         saveStorage(slots);
-        const def = getStorageItemDef(itemId);
         if (hintEl) {
-          hintEl.textContent = def ? `Drop: ${String(def.name || itemId)}` : `Drop: ${itemId}`;
-          hintEl.style.display = '';
-          setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 2200);
+          const itemNames = allItemDrops
+            .map((id) => getStorageItemDef(id)?.name || id)
+            .filter(Boolean);
+          const monNames = allMonsterDrops
+            .map((id) => getMonsterFromDbQuick(id)?.name || `#${id}`)
+            .filter(Boolean);
+          const parts = [];
+          if (itemNames.length) parts.push(`Items: ${itemNames.join(', ')}`);
+          if (monNames.length) parts.push(`Monsters: ${monNames.join(', ')}`);
+          if (parts.length) {
+            hintEl.textContent = `Drop: ${parts.join(' | ')}`;
+            hintEl.style.display = '';
+            setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 2600);
+          }
         }
-        return itemId;
+        return { items: allItemDrops, monsters: allMonsterDrops };
       } catch {
         return null;
       }

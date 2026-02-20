@@ -299,6 +299,21 @@ app.put('/api/admin/chess-pal/monsters', authenticateUser, authorizeRole('admin'
 });
 
 function sanitizeChessPalStoryStages(raw) {
+  const sanitizeDrops = (dropsLike) => {
+    const dropsRaw = Array.isArray(dropsLike) ? dropsLike : [];
+    return dropsRaw
+      .map((d) => {
+        const drop = (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
+        const itemId = String(drop.itemId || '').trim().toLowerCase();
+        const chance = Math.max(0, Math.min(100, Math.floor(Number(drop.chance) || 0)));
+        if (!/^[a-z0-9_]{1,64}$/.test(itemId)) return null;
+        if (chance <= 0) return null;
+        return { itemId, chance };
+      })
+      .filter(Boolean)
+      .slice(0, 3);
+  };
+
   const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
   const out = {};
   for (const [chapterKey, chapterStages] of Object.entries(src)) {
@@ -318,23 +333,14 @@ function sanitizeChessPalStoryStages(raw) {
           const monsterId = String(mon.monsterId || '').trim().padStart(3, '0');
           const level = Math.max(1, Math.floor(Number(mon.level) || 1));
           if (!/^\d{3}$/.test(monsterId)) return null;
-          return { monsterId, level };
+          const monsterDropChance = Math.max(0, Math.min(100, Math.floor(Number(mon.monsterDropChance ?? mon.captureChance) || 0)));
+          const drops = sanitizeDrops(mon.drops);
+          return { monsterId, level, monsterDropChance, drops };
         })
         .filter(Boolean)
         .slice(0, 4);
       if (!monstersNormalized.length) continue;
-      const dropsRaw = Array.isArray(stageObj.drops) ? stageObj.drops : [];
-      const drops = dropsRaw
-        .map((d) => {
-          const drop = (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
-          const itemId = String(drop.itemId || '').trim().toLowerCase();
-          const chance = Math.max(0, Math.min(100, Math.floor(Number(drop.chance) || 0)));
-          if (!/^[a-z0-9_]{1,64}$/.test(itemId)) return null;
-          if (chance <= 0) return null;
-          return { itemId, chance };
-        })
-        .filter(Boolean)
-        .slice(0, 3);
+      const drops = sanitizeDrops(stageObj.drops);
       const hint = String(stageObj.hint || '').trim().slice(0, 500);
       const first = monstersNormalized[0];
       stagesOut.push({
