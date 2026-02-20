@@ -214,14 +214,14 @@
   min-width: 0;
 }
 .cp-practice-boss{
-  flex: 0 0 clamp(80px, 17vw, 135px);
+  flex: 0 0 clamp(96px, 20.4vw, 162px);
   width: auto;
   min-width: 0;
   border-radius: 18px;
   border: 0;
   background: transparent;
   overflow:hidden;
-  min-height: 120px;
+  min-height: 144px;
   position: relative;
   aspect-ratio: 1 / 1;
   cursor: pointer;
@@ -365,14 +365,17 @@
 }
 
 .cp-game-fullscreen .cp-boss-arena .cp-practice-boss{
-  flex: 0 0 clamp(80px, 17vw, 135px);
+  flex: 0 0 clamp(96px, 20.4vw, 162px);
   width: auto;
   min-width: 0;
   max-width: 100%;
-  min-height: 120px;
+  min-height: 144px;
   height: auto;
   aspect-ratio: 1 / 1;
   margin: 0;
+}
+.cp-game-fullscreen .cp-boss-arena{
+  margin-top: clamp(80px, 13dvh, 200px);
 }
 .cp-game-fullscreen .cp-boss-arena .cp-practice-bossimg{
   width: 100%;
@@ -474,6 +477,9 @@
 @media (max-width: 820px) and (orientation: portrait){
   .cp-boss-arena{
     gap: 6px;
+  }
+  .cp-game-fullscreen .cp-boss-arena{
+    margin-top: 0;
   }
   .cp-boss-arena .cp-practice-boss{
     min-height: 84px;
