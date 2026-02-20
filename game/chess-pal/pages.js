@@ -7,7 +7,6 @@ const ChessPalPages = (() => {
     'chessPalOwnedHeroes',
     'chessPalOwnedMonsters',
     'chessPalSeenMonsters',
-    'chessPalStoryStagesAdmin',
     'chessPalStoryProgress',
     'chessPalHeroProgress',
     'chessPalMonsterProgress',
@@ -241,7 +240,6 @@ const ChessPalPages = (() => {
     'cpOwnedHeroesChanged',
     'cpOwnedMonstersChanged',
     'cpSeenMonstersChanged',
-    'cpStoryStagesChanged',
     'cpStoryProgressChanged',
     'cpHeroProgressChanged',
     'cpMonsterProgressChanged',
@@ -254,6 +252,7 @@ const ChessPalPages = (() => {
   });
   try { patchLocalStorageForCloudSync(); } catch {}
   try { initChessPalCloudStateSync(); } catch {}
+  try { syncStoryStagesFromServer(); } catch {}
 
   // ----------------------------
   // Ownership (heroes) + Seen (monsters)
@@ -438,6 +437,41 @@ const ChessPalPages = (() => {
     const next = loadStoryStages();
     next[ch] = Array.isArray(stages) ? stages : defaultStoryStagesForChapter(ch);
     saveStoryStages(next);
+  }
+
+  async function syncStoryStagesFromServer() {
+    try {
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
+      const resp = await window.authUtils.authenticatedFetch('/chess-pal/story-stages', { method: 'GET' });
+      if (!resp || !resp.ok) return;
+      const data = await resp.json();
+      const stages = (data && typeof data.stages === 'object' && !Array.isArray(data.stages)) ? data.stages : null;
+      if (!stages) return;
+      saveStoryStages(stages);
+      try {
+        if (window.Router && typeof window.Router.renderCurrent === 'function') window.Router.renderCurrent();
+      } catch {}
+    } catch {}
+  }
+
+  async function saveStoryStagesToServer(allStages) {
+    if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') {
+      throw new Error('Authentication is not ready');
+    }
+    const payload = (allStages && typeof allStages === 'object' && !Array.isArray(allStages)) ? allStages : {};
+    const resp = await window.authUtils.authenticatedFetch('/admin/chess-pal/story-stages', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stages: payload }),
+    });
+    if (!resp || !resp.ok) {
+      let msg = 'Failed to save story stages on server';
+      try {
+        const err = await resp.json();
+        if (err && typeof err.error === 'string' && err.error.trim()) msg = err.error.trim();
+      } catch {}
+      throw new Error(msg);
+    }
   }
 
   function showAdminEditStoryStagesModal(chapterId) {
@@ -702,7 +736,7 @@ const ChessPalPages = (() => {
     const msg = overlay.querySelector('#cpEditStagesMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
 
-    overlay.querySelector('#cpEditStagesSave')?.addEventListener('click', () => {
+    overlay.querySelector('#cpEditStagesSave')?.addEventListener('click', async () => {
       try {
         setMsg('');
         const stages = [];
@@ -729,8 +763,11 @@ const ChessPalPages = (() => {
           // Back-compat: keep monsterId/level in sync with the first monster
           stages.push({ monsters, monsterId: monsters[0].monsterId, level: monsters[0].level, hint, drops });
         }
-        setStoryStagesForChapter(ch, stages);
-        setMsg('Saved.');
+        const nextAll = loadStoryStages();
+        nextAll[String(ch)] = stages;
+        await saveStoryStagesToServer(nextAll);
+        saveStoryStages(nextAll);
+        setMsg('Saved globally.');
         setTimeout(() => close(), 250);
       } catch (e) {
         setMsg(String(e?.message || e || 'Save failed'));

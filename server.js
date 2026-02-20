@@ -298,6 +298,89 @@ app.put('/api/admin/chess-pal/monsters', authenticateUser, authorizeRole('admin'
   }
 });
 
+function sanitizeChessPalStoryStages(raw) {
+  const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  const out = {};
+  for (const [chapterKey, chapterStages] of Object.entries(src)) {
+    const chapterNum = Math.max(1, Math.min(10, Math.floor(Number(chapterKey) || 0)));
+    if (!chapterNum) continue;
+    const chapter = String(chapterNum);
+    const stagesIn = Array.isArray(chapterStages) ? chapterStages.slice(0, 5) : [];
+    const stagesOut = [];
+    for (const st of stagesIn) {
+      const stageObj = (st && typeof st === 'object' && !Array.isArray(st)) ? st : {};
+      const monstersRaw = Array.isArray(stageObj.monsters) ? stageObj.monsters : [];
+      const fallbackMonsterId = String(stageObj.monsterId || '').trim().padStart(3, '0');
+      const fallbackLevel = Math.max(1, Math.floor(Number(stageObj.level) || 1));
+      const monstersNormalized = (monstersRaw.length ? monstersRaw : [{ monsterId: fallbackMonsterId || '004', level: fallbackLevel }])
+        .map((m) => {
+          const mon = (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+          const monsterId = String(mon.monsterId || '').trim().padStart(3, '0');
+          const level = Math.max(1, Math.floor(Number(mon.level) || 1));
+          if (!/^\d{3}$/.test(monsterId)) return null;
+          return { monsterId, level };
+        })
+        .filter(Boolean)
+        .slice(0, 4);
+      if (!monstersNormalized.length) continue;
+      const dropsRaw = Array.isArray(stageObj.drops) ? stageObj.drops : [];
+      const drops = dropsRaw
+        .map((d) => {
+          const drop = (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
+          const itemId = String(drop.itemId || '').trim().toLowerCase();
+          const chance = Math.max(0, Math.min(100, Math.floor(Number(drop.chance) || 0)));
+          if (!/^[a-z0-9_]{1,64}$/.test(itemId)) return null;
+          if (chance <= 0) return null;
+          return { itemId, chance };
+        })
+        .filter(Boolean)
+        .slice(0, 3);
+      const hint = String(stageObj.hint || '').trim().slice(0, 500);
+      const first = monstersNormalized[0];
+      stagesOut.push({
+        monsters: monstersNormalized,
+        monsterId: first.monsterId,
+        level: first.level,
+        hint,
+        drops,
+      });
+    }
+    if (stagesOut.length) out[chapter] = stagesOut;
+  }
+  return out;
+}
+
+app.get('/api/chess-pal/story-stages', authenticateUser, async (req, res) => {
+  try {
+    const data = await readData();
+    const stages = sanitizeChessPalStoryStages(data?.chessPal?.storyStagesGlobal || {});
+    const updatedAt = Number.isFinite(Number(data?.chessPal?.storyStagesGlobalUpdatedAt))
+      ? Math.floor(Number(data.chessPal.storyStagesGlobalUpdatedAt))
+      : 0;
+    res.json({ stages, updatedAt });
+  } catch (e) {
+    console.error('[chess-pal] GET /api/chess-pal/story-stages failed:', e);
+    res.status(500).json({ error: 'Failed to load Chess Pal story stages' });
+  }
+});
+
+app.put('/api/admin/chess-pal/story-stages', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const stages = sanitizeChessPalStoryStages(req?.body?.stages || {});
+    const now = Date.now();
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    data.chessPal.storyStagesGlobal = stages;
+    data.chessPal.storyStagesGlobalUpdatedAt = now;
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+    res.json({ success: true, stages, updatedAt: now });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/story-stages failed:', e);
+    res.status(500).json({ error: 'Failed to save Chess Pal story stages' });
+  }
+});
+
 // ----------------------------
 // Chess Pal per-user cloud state
 // ----------------------------
