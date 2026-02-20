@@ -2712,6 +2712,8 @@ const ChessPalPages = (() => {
         // Clear per-turn scores after combat so next turn starts clean
         try { window.__cpPracticeElementScores = {}; } catch {}
         try { window.__cpPracticePathMultipliers = []; } catch {}
+        // Safety cleanup: remove any multiplier labels not consumed by beams.
+        try { window.ChessPal?.clearAllPathMultiplierFx?.(); } catch {}
         try { applyElementScoresToUI(); } catch {}
         // Cooldowns tick down once per full round
         try {
@@ -2914,15 +2916,18 @@ const ChessPalPages = (() => {
           ev.preventDefault();
           const sk = String(slotBtn.getAttribute('data-team-slotkey') || '');
           const u = sk ? getTeamUnit(sk) : null;
-          if (!u || !u.activeSkill) return;
+          if (!u) return;
           const b = getBattle();
           const key = String(u.key || '');
+          const hasActiveSkill = !!u.activeSkill;
           const baseCd = Math.max(0, Math.floor(Number(u.activeSkill?.cd) || 0));
           if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
-          if (key && baseCd > 0 && !Object.prototype.hasOwnProperty.call(b.skillCds, key)) {
+          if (hasActiveSkill && key && baseCd > 0 && !Object.prototype.hasOwnProperty.call(b.skillCds, key)) {
             b.skillCds[key] = baseCd;
           }
-          const left = (b.skillCds && typeof b.skillCds === 'object') ? Math.max(0, Math.floor(Number(b.skillCds[key]) || 0)) : baseCd;
+          const left = hasActiveSkill
+            ? ((b.skillCds && typeof b.skillCds === 'object') ? Math.max(0, Math.floor(Number(b.skillCds[key]) || 0)) : baseCd)
+            : 0;
 
           closeSkillPanels();
           slotBtn.classList.add('is-skill-open');
@@ -2930,11 +2935,11 @@ const ChessPalPages = (() => {
           const panel = document.createElement('div');
           panel.className = 'cp-practice-skillpanel';
           panel.innerHTML = `
-            <div class="cp-practice-skilltitle">${esc(u.activeSkill?.name || 'Skill')}</div>
-            <div class="cp-practice-skilldesc">${esc(u.activeSkill?.text || '')}</div>
-            <div class="cp-practice-skillmeta">CD ${esc(u.activeSkill?.cd ?? 0)}${left > 0 ? ` · Cooling down ${esc(left)}` : ''}</div>
+            <div class="cp-practice-skilltitle">${esc(u.activeSkill?.name || 'No Active Skill')}</div>
+            <div class="cp-practice-skilldesc">${esc(u.activeSkill?.text || 'This unit cannot cast an active skill.')}</div>
+            <div class="cp-practice-skillmeta">${hasActiveSkill ? `CD ${esc(u.activeSkill?.cd ?? 0)}${left > 0 ? ` · Cooling down ${esc(left)}` : ' · Ready'}` : 'No skill available'}</div>
             <div class="cp-practice-skillbtnrow">
-              <button class="cp-tool-btn" type="button" data-skill-confirm ${left > 0 ? 'disabled' : ''}>Confirm</button>
+              <button class="cp-tool-btn" type="button" data-skill-confirm ${(!hasActiveSkill || left > 0) ? 'disabled' : ''}>Confirm</button>
               <button class="cp-tool-btn" type="button" data-skill-cancel>Cancel</button>
             </div>
           `;
