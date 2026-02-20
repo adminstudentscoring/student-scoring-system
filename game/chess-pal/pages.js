@@ -1521,6 +1521,7 @@ const ChessPalPages = (() => {
     // (Stage-to-stage progression happens in-place without reloading the board.)
     try { window.__cpPracticeBattleState = {}; } catch {}
     try { window.__cpPracticeElementScores = {}; } catch {}
+    try { window.__cpPracticePathMultipliers = []; } catch {}
     // elements pool by stage
     try {
       const team = getTeam();
@@ -2265,6 +2266,23 @@ const ChessPalPages = (() => {
           const idx = Number.isFinite(Number(b?.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
           return getBossVisualByIdx(idx);
         };
+        const makePointAnchor = (x, y) => {
+          const ax = Number(x) || 0;
+          const ay = Number(y) || 0;
+          if (!(ax > 0 && ay > 0)) return null;
+          const el = document.createElement('div');
+          el.style.position = 'fixed';
+          el.style.left = `${ax}px`;
+          el.style.top = `${ay}px`;
+          el.style.width = '1px';
+          el.style.height = '1px';
+          el.style.opacity = '0';
+          el.style.pointerEvents = 'none';
+          el.style.zIndex = '1';
+          document.body.appendChild(el);
+          return el;
+        };
+        const multiplierEvents = Array.isArray(window.__cpPracticePathMultipliers) ? window.__cpPracticePathMultipliers : [];
         const showDamageFloat = (value, element, mult, hostEl) => {
           const host = hostEl || getTargetBossVisual().box || getTargetBossVisual().img;
           if (!host) return;
@@ -2418,6 +2436,18 @@ const ChessPalPages = (() => {
           const targetVisual = getTargetBossVisual();
           const targetEl = targetVisual.img || targetVisual.box;
           const slotEl = row?.children?.[i] || null;
+          // If path multipliers were earned, route them to the matching hero first,
+          // then the hero fires at the target.
+          const pathForHero = multiplierEvents
+            .filter((pm) => String(pm?.element || '').toLowerCase() === String(el || '').toLowerCase() && Number(pm?.multiplier) >= 3)
+            .sort((a, b2) => (Number(b2?.multiplier) || 0) - (Number(a?.multiplier) || 0))
+            .slice(0, 2);
+          for (const pm of pathForHero) {
+            const anchor = makePointAnchor(pm?.x, pm?.y);
+            if (!anchor || !slotEl) continue;
+            await playBeamBetween({ fromEl: anchor, toEl: slotEl, variant: 'player' });
+            try { anchor.remove(); } catch {}
+          }
           await playBeamBetween({ fromEl: slotEl, toEl: targetEl, variant: 'player' });
           await shake(targetEl);
           showDamageFloat(dmg, el, mult, targetVisual.box || targetVisual.img);
@@ -2585,6 +2615,7 @@ const ChessPalPages = (() => {
 
                   // clear per-turn scores
                   try { window.__cpPracticeElementScores = {}; } catch {}
+                  try { window.__cpPracticePathMultipliers = []; } catch {}
                   try { applyElementScoresToUI(); } catch {}
 
                   // Ensure visible + update hint + intro
@@ -2679,6 +2710,7 @@ const ChessPalPages = (() => {
       } finally {
         // Clear per-turn scores after combat so next turn starts clean
         try { window.__cpPracticeElementScores = {}; } catch {}
+        try { window.__cpPracticePathMultipliers = []; } catch {}
         try { applyElementScoresToUI(); } catch {}
         // Cooldowns tick down once per full round
         try {
@@ -2964,8 +2996,11 @@ const ChessPalPages = (() => {
       try {
         const total = ev?.detail?.scores?.total || ev?.detail?.scores || {};
         window.__cpPracticeElementScores = total;
+        const multipliers = Array.isArray(ev?.detail?.pathMultipliers) ? ev.detail.pathMultipliers : [];
+        window.__cpPracticePathMultipliers = multipliers;
       } catch {
         window.__cpPracticeElementScores = {};
+        window.__cpPracticePathMultipliers = [];
       }
       applyElementScoresToUI();
 

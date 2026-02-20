@@ -25,6 +25,7 @@ const ChessPal = (() => {
     actionTimerId: null,
     timeRemaining: TURN_TIME_MS,
     moveHistory: [],
+    pathMultiplierEvents: [],
     cascades: [],
     lastScore: null,
     isPlayerTurn: false,
@@ -207,6 +208,7 @@ const ChessPal = (() => {
     state.knightPosition = null;
     state.validMoves = [];
     state.lastScore = null;
+    state.pathMultiplierEvents = [];
     try {
       if (window.__cpPieceListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpPieceListener);
     } catch {}
@@ -282,11 +284,91 @@ const ChessPal = (() => {
     }
     return { path, cascade, total };
   }
-  function emitElementScores(scores, phase) {
+  function emitElementScores(scores, phase, extras = {}) {
     try {
       window.dispatchEvent(new CustomEvent('cpElementScoresChanged', {
-        detail: { scores, phase: String(phase || '') }
+        detail: {
+          scores,
+          phase: String(phase || ''),
+          pathMultipliers: Array.isArray(extras?.pathMultipliers) ? extras.pathMultipliers : []
+        }
       }));
+    } catch {}
+  }
+
+  function getCellCenterViewport(row, col) {
+    try {
+      const cell = getCellElement(row, col);
+      if (!cell) return null;
+      const rect = cell.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    } catch {
+      return null;
+    }
+  }
+
+  function showMoveTrail(from, to) {
+    try {
+      if (!from || !to) return;
+      const a = getCellCenterViewport(from.row, from.col);
+      const b = getCellCenterViewport(to.row, to.col);
+      if (!a || !b) return;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (!(len > 1)) return;
+      const angle = Math.atan2(dy, dx);
+      const trail = document.createElement('div');
+      trail.className = 'pmf-step-trail';
+      trail.style.left = `${a.x}px`;
+      trail.style.top = `${a.y}px`;
+      trail.style.width = `${len}px`;
+      trail.style.setProperty('--pmf-trail-angle', `${angle}rad`);
+      document.body.appendChild(trail);
+      setTimeout(() => { try { trail.remove(); } catch {} }, 280);
+    } catch {}
+  }
+
+  function computePathMultiplierEvents(moveHistory) {
+    const moves = Array.isArray(moveHistory) ? moveHistory : [];
+    const events = [];
+    let streakLen = 0;
+    let streakElement = '';
+    for (const mv of moves) {
+      const el = String(mv?.element || '').toLowerCase();
+      if (!el) continue;
+      if (streakElement && el === streakElement) streakLen += 1;
+      else { streakElement = el; streakLen = 1; }
+      if (streakLen >= 3) {
+        const pos = mv?.to || null;
+        const center = pos ? getCellCenterViewport(pos.row, pos.col) : null;
+        events.push({
+          element: el,
+          multiplier: streakLen,
+          row: Number(pos?.row) || 0,
+          col: Number(pos?.col) || 0,
+          x: Number(center?.x) || 0,
+          y: Number(center?.y) || 0,
+        });
+      }
+    }
+    return events;
+  }
+
+  function showPathMultiplierFx(evt) {
+    try {
+      const mult = Math.max(0, Math.floor(Number(evt?.multiplier) || 0));
+      if (mult < 3) return;
+      const x = Number(evt?.x) || 0;
+      const y = Number(evt?.y) || 0;
+      if (!(x > 0 && y > 0)) return;
+      const el = document.createElement('div');
+      el.className = 'pmf-path-mult-fx';
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.textContent = `x${mult}`;
+      document.body.appendChild(el);
+      setTimeout(() => { try { el.remove(); } catch {} }, 760);
     } catch {}
   }
 
@@ -403,7 +485,12 @@ const ChessPal = (() => {
         cell.dataset.row = String(row);
         cell.dataset.col = String(col);
 
-        const isKnight = state.knightPosition && state.knightPosition.row === row && state.knightPosition.col === col;
+        const isKnight = !!(
+          state.knightPosition
+          && state.knightPosition.row === row
+          && state.knightPosition.col === col
+          && !state.isPlayerTurn
+        );
         if (isKnight) {
           cellClass += ' pmf-knight-cell';
         }
@@ -504,10 +591,16 @@ const ChessPal = (() => {
     state.validMoves = getKnightMoves(to.row, to.col).filter(pos => isInsideBoard(pos.row, pos.col) && state.board[pos.row][pos.col]);
 
     renderBoard();
+    if (from && to && (Number(from.row) !== Number(to.row) || Number(from.col) !== Number(to.col))) {
+      showMoveTrail(from, to);
+    }
+    state.pathMultiplierEvents = computePathMultiplierEvents(state.moveHistory);
+    const latestMult = state.pathMultiplierEvents[state.pathMultiplierEvents.length - 1] || null;
+    if (latestMult && Number(latestMult.multiplier) >= 3) showPathMultiplierFx(latestMult);
     renderMoveHistory();
 
     // Live element score update (path only)
-    emitElementScores(computeElementScores(state.moveHistory, []), 'path');
+    emitElementScores(computeElementScores(state.moveHistory, []), 'path', { pathMultipliers: state.pathMultiplierEvents });
   }
 
   function startPlayerTurn() {
@@ -530,10 +623,11 @@ const ChessPal = (() => {
     state.validMoves = getKnightMoves(state.knightPosition.row, state.knightPosition.col)
       .filter(pos => isInsideBoard(pos.row, pos.col) && state.board[pos.row][pos.col]);
     state.moveHistory = [];
+    state.pathMultiplierEvents = [];
     state.cascades = [];
     state.lastScore = null;
     renderScoreBreakdown(null);
-    emitElementScores(computeElementScores([], []), 'path');
+    emitElementScores(computeElementScores([], []), 'path', { pathMultipliers: [] });
     clearInterval(state.actionTimerId);
     state.actionTimerId = setInterval(handleTimerTick, 100);
     pushLog('Turn started. Use knight moves to consume jewels.');
@@ -567,7 +661,8 @@ const ChessPal = (() => {
       renderBoard();
       state.startingKnight = null;
       state.knightPosition = null;
-      emitElementScores(computeElementScores([], []), 'final');
+      state.pathMultiplierEvents = [];
+      emitElementScores(computeElementScores([], []), 'final', { pathMultipliers: [] });
       return;
     }
 
@@ -586,12 +681,13 @@ const ChessPal = (() => {
         const breakdown = computeScoreBreakdown(state.moveHistory, cascades, timeLeftMs);
         state.lastScore = breakdown;
         renderScoreBreakdown(breakdown);
-        emitElementScores(breakdown?.elementScores || computeElementScores(state.moveHistory, cascades), 'final');
+        emitElementScores(breakdown?.elementScores || computeElementScores(state.moveHistory, cascades), 'final', { pathMultipliers: state.pathMultiplierEvents });
 
         renderBoard();
         state.startingKnight = null;
         state.knightPosition = null;
         state.moveHistory = [];
+        state.pathMultiplierEvents = [];
         state.isAnimating = false;
       });
     });
