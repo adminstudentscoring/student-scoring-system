@@ -2751,6 +2751,26 @@ const ChessPalPages = (() => {
         const power = Math.round(atk * elScore * atkMul);
         atkEl.textContent = power > 0 ? String(power) : '';
       });
+      // Skill-ready glow: slot lights up when cooldown reaches 0.
+      try {
+        const b = getBattle();
+        if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
+        row.querySelectorAll('.cp-practice-slot[data-team-slotkey]').forEach((slot) => {
+          const sk = String(slot.getAttribute('data-team-slotkey') || '');
+          const unit = sk ? getTeamUnit(sk) : null;
+          const key = String(unit?.key || '');
+          const cd = Math.max(0, Math.floor(Number(unit?.activeSkill?.cd) || 0));
+          if (!unit || !unit.activeSkill || !key || cd <= 0) {
+            slot.classList.remove('is-skill-ready');
+            return;
+          }
+          if (!Object.prototype.hasOwnProperty.call(b.skillCds, key)) {
+            b.skillCds[key] = cd;
+          }
+          const left = Math.max(0, Math.floor(Number(b.skillCds[key]) || 0));
+          slot.classList.toggle('is-skill-ready', left <= 0);
+        });
+      } catch {}
 
       // RCV shown on HP bar (use Heart score)
       try {
@@ -2806,6 +2826,23 @@ const ChessPalPages = (() => {
           : `<div class="cp-practice-slot-empty"></div>`;
         row.appendChild(slot);
       }
+
+      // Initialize cooldowns at battle start:
+      // active skills are NOT ready immediately; they become usable when CD reaches 0.
+      try {
+        const b = getBattle();
+        if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
+        for (let i = 0; i < 4; i += 1) {
+          const id = team[i];
+          const unit = id ? getTeamUnit(id) : null;
+          const key = String(unit?.key || '');
+          const cd = Math.max(0, Math.floor(Number(unit?.activeSkill?.cd) || 0));
+          if (!key || !unit?.activeSkill || cd <= 0) continue;
+          if (!Object.prototype.hasOwnProperty.call(b.skillCds, key)) {
+            b.skillCds[key] = cd;
+          }
+        }
+      } catch {}
 
       // Skill popover (Confirm / Cancel) under clicked slot
       const closeSkillPanels = () => {
@@ -2879,7 +2916,12 @@ const ChessPalPages = (() => {
           if (!u || !u.activeSkill) return;
           const b = getBattle();
           const key = String(u.key || '');
-          const left = (b.skillCds && typeof b.skillCds === 'object') ? Math.max(0, Math.floor(Number(b.skillCds[key]) || 0)) : 0;
+          const baseCd = Math.max(0, Math.floor(Number(u.activeSkill?.cd) || 0));
+          if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
+          if (key && baseCd > 0 && !Object.prototype.hasOwnProperty.call(b.skillCds, key)) {
+            b.skillCds[key] = baseCd;
+          }
+          const left = (b.skillCds && typeof b.skillCds === 'object') ? Math.max(0, Math.floor(Number(b.skillCds[key]) || 0)) : baseCd;
 
           closeSkillPanels();
           slotBtn.classList.add('is-skill-open');
