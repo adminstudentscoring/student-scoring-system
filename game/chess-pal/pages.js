@@ -1534,9 +1534,13 @@ const ChessPalPages = (() => {
     });
   };
 
-  function getDefaultStoryElementsForStage(stageIdx1, teamUnits) {
+  function getDefaultStoryElementsForStage(chapterId, stageIdx1, teamUnits) {
+    const chapter = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
     const stage = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
     const core = ['light', 'dark', 'fire', 'water', 'wood'];
+    // Keep Chapter 1 tutorial pool logic only.
+    // All later chapters use the original full pool (including Heart) from Stage 1.
+    if (chapter !== 1) return [...core, 'heart'];
     if (stage === 4 || stage === 5) return [...core, 'heart'];
     // Stage 2: all attack elements
     if (stage === 2) return core;
@@ -1611,11 +1615,11 @@ const ChessPalPages = (() => {
     try {
       const team = getTeam();
       const units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
-      window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, units);
+      window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.chapter, cfg.stage, units);
       const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
       if (Array.isArray(fixed) && fixed.length) window.__cpBoardElements = fixed.slice();
     } catch {
-      window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.stage, []);
+      window.__cpBoardElements = getDefaultStoryElementsForStage(cfg.chapter, cfg.stage, []);
       try {
         const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
         if (Array.isArray(fixed) && fixed.length) window.__cpBoardElements = fixed.slice();
@@ -2199,6 +2203,46 @@ const ChessPalPages = (() => {
       }, { passive: true });
     };
 
+    const showStoryDefeatSettleModal = ({ onRevive, onGiveUp }) => {
+      const old = document.getElementById('cpResultOverlay');
+      if (old) old.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'cpResultOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Battle defeated">
+          <div class="cp-modal-body" style="text-align:center; padding:24px;">
+            <div class="cp-h1" style="font-size:28px;">Defeated</div>
+            <div class="cp-muted" style="margin-top:10px;">No rewards are granted for this run.</div>
+            <div class="cp-row" style="justify-content:center; gap:10px; margin-top:16px; flex-wrap:wrap;">
+              <button class="cp-primary" type="button" id="cpResultRevive">Revive (Gold Coin x1)</button>
+              <button class="cp-tool-btn" type="button" id="cpResultGiveUp">Give up</button>
+            </div>
+            <div class="cp-muted" id="cpResultDefeatMsg" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const setMsg = (t) => {
+        const msg = overlay.querySelector('#cpResultDefeatMsg');
+        if (msg) msg.textContent = String(t || '');
+      };
+      overlay.querySelector('#cpResultRevive')?.addEventListener('click', async () => {
+        try {
+          const ok = await Promise.resolve(typeof onRevive === 'function' ? onRevive() : false);
+          if (ok) {
+            try { overlay.remove(); } catch {}
+            return;
+          }
+        } catch {}
+        setMsg('Not enough Gold Coin.');
+      });
+      overlay.querySelector('#cpResultGiveUp')?.addEventListener('click', () => {
+        try { overlay.remove(); } catch {}
+        try { if (typeof onGiveUp === 'function') onGiveUp(); } catch {}
+      }, { passive: true });
+    };
+
     const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo }) => {
       const old = document.getElementById('cpResultOverlay');
       if (old) old.remove();
@@ -2683,7 +2727,7 @@ const ChessPalPages = (() => {
                     const team = getTeam();
                     units = ['a', 'b', 'c', 'd'].map(k => getTeamUnit(team?.[k])).filter(Boolean);
                   } catch {}
-                  let pool = getDefaultStoryElementsForStage(cfg.stage, units);
+                  let pool = getDefaultStoryElementsForStage(cfg.chapter, cfg.stage, units);
                   try {
                     const fixed = window.ChessPalStory?.getFixedElementPool?.(cfg.chapter, cfg.stage);
                     if (Array.isArray(fixed) && fixed.length) pool = fixed.slice();
@@ -2816,6 +2860,36 @@ const ChessPalPages = (() => {
             b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - effDmg));
             updateHpUI();
           }
+        }
+        if ((Number(b.playerHp) || 0) <= 0 && isStoryBattleActive()) {
+          showStoryDefeatSettleModal({
+            onRevive: () => {
+              try {
+                let slots = loadStorage();
+                const idx = slots.findIndex((x) => x && String(x.itemId || '').toLowerCase() === 'gold_coin');
+                if (idx < 0) return false;
+                const curQty = Math.max(0, Math.floor(Number(slots[idx]?.qty) || 0));
+                if (curQty <= 0) return false;
+                slots[idx] = (curQty <= 1) ? null : { ...slots[idx], qty: curQty - 1 };
+                saveStorage(slots);
+                const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+                b.playerHp = pMax;
+                updateHpUI();
+                return true;
+              } catch {
+                return false;
+              }
+            },
+            onGiveUp: () => {
+              try {
+                const sess = window.__cpStoryRunSession;
+                if (sess && typeof sess === 'object') sess.resignHandled = true;
+              } catch {}
+              clearStoryRunSession();
+              showFailResignModal();
+            },
+          });
+          return;
         }
       } finally {
         // Clear per-turn scores after combat so next turn starts clean
@@ -4826,25 +4900,23 @@ const ChessPalPages = (() => {
   EnhancePage.title = 'Enhance';
   EnhancePage.render = () => {
     return `
-      <div class="cp-page-card">
-        <div class="cp-setting-item" style="margin-top:10px; background: rgba(255,255,255,0.03);">
-          <div class="cp-enhance-grid" style="margin-top:12px;">
-            <button class="cp-enhance-slot" type="button" id="cpEnhanceTargetSlot">
-              <div class="cp-enhance-slot-title">Target Hero / Monster</div>
-              <div class="cp-enhance-slot-body" id="cpEnhanceTargetBody">Tap to select</div>
-            </button>
-            <div class="cp-enhance-plus" aria-hidden="true">+</div>
-            <button class="cp-enhance-slot" type="button" id="cpEnhanceMatSlot">
-              <div class="cp-enhance-slot-title">Material</div>
-              <div class="cp-enhance-slot-body" id="cpEnhanceMatBody">Tap to select</div>
-            </button>
-          </div>
-          <div class="cp-row" style="margin-top:12px; justify-content:center;">
-            <button class="cp-primary" type="button" id="cpEnhanceConfirm" disabled>Enhance</button>
-          </div>
-          <div class="cp-muted" id="cpEnhanceMsg" style="margin-top:10px;"></div>
-          <div id="cpEnhanceResult" style="margin-top:10px;"></div>
+      <div>
+        <div class="cp-enhance-grid" style="margin-top:12px;">
+          <button class="cp-enhance-slot" type="button" id="cpEnhanceTargetSlot">
+            <div class="cp-enhance-slot-title">Target Hero / Monster</div>
+            <div class="cp-enhance-slot-body" id="cpEnhanceTargetBody">Tap to select</div>
+          </button>
+          <div class="cp-enhance-plus" aria-hidden="true">+</div>
+          <button class="cp-enhance-slot" type="button" id="cpEnhanceMatSlot">
+            <div class="cp-enhance-slot-title">Material</div>
+            <div class="cp-enhance-slot-body" id="cpEnhanceMatBody">Tap to select</div>
+          </button>
         </div>
+        <div class="cp-row" style="margin-top:12px; justify-content:center;">
+          <button class="cp-primary" type="button" id="cpEnhanceConfirm" disabled>Enhance</button>
+        </div>
+        <div class="cp-muted" id="cpEnhanceMsg" style="margin-top:10px;"></div>
+        <div id="cpEnhanceResult" style="margin-top:10px;"></div>
       </div>
     `;
   };
