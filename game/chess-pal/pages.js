@@ -190,10 +190,12 @@ const ChessPalPages = (() => {
       // Backgrounds
       practiceBg: 'images/Mode/Practice/Map/Map001-Grassland.jpg',
       summonBg: 'images/Summon/Su001-Summon-Hero.jpg',
-      // Admin tuning (used for Practice combat math)
+      // Admit tuning (global combat math)
       streakMult: 1.05,
       atkScale: 0.10,
-      rcvScale: 0.50
+      rcvScale: 0.50,
+      cascadeScale: 1.0,
+      heartOrbHealBonusPct: 0.01
     };
     try {
       const raw = localStorage.getItem('chessPalGeneralSettings');
@@ -210,6 +212,8 @@ const ChessPalPages = (() => {
       const streakMultRaw = Number(v?.streakMult);
       const atkScaleRaw = Number(v?.atkScale);
       const rcvScaleRaw = Number(v?.rcvScale);
+      const cascadeScaleRaw = Number(v?.cascadeScale);
+      const heartOrbHealBonusPctRaw = Number(v?.heartOrbHealBonusPct);
       const practiceBg = String(v?.practiceBg || '').trim() || base.practiceBg;
       const summonBg = String(v?.summonBg || '').trim() || base.summonBg;
       return {
@@ -221,7 +225,9 @@ const ChessPalPages = (() => {
         summonBg,
         streakMult: Number.isFinite(streakMultRaw) ? Math.max(1.0, Math.min(1.3, streakMultRaw)) : base.streakMult,
         atkScale: Number.isFinite(atkScaleRaw) ? Math.max(0, Math.min(1.0, atkScaleRaw)) : base.atkScale,
-        rcvScale: Number.isFinite(rcvScaleRaw) ? Math.max(0, Math.min(2.0, rcvScaleRaw)) : base.rcvScale
+        rcvScale: Number.isFinite(rcvScaleRaw) ? Math.max(0, Math.min(2.0, rcvScaleRaw)) : base.rcvScale,
+        cascadeScale: Number.isFinite(cascadeScaleRaw) ? Math.max(0.2, Math.min(3.0, cascadeScaleRaw)) : base.cascadeScale,
+        heartOrbHealBonusPct: Number.isFinite(heartOrbHealBonusPctRaw) ? Math.max(0, Math.min(0.1, heartOrbHealBonusPctRaw)) : base.heartOrbHealBonusPct
       };
     } catch {
       return base;
@@ -2556,6 +2562,7 @@ const ChessPalPages = (() => {
         const gs = getGeneralSettings();
         const atkMul = Number.isFinite(Number(gs?.atkScale)) ? Number(gs.atkScale) : 0.10;
         const rcvMul = Number.isFinite(Number(gs?.rcvScale)) ? Number(gs.rcvScale) : 0.50;
+        const heartOrbHealBonusPct = Number.isFinite(Number(gs?.heartOrbHealBonusPct)) ? Number(gs.heartOrbHealBonusPct) : 0.01;
 
         b = getBattle();
         const hpBar = document.querySelector('.cp-team-hpbar');
@@ -2627,7 +2634,10 @@ const ChessPalPages = (() => {
           const active = (mdef?.activeSkill && typeof mdef.activeSkill === 'object') ? mdef.activeSkill : { params: {}, cd: 0 };
           const passiveParams = (passive?.params && typeof passive.params === 'object') ? passive.params : {};
           const activeParams = (active?.params && typeof active.params === 'object') ? active.params : {};
-          const activeCd = getMonsterNpcSkillCd(mdef);
+          const rawActiveCd = Number(active?.cd);
+          const activeCd = (Number.isFinite(rawActiveCd) && rawActiveCd >= 0 && rawActiveCd <= 4)
+            ? Math.floor(rawActiveCd)
+            : getMonsterNpcSkillCd(mdef);
           return { mid, mdef, passiveParams, activeParams, activeCd, activeName: String(active?.name || 'Skill') };
         };
         const getMonsterPassiveCombatFx = (monsterLike) => {
@@ -2645,10 +2655,12 @@ const ChessPalPages = (() => {
           const dodgeChance = clampNum((Number(p.evasion) || 0) + (Number(p.enemyMissChance) || 0) + (Number(p.slowChance) || 0) * 0.5, 0, 0.45, 0);
           const incomingReduction = clampNum(p.damageReduction, 0, 0.75, 0);
           const regenPct = clampNum(p.healMaxHpPctPerTurn, 0, 0.2, 0);
+          const aftershockAtkBonus = clampNum(p.aftershockAtkBonus, 0, 1.0, 0);
           return {
             incomingReduction,
             dodgeChance,
             regenPct,
+            aftershockAtkBonus,
             atkMult: Math.max(0.1, 1 + atkBonus + lowHpAtkBonus + elemAtkBonus),
           };
         };
@@ -2665,7 +2677,13 @@ const ChessPalPages = (() => {
           const healFlat = Math.max(0, Math.floor(Number(a.healFlat) || 0));
           const healPct = clampNum(a.healMaxHpPctPerTurn, 0, 0.2, 0);
           const guard = clampNum(a.damageReduction, 0, 0.65, 0);
-          const hasEffect = atkMultThisTurn !== 1 || dmgFlat > 0 || healFlat > 0 || healPct > 0 || guard > 0;
+          const reflectPct = clampNum(a.reflectPct, 0, 0.9, 0);
+          const elementLockRounds = Math.max(0, Math.floor(Number(a.elementLockRounds) || 0));
+          const purgePlayerBuffs = !!a.purgePlayerBuffs;
+          const selfHpCostPct = clampNum(a.selfHpCostPct, 0, 0.9, 0);
+          const executeThresholdPct = clampNum(a.executeThresholdPct, 0, 1, 0);
+          const executeFlatBonus = Math.max(0, Math.floor(Number(a.executeFlatBonus) || 0));
+          const hasEffect = atkMultThisTurn !== 1 || dmgFlat > 0 || healFlat > 0 || healPct > 0 || guard > 0 || reflectPct > 0 || elementLockRounds > 0 || purgePlayerBuffs || selfHpCostPct > 0 || executeFlatBonus > 0;
           const firstCd = Number.isFinite(Number(monsterLike?.skillFirstCd))
             ? Math.max(0, Math.floor(Number(monsterLike.skillFirstCd) || 0))
             : spec.activeCd;
@@ -2682,6 +2700,12 @@ const ChessPalPages = (() => {
             healFlat,
             healPct,
             guard,
+            reflectPct,
+            elementLockRounds,
+            purgePlayerBuffs,
+            selfHpCostPct,
+            executeThresholdPct,
+            executeFlatBonus,
           };
         };
         const describeMonsterActiveFx = (fx) => {
@@ -2690,6 +2714,10 @@ const ChessPalPages = (() => {
           if (Number(fx?.dmgFlat) > 0) parts.push(`extra ${Math.floor(Number(fx.dmgFlat) || 0)} damage`);
           if (Number(fx?.healFlat) > 0 || Number(fx?.healPct) > 0) parts.push('self-heal');
           if (Number(fx?.guard) > 0) parts.push(`guard ${Math.round(Number(fx.guard) * 100)}%`);
+          if (Number(fx?.reflectPct) > 0) parts.push(`reflect ${Math.round(Number(fx.reflectPct) * 100)}%`);
+          if (Number(fx?.elementLockRounds) > 0) parts.push(`element lock ${Math.floor(Number(fx.elementLockRounds) || 0)} turn`);
+          if (fx?.purgePlayerBuffs) parts.push('purge player buffs');
+          if (Number(fx?.executeFlatBonus) > 0 && Number(fx?.executeThresholdPct) > 0) parts.push(`execute <${Math.round(Number(fx.executeThresholdPct) * 100)}% HP`);
           return parts.join(', ') || 'special attack';
         };
         const syncTargetBackCompat = () => {
@@ -2793,12 +2821,19 @@ const ChessPalPages = (() => {
         // Heal first (Heart score)
         const heartScore = Number(elementScores?.heart || 0);
         const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
-        const heal = Math.max(0, Math.round(totalRcv * heartScore * rcvMul));
+        const counts = (window.__cpPracticeElementCounts && typeof window.__cpPracticeElementCounts === 'object') ? window.__cpPracticeElementCounts : {};
+        const consumedOrbs = Object.values(counts).reduce((sum, n) => sum + Math.max(0, Math.floor(Number(n) || 0)), 0);
+        const healFactor = 1 + consumedOrbs * Math.max(0, Math.min(0.1, heartOrbHealBonusPct));
+        const heal = Math.max(0, Math.round(totalRcv * heartScore * rcvMul * healFactor));
         if (heal > 0) {
           const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
           b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) + heal));
           updateHpUI();
         }
+
+        if (!b.teamExecuteMarks || typeof b.teamExecuteMarks !== 'object') b.teamExecuteMarks = {};
+        const lockedRounds = Math.max(0, Math.floor(Number(b.playerElementLockRounds) || 0));
+        let lockedElement = lockedRounds > 0 ? String(b.playerElementLockElement || '').toLowerCase() : '';
 
         // Player attacks monster: beams from each unit mini center → monster center (sequential)
         for (let i = 0; i < 4; i += 1) {
@@ -2817,6 +2852,14 @@ const ChessPalPages = (() => {
           const bossEl = String(currentTarget?.element || getBossBase()?.element || '').toLowerCase();
           const el = String(unit.element || '');
           const elScore = Number(elementScores?.[el] || 0);
+          if (lockedRounds > 0 && elScore > 0) {
+            const curEl = String(el || '').toLowerCase();
+            if (lockedElement && curEl && curEl !== lockedElement) continue;
+            if (!lockedElement && curEl) {
+              lockedElement = curEl;
+              b.playerElementLockElement = curEl;
+            }
+          }
           const atk = Math.max(0, Number(unit.atk) || 0);
           const mult = elemMult(el, bossEl);
           const teamAtkBonus = Number.isFinite(Number(b.teamAtkBonus)) ? Number(b.teamAtkBonus) : 0;
@@ -2851,7 +2894,15 @@ const ChessPalPages = (() => {
             continue;
           }
           const incomingReduction = clampNum((targetPassive?.incomingReduction || 0) + targetGuard, 0, 0.85, 0);
-          const finalDmg = Math.max(0, Math.floor(dmg * (1 - incomingReduction)));
+          let finalDmg = Math.max(0, Math.floor(dmg * (1 - incomingReduction)));
+          const exec = b.teamExecuteMarks?.[String(unit?.key || '')];
+          if (exec && Number.isFinite(Number(exec.thresholdPct)) && Number.isFinite(Number(exec.flatBonus))) {
+            const curHp = Math.max(0, Number(currentTarget?.hp) || 0);
+            const curMaxHp = Math.max(1, Number(currentTarget?.maxHp) || 1);
+            if ((curHp / curMaxHp) < Math.max(0, Math.min(1, Number(exec.thresholdPct)))) {
+              finalDmg += Math.max(0, Math.floor(Number(exec.flatBonus) || 0));
+            }
+          }
           showDamageFloat(finalDmg, el, mult, targetVisual.box || targetVisual.img);
           const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
           b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - finalDmg));
@@ -2861,9 +2912,18 @@ const ChessPalPages = (() => {
               const ti = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
               const t = monsters[Math.max(0, Math.min(monsters.length - 1, ti))];
               if (t) t.hp = Number(b.monsterHp) || 0;
-              if (t && Number(t.tempDamageReductionRounds) > 0) {
-                t.tempDamageReductionRounds = Math.max(0, Math.floor(Number(t.tempDamageReductionRounds) - 1));
-                if ((Number(t.tempDamageReductionRounds) || 0) <= 0) t.tempDamageReduction = 0;
+              if (t && finalDmg > 0 && Number(elScore) >= 4) {
+                const bonus = clampNum(targetPassive?.aftershockAtkBonus, 0, 1.0, 0);
+                if (bonus > 0) t.aftershockPendingBonus = Math.max(0, Math.min(1.5, Number(t.aftershockPendingBonus) || 0) + bonus);
+              }
+              const reflectPct = clampNum(t?.reflectDamagePct, 0, 0.9, 0);
+              if (t && reflectPct > 0 && finalDmg > 0) {
+                const ref = Math.max(0, Math.floor(finalDmg * reflectPct));
+                if (ref > 0) {
+                  const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+                  b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - ref));
+                  updateHpUI();
+                }
               }
             }
           } catch {}
@@ -3014,6 +3074,10 @@ const ChessPalPages = (() => {
                         skillCdLeft: activeCd,
                         tempDamageReduction: 0,
                         tempDamageReductionRounds: 0,
+                        reflectDamagePct: 0,
+                        reflectRounds: 0,
+                        aftershockReadyBonus: 0,
+                        aftershockPendingBonus: 0,
                       };
                     });
                     b.monsters = nextMonsters;
@@ -3069,6 +3133,28 @@ const ChessPalPages = (() => {
           return;
         }
 
+        // End-of-player-phase statuses.
+        try {
+          if (monsters && monsters.length) {
+            monsters.forEach((t) => {
+              if (!t) return;
+              if (Number(t.tempDamageReductionRounds) > 0) {
+                t.tempDamageReductionRounds = Math.max(0, Math.floor(Number(t.tempDamageReductionRounds) - 1));
+                if ((Number(t.tempDamageReductionRounds) || 0) <= 0) t.tempDamageReduction = 0;
+              }
+              if (Number(t.reflectRounds) > 0) {
+                t.reflectRounds = Math.max(0, Math.floor(Number(t.reflectRounds) - 1));
+                if ((Number(t.reflectRounds) || 0) <= 0) t.reflectDamagePct = 0;
+              }
+            });
+          }
+          b.teamExecuteMarks = {};
+          if (lockedRounds > 0) {
+            b.playerElementLockRounds = Math.max(0, lockedRounds - 1);
+            if ((Number(b.playerElementLockRounds) || 0) <= 0) b.playerElementLockElement = '';
+          }
+        } catch {}
+
         // Monster counter-attacks player: beam from monster center → HP bar, shake HP bar
         const counterAttackers = (() => {
           try {
@@ -3084,6 +3170,7 @@ const ChessPalPages = (() => {
           for (const { m, idx } of counterAttackers) {
             const pfx = getMonsterPassiveCombatFx(m);
             const afx = getMonsterActiveCombatFx(m);
+            const aftershockReadyBonus = clampNum(m?.aftershockReadyBonus, 0, 1.5, 0);
             // Passive regen before monster action.
             try {
               const maxHp = Math.max(1, Math.floor(Number(m?.maxHp) || 1));
@@ -3105,12 +3192,33 @@ const ChessPalPages = (() => {
               atkFlatByActive = Math.max(0, Math.floor(Number(afx.dmgFlat) || 0));
               try {
                 const maxHp = Math.max(1, Math.floor(Number(m?.maxHp) || 1));
+                const selfCostPct = clampNum(afx.selfHpCostPct, 0, 0.9, 0);
+                if (selfCostPct > 0) {
+                  const hpCost = Math.max(0, Math.floor(maxHp * selfCostPct));
+                  m.hp = Math.max(1, Math.min(maxHp, (Number(m?.hp) || 0) - hpCost));
+                }
                 const healAmt = Math.max(0, Math.floor(Number(afx.healFlat) || 0) + Math.floor(maxHp * Math.max(0, Number(afx.healPct) || 0)));
                 if (healAmt > 0) m.hp = Math.max(0, Math.min(maxHp, (Number(m?.hp) || 0) + healAmt));
                 const guard = Math.max(0, Number(afx.guard) || 0);
                 if (guard > 0) {
                   m.tempDamageReduction = Math.max(0, Math.min(0.75, guard));
                   m.tempDamageReductionRounds = 1;
+                }
+                const reflectPct = clampNum(afx.reflectPct, 0, 0.9, 0);
+                if (reflectPct > 0) {
+                  m.reflectDamagePct = reflectPct;
+                  m.reflectRounds = 1;
+                }
+                if (afx.purgePlayerBuffs) {
+                  b.playerDamageReduction = 0;
+                  b.skillDamageReductionThisTurn = 0;
+                  b.teamAtkBonus = 0;
+                  b.teamElemBonus = {};
+                  b.teamAtkMultThisTurn = 1;
+                }
+                if (Number(afx.elementLockRounds) > 0) {
+                  b.playerElementLockRounds = Math.max(Number(b.playerElementLockRounds) || 0, Math.floor(Number(afx.elementLockRounds) || 0));
+                  b.playerElementLockElement = '';
                 }
                 syncTargetBackCompat();
                 updateHpUI();
@@ -3123,7 +3231,7 @@ const ChessPalPages = (() => {
                 : Math.max(0, Math.floor(Number(m.skillCdLeft) || 0) - 1);
             }
             const baseAtk = Math.max(0, Math.floor(Number(m?.atk) || 0));
-            const rawAtk = Math.max(0, Math.floor(baseAtk * Math.max(0.1, Number(pfx?.atkMult) || 1) * atkMultByActive + atkFlatByActive));
+            const rawAtk = Math.max(0, Math.floor(baseAtk * Math.max(0.1, (Number(pfx?.atkMult) || 1) * (1 + aftershockReadyBonus)) * atkMultByActive + atkFlatByActive));
             if (rawAtk <= 0) continue;
             const visual = getBossVisualByIdx(idx);
             const fromEl = visual.img || visual.box;
@@ -3133,9 +3241,16 @@ const ChessPalPages = (() => {
             await shake(hpBar);
             const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
             const dr = Number.isFinite(Number(b.playerDamageReduction)) ? Number(b.playerDamageReduction) : 0;
-            const effDmg = Math.max(0, Math.floor(rawAtk * (1 - Math.max(0, Math.min(0.9, dr)))));
+            let effDmg = Math.max(0, Math.floor(rawAtk * (1 - Math.max(0, Math.min(0.9, dr)))));
+            const pHp = Math.max(0, Number(b.playerHp) || 0);
+            if (Number(afx.executeFlatBonus) > 0 && Number(afx.executeThresholdPct) > 0 && pMax > 0) {
+              const threshold = Math.max(0, Math.min(1, Number(afx.executeThresholdPct) || 0));
+              if ((pHp / pMax) < threshold) effDmg += Math.max(0, Math.floor(Number(afx.executeFlatBonus) || 0));
+            }
             b.playerHp = Math.max(0, Math.min(pMax, (Number(b.playerHp) || 0) - effDmg));
             updateHpUI();
+            m.aftershockReadyBonus = Math.max(0, clampNum(m?.aftershockPendingBonus, 0, 1.5, 0));
+            m.aftershockPendingBonus = 0;
             if ((Number(b.playerHp) || 0) <= 0) break;
           }
         } else {
@@ -3262,7 +3377,12 @@ const ChessPalPages = (() => {
       try {
         const totalRcv = Math.max(0, Number(window.__cpPlayerRcvTotal) || 0);
         const heartScore = Number(scores.heart || 0);
-        const heal = Math.round(totalRcv * heartScore * rcvMul);
+        const gsNow = getGeneralSettings();
+        const orbBonusPct = Number.isFinite(Number(gsNow?.heartOrbHealBonusPct)) ? Number(gsNow.heartOrbHealBonusPct) : 0.01;
+        const counts = (window.__cpPracticeElementCounts && typeof window.__cpPracticeElementCounts === 'object') ? window.__cpPracticeElementCounts : {};
+        const consumedOrbs = Object.values(counts).reduce((sum, n) => sum + Math.max(0, Math.floor(Number(n) || 0)), 0);
+        const healFactor = 1 + consumedOrbs * Math.max(0, Math.min(0.1, orbBonusPct));
+        const heal = Math.round(totalRcv * heartScore * rcvMul * healFactor);
         if (rcvOverlay) rcvOverlay.textContent = heal > 0 ? `+${heal}` : '';
       } catch {
         if (rcvOverlay) rcvOverlay.textContent = '';
@@ -3340,6 +3460,7 @@ const ChessPalPages = (() => {
         if (!u || !u.activeSkill) return;
         const b = getBattle();
         if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
+        if (!b.teamExecuteMarks || typeof b.teamExecuteMarks !== 'object') b.teamExecuteMarks = {};
         const key = String(u.key || '');
         const cd = Math.max(0, Math.floor(Number(u.activeSkill?.cd) || 0));
         if (key) {
@@ -3349,6 +3470,19 @@ const ChessPalPages = (() => {
         }
 
         const p = u.activeSkill?.params || {};
+        // Element lock: while active, player can only use one element this turn.
+        try {
+          const lockRounds = Math.max(0, Math.floor(Number(b.playerElementLockRounds) || 0));
+          if (lockRounds > 0) {
+            const myEl = String(u.element || '').toLowerCase();
+            const locked = String(b.playerElementLockElement || '').toLowerCase();
+            if (locked && myEl && myEl !== locked) {
+              try { setMsg(`Element Lock: only ${locked.toUpperCase()} can cast this turn.`); } catch {}
+              return;
+            }
+            if (!locked && myEl) b.playerElementLockElement = myEl;
+          }
+        } catch {}
         // Heal immediately
         const healFlat = Number(p.healFlat);
         if (Number.isFinite(healFlat) && healFlat > 0) {
@@ -3365,6 +3499,24 @@ const ChessPalPages = (() => {
         const atkMultThisTurn = Number(p.atkMultThisTurn);
         if (Number.isFinite(atkMultThisTurn) && atkMultThisTurn > 0) {
           b.teamAtkMultThisTurn = Math.max(0.01, Math.min(5, Math.max(Number(b.teamAtkMultThisTurn) || 1, atkMultThisTurn)));
+        }
+        // Blood Pact-style self HP cost
+        const selfHpCostPct = Number(p.selfHpCostPct);
+        if (Number.isFinite(selfHpCostPct) && selfHpCostPct > 0) {
+          const pMax = Math.max(1, Number(b.playerMaxHp) || 1);
+          const cur = Math.max(0, Number(b.playerHp) || 0);
+          const cost = Math.max(0, Math.floor(pMax * Math.max(0, Math.min(0.9, selfHpCostPct))));
+          b.playerHp = Math.max(1, cur - cost);
+          updateHpUI();
+        }
+        // Execution mark: enable fixed bonus when target HP is below threshold.
+        const executeThresholdPct = Number(p.executeThresholdPct);
+        const executeFlatBonus = Number(p.executeFlatBonus);
+        if (key && Number.isFinite(executeThresholdPct) && executeThresholdPct > 0 && Number.isFinite(executeFlatBonus) && executeFlatBonus > 0) {
+          b.teamExecuteMarks[key] = {
+            thresholdPct: Math.max(0, Math.min(1, executeThresholdPct)),
+            flatBonus: Math.max(0, Math.floor(executeFlatBonus)),
+          };
         }
         // Extra time during player turn
         const extraTimeSec = Number(p.extraTimeSec);
@@ -3476,6 +3628,10 @@ const ChessPalPages = (() => {
             skillCdLeft: activeCd,
             tempDamageReduction: 0,
             tempDamageReductionRounds: 0,
+            reflectDamagePct: 0,
+            reflectRounds: 0,
+            aftershockReadyBonus: 0,
+            aftershockPendingBonus: 0,
           };
         });
         // If continuing in-place within the same stage, try to preserve HP/target by matching ids.
@@ -3489,6 +3645,10 @@ const ChessPalPages = (() => {
               nm.skillCdLeft = Number.isFinite(Number(hit.skillCdLeft)) ? Math.max(0, Math.floor(Number(hit.skillCdLeft) || 0)) : nm.skillCdLeft;
               nm.tempDamageReduction = Number.isFinite(Number(hit.tempDamageReduction)) ? Math.max(0, Math.min(0.75, Number(hit.tempDamageReduction) || 0)) : 0;
               nm.tempDamageReductionRounds = Number.isFinite(Number(hit.tempDamageReductionRounds)) ? Math.max(0, Math.floor(Number(hit.tempDamageReductionRounds) || 0)) : 0;
+              nm.reflectDamagePct = Number.isFinite(Number(hit.reflectDamagePct)) ? Math.max(0, Math.min(0.9, Number(hit.reflectDamagePct) || 0)) : 0;
+              nm.reflectRounds = Number.isFinite(Number(hit.reflectRounds)) ? Math.max(0, Math.floor(Number(hit.reflectRounds) || 0)) : 0;
+              nm.aftershockReadyBonus = Number.isFinite(Number(hit.aftershockReadyBonus)) ? Math.max(0, Math.min(1.5, Number(hit.aftershockReadyBonus) || 0)) : 0;
+              nm.aftershockPendingBonus = Number.isFinite(Number(hit.aftershockPendingBonus)) ? Math.max(0, Math.min(1.5, Number(hit.aftershockPendingBonus) || 0)) : 0;
             }
           });
         }
@@ -3542,9 +3702,13 @@ const ChessPalPages = (() => {
         window.__cpPracticeElementScores = total;
         const multipliers = Array.isArray(ev?.detail?.pathMultipliers) ? ev.detail.pathMultipliers : [];
         window.__cpPracticePathMultipliers = multipliers;
+        window.__cpPracticeElementCounts = (ev?.detail?.counts && typeof ev.detail.counts === 'object') ? ev.detail.counts : {};
+        window.__cpPracticeMaxCombo = Math.max(0, Math.floor(Number(ev?.detail?.maxCombo) || 0));
       } catch {
         window.__cpPracticeElementScores = {};
         window.__cpPracticePathMultipliers = [];
+        window.__cpPracticeElementCounts = {};
+        window.__cpPracticeMaxCombo = 0;
       }
       applyElementScoresToUI();
 
@@ -7487,8 +7651,8 @@ const ChessPalPages = (() => {
 
           ${admin ? `
             <div class="cp-setting-item">
-              <div class="cp-setting-label">Admin · Practice Tuning</div>
-              <div class="cp-setting-help">Tune streak multiplier and ATK/RCV scaling used for Practice combat.</div>
+              <div class="cp-setting-label">Admit Tuning</div>
+              <div class="cp-setting-help">Global combat tuning for all modes.</div>
 
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top:10px;">
                 <label class="cp-setting-help" style="display:block;">
@@ -7503,9 +7667,17 @@ const ChessPalPages = (() => {
                   RCV Scale (default 0.50)
                   <input class="cp-select" id="cpSettingRcvScale" type="number" step="0.05" min="0" max="2" value="${esc(String(s.rcvScale ?? 0.50))}">
                 </label>
+                <label class="cp-setting-help" style="display:block;">
+                  Cascade Scale (default 1.00)
+                  <input class="cp-select" id="cpSettingCascadeScale" type="number" step="0.05" min="0.2" max="3" value="${esc(String(s.cascadeScale ?? 1.0))}">
+                </label>
+                <label class="cp-setting-help" style="display:block;">
+                  Orb Heal Bonus per consumed orb (default 1% = 0.01)
+                  <input class="cp-select" id="cpSettingHeartOrbHealBonusPct" type="number" step="0.005" min="0" max="0.1" value="${esc(String(s.heartOrbHealBonusPct ?? 0.01))}">
+                </label>
                 <div class="cp-setting-help" style="opacity:0.8;">
                   ATK = hero.atk × elementScore × atkScale<br>
-                  Heal = teamRCV × heartScore × rcvScale
+                  Heal = teamRCV × heartScore × rcvScale × (1 + consumedOrbs × heartOrbHealBonusPct)
                 </div>
               </div>
             </div>
@@ -7621,6 +7793,8 @@ const ChessPalPages = (() => {
       const streakMult = document.getElementById('cpSettingStreakMult');
       const atkScale = document.getElementById('cpSettingAtkScale');
       const rcvScale = document.getElementById('cpSettingRcvScale');
+      const cascadeScale = document.getElementById('cpSettingCascadeScale');
+      const heartOrbHealBonusPct = document.getElementById('cpSettingHeartOrbHealBonusPct');
       const practiceBg = document.getElementById('cpSettingPracticeBg');
       const summonBg = document.getElementById('cpSettingSummonBg');
       const practiceBgPrev = document.getElementById('cpPracticeBgPreview');
@@ -7636,6 +7810,8 @@ const ChessPalPages = (() => {
       streakMult?.addEventListener('change', () => applyNum('streakMult', streakMult.value, 1.0, 1.3), { passive: true });
       atkScale?.addEventListener('change', () => applyNum('atkScale', atkScale.value, 0, 1.0), { passive: true });
       rcvScale?.addEventListener('change', () => applyNum('rcvScale', rcvScale.value, 0, 2.0), { passive: true });
+      cascadeScale?.addEventListener('change', () => applyNum('cascadeScale', cascadeScale.value, 0.2, 3.0), { passive: true });
+      heartOrbHealBonusPct?.addEventListener('change', () => applyNum('heartOrbHealBonusPct', heartOrbHealBonusPct.value, 0, 0.1), { passive: true });
 
       const applyStr = (key, raw) => {
         const next = getGeneralSettings();

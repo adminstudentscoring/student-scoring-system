@@ -34,16 +34,18 @@ const ChessPal = (() => {
     isAnimating: false
   };
 
-  let tuning = { streakMult: 1.05 };
+  let tuning = { streakMult: 1.05, cascadeScale: 1.0 };
   function loadTuning() {
     try {
       const raw = localStorage.getItem('chessPalGeneralSettings');
       const v = raw ? JSON.parse(raw) : null;
       const streakMultRaw = Number(v?.streakMult);
+      const cascadeScaleRaw = Number(v?.cascadeScale);
       const streakMult = Number.isFinite(streakMultRaw) ? Math.max(1.0, Math.min(1.3, streakMultRaw)) : 1.05;
-      return { streakMult };
+      const cascadeScale = Number.isFinite(cascadeScaleRaw) ? Math.max(0.2, Math.min(3.0, cascadeScaleRaw)) : 1.0;
+      return { streakMult, cascadeScale };
     } catch {
-      return { streakMult: 1.05 };
+      return { streakMult: 1.05, cascadeScale: 1.0 };
     }
   }
 
@@ -131,7 +133,13 @@ const ChessPal = (() => {
         if (type === 'addtime') {
           const sec = Number(d.seconds);
           if (!Number.isFinite(sec) || sec === 0) return;
-          if (!state.isPlayerTurn) return;
+          if (!state.isPlayerTurn) {
+            try {
+              const prev = Number(window.__cpPendingTurnBonusSec) || 0;
+              window.__cpPendingTurnBonusSec = Math.max(0, Math.min(8, prev + sec));
+            } catch {}
+            return;
+          }
           const addMs = Math.floor(sec * 1000);
           const max = TURN_TIME_MS * 2;
           state.timeRemaining = Math.max(0, Math.min(max, (Number(state.timeRemaining) || 0) + addMs));
@@ -270,14 +278,15 @@ const ChessPal = (() => {
       path[streakElement] = round2((path[streakElement] || 0) + streakTotal(streakLen));
     }
 
-    // Cascades: each group scores (count - 2)
+    // Cascades: each group scores (count - 2), then scaled by admin tuning.
+    const cascadeScale = Number.isFinite(Number(tuning?.cascadeScale)) ? Number(tuning.cascadeScale) : 1.0;
     for (const c of cas) {
       const matches = Array.isArray(c?.matches) ? c.matches : [];
       for (const m of matches) {
         const el = String(m?.element || '');
         const count = Math.max(0, Math.floor(Number(m?.count) || 0));
         if (!el || count < 3) continue;
-        cascade[el] = round2((cascade[el] || 0) + (count - 2));
+        cascade[el] = round2((cascade[el] || 0) + (count - 2) * Math.max(0.2, Math.min(3.0, cascadeScale)));
       }
     }
 
@@ -287,13 +296,52 @@ const ChessPal = (() => {
     }
     return { path, cascade, total };
   }
+  function computeElementCounts(moveHistory, cascades) {
+    const counts = emptyElementScore();
+    const moves = Array.isArray(moveHistory) ? moveHistory : [];
+    for (const mv of moves) {
+      const el = String(mv?.element || '').toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(counts, el)) continue;
+      counts[el] += 1;
+    }
+    const cas = Array.isArray(cascades) ? cascades : [];
+    for (const c of cas) {
+      const matches = Array.isArray(c?.matches) ? c.matches : [];
+      for (const m of matches) {
+        const el = String(m?.element || '').toLowerCase();
+        if (!Object.prototype.hasOwnProperty.call(counts, el)) continue;
+        const n = Math.max(0, Math.floor(Number(m?.count) || 0));
+        if (n > 0) counts[el] += n;
+      }
+    }
+    return counts;
+  }
+  function computeMaxCombo(moveHistory, cascades, extras = {}) {
+    let best = 0;
+    const pathMultipliers = Array.isArray(extras?.pathMultipliers) ? extras.pathMultipliers : [];
+    for (const evt of pathMultipliers) {
+      const mult = Math.max(0, Math.floor(Number(evt?.multiplier) || 0));
+      if (mult > best) best = mult;
+    }
+    const cas = Array.isArray(cascades) ? cascades : [];
+    for (const c of cas) {
+      const matches = Array.isArray(c?.matches) ? c.matches : [];
+      for (const m of matches) {
+        const cnt = Math.max(0, Math.floor(Number(m?.count) || 0));
+        if (cnt > best) best = cnt;
+      }
+    }
+    return best;
+  }
   function emitElementScores(scores, phase, extras = {}) {
     try {
       window.dispatchEvent(new CustomEvent('cpElementScoresChanged', {
         detail: {
           scores,
           phase: String(phase || ''),
-          pathMultipliers: Array.isArray(extras?.pathMultipliers) ? extras.pathMultipliers : []
+          pathMultipliers: Array.isArray(extras?.pathMultipliers) ? extras.pathMultipliers : [],
+          counts: (extras?.counts && typeof extras.counts === 'object') ? extras.counts : emptyElementScore(),
+          maxCombo: Math.max(0, Math.floor(Number(extras?.maxCombo) || 0))
         }
       }));
     } catch {}
@@ -648,7 +696,11 @@ const ChessPal = (() => {
     renderMoveHistory();
 
     // Live element score update (path only)
-    emitElementScores(computeElementScores(state.moveHistory, []), 'path', { pathMultipliers: state.pathMultiplierEvents });
+    emitElementScores(computeElementScores(state.moveHistory, []), 'path', {
+      pathMultipliers: state.pathMultiplierEvents,
+      counts: computeElementCounts(state.moveHistory, []),
+      maxCombo: computeMaxCombo(state.moveHistory, [], { pathMultipliers: state.pathMultiplierEvents }),
+    });
   }
 
   function startPlayerTurn() {
@@ -667,6 +719,14 @@ const ChessPal = (() => {
 
     state.isPlayerTurn = true;
     state.timeRemaining = TURN_TIME_MS;
+    try {
+      const bonusSec = Number(window.__cpPendingTurnBonusSec);
+      if (Number.isFinite(bonusSec) && bonusSec > 0) {
+        const addMs = Math.floor(Math.max(0, Math.min(8, bonusSec)) * 1000);
+        state.timeRemaining = Math.max(0, Math.min(TURN_TIME_MS * 2, state.timeRemaining + addMs));
+      }
+      window.__cpPendingTurnBonusSec = 0;
+    } catch {}
     state.selectedPosition = { ...state.knightPosition };
     state.validMoves = getKnightMoves(state.knightPosition.row, state.knightPosition.col)
       .filter(pos => isInsideBoard(pos.row, pos.col) && state.board[pos.row][pos.col]);
@@ -676,7 +736,7 @@ const ChessPal = (() => {
     state.cascades = [];
     state.lastScore = null;
     renderScoreBreakdown(null);
-    emitElementScores(computeElementScores([], []), 'path', { pathMultipliers: [] });
+    emitElementScores(computeElementScores([], []), 'path', { pathMultipliers: [], counts: emptyElementScore(), maxCombo: 0 });
     clearInterval(state.actionTimerId);
     state.actionTimerId = setInterval(handleTimerTick, 100);
     pushLog('Turn started. Use knight moves to consume jewels.');
@@ -712,7 +772,7 @@ const ChessPal = (() => {
       state.pathMultiplierEvents = [];
       clearAllPathMultiplierFx();
       renderBoard();
-      emitElementScores(computeElementScores([], []), 'final', { pathMultipliers: [] });
+      emitElementScores(computeElementScores([], []), 'final', { pathMultipliers: [], counts: emptyElementScore(), maxCombo: 0 });
       return;
     }
 
@@ -731,7 +791,11 @@ const ChessPal = (() => {
         const breakdown = computeScoreBreakdown(state.moveHistory, cascades, timeLeftMs);
         state.lastScore = breakdown;
         renderScoreBreakdown(breakdown);
-        emitElementScores(breakdown?.elementScores || computeElementScores(state.moveHistory, cascades), 'final', { pathMultipliers: state.pathMultiplierEvents });
+        emitElementScores(breakdown?.elementScores || computeElementScores(state.moveHistory, cascades), 'final', {
+          pathMultipliers: state.pathMultiplierEvents,
+          counts: computeElementCounts(state.moveHistory, cascades),
+          maxCombo: computeMaxCombo(state.moveHistory, cascades, { pathMultipliers: state.pathMultiplierEvents }),
+        });
 
         state.startingKnight = null;
         state.knightPosition = null;
