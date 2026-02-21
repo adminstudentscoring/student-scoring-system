@@ -3460,6 +3460,13 @@ const ChessPalPages = (() => {
       : derivedLevel;
     const scaled = heroStatsAtLevel(b, level, cap);
     const cdLocalRaw = getNumberFromMap(HERO_CD_OVERRIDE_KEY, b.id);
+    const baseCd = Math.max(1, Math.floor(Number(active?.cd) || 1));
+    const cdFromLocal = Number(cdLocalRaw);
+    const cdFromServer = Number(o?.activeCd);
+    // Use override only when it is valid (>=1). Otherwise keep original hero CD.
+    const resolvedCd = Number.isFinite(cdFromLocal) && cdFromLocal >= 1
+      ? Math.floor(cdFromLocal)
+      : (Number.isFinite(cdFromServer) && cdFromServer >= 1 ? Math.floor(cdFromServer) : baseCd);
     return {
       ...b,
       level,
@@ -3479,12 +3486,7 @@ const ChessPalPages = (() => {
       totalExp,
       activeSkill: {
         ...active,
-        cd: (() => {
-          const raw = Number.isFinite(Number(cdLocalRaw))
-            ? Number(cdLocalRaw)
-            : ((o.activeCd != null) ? Number(o.activeCd) : Number(active.cd));
-          return Math.max(1, Math.floor(Number(raw) || 1));
-        })(),
+        cd: resolvedCd,
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       leaderSkill: {
@@ -3682,7 +3684,7 @@ const ChessPalPages = (() => {
             </label>
             <label class="cp-admin-field">
               <span>Active Skill CD</span>
-              <input type="number" id="cpAdminActiveCd" value="${esc(merged.activeSkill?.cd ?? 0)}" min="0" step="1">
+              <input type="number" id="cpAdminActiveCd" value="${esc(Math.max(1, Math.floor(Number(merged.activeSkill?.cd) || 1)))}" min="1" step="1">
             </label>
           </div>
 
@@ -3733,7 +3735,9 @@ const ChessPalPages = (() => {
         heroOverrides[merged.id].hp = Number.isFinite(hp) ? Math.max(1, Math.floor(hp)) : merged.hp;
         heroOverrides[merged.id].atk = Number.isFinite(atk) ? Math.max(1, Math.floor(atk)) : merged.atk;
         heroOverrides[merged.id].rcv = Number.isFinite(rcv) ? Math.max(0, Math.floor(rcv)) : merged.rcv;
-        heroOverrides[merged.id].activeCd = Number.isFinite(cd) ? Math.max(0, Math.floor(cd)) : (merged.activeSkill?.cd ?? 0);
+        heroOverrides[merged.id].activeCd = Number.isFinite(cd)
+          ? Math.max(1, Math.floor(cd))
+          : Math.max(1, Math.floor(Number(merged.activeSkill?.cd) || 1));
         heroOverrides[merged.id].leaderParams = leaderParams;
         heroOverrides[merged.id].activeParams = activeParams;
 
