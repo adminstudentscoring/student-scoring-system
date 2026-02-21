@@ -415,6 +415,102 @@ app.put('/api/admin/chess-pal/global-config', authenticateUser, authorizeRole('a
   }
 });
 
+function pickChessPalStudentForUser(req, data, users) {
+  const uid = String(req?.user?.id || '').trim();
+  const role = String(req?.user?.role || '').trim().toLowerCase();
+  const orgId = String(req?.user?.organizationId || '').trim();
+  const students = Array.isArray(data?.students) ? data.students : [];
+  const user = (Array.isArray(users) ? users : []).find((u) => String(u?.id || '').trim() === uid) || null;
+  if (role === 'student') {
+    return students.find((s) => String(s?.id || '').trim() === uid) || null;
+  }
+  if (req?.user?.studentId) {
+    const sid = String(req.user.studentId || '').trim();
+    const hit = students.find((s) => String(s?.id || '').trim() === sid) || null;
+    if (hit) return hit;
+  }
+  if (user && user.studentId) {
+    const sid = String(user.studentId || '').trim();
+    const hit = students.find((s) => String(s?.id || '').trim() === sid) || null;
+    if (hit) return hit;
+  }
+  let pool = students;
+  if (orgId) pool = students.filter((s) => String(s?.organizationId || '').trim() === orgId);
+  if (user && user.name) {
+    const name = String(user.name || '').trim().toLowerCase();
+    const byName = pool.filter((s) => String(s?.name || '').trim().toLowerCase() === name);
+    if (byName.length === 1) return byName[0];
+  }
+  if (pool.length === 1) return pool[0];
+  return null;
+}
+
+app.get('/api/chess-pal/chesscom-id', authenticateUser, async (req, res) => {
+  try {
+    const role = String(req?.user?.role || '').trim().toLowerCase();
+    const studentIdQ = String(req?.query?.studentId || '').trim();
+    const data = await readData();
+    const users = await readUsers();
+    const students = Array.isArray(data?.students) ? data.students : [];
+
+    let student = null;
+    if (role === 'admin' && studentIdQ) {
+      student = students.find((s) => String(s?.id || '').trim() === studentIdQ) || null;
+      if (!student) return res.status(404).json({ error: 'Student not found' });
+    } else if (role === 'admin') {
+      return res.json({ role: 'admin', readonly: false, student: null });
+    } else {
+      student = pickChessPalStudentForUser(req, data, users);
+      if (!student) return res.status(404).json({ error: 'Student link not found for current user' });
+    }
+
+    return res.json({
+      role,
+      readonly: role !== 'admin',
+      student: {
+        id: String(student.id || ''),
+        name: String(student.name || 'Student'),
+        organizationId: String(student.organizationId || ''),
+        chessComId: String(student.chessComId || ''),
+      },
+    });
+  } catch (e) {
+    console.error('[chess-pal] GET /api/chess-pal/chesscom-id failed:', e);
+    res.status(500).json({ error: 'Failed to load chess.com ID binding' });
+  }
+});
+
+app.put('/api/admin/chess-pal/chesscom-id', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const studentId = String(req?.body?.studentId || '').trim();
+    const chessComIdRaw = String(req?.body?.chessComId || '').trim().toLowerCase();
+    if (!studentId) return res.status(400).json({ error: 'studentId is required' });
+    if (chessComIdRaw && !/^[a-z0-9_-]{2,30}$/.test(chessComIdRaw)) {
+      return res.status(400).json({ error: 'Invalid chess.com ID format' });
+    }
+    const data = await readData();
+    const students = Array.isArray(data?.students) ? data.students : [];
+    const student = students.find((s) => String(s?.id || '').trim() === studentId);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+    student.chessComId = chessComIdRaw;
+    student.updatedAt = new Date().toISOString();
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+    return res.json({
+      success: true,
+      student: {
+        id: String(student.id || ''),
+        name: String(student.name || 'Student'),
+        organizationId: String(student.organizationId || ''),
+        chessComId: String(student.chessComId || ''),
+      },
+    });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/chesscom-id failed:', e);
+    res.status(500).json({ error: 'Failed to update chess.com ID' });
+  }
+});
+
 app.get('/api/chess-pal/story-stages', authenticateUser, async (req, res) => {
   try {
     const data = await readData();

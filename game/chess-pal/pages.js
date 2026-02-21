@@ -4803,6 +4803,13 @@ const ChessPalPages = (() => {
         <div class="cp-modal-body">
           <div class="cp-h1" style="font-size:18px;">Chess.com game play</div>
           <div class="cp-muted" style="margin-top:6px;">Set your Chess.com ID, view Rapid record, and claim Gold once per day based on today's wins.</div>
+          <div class="cp-setting-item" id="cpChessComStudentRow" style="margin-top:12px; display:none;">
+            <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Student (Admin only)</div>
+            <div class="cp-row" style="margin-top:0; gap:8px; align-items:center;">
+              <select class="cp-select" id="cpChessComStudentSelect" style="flex:1 1 auto;"></select>
+              <button class="cp-tool-btn" type="button" id="cpChessComBindSaveBtn">Save ID</button>
+            </div>
+          </div>
           <div class="cp-setting-item" style="margin-top:12px;">
             <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Chess.com ID</div>
             <div class="cp-row" style="margin-top:0; gap:8px; align-items:center;">
@@ -4830,6 +4837,12 @@ const ChessPalPages = (() => {
     const winsText = overlay.querySelector('#cpChessComTodayWins');
     const claimText = overlay.querySelector('#cpChessComClaimInfo');
     const claimBtn = overlay.querySelector('#cpChessComClaimBtn');
+    const idInput = overlay.querySelector('#cpChessComIdInput');
+    const studentRow = overlay.querySelector('#cpChessComStudentRow');
+    const studentSel = overlay.querySelector('#cpChessComStudentSelect');
+    const bindSaveBtn = overlay.querySelector('#cpChessComBindSaveBtn');
+    let isAdmin = false;
+    let boundStudentId = '';
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
     const setUiByState = (s) => {
       const r = s?.rapid || null;
@@ -4850,22 +4863,125 @@ const ChessPalPages = (() => {
     overlay.querySelector('#cpChessComCloseBtn')?.addEventListener('click', close, { passive: true });
     window.addEventListener('keydown', onKey);
 
+    const loadBinding = async (studentIdForAdmin = '') => {
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') throw new Error('Authentication is not ready');
+      const q = studentIdForAdmin ? `?studentId=${encodeURIComponent(studentIdForAdmin)}` : '';
+      const resp = await window.authUtils.authenticatedFetch(`/chess-pal/chesscom-id${q}`, { method: 'GET' });
+      if (!resp || !resp.ok) {
+        const err = await resp?.json?.().catch(() => ({}));
+        throw new Error(String(err?.error || 'Failed to load student chess.com ID binding'));
+      }
+      return resp.json();
+    };
+
+    const loadAdminStudents = async () => {
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return [];
+      const resp = await window.authUtils.authenticatedFetch('/students', { method: 'GET' });
+      if (!resp || !resp.ok) return [];
+      const arr = await resp.json().catch(() => []);
+      return Array.isArray(arr) ? arr : [];
+    };
+
+    const refreshByCurrentId = async () => {
+      const id = String(idInput?.value || '').trim().toLowerCase();
+      if (!id) throw new Error('Chess.com ID is empty.');
+      const data = await fetchChessComRapidAndTodayWins(id);
+      const cur = loadChessComRewardState();
+      const next = { ...cur, chessComId: id, rapid: data.rapid, todayWins: data.todayWins, lastCheckedAt: Date.now() };
+      saveChessComRewardState(next);
+      setUiByState(next);
+      return next;
+    };
+
+    const bootstrap = async () => {
+      try {
+        setMsg('');
+        const me = await loadBinding();
+        isAdmin = String(me?.role || '').toLowerCase() === 'admin';
+        if (isAdmin) {
+          if (studentRow) studentRow.style.display = '';
+          const list = await loadAdminStudents();
+          const options = list
+            .map((s) => ({
+              id: String(s?.id || '').trim(),
+              name: String(s?.name || 'Student').trim() || 'Student',
+              chessComId: String(s?.chessComId || '').trim().toLowerCase(),
+            }))
+            .filter((x) => x.id)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (studentSel) {
+            studentSel.innerHTML = options.map((o) => `<option value="${esc(o.id)}">#${esc(o.id)} ${esc(o.name)}${o.chessComId ? ` · ${esc(o.chessComId)}` : ''}</option>`).join('');
+          }
+          const firstId = options[0]?.id || '';
+          if (studentSel && firstId) studentSel.value = firstId;
+          if (firstId) {
+            const b = await loadBinding(firstId);
+            boundStudentId = String(b?.student?.id || '').trim();
+            if (idInput) idInput.value = String(b?.student?.chessComId || '').trim();
+          }
+          if (idInput) idInput.disabled = false;
+          if (bindSaveBtn) bindSaveBtn.disabled = false;
+        } else {
+          const s = me?.student || null;
+          if (!s) throw new Error('No linked student profile. Please contact Admin.');
+          boundStudentId = String(s?.id || '').trim();
+          if (idInput) {
+            idInput.value = String(s?.chessComId || '').trim();
+            idInput.disabled = true;
+          }
+          if (bindSaveBtn) bindSaveBtn.disabled = true;
+          if (studentRow) studentRow.style.display = 'none';
+        }
+        const cur = loadChessComRewardState();
+        const next = { ...cur, chessComId: String(idInput?.value || '').trim().toLowerCase() };
+        saveChessComRewardState(next);
+        setUiByState(next);
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Load failed'));
+      }
+    };
+
+    studentSel?.addEventListener('change', async () => {
+      try {
+        setMsg('');
+        const sid = String(studentSel.value || '').trim();
+        if (!sid) return;
+        const b = await loadBinding(sid);
+        boundStudentId = String(b?.student?.id || '').trim();
+        if (idInput) idInput.value = String(b?.student?.chessComId || '').trim();
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Load failed'));
+      }
+    });
+
+    bindSaveBtn?.addEventListener('click', async () => {
+      try {
+        setMsg('');
+        if (!isAdmin) throw new Error('Only Admin can update chess.com ID.');
+        const sid = String(studentSel?.value || boundStudentId || '').trim();
+        const cid = String(idInput?.value || '').trim().toLowerCase();
+        if (!sid) throw new Error('Please select a student.');
+        if (cid && !/^[a-z0-9_-]{2,30}$/.test(cid)) throw new Error('Invalid chess.com ID format.');
+        const resp = await window.authUtils.authenticatedFetch('/admin/chess-pal/chesscom-id', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId: sid, chessComId: cid }),
+        });
+        if (!resp || !resp.ok) {
+          const err = await resp?.json?.().catch(() => ({}));
+          throw new Error(String(err?.error || 'Save failed'));
+        }
+        boundStudentId = sid;
+        setMsg('Saved student chess.com ID.');
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Save failed'));
+      }
+    }, { passive: true });
+
     overlay.querySelector('#cpChessComRefresh')?.addEventListener('click', async () => {
       try {
         setMsg('');
-        const id = String(overlay.querySelector('#cpChessComIdInput')?.value || '').trim().toLowerCase();
-        if (!id) throw new Error('Please enter chess.com ID.');
-        const data = await fetchChessComRapidAndTodayWins(id);
-        const cur = loadChessComRewardState();
-        const next = {
-          ...cur,
-          chessComId: id,
-          rapid: data.rapid,
-          todayWins: data.todayWins,
-          lastCheckedAt: Date.now(),
-        };
-        saveChessComRewardState(next);
-        setUiByState(next);
+        await refreshByCurrentId();
         setMsg('Chess.com data updated.');
       } catch (e) {
         setMsg(String(e?.message || e || 'Refresh failed'));
@@ -4893,6 +5009,8 @@ const ChessPalPages = (() => {
         setMsg(String(e?.message || e || 'Claim failed'));
       }
     }, { passive: true });
+
+    bootstrap();
   }
 
   function swapOrStackSlots(slots, fromIdx, toIdx) {
