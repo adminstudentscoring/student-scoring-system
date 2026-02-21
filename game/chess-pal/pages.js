@@ -19,6 +19,7 @@ const ChessPalPages = (() => {
   let cpCloudHydrating = false;
   let cpCloudSaveTimer = 0;
   let cpCloudLastSig = '';
+  let cpCloudPendingDirty = false;
   const CHESS_PAL_CLOUD_LOCAL_TS_KEY = 'chessPalCloudLocalUpdatedAt';
 
   function exportChessPalCloudState() {
@@ -43,12 +44,21 @@ const ChessPalPages = (() => {
   }
 
   async function saveChessPalCloudStateNow() {
-    if (!cpCloudSyncReady || cpCloudHydrating) return;
+    if (!cpCloudSyncReady || cpCloudHydrating) {
+      cpCloudPendingDirty = true;
+      return;
+    }
     try {
-      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
+      if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') {
+        cpCloudPendingDirty = true;
+        return;
+      }
       const state = exportChessPalCloudState();
       const sig = JSON.stringify(state);
-      if (sig === cpCloudLastSig) return;
+      if (sig === cpCloudLastSig) {
+        cpCloudPendingDirty = false;
+        return;
+      }
       const resp = await window.authUtils.authenticatedFetch('/chess-pal/state', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -56,12 +66,20 @@ const ChessPalPages = (() => {
       });
       if (resp && resp.ok) {
         cpCloudLastSig = sig;
+        cpCloudPendingDirty = false;
         try { localStorage.setItem(CHESS_PAL_CLOUD_LOCAL_TS_KEY, String(Date.now())); } catch {}
+      } else {
+        cpCloudPendingDirty = true;
+        setTimeout(() => { try { queueChessPalCloudSave(); } catch {} }, 1200);
       }
-    } catch {}
+    } catch {
+      cpCloudPendingDirty = true;
+      setTimeout(() => { try { queueChessPalCloudSave(); } catch {} }, 1200);
+    }
   }
 
   function queueChessPalCloudSave() {
+    cpCloudPendingDirty = true;
     if (!cpCloudSyncReady || cpCloudHydrating) return;
     try { clearTimeout(cpCloudSaveTimer); } catch {}
     cpCloudSaveTimer = setTimeout(() => { saveChessPalCloudStateNow(); }, 520);
@@ -102,6 +120,7 @@ const ChessPalPages = (() => {
       cpCloudLastSig = JSON.stringify(exportChessPalCloudState());
       cpCloudSyncReady = true;
       cpCloudHydrating = false;
+      if (cpCloudPendingDirty) queueChessPalCloudSave();
       setTimeout(() => {
         try {
           if (window.Router && typeof window.Router.renderCurrent === 'function') window.Router.renderCurrent();
@@ -121,7 +140,10 @@ const ChessPalPages = (() => {
         const ret = originalSetItem(key, value);
         try {
           const k = String(key || '').trim();
-          if (CHESS_PAL_CLOUD_KEYS.includes(k)) queueChessPalCloudSave();
+          if (CHESS_PAL_CLOUD_KEYS.includes(k)) {
+            cpCloudPendingDirty = true;
+            queueChessPalCloudSave();
+          }
         } catch {}
         return ret;
       };
@@ -129,7 +151,10 @@ const ChessPalPages = (() => {
         const ret = originalRemoveItem(key);
         try {
           const k = String(key || '').trim();
-          if (CHESS_PAL_CLOUD_KEYS.includes(k)) queueChessPalCloudSave();
+          if (CHESS_PAL_CLOUD_KEYS.includes(k)) {
+            cpCloudPendingDirty = true;
+            queueChessPalCloudSave();
+          }
         } catch {}
         return ret;
       };
