@@ -189,7 +189,7 @@ const ChessPalPages = (() => {
       pieceStyle: 'none',
       // Backgrounds
       practiceBg: 'images/Mode/Practice/Map/Map001-Grassland.jpg',
-      summonBg: 'images/Summon/Su001-Castling.jpg',
+      summonBg: 'images/Summon/Su001-Castling.png',
       // Admin tuning (used for Practice combat math)
       streakMult: 1.05,
       atkScale: 0.10,
@@ -1320,7 +1320,7 @@ const ChessPalPages = (() => {
         </div>
 
         <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="shop" aria-label="Shop">
-          <img class="cp-chapter-img" src="images/Summon/Su001-Castling.jpg" alt="Shop" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <img class="cp-chapter-img" src="images/Summon/Su001-Castling.png" alt="Shop" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
           <div class="cp-chapter-label">Shop</div>
         </div>
 
@@ -5464,7 +5464,7 @@ const ChessPalPages = (() => {
           <div class="cp-square-label">Mall</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-shop="summon" aria-label="Summon">
-          ${renderImgWithFallback('images/Summon/Su002-Castling.jpg', 'Summon', 'cp-square-img')}
+          ${renderImgWithFallback('images/Summon/Su002-Castling.png', 'Summon', 'cp-square-img')}
           <div class="cp-square-label">Summon</div>
         </button>
       </div>
@@ -6343,6 +6343,128 @@ const ChessPalPages = (() => {
     return rows[rows.length - 1]?.unit || null;
   }
 
+  const SUMMON_MEDIA = {
+    hero: {
+      poster: [
+        'images/Summon/Su001-Castling.png',
+        'images/Summon/Su001-Castling.jpg',
+        'images/Summon/SU001-Castling.png',
+        'images/Summon/SU001-Castling.jpg',
+        'images/Summon/su001-castling.png',
+        'images/Summon/su001-castling.jpg',
+      ],
+      video: [
+        'images/Summon/Su001-Castling.mp4',
+        'images/Summon/Su001-Castling.webm',
+        'images/Summon/SU001-Castling.mp4',
+        'images/Summon/SU001-Castling.webm',
+        'images/Summon/su001-castling.mp4',
+        'images/Summon/su001-castling.webm',
+      ],
+    },
+    monster: {
+      poster: [
+        'images/Summon/Su002-Castling.png',
+        'images/Summon/Su002-Castling.jpg',
+        'images/Summon/SU002-Castling.png',
+        'images/Summon/SU002-Castling.jpg',
+        'images/Summon/su002-castling.png',
+        'images/Summon/su002-castling.jpg',
+      ],
+      video: [
+        'images/Summon/Su002-Castling.mp4',
+        'images/Summon/Su002-Castling.webm',
+        'images/Summon/SU002-Castling.mp4',
+        'images/Summon/SU002-Castling.webm',
+        'images/Summon/su002-castling.mp4',
+        'images/Summon/su002-castling.webm',
+      ],
+    },
+    hero_amateur: {
+      poster: [
+        'images/Summon/Su003-Castling.png',
+        'images/Summon/Su003-Castling.jpg',
+        'images/Summon/SU003-Castling.png',
+        'images/Summon/SU003-Castling.jpg',
+        'images/Summon/su003-castling.png',
+        'images/Summon/su003-castling.jpg',
+      ],
+      video: [
+        'images/Summon/Su003-Castling.mp4',
+        'images/Summon/Su003-Castling.webm',
+        'images/Summon/SU003-Castling.mp4',
+        'images/Summon/SU003-Castling.webm',
+        'images/Summon/su003-castling.mp4',
+        'images/Summon/su003-castling.webm',
+      ],
+    },
+    monster_amateur: {
+      poster: ['images/Summon/Su004-Castling.png', 'images/Summon/Su004-Castling.jpg'],
+      video: ['images/Summon/Su004-Castling.mp4', 'images/Summon/Su004-Castling.webm'],
+    },
+    item: {
+      poster: ['images/Summon/Su005-Spellbook.png', 'images/Summon/Su005-Spellbook.jpg'],
+      video: ['images/Summon/Su005-Spellbook.mp4', 'images/Summon/Su005-Spellbook.webm'],
+    },
+  };
+
+  function getSummonPoster(kind) {
+    const list = SUMMON_MEDIA?.[String(kind || '').trim()]?.poster;
+    return String((Array.isArray(list) && list[0]) || 'images/Summon/Su001-Castling.jpg');
+  }
+
+  async function playSummonCinematic(kind) {
+    const cfg = SUMMON_MEDIA?.[String(kind || '').trim()] || null;
+    const candidates = Array.isArray(cfg?.video) ? cfg.video.filter(Boolean) : [];
+    if (!candidates.length) return;
+    const old = document.getElementById('cpSummonCinematicOverlay');
+    if (old) old.remove();
+    await new Promise((resolve) => {
+      let done = false;
+      let idx = 0;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        try { overlay.remove(); } catch {}
+        resolve();
+      };
+      const overlay = document.createElement('div');
+      overlay.id = 'cpSummonCinematicOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" style="width:min(860px,96vw); padding:0; overflow:hidden;" role="dialog" aria-modal="true" aria-label="Summon animation">
+          <div style="position:relative; width:100%; aspect-ratio:16/9; background:#000;">
+            <video id="cpSummonCinematicVideo" autoplay muted playsinline preload="auto" style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>
+            <button class="cp-tool-btn" type="button" id="cpSummonCinematicSkip" style="position:absolute; top:10px; right:10px; z-index:2;">Skip</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const video = overlay.querySelector('#cpSummonCinematicVideo');
+      const tryNext = () => {
+        if (!video) return finish();
+        if (idx >= candidates.length) return finish();
+        const src = String(candidates[idx] || '').trim();
+        idx += 1;
+        if (!src) return tryNext();
+        try { video.src = src; } catch { tryNext(); }
+      };
+      overlay.querySelector('#cpSummonCinematicSkip')?.addEventListener('click', finish, { passive: true });
+      video?.addEventListener('ended', finish, { passive: true });
+      video?.addEventListener('error', () => { tryNext(); }, { passive: true });
+      video?.addEventListener('pause', () => {
+        if (!done) {
+          try { video.play().catch(() => {}); } catch {}
+        }
+      });
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) finish(); });
+      tryNext();
+      try { video?.play?.().catch(() => {}); } catch {}
+      // Safety timeout: if browser cannot play this codec, continue.
+      setTimeout(() => { if (!done) finish(); }, 12000);
+    });
+  }
+
   function SummonPage() {}
   SummonPage.title = 'Summon';
   SummonPage.render = () => {
@@ -6366,7 +6488,7 @@ const ChessPalPages = (() => {
         </div>
         <div style="display:grid; gap:12px; width:min(860px, 100%);">
           <button class="cp-summon-main" type="button" id="cpSummonHero" aria-label="Summon Hero" ${cfg.enabledNow && !heroDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgHero" src="images/Summon/Su001-Castling.jpg" alt="Summon background">
+            <img class="cp-summon-mainimg" id="cpSummonBgHero" src="${esc(getSummonPoster('hero'))}" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Summon Hero</div>
               <div class="cp-summon-cost" aria-label="Cost">
@@ -6376,7 +6498,7 @@ const ChessPalPages = (() => {
             </div>
           </button>
           <button class="cp-summon-main" type="button" id="cpSummonMonster" aria-label="Summon Monster" ${cfg.enabledNow && !monsterDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgMonster" src="images/Summon/Su002-Castling.jpg" alt="Summon background">
+            <img class="cp-summon-mainimg" id="cpSummonBgMonster" src="${esc(getSummonPoster('monster'))}" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Summon Monster</div>
               <div class="cp-summon-cost" aria-label="Cost">
@@ -6386,7 +6508,7 @@ const ChessPalPages = (() => {
             </div>
           </button>
           <button class="cp-summon-main" type="button" id="cpSummonHeroAmateur" aria-label="Amateur Summon Hero" ${cfg.enabledNow && !amateurHeroDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgHeroAmateur" src="images/Summon/Su003-Castling.png" alt="Summon background">
+            <img class="cp-summon-mainimg" id="cpSummonBgHeroAmateur" src="${esc(getSummonPoster('hero_amateur'))}" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Amateur Summon Hero</div>
               <div class="cp-summon-cost" aria-label="Cost">
@@ -6396,7 +6518,7 @@ const ChessPalPages = (() => {
             </div>
           </button>
           <button class="cp-summon-main" type="button" id="cpSummonMonsterAmateur" aria-label="Amateur Summon Monster" ${cfg.enabledNow && !amateurMonsterDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgMonsterAmateur" src="images/Summon/Su004-Castling.png" alt="Summon background">
+            <img class="cp-summon-mainimg" id="cpSummonBgMonsterAmateur" src="${esc(getSummonPoster('monster_amateur'))}" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Amateur Summon Monster</div>
               <div class="cp-summon-cost" aria-label="Cost">
@@ -6406,7 +6528,7 @@ const ChessPalPages = (() => {
             </div>
           </button>
           <button class="cp-summon-main" type="button" id="cpSummonItem" aria-label="Summon Item" ${cfg.enabledNow && !itemDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgItem" src="images/Summon/Su005-Spellbook.png" alt="Summon background">
+            <img class="cp-summon-mainimg" id="cpSummonBgItem" src="${esc(getSummonPoster('item'))}" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Summon Item</div>
               <div class="cp-summon-cost" aria-label="Cost">
@@ -6438,11 +6560,11 @@ const ChessPalPages = (() => {
         this.src = String(fallbacks[idx]);
       };
     };
-    bindBgFallback(document.getElementById('cpSummonBgHero'), ['images/Summon/Su001-Castling.png', 'images/Summon/Su001-Castling.jpg']);
-    bindBgFallback(document.getElementById('cpSummonBgMonster'), ['images/Summon/Su002-Castling.png', 'images/Summon/Su002-Castling.jpg']);
-    bindBgFallback(document.getElementById('cpSummonBgHeroAmateur'), ['images/Summon/Su003-Castling.jpg', 'images/Summon/Su003-Castling.webp', 'images/Summon/Su001-Castling.jpg']);
-    bindBgFallback(document.getElementById('cpSummonBgMonsterAmateur'), ['images/Summon/Su004-Castling.jpg', 'images/Summon/Su004-Castling.webp', 'images/Summon/Su002-Castling.jpg']);
-    bindBgFallback(document.getElementById('cpSummonBgItem'), ['images/Summon/Su005-Spellbook.jpg', 'images/Summon/Su005-Spellbook.webp', 'images/Summon/Su001-Castling.jpg']);
+    bindBgFallback(document.getElementById('cpSummonBgHero'), (SUMMON_MEDIA.hero.poster || []).slice(1));
+    bindBgFallback(document.getElementById('cpSummonBgMonster'), (SUMMON_MEDIA.monster.poster || []).slice(1));
+    bindBgFallback(document.getElementById('cpSummonBgHeroAmateur'), (SUMMON_MEDIA.hero_amateur.poster || []).slice(1));
+    bindBgFallback(document.getElementById('cpSummonBgMonsterAmateur'), (SUMMON_MEDIA.monster_amateur.poster || []).slice(1));
+    bindBgFallback(document.getElementById('cpSummonBgItem'), (SUMMON_MEDIA.item.poster || []).slice(1));
     document.getElementById('cpSummonSettingBtn')?.addEventListener('click', () => {
       showSummonAdminSettingsModal(() => {
         try { Router.renderCurrent(); } catch {}
@@ -6477,6 +6599,7 @@ const ChessPalPages = (() => {
           setMsg('Summon Item is disabled by Admin.');
           return;
         }
+        await playSummonCinematic(kind);
         if (kind === 'hero_amateur') {
           await loadHeroOverrides();
           const pool = getAllHeroes().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
