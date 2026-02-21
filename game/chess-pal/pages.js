@@ -616,6 +616,29 @@ const ChessPalPages = (() => {
       .sort((a, b) => String(a.id).localeCompare(String(b.id)))
       .map(m => `<option value="${esc(String(m.id))}">#${esc(m.id)} ${esc(m.name)} · ${esc(elementLabel(m.element))} · ${esc(renderStars(m.rarity))}</option>`)
       .join('');
+    const getMonsterByStageId = (idLike) => {
+      const sid = String(idLike || '').trim().padStart(3, '0');
+      return allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === sid) || null;
+    };
+    const getMonsterDefaultCycleCd = (idLike) => {
+      const mon = getMonsterByStageId(idLike);
+      return Math.max(0, Math.floor(Number(mon?.activeSkill?.cd) || 0));
+    };
+    const getMonsterSkillDescHtml = (idLike) => {
+      const mon = getMonsterByStageId(idLike);
+      if (!mon) return `<div class="cp-setting-help" style="margin-top:8px;">Skill: N/A</div>`;
+      const activeName = String(mon?.activeSkill?.name || 'Active Skill');
+      const activeText = String(mon?.activeSkill?.text || '').trim() || 'No active skill description.';
+      const passiveName = String(mon?.passiveSkill?.name || 'Passive Skill');
+      const passiveText = String(mon?.passiveSkill?.text || '').trim() || 'No passive skill description.';
+      const activeCd = Math.max(0, Math.floor(Number(mon?.activeSkill?.cd) || 0));
+      return `
+        <div class="cp-setting-help" data-stage-mon-skilldesc style="margin-top:8px;">
+          Active · ${esc(activeName)} (Base CD ${esc(String(activeCd))}): ${esc(activeText)}
+          <br>Passive · ${esc(passiveName)}: ${esc(passiveText)}
+        </div>
+      `;
+    };
 
     const old = document.getElementById('cpEditStagesOverlay');
     if (old) old.remove();
@@ -654,6 +677,8 @@ const ChessPalPages = (() => {
                       const src = String(mon?.img || '').trim();
                       const monDrops = Array.isArray(mm?.drops) ? mm.drops : [];
                       const joinChance = Math.max(0, Math.min(100, Math.floor(Number(mm?.monsterDropChance) || 0)));
+                      const firstCdPreset = Number.isFinite(Number(mm?.skillFirstCd)) ? Math.max(0, Math.floor(Number(mm.skillFirstCd) || 0)) : 0;
+                      const cycleCdPreset = Number.isFinite(Number(mm?.skillCycleCd)) ? Math.max(0, Math.floor(Number(mm.skillCycleCd) || 0)) : getMonsterDefaultCycleCd(mid);
                       return `
                         <div class="cp-row" style="margin-top:0; align-items:flex-start;" data-stage-monster-row="${esc(String(i))}-${esc(String(k))}">
                           <div style="width: 64px;">
@@ -706,9 +731,10 @@ const ChessPalPages = (() => {
                             </div>
                             <div data-stage-mon-skillspanel="${esc(String(i))}-${esc(String(k))}" style="display:none; margin-top:8px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.14);">
                               <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">First skill CD (0-20)</div>
-                              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(Number.isFinite(Number(mm?.skillFirstCd)) ? Math.floor(Number(mm.skillFirstCd) || 0) : ''))}" data-stage-mon-skill-firstcd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+                              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(firstCdPreset))}" data-stage-mon-skill-firstcd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
                               <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Next skill CD (0-20)</div>
-                              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(Number.isFinite(Number(mm?.skillCycleCd)) ? Math.floor(Number(mm.skillCycleCd) || 0) : ''))}" data-stage-mon-skill-cyclecd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+                              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(cycleCdPreset))}" data-stage-mon-skill-cyclecd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+                              ${getMonsterSkillDescHtml(mid)}
                             </div>
                           </div>
                         </div>
@@ -769,6 +795,13 @@ const ChessPalPages = (() => {
             } else if (prev && src) {
               prev.innerHTML = `<img src="${esc(src)}" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);" decoding="async" loading="lazy">`;
             }
+            const firstCdEl = overlay.querySelector(`[data-stage-mon-skill-firstcd="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+            const cycleCdEl = overlay.querySelector(`[data-stage-mon-skill-cyclecd="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+            if (firstCdEl) firstCdEl.value = '0';
+            if (cycleCdEl) cycleCdEl.value = String(getMonsterDefaultCycleCd(id));
+            const panel = overlay.querySelector(`[data-stage-mon-skillspanel="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+            const descHost = panel?.querySelector('[data-stage-mon-skilldesc]');
+            if (panel && descHost) descHost.outerHTML = getMonsterSkillDescHtml(id);
           } catch {}
         }, { passive: true });
       }
@@ -786,11 +819,13 @@ const ChessPalPages = (() => {
     }
 
     // Add/remove monster rows
-    const makeMonsterRowHtml = (i, k, monsterId, level, monsterDropChance = 0, dropsLike = []) => {
+    const makeMonsterRowHtml = (i, k, monsterId, level, monsterDropChance = 0, dropsLike = [], skillFirstCdLike = null, skillCycleCdLike = null) => {
       const mid = String(monsterId || '004').trim().padStart(3, '0');
       const mon = allMonsters.find(x => String(x?.id || '').trim().padStart(3, '0') === mid) || null;
       const src = String(mon?.img || '').trim();
       const monDrops = Array.isArray(dropsLike) ? dropsLike : [];
+      const firstCdPreset = Number.isFinite(Number(skillFirstCdLike)) ? Math.max(0, Math.floor(Number(skillFirstCdLike) || 0)) : 0;
+      const cycleCdPreset = Number.isFinite(Number(skillCycleCdLike)) ? Math.max(0, Math.floor(Number(skillCycleCdLike) || 0)) : getMonsterDefaultCycleCd(mid);
       return `
         <div class="cp-row" style="margin-top:0; align-items:flex-start;" data-stage-monster-row="${esc(String(i))}-${esc(String(k))}">
           <div style="width: 64px;">
@@ -843,9 +878,10 @@ const ChessPalPages = (() => {
             </div>
             <div data-stage-mon-skillspanel="${esc(String(i))}-${esc(String(k))}" style="display:none; margin-top:8px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.14);">
               <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">First skill CD (0-20)</div>
-              <input class="cp-input" type="number" min="0" max="20" step="1" value="" data-stage-mon-skill-firstcd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(firstCdPreset))}" data-stage-mon-skill-firstcd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
               <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Next skill CD (0-20)</div>
-              <input class="cp-input" type="number" min="0" max="20" step="1" value="" data-stage-mon-skill-cyclecd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(cycleCdPreset))}" data-stage-mon-skill-cyclecd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+              ${getMonsterSkillDescHtml(mid)}
             </div>
           </div>
         </div>
