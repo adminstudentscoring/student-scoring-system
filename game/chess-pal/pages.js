@@ -4492,10 +4492,23 @@ const ChessPalPages = (() => {
 
       const leaderId = team[0];
       const leader = leaderId ? getTeamUnit(leaderId) : null;
-      const memberSkills = team
+      const memberSkillRows = team
         .map(id => id ? getTeamUnit(id) : null)
         .filter(Boolean)
-        .map(u => `${esc(u.kind === 'monster' ? 'Monster' : 'Hero')} ${esc(u.name)} · ${esc(u.activeSkill?.name || '')} (CD ${esc(u.activeSkill?.cd ?? 0)})`);
+        .map((u, idx2) => {
+          const role = idx2 === 0 ? 'Leader' : `Member ${idx2}`;
+          const unitType = u.kind === 'monster' ? 'Monster' : 'Hero';
+          const activeName = String(u?.activeSkill?.name || '').trim() || 'No Active Skill';
+          const activeCd = Math.max(0, Math.floor(Number(u?.activeSkill?.cd) || 0));
+          const activeText = String(u?.activeSkill?.text || '').trim() || 'This unit has no active skill effect.';
+          return `
+            <div class="cp-setting-item" style="margin-top:8px; background: rgba(255,255,255,0.02); border-style:dashed;">
+              <div class="cp-setting-label">${esc(role)} · ${esc(unitType)} ${esc(u.name || '')}</div>
+              <div class="cp-setting-help" style="margin-top:6px;"><strong>Active:</strong> ${esc(activeName)} (CD ${esc(String(activeCd))})</div>
+              <div class="cp-setting-help" style="margin-top:4px;">${esc(activeText)}</div>
+            </div>
+          `;
+        });
       if (skill) {
         skill.innerHTML = leader ? `
           <div class="cp-setting-item" style="background: rgba(255,255,255,0.03);">
@@ -4504,7 +4517,8 @@ const ChessPalPages = (() => {
           </div>
           <div class="cp-setting-item" style="margin-top:10px; background: rgba(255,255,255,0.03);">
             <div class="cp-setting-label">Team Skills</div>
-            <div class="cp-setting-help">${memberSkills.length ? memberSkills.join('<br>') : '—'}</div>
+            <div class="cp-setting-help" style="margin-top:6px;">Each unit active skill details:</div>
+            ${memberSkillRows.length ? memberSkillRows.join('') : '<div class="cp-setting-help">—</div>'}
           </div>
         ` : `
           <div class="cp-muted">Pick a leader to see team skills.</div>
