@@ -4622,22 +4622,20 @@ const ChessPalPages = (() => {
   EnhancePage.render = () => {
     return `
       <div class="cp-page-card">
-        <div class="cp-h1">Enhance</div>
         <div class="cp-setting-item" style="margin-top:10px; background: rgba(255,255,255,0.03);">
-          <div class="cp-setting-label">Skill Enhance</div>
-          <div class="cp-setting-help">Use material to reduce active skill CD by 1. Each unit can be reduced up to 5 times; CD cannot go below 1.</div>
           <div class="cp-enhance-grid" style="margin-top:12px;">
             <button class="cp-enhance-slot" type="button" id="cpEnhanceTargetSlot">
               <div class="cp-enhance-slot-title">Target Hero / Monster</div>
               <div class="cp-enhance-slot-body" id="cpEnhanceTargetBody">Tap to select</div>
             </button>
+            <div class="cp-enhance-plus" aria-hidden="true">+</div>
             <button class="cp-enhance-slot" type="button" id="cpEnhanceMatSlot">
               <div class="cp-enhance-slot-title">Material</div>
               <div class="cp-enhance-slot-body" id="cpEnhanceMatBody">Tap to select</div>
             </button>
           </div>
-          <div class="cp-row" style="margin-top:12px; justify-content:flex-end;">
-            <button class="cp-primary" type="button" id="cpEnhanceConfirm" disabled>Confirm</button>
+          <div class="cp-row" style="margin-top:12px; justify-content:center;">
+            <button class="cp-primary" type="button" id="cpEnhanceConfirm" disabled>Enhance</button>
           </div>
           <div class="cp-muted" id="cpEnhanceMsg" style="margin-top:10px;"></div>
           <div id="cpEnhanceResult" style="margin-top:10px;"></div>
@@ -4823,7 +4821,7 @@ const ChessPalPages = (() => {
     silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S002-Silver-Coin.png' },
     // You mentioned Gold/Silver both have S001 prefix; we try multiple names via fallback.
     gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S001-Gold-Coin.png' },
-    rewind_rook: { id: 'rewind_rook', name: 'Rewind Rook', img: 'images/Storage/S010-Rewind-Rook.png' },
+    rewind_rook: { id: 'rewind_rook', name: 'Rewind Rook', img: 'images/Storage/S009-Rewind-Rook.png' },
     exp_pawn: { id: 'exp_pawn', name: 'EXP Pawn', img: 'images/Storage/S003-Exp-Pawn.png' },
     exp_knight: { id: 'exp_knight', name: 'EXP Knight', img: 'images/Storage/S004-Exp-Knight.png' },
     exp_bishop: { id: 'exp_bishop', name: 'EXP Bishop', img: 'images/Storage/S005-Exp-Bishop.png' },
@@ -4894,6 +4892,7 @@ const ChessPalPages = (() => {
     }
     if (base.includes('Rewind-Rook')) {
       legacy.push('images/Storage/Rewind-Rook.png');
+      legacy.unshift('images/Storage/S009-Rewind-Rook.png');
       legacy.unshift('images/Storage/S010-Rewind-Rook.png');
     }
     return legacy;
@@ -5593,30 +5592,38 @@ const ChessPalPages = (() => {
     return out;
   }
 
-  function defaultOrderMapForUnits(units) {
-    const out = {};
-    (Array.isArray(units) ? units : []).forEach((u, idx) => {
-      const id = String(u?.id || '').trim();
-      if (!id) return;
-      out[id] = idx + 1;
-    });
-    return out;
+  function getSummonableItems() {
+    return ['rewind_rook', 'exp_pawn', 'exp_knight', 'exp_bishop', 'exp_rook', 'exp_queen', 'exp_king']
+      .map((id) => getStorageItemDef(id))
+      .filter(Boolean);
   }
 
   function defaultSummonConfig() {
     const heroes = getAllHeroes();
     const monsters = getAllMonsters();
+    const summonItems = getSummonableItems();
     return {
       updatedAt: Date.now(),
-      currencyId: 'gold_coin',
-      cost: 1,
       limitHours: 0,
       enabled: true,
       heroEnabled: true,
       monsterEnabled: true,
+      amateurHeroEnabled: true,
+      amateurMonsterEnabled: true,
+      itemEnabled: true,
+      heroCurrencyId: 'gold_coin',
+      heroCost: 1,
+      monsterCurrencyId: 'gold_coin',
+      monsterCost: 1,
+      amateurHeroCurrencyId: 'silver_coin',
+      amateurHeroCost: 100,
+      amateurMonsterCurrencyId: 'silver_coin',
+      amateurMonsterCost: 100,
+      itemCurrencyId: 'gold_coin',
+      itemCost: 1,
       heroRates: defaultRateMapForUnits(heroes),
       monsterRates: defaultRateMapForUnits(monsters),
-      heroOrder: defaultOrderMapForUnits(heroes),
+      itemRates: defaultRateMapForUnits(summonItems),
     };
   }
 
@@ -5634,37 +5641,45 @@ const ChessPalPages = (() => {
     return out;
   }
 
-  function normalizeOrderMap(inputMap, units) {
-    const defaults = defaultOrderMapForUnits(units);
-    const out = {};
-    (Array.isArray(units) ? units : []).forEach((u, idx) => {
-      const id = String(u?.id || '').trim();
-      if (!id) return;
-      const raw = Number(inputMap?.[id]);
-      const fallback = Number(defaults[id]) || (idx + 1);
-      const v = Number.isFinite(raw) ? Math.floor(raw) : fallback;
-      out[id] = Math.max(1, v);
-    });
-    return out;
-  }
-
   function normalizeSummonConfig(raw) {
     const base = defaultSummonConfig();
     const defs = STORAGE_ITEM_DEFS || {};
-    const currencyRaw = String(raw?.currencyId || base.currencyId).trim().toLowerCase();
-    const currencyId = defs[currencyRaw] ? currencyRaw : 'gold_coin';
-    const cost = Math.max(1, Math.floor(Number(raw?.cost) || base.cost));
     const limitHours = Math.max(0, Math.floor(Number(raw?.limitHours) || 0));
     const enabled = raw?.enabled !== false;
     const heroEnabled = raw?.heroEnabled !== false;
     const monsterEnabled = raw?.monsterEnabled !== false;
+    const amateurHeroEnabled = raw?.amateurHeroEnabled !== false;
+    const amateurMonsterEnabled = raw?.amateurMonsterEnabled !== false;
+    const itemEnabled = raw?.itemEnabled !== false;
+    const pickCurrency = (v, fallbackId) => {
+      const key = String(v || fallbackId || 'gold_coin').trim().toLowerCase();
+      return defs[key] ? key : String(fallbackId || 'gold_coin');
+    };
+    const heroCurrencyId = pickCurrency(raw?.heroCurrencyId ?? raw?.currencyId, base.heroCurrencyId);
+    const heroCost = Math.max(1, Math.floor(Number(raw?.heroCost ?? raw?.cost) || base.heroCost));
+    const monsterCurrencyId = pickCurrency(raw?.monsterCurrencyId ?? raw?.currencyId, base.monsterCurrencyId);
+    const monsterCost = Math.max(1, Math.floor(Number(raw?.monsterCost ?? raw?.cost) || base.monsterCost));
+    const amateurHeroCurrencyId = pickCurrency(raw?.amateurHeroCurrencyId, base.amateurHeroCurrencyId);
+    const amateurHeroCost = Math.max(1, Math.floor(Number(raw?.amateurHeroCost) || base.amateurHeroCost));
+    const amateurMonsterCurrencyId = pickCurrency(raw?.amateurMonsterCurrencyId, base.amateurMonsterCurrencyId);
+    const amateurMonsterCost = Math.max(1, Math.floor(Number(raw?.amateurMonsterCost) || base.amateurMonsterCost));
+    const itemCurrencyId = pickCurrency(raw?.itemCurrencyId, base.itemCurrencyId);
+    const itemCost = Math.max(1, Math.floor(Number(raw?.itemCost) || base.itemCost));
     const heroes = getAllHeroes();
     const monsters = getAllMonsters();
+    const summonItems = getSummonableItems();
     const heroRates = normalizeRateMap(raw?.heroRates, heroes);
     const monsterRates = normalizeRateMap(raw?.monsterRates, monsters);
-    const heroOrder = normalizeOrderMap(raw?.heroOrder, heroes);
+    const itemRates = normalizeRateMap(raw?.itemRates, summonItems);
     const updatedAt = Number.isFinite(Number(raw?.updatedAt)) ? Math.floor(Number(raw.updatedAt)) : base.updatedAt;
-    return { updatedAt, currencyId, cost, limitHours, enabled, heroEnabled, monsterEnabled, heroRates, monsterRates, heroOrder };
+    return {
+      updatedAt, limitHours, enabled,
+      heroEnabled, monsterEnabled, amateurHeroEnabled, amateurMonsterEnabled, itemEnabled,
+      heroCurrencyId, heroCost, monsterCurrencyId, monsterCost,
+      amateurHeroCurrencyId, amateurHeroCost, amateurMonsterCurrencyId, amateurMonsterCost,
+      itemCurrencyId, itemCost,
+      heroRates, monsterRates, itemRates,
+    };
   }
 
   function loadSummonConfig() {
@@ -5705,6 +5720,9 @@ const ChessPalPages = (() => {
       enabledNow,
       heroEnabledNow: enabledNow && (cfg.heroEnabled !== false),
       monsterEnabledNow: enabledNow && (cfg.monsterEnabled !== false),
+      amateurHeroEnabledNow: enabledNow && (cfg.amateurHeroEnabled !== false),
+      amateurMonsterEnabledNow: enabledNow && (cfg.amateurMonsterEnabled !== false),
+      itemEnabledNow: enabledNow && (cfg.itemEnabled !== false),
     };
   }
 
@@ -5725,21 +5743,13 @@ const ChessPalPages = (() => {
     overlay.id = 'cpSummonAdminOverlay';
     overlay.className = 'cp-modal-overlay';
     overlay.innerHTML = `
-      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Summon setting">
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Summon setting" style="width:min(1280px, 96vw);">
         <button class="cp-modal-close" type="button" aria-label="Close">×</button>
         <div class="cp-modal-body">
           <div class="cp-h1" style="font-size:18px;">Global Summon Setting</div>
-          <div class="cp-muted" style="margin-top:6px;">Set shared summon rules and rates for both Hero and Monster summons.</div>
+          <div class="cp-muted" style="margin-top:6px;">Set all summon types, each with independent cost item and cost value.</div>
           <div class="cp-setting-item" style="margin-top:12px;">
             <div class="cp-row" style="margin-top:0; align-items:flex-end; gap:8px; flex-wrap:wrap;">
-              <div style="flex:1 1 260px; min-width: 200px;">
-                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Cost item</div>
-                <select class="cp-select" id="cpSummonCfgCurrency">${itemOptions}</select>
-              </div>
-              <div style="width: 140px;">
-                <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Cost</div>
-                <input class="cp-input" id="cpSummonCfgCost" type="number" min="1" step="1" value="${esc(String(cfg.cost || 1))}">
-              </div>
               <div style="width: 160px;">
                 <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Limit (hours)</div>
                 <input class="cp-input" id="cpSummonCfgLimit" type="number" min="0" step="1" value="${esc(String(cfg.limitHours || 0))}">
@@ -5755,6 +5765,53 @@ const ChessPalPages = (() => {
               <label class="cp-setting-help" style="display:flex; align-items:center; gap:6px; margin:0 0 10px;">
                 <input type="checkbox" id="cpSummonCfgMonsterEnabled" ${cfg.monsterEnabled !== false ? 'checked' : ''}>
                 Monster summon enabled
+              </label>
+              <label class="cp-setting-help" style="display:flex; align-items:center; gap:6px; margin:0 0 10px;">
+                <input type="checkbox" id="cpSummonCfgAmateurHeroEnabled" ${cfg.amateurHeroEnabled !== false ? 'checked' : ''}>
+                Amateur Hero summon enabled
+              </label>
+              <label class="cp-setting-help" style="display:flex; align-items:center; gap:6px; margin:0 0 10px;">
+                <input type="checkbox" id="cpSummonCfgAmateurMonsterEnabled" ${cfg.amateurMonsterEnabled !== false ? 'checked' : ''}>
+                Amateur Monster summon enabled
+              </label>
+              <label class="cp-setting-help" style="display:flex; align-items:center; gap:6px; margin:0 0 10px;">
+                <input type="checkbox" id="cpSummonCfgItemEnabled" ${cfg.itemEnabled !== false ? 'checked' : ''}>
+                Summon Item enabled
+              </label>
+            </div>
+          </div>
+          <div class="cp-setting-item" style="margin-top:10px;">
+            <div class="cp-setting-help" style="margin:0 0 8px 0;">Per summon cost</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:8px;">
+              <label class="cp-setting-help" style="margin:0;">Summon Hero
+                <div class="cp-row" style="margin-top:6px; gap:6px;">
+                  <select class="cp-select" id="cpSummonCfgHeroCurrency">${itemOptions}</select>
+                  <input class="cp-input" id="cpSummonCfgHeroCost" type="number" min="1" step="1" value="${esc(String(cfg.heroCost || 1))}" style="width:100px;">
+                </div>
+              </label>
+              <label class="cp-setting-help" style="margin:0;">Summon Monster
+                <div class="cp-row" style="margin-top:6px; gap:6px;">
+                  <select class="cp-select" id="cpSummonCfgMonsterCurrency">${itemOptions}</select>
+                  <input class="cp-input" id="cpSummonCfgMonsterCost" type="number" min="1" step="1" value="${esc(String(cfg.monsterCost || 1))}" style="width:100px;">
+                </div>
+              </label>
+              <label class="cp-setting-help" style="margin:0;">Amateur Summon Hero
+                <div class="cp-row" style="margin-top:6px; gap:6px;">
+                  <select class="cp-select" id="cpSummonCfgAmateurHeroCurrency">${itemOptions}</select>
+                  <input class="cp-input" id="cpSummonCfgAmateurHeroCost" type="number" min="1" step="1" value="${esc(String(cfg.amateurHeroCost || 100))}" style="width:100px;">
+                </div>
+              </label>
+              <label class="cp-setting-help" style="margin:0;">Amateur Summon Monster
+                <div class="cp-row" style="margin-top:6px; gap:6px;">
+                  <select class="cp-select" id="cpSummonCfgAmateurMonsterCurrency">${itemOptions}</select>
+                  <input class="cp-input" id="cpSummonCfgAmateurMonsterCost" type="number" min="1" step="1" value="${esc(String(cfg.amateurMonsterCost || 100))}" style="width:100px;">
+                </div>
+              </label>
+              <label class="cp-setting-help" style="margin:0;">Summon Item
+                <div class="cp-row" style="margin-top:6px; gap:6px;">
+                  <select class="cp-select" id="cpSummonCfgItemCurrency">${itemOptions}</select>
+                  <input class="cp-input" id="cpSummonCfgItemCost" type="number" min="1" step="1" value="${esc(String(cfg.itemCost || 1))}" style="width:100px;">
+                </div>
               </label>
             </div>
           </div>
@@ -5772,6 +5829,13 @@ const ChessPalPages = (() => {
             </div>
             <div id="cpSummonMonsterRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
+          <div class="cp-setting-item" style="margin-top:10px;">
+            <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
+              <div class="cp-setting-help" style="margin:0;">Summon item rates (relative weight; 0 means disabled)</div>
+              <button class="cp-tool-btn" type="button" id="cpSummonItemRatesToggle" aria-expanded="false">Expand</button>
+            </div>
+            <div id="cpSummonItemRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
+          </div>
           <div class="cp-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">
             <button class="cp-tool-btn" type="button" id="cpSummonCfgCancel">Cancel</button>
             <button class="cp-primary" type="button" id="cpSummonCfgSave">Save</button>
@@ -5786,33 +5850,29 @@ const ChessPalPages = (() => {
       const m = overlay.querySelector('#cpSummonCfgMsg');
       if (m) m.textContent = String(t || '');
     };
-    const currencySel = overlay.querySelector('#cpSummonCfgCurrency');
-    if (currencySel) currencySel.value = String(cfg.currencyId || 'gold_coin');
     const heroRowsHost = overlay.querySelector('#cpSummonHeroRateRows');
     const monsterRowsHost = overlay.querySelector('#cpSummonMonsterRateRows');
+    const itemRowsHost = overlay.querySelector('#cpSummonItemRateRows');
     const heroes = getAllHeroes();
     const monsters = getAllMonsters();
-    const heroesSorted = heroes.slice().sort((a, b) => {
-      const aid = String(a?.id || '').trim();
-      const bid = String(b?.id || '').trim();
-      const ao = Math.max(1, Math.floor(Number(cfg?.heroOrder?.[aid]) || 9999));
-      const bo = Math.max(1, Math.floor(Number(cfg?.heroOrder?.[bid]) || 9999));
-      if (ao !== bo) return ao - bo;
-      const ar = Math.max(1, Math.min(10, Math.floor(Number(a?.rarity) || 1)));
-      const br = Math.max(1, Math.min(10, Math.floor(Number(b?.rarity) || 1)));
-      if (ar !== br) return br - ar;
-      return aid.localeCompare(bid);
-    });
+    const summonItems = getSummonableItems();
+    const setSelectValue = (id, value) => {
+      const el = overlay.querySelector(`#${id}`);
+      if (el) el.value = String(value || '');
+    };
+    setSelectValue('cpSummonCfgHeroCurrency', cfg.heroCurrencyId || 'gold_coin');
+    setSelectValue('cpSummonCfgMonsterCurrency', cfg.monsterCurrencyId || 'gold_coin');
+    setSelectValue('cpSummonCfgAmateurHeroCurrency', cfg.amateurHeroCurrencyId || 'silver_coin');
+    setSelectValue('cpSummonCfgAmateurMonsterCurrency', cfg.amateurMonsterCurrencyId || 'silver_coin');
+    setSelectValue('cpSummonCfgItemCurrency', cfg.itemCurrencyId || 'gold_coin');
     if (heroRowsHost) {
-      heroRowsHost.innerHTML = heroesSorted.map((h) => {
+      heroRowsHost.innerHTML = heroes.map((h) => {
         const id = String(h?.id || '').trim();
         const w = Number(cfg?.heroRates?.[id]);
-        const ord = Math.max(1, Math.floor(Number(cfg?.heroOrder?.[id]) || 1));
         const stars = Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)));
         return `
           <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
             <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(h?.name || id))} · ★${esc(String(stars))}</span>
-            <input class="cp-input" data-summon-hero-order="${esc(id)}" type="number" min="1" step="1" value="${esc(String(ord))}" style="width:70px;" title="Order">
             <input class="cp-input" data-summon-hero-rate="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(w) ? w : 1))}" style="width:92px;">
           </label>
         `;
@@ -5831,8 +5891,21 @@ const ChessPalPages = (() => {
         `;
       }).join('');
     }
+    if (itemRowsHost) {
+      itemRowsHost.innerHTML = summonItems.map((it) => {
+        const id = String(it?.id || '').trim();
+        const w = Number(cfg?.itemRates?.[id]);
+        return `
+          <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
+            <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(it?.name || id))}</span>
+            <input class="cp-input" data-summon-item-rate="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(w) ? w : 1))}" style="width:92px;">
+          </label>
+        `;
+      }).join('');
+    }
     const heroToggle = overlay.querySelector('#cpSummonHeroRatesToggle');
     const monToggle = overlay.querySelector('#cpSummonMonsterRatesToggle');
+    const itemToggle = overlay.querySelector('#cpSummonItemRatesToggle');
     heroToggle?.addEventListener('click', () => {
       const open = heroRowsHost?.style.display !== 'none';
       if (heroRowsHost) heroRowsHost.style.display = open ? 'none' : 'grid';
@@ -5849,6 +5922,14 @@ const ChessPalPages = (() => {
         monToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
       }
     }, { passive: true });
+    itemToggle?.addEventListener('click', () => {
+      const open = itemRowsHost?.style.display !== 'none';
+      if (itemRowsHost) itemRowsHost.style.display = open ? 'none' : 'grid';
+      if (itemToggle) {
+        itemToggle.textContent = open ? 'Expand' : 'Collapse';
+        itemToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      }
+    }, { passive: true });
 
     const close = () => {
       try { overlay.remove(); } catch {}
@@ -5861,23 +5942,28 @@ const ChessPalPages = (() => {
 
     overlay.querySelector('#cpSummonCfgSave')?.addEventListener('click', () => {
       try {
-        const currencyId = String(overlay.querySelector('#cpSummonCfgCurrency')?.value || '').trim().toLowerCase();
-        const cost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgCost')?.value) || 1));
         const limitHours = Math.max(0, Math.floor(Number(overlay.querySelector('#cpSummonCfgLimit')?.value) || 0));
         const enabled = !!overlay.querySelector('#cpSummonCfgEnabled')?.checked;
         const heroEnabled = !!overlay.querySelector('#cpSummonCfgHeroEnabled')?.checked;
         const monsterEnabled = !!overlay.querySelector('#cpSummonCfgMonsterEnabled')?.checked;
+        const amateurHeroEnabled = !!overlay.querySelector('#cpSummonCfgAmateurHeroEnabled')?.checked;
+        const amateurMonsterEnabled = !!overlay.querySelector('#cpSummonCfgAmateurMonsterEnabled')?.checked;
+        const itemEnabled = !!overlay.querySelector('#cpSummonCfgItemEnabled')?.checked;
+        const heroCurrencyId = String(overlay.querySelector('#cpSummonCfgHeroCurrency')?.value || '').trim().toLowerCase();
+        const heroCost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgHeroCost')?.value) || 1));
+        const monsterCurrencyId = String(overlay.querySelector('#cpSummonCfgMonsterCurrency')?.value || '').trim().toLowerCase();
+        const monsterCost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgMonsterCost')?.value) || 1));
+        const amateurHeroCurrencyId = String(overlay.querySelector('#cpSummonCfgAmateurHeroCurrency')?.value || '').trim().toLowerCase();
+        const amateurHeroCost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgAmateurHeroCost')?.value) || 1));
+        const amateurMonsterCurrencyId = String(overlay.querySelector('#cpSummonCfgAmateurMonsterCurrency')?.value || '').trim().toLowerCase();
+        const amateurMonsterCost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgAmateurMonsterCost')?.value) || 1));
+        const itemCurrencyId = String(overlay.querySelector('#cpSummonCfgItemCurrency')?.value || '').trim().toLowerCase();
+        const itemCost = Math.max(1, Math.floor(Number(overlay.querySelector('#cpSummonCfgItemCost')?.value) || 1));
         const heroRates = {};
-        const heroOrder = {};
         overlay.querySelectorAll('[data-summon-hero-rate]').forEach((el) => {
           const id = String(el.getAttribute('data-summon-hero-rate') || '').trim();
           if (!id) return;
           heroRates[id] = Math.max(0, Number(el.value) || 0);
-        });
-        overlay.querySelectorAll('[data-summon-hero-order]').forEach((el) => {
-          const id = String(el.getAttribute('data-summon-hero-order') || '').trim();
-          if (!id) return;
-          heroOrder[id] = Math.max(1, Math.floor(Number(el.value) || 1));
         });
         const monsterRates = {};
         overlay.querySelectorAll('[data-summon-mon-rate]').forEach((el) => {
@@ -5885,8 +5971,23 @@ const ChessPalPages = (() => {
           if (!id) return;
           monsterRates[id] = Math.max(0, Number(el.value) || 0);
         });
-        if (!getStorageItemDef(currencyId)) throw new Error('Invalid cost item.');
-        saveSummonConfig({ currencyId, cost, limitHours, enabled, heroEnabled, monsterEnabled, heroRates, monsterRates, heroOrder });
+        const itemRates = {};
+        overlay.querySelectorAll('[data-summon-item-rate]').forEach((el) => {
+          const id = String(el.getAttribute('data-summon-item-rate') || '').trim();
+          if (!id) return;
+          itemRates[id] = Math.max(0, Number(el.value) || 0);
+        });
+        [heroCurrencyId, monsterCurrencyId, amateurHeroCurrencyId, amateurMonsterCurrencyId, itemCurrencyId].forEach((id) => {
+          if (!getStorageItemDef(id)) throw new Error('Invalid cost item.');
+        });
+        saveSummonConfig({
+          limitHours, enabled,
+          heroEnabled, monsterEnabled, amateurHeroEnabled, amateurMonsterEnabled, itemEnabled,
+          heroCurrencyId, heroCost, monsterCurrencyId, monsterCost,
+          amateurHeroCurrencyId, amateurHeroCost, amateurMonsterCurrencyId, amateurMonsterCost,
+          itemCurrencyId, itemCost,
+          heroRates, monsterRates, itemRates,
+        });
         setMsg('Saved.');
         try { onSaved && onSaved(); } catch {}
         setTimeout(() => close(), 220);
@@ -6245,20 +6346,19 @@ const ChessPalPages = (() => {
   function SummonPage() {}
   SummonPage.title = 'Summon';
   SummonPage.render = () => {
-    const s = getGeneralSettings();
-    const monsterSummonBg = 'images/Summon/Su002-Castling.jpg';
     const admin = isAdminMode();
     const cfg = getSummonConfigForNow();
-    const curDef = getStorageItemDef(cfg.currencyId || 'gold_coin') || getStorageItemDef('gold_coin');
-    const curName = String(curDef?.name || 'Gold Coin');
-    const curImg = String(curDef?.img || 'images/Storage/S001-Gold-Coin.png');
     const disabledText = !cfg.enabledNow ? (cfg.expired ? 'Summon is expired.' : 'Summon is disabled by Admin.') : '';
     const heroDisabled = !cfg.heroEnabledNow;
     const monsterDisabled = !cfg.monsterEnabledNow;
-    const silverHeroCost = 100;
-    const silverDef = getStorageItemDef('silver_coin') || { name: 'Silver Coin', img: 'images/Storage/S002-Silver-Coin.png' };
-    const silverName = String(silverDef?.name || 'Silver Coin');
-    const silverImg = String(silverDef?.img || 'images/Storage/S002-Silver-Coin.png');
+    const amateurHeroDisabled = !cfg.amateurHeroEnabledNow;
+    const amateurMonsterDisabled = !cfg.amateurMonsterEnabledNow;
+    const itemDisabled = !cfg.itemEnabledNow;
+    const heroCur = getStorageItemDef(cfg.heroCurrencyId || 'gold_coin') || getStorageItemDef('gold_coin');
+    const monCur = getStorageItemDef(cfg.monsterCurrencyId || 'gold_coin') || getStorageItemDef('gold_coin');
+    const amHeroCur = getStorageItemDef(cfg.amateurHeroCurrencyId || 'silver_coin') || getStorageItemDef('silver_coin');
+    const amMonCur = getStorageItemDef(cfg.amateurMonsterCurrencyId || 'silver_coin') || getStorageItemDef('silver_coin');
+    const itemCur = getStorageItemDef(cfg.itemCurrencyId || 'gold_coin') || getStorageItemDef('gold_coin');
     return `
       <div class="cp-page-card cp-summon-page">
         <div class="cp-row" style="margin-top:0; justify-content:flex-end;">
@@ -6266,32 +6366,52 @@ const ChessPalPages = (() => {
         </div>
         <div style="display:grid; gap:12px; width:min(860px, 100%);">
           <button class="cp-summon-main" type="button" id="cpSummonHero" aria-label="Summon Hero" ${cfg.enabledNow && !heroDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgImg" src="${esc(String(s.summonBg || ''))}" alt="Summon background" onerror="this.style.display='none';">
+            <img class="cp-summon-mainimg" id="cpSummonBgHero" src="images/Summon/Su001-Castling.jpg" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Summon Hero</div>
               <div class="cp-summon-cost" aria-label="Cost">
-                ${renderImgWithFallback(curImg, curName, 'cp-summon-coin')}
-                <span class="cp-summon-x">× ${esc(String(cfg.cost || 1))}</span>
+                ${renderImgWithFallback(String(heroCur?.img || ''), String(heroCur?.name || 'Coin'), 'cp-summon-coin')}
+                <span class="cp-summon-x">× ${esc(String(cfg.heroCost || 1))}</span>
               </div>
             </div>
           </button>
           <button class="cp-summon-main" type="button" id="cpSummonMonster" aria-label="Summon Monster" ${cfg.enabledNow && !monsterDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" src="${esc(monsterSummonBg)}" alt="Summon background" onerror="this.style.display='none';">
+            <img class="cp-summon-mainimg" id="cpSummonBgMonster" src="images/Summon/Su002-Castling.jpg" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
               <div class="cp-summon-title">Summon Monster</div>
               <div class="cp-summon-cost" aria-label="Cost">
-                ${renderImgWithFallback(curImg, curName, 'cp-summon-coin')}
-                <span class="cp-summon-x">× ${esc(String(cfg.cost || 1))}</span>
+                ${renderImgWithFallback(String(monCur?.img || ''), String(monCur?.name || 'Coin'), 'cp-summon-coin')}
+                <span class="cp-summon-x">× ${esc(String(cfg.monsterCost || 1))}</span>
               </div>
             </div>
           </button>
-          <button class="cp-summon-main" type="button" id="cpSummonHeroSilver" aria-label="Summon Hero 6 star or below" ${cfg.enabledNow && !heroDisabled ? '' : 'disabled'}>
-            <img class="cp-summon-mainimg" id="cpSummonBgImgSilver" src="${esc(String(s.summonBg || ''))}" alt="Summon background" onerror="this.style.display='none';">
+          <button class="cp-summon-main" type="button" id="cpSummonHeroAmateur" aria-label="Amateur Summon Hero" ${cfg.enabledNow && !amateurHeroDisabled ? '' : 'disabled'}>
+            <img class="cp-summon-mainimg" id="cpSummonBgHeroAmateur" src="images/Summon/Su003-Castling.png" alt="Summon background">
             <div class="cp-summon-overlay" aria-hidden="true">
-              <div class="cp-summon-title">Summon Hero (<=6★)</div>
+              <div class="cp-summon-title">Amateur Summon Hero</div>
               <div class="cp-summon-cost" aria-label="Cost">
-                ${renderImgWithFallback(silverImg, silverName, 'cp-summon-coin')}
-                <span class="cp-summon-x">× ${esc(String(silverHeroCost))}</span>
+                ${renderImgWithFallback(String(amHeroCur?.img || ''), String(amHeroCur?.name || 'Coin'), 'cp-summon-coin')}
+                <span class="cp-summon-x">× ${esc(String(cfg.amateurHeroCost || 100))}</span>
+              </div>
+            </div>
+          </button>
+          <button class="cp-summon-main" type="button" id="cpSummonMonsterAmateur" aria-label="Amateur Summon Monster" ${cfg.enabledNow && !amateurMonsterDisabled ? '' : 'disabled'}>
+            <img class="cp-summon-mainimg" id="cpSummonBgMonsterAmateur" src="images/Summon/Su004-Castling.png" alt="Summon background">
+            <div class="cp-summon-overlay" aria-hidden="true">
+              <div class="cp-summon-title">Amateur Summon Monster</div>
+              <div class="cp-summon-cost" aria-label="Cost">
+                ${renderImgWithFallback(String(amMonCur?.img || ''), String(amMonCur?.name || 'Coin'), 'cp-summon-coin')}
+                <span class="cp-summon-x">× ${esc(String(cfg.amateurMonsterCost || 100))}</span>
+              </div>
+            </div>
+          </button>
+          <button class="cp-summon-main" type="button" id="cpSummonItem" aria-label="Summon Item" ${cfg.enabledNow && !itemDisabled ? '' : 'disabled'}>
+            <img class="cp-summon-mainimg" id="cpSummonBgItem" src="images/Summon/Su005-Spellbook.png" alt="Summon background">
+            <div class="cp-summon-overlay" aria-hidden="true">
+              <div class="cp-summon-title">Summon Item</div>
+              <div class="cp-summon-cost" aria-label="Cost">
+                ${renderImgWithFallback(String(itemCur?.img || ''), String(itemCur?.name || 'Coin'), 'cp-summon-coin')}
+                <span class="cp-summon-x">× ${esc(String(cfg.itemCost || 1))}</span>
               </div>
             </div>
           </button>
@@ -6299,43 +6419,30 @@ const ChessPalPages = (() => {
         ${disabledText ? `<div class="cp-muted" style="margin-top:8px; text-align:center;">${esc(disabledText)}</div>` : ``}
         ${(cfg.enabledNow && heroDisabled) ? `<div class="cp-muted" style="margin-top:6px; text-align:center;">Hero summon is disabled by Admin.</div>` : ``}
         ${(cfg.enabledNow && monsterDisabled) ? `<div class="cp-muted" style="margin-top:6px; text-align:center;">Monster summon is disabled by Admin.</div>` : ``}
+        ${(cfg.enabledNow && amateurHeroDisabled) ? `<div class="cp-muted" style="margin-top:6px; text-align:center;">Amateur Hero summon is disabled by Admin.</div>` : ``}
+        ${(cfg.enabledNow && amateurMonsterDisabled) ? `<div class="cp-muted" style="margin-top:6px; text-align:center;">Amateur Monster summon is disabled by Admin.</div>` : ``}
+        ${(cfg.enabledNow && itemDisabled) ? `<div class="cp-muted" style="margin-top:6px; text-align:center;">Summon Item is disabled by Admin.</div>` : ``}
         <div class="cp-muted" id="cpSummonMsg" style="margin-top:10px; text-align:center;"></div>
       </div>
     `;
   };
   SummonPage.init = () => {
     const msg = document.getElementById('cpSummonMsg');
-    const bgImg = document.getElementById('cpSummonBgImg');
-    const bgImgSilver = document.getElementById('cpSummonBgImgSilver');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-    const syncOneBg = (imgEl) => {
+    const bindBgFallback = (imgEl, fallbacks) => {
       if (!imgEl) return;
-      const s = getGeneralSettings();
-      const src = String(s?.summonBg || '').trim();
-      if (!src) return;
-      if (imgEl.getAttribute('src') !== src) imgEl.setAttribute('src', src);
       imgEl.onerror = function() {
-        const cur = String(this.getAttribute('src') || '');
-        if (!cur) return;
-        if (cur.endsWith('.png')) return;
-        if (cur.endsWith('.jpg') || cur.endsWith('.jpeg') || cur.endsWith('.webp')) return;
-        try {
-          if (!this.dataset.try1) { this.dataset.try1 = '1'; this.src = `${cur}.png`; return; }
-          if (!this.dataset.try2) { this.dataset.try2 = '1'; this.src = `${cur}.jpg`; return; }
-          if (!this.dataset.try3) { this.dataset.try3 = '1'; this.src = `${cur}.webp`; return; }
-        } catch {}
+        const idx = Math.max(0, Math.floor(Number(this.dataset.fallbackIdx) || 0));
+        if (!Array.isArray(fallbacks) || idx >= fallbacks.length) { this.onerror = null; return; }
+        this.dataset.fallbackIdx = String(idx + 1);
+        this.src = String(fallbacks[idx]);
       };
     };
-    const syncSummonBg = () => {
-      syncOneBg(bgImg);
-      syncOneBg(bgImgSilver);
-    };
-    syncSummonBg();
-    try {
-      if (window.__cpSummonBgListener) window.removeEventListener('cpGeneralSettingsChanged', window.__cpSummonBgListener);
-    } catch {}
-    window.__cpSummonBgListener = () => { try { syncSummonBg(); } catch {} };
-    try { window.addEventListener('cpGeneralSettingsChanged', window.__cpSummonBgListener); } catch {}
+    bindBgFallback(document.getElementById('cpSummonBgHero'), ['images/Summon/Su001-Castling.png', 'images/Summon/Su001-Castling.jpg']);
+    bindBgFallback(document.getElementById('cpSummonBgMonster'), ['images/Summon/Su002-Castling.png', 'images/Summon/Su002-Castling.jpg']);
+    bindBgFallback(document.getElementById('cpSummonBgHeroAmateur'), ['images/Summon/Su003-Castling.jpg', 'images/Summon/Su003-Castling.webp', 'images/Summon/Su001-Castling.jpg']);
+    bindBgFallback(document.getElementById('cpSummonBgMonsterAmateur'), ['images/Summon/Su004-Castling.jpg', 'images/Summon/Su004-Castling.webp', 'images/Summon/Su002-Castling.jpg']);
+    bindBgFallback(document.getElementById('cpSummonBgItem'), ['images/Summon/Su005-Spellbook.jpg', 'images/Summon/Su005-Spellbook.webp', 'images/Summon/Su001-Castling.jpg']);
     document.getElementById('cpSummonSettingBtn')?.addEventListener('click', () => {
       showSummonAdminSettingsModal(() => {
         try { Router.renderCurrent(); } catch {}
@@ -6358,7 +6465,19 @@ const ChessPalPages = (() => {
           setMsg('Monster summon is disabled by Admin.');
           return;
         }
-        if (kind === 'hero_silver') {
+        if (kind === 'hero_amateur' && !summonCfg.amateurHeroEnabledNow) {
+          setMsg('Amateur Hero summon is disabled by Admin.');
+          return;
+        }
+        if (kind === 'monster_amateur' && !summonCfg.amateurMonsterEnabledNow) {
+          setMsg('Amateur Monster summon is disabled by Admin.');
+          return;
+        }
+        if (kind === 'item' && !summonCfg.itemEnabledNow) {
+          setMsg('Summon Item is disabled by Admin.');
+          return;
+        }
+        if (kind === 'hero_amateur') {
           await loadHeroOverrides();
           const pool = getAllHeroes().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
           if (!pool.length) {
@@ -6366,9 +6485,10 @@ const ChessPalPages = (() => {
             return;
           }
           let slotsSilver = loadStorage();
-          const spendSilver = spendFromStorage(slotsSilver, 'silver_coin', 100);
+          const spendSilver = spendFromStorage(slotsSilver, summonCfg.amateurHeroCurrencyId, summonCfg.amateurHeroCost);
           if (!spendSilver.ok) {
-            setMsg('Not enough Silver Coin.');
+            const d = getStorageItemDef(summonCfg.amateurHeroCurrencyId);
+            setMsg(`Not enough ${String(d?.name || 'coins')}.`);
             return;
           }
           slotsSilver = spendSilver.slots;
@@ -6383,16 +6503,16 @@ const ChessPalPages = (() => {
           showHeroModal(pick);
           return;
         }
-        const costDef = getStorageItemDef(summonCfg.currencyId || 'gold_coin') || getStorageItemDef('gold_coin');
-        let slots = loadStorage();
-        const spent = spendFromStorage(slots, summonCfg.currencyId, summonCfg.cost);
-        if (!spent.ok) {
-          setMsg(`Not enough ${String(costDef?.name || 'coins')}.`);
-          return;
-        }
-        slots = spent.slots;
-        saveStorage(slots);
         if (kind === 'hero') {
+          const costDef = getStorageItemDef(summonCfg.heroCurrencyId || 'gold_coin') || getStorageItemDef('gold_coin');
+          let slots = loadStorage();
+          const spent = spendFromStorage(slots, summonCfg.heroCurrencyId, summonCfg.heroCost);
+          if (!spent.ok) {
+            setMsg(`Not enough ${String(costDef?.name || 'coins')}.`);
+            return;
+          }
+          slots = spent.slots;
+          saveStorage(slots);
           await loadHeroOverrides();
           const pool = getAllHeroes();
           const pick = weightedPickByRates(pool, summonCfg.heroRates);
@@ -6405,22 +6525,82 @@ const ChessPalPages = (() => {
           showHeroModal(pick);
           return;
         }
-        await loadMonsterOverrides();
-        const pool = getAllMonsters();
-        const pick = weightedPickByRates(pool, summonCfg.monsterRates);
-        if (!pick) {
-          setMsg('No monsters available.');
+        if (kind === 'monster') {
+          const costDef = getStorageItemDef(summonCfg.monsterCurrencyId || 'gold_coin') || getStorageItemDef('gold_coin');
+          let slots = loadStorage();
+          const spent = spendFromStorage(slots, summonCfg.monsterCurrencyId, summonCfg.monsterCost);
+          if (!spent.ok) {
+            setMsg(`Not enough ${String(costDef?.name || 'coins')}.`);
+            return;
+          }
+          slots = spent.slots;
+          saveStorage(slots);
+          await loadMonsterOverrides();
+          const pool = getAllMonsters();
+          const pick = weightedPickByRates(pool, summonCfg.monsterRates);
+          if (!pick) {
+            setMsg('No monsters available.');
+            return;
+          }
+          const r = addOwnedMonsterId(pick.id) || {};
+          setMsg(r.duplicate ? `Summoned duplicate monster: ${pick.name} (EXP +${r.expGained || 0})` : `Summoned monster: ${pick.name}`);
           return;
         }
-        const r = addOwnedMonsterId(pick.id) || {};
-        setMsg(r.duplicate ? `Summoned duplicate monster: ${pick.name} (EXP +${r.expGained || 0})` : `Summoned monster: ${pick.name}`);
+        if (kind === 'monster_amateur') {
+          const costDef = getStorageItemDef(summonCfg.amateurMonsterCurrencyId || 'silver_coin') || getStorageItemDef('silver_coin');
+          let slots = loadStorage();
+          const spent = spendFromStorage(slots, summonCfg.amateurMonsterCurrencyId, summonCfg.amateurMonsterCost);
+          if (!spent.ok) {
+            setMsg(`Not enough ${String(costDef?.name || 'coins')}.`);
+            return;
+          }
+          slots = spent.slots;
+          saveStorage(slots);
+          await loadMonsterOverrides();
+          const pool = getAllMonsters().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
+          const pick = weightedPickByRates(pool, summonCfg.monsterRates);
+          if (!pick) {
+            setMsg('No 6★ or lower monsters available.');
+            return;
+          }
+          const r = addOwnedMonsterId(pick.id) || {};
+          setMsg(r.duplicate ? `Summoned duplicate monster: ${pick.name} (EXP +${r.expGained || 0})` : `Summoned monster: ${pick.name}`);
+          return;
+        }
+        if (kind === 'item') {
+          const costDef = getStorageItemDef(summonCfg.itemCurrencyId || 'gold_coin') || getStorageItemDef('gold_coin');
+          let slots = loadStorage();
+          const spent = spendFromStorage(slots, summonCfg.itemCurrencyId, summonCfg.itemCost);
+          if (!spent.ok) {
+            setMsg(`Not enough ${String(costDef?.name || 'coins')}.`);
+            return;
+          }
+          slots = spent.slots;
+          const pool = getSummonableItems();
+          const pick = weightedPickByRates(pool, summonCfg.itemRates);
+          if (!pick) {
+            setMsg('No summon items available.');
+            return;
+          }
+          const before = JSON.stringify(slots);
+          slots = addItemToStorage(slots, pick.id, 1);
+          if (JSON.stringify(slots) === before) {
+            setMsg('Storage is full.');
+            return;
+          }
+          saveStorage(slots);
+          setMsg(`Summoned item: ${pick.name}`);
+          return;
+        }
       } catch (e) {
         setMsg(String(e?.message || e || 'Summon failed'));
       }
     };
     document.getElementById('cpSummonHero')?.addEventListener('click', () => { runSummon('hero'); }, { passive: true });
     document.getElementById('cpSummonMonster')?.addEventListener('click', () => { runSummon('monster'); }, { passive: true });
-    document.getElementById('cpSummonHeroSilver')?.addEventListener('click', () => { runSummon('hero_silver'); }, { passive: true });
+    document.getElementById('cpSummonHeroAmateur')?.addEventListener('click', () => { runSummon('hero_amateur'); }, { passive: true });
+    document.getElementById('cpSummonMonsterAmateur')?.addEventListener('click', () => { runSummon('monster_amateur'); }, { passive: true });
+    document.getElementById('cpSummonItem')?.addEventListener('click', () => { runSummon('item'); }, { passive: true });
   };
 
   function SettingsPage() {}

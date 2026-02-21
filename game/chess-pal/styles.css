@@ -1562,14 +1562,16 @@ body {
 }
 .cp-enhance-grid{
   display:grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
   gap: 10px;
+  align-items:center;
 }
 .cp-enhance-slot{
   border: 1px solid rgba(255,255,255,0.16);
   background: rgba(255,255,255,0.05);
   border-radius: 14px;
-  min-height: 132px;
+  aspect-ratio: 1 / 1;
+  min-height: 150px;
   padding: 10px;
   color: rgba(241,245,249,0.96);
   cursor: pointer;
@@ -1584,10 +1586,17 @@ body {
 }
 .cp-enhance-slot-body{
   margin-top: 8px;
-  min-height: 70px;
+  min-height: 0;
   display:flex;
   align-items:center;
   justify-content:flex-start;
+}
+.cp-enhance-plus{
+  font-size: 34px;
+  font-weight: 1000;
+  color: rgba(226,232,240,0.95);
+  text-align:center;
+  min-width: 26px;
 }
 .cp-enhance-slot.is-consuming{
   animation: cpEnhanceSwirl 520ms ease-in-out;
@@ -1611,6 +1620,9 @@ body {
 @media (max-width: 760px){
   .cp-enhance-grid{
     grid-template-columns: 1fr;
+  }
+  .cp-enhance-plus{
+    display:none;
   }
 }
 /* (moved) In-game beam/board/practice styles live in `game-styles.css`. */
