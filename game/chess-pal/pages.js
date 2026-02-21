@@ -3,6 +3,7 @@
 const ChessPalPages = (() => {
   const CHESS_PAL_CLOUD_KEYS = [
     'chessPalPreset',
+    'chessPalChessComReward',
     'chessPalOwnedHeroes',
     'chessPalOwnedMonsters',
     'chessPalSeenMonsters',
@@ -3310,7 +3311,7 @@ const ChessPalPages = (() => {
   }
 
   function renderStars(n) {
-    const k = Math.max(1, Math.min(8, Number(n) || 5));
+    const k = Math.max(1, Math.min(10, Number(n) || 5));
     return '★'.repeat(k);
   }
 
@@ -3550,6 +3551,31 @@ const ChessPalPages = (() => {
   HeroesPage.render = () => {
     return `
       <div class="cp-hero-page">
+        <div class="cp-row" style="margin-top:0; gap:8px; flex-wrap:wrap;">
+          <input class="cp-input" id="cpHeroesSearch" type="text" placeholder="Search Hero by ID or name" style="flex:1 1 220px;">
+          <select class="cp-select" id="cpHeroesElementFilter" style="width:170px;">
+            <option value="">All Elements</option>
+            <option value="fire">Fire</option>
+            <option value="water">Water</option>
+            <option value="wood">Wood</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="heart">Heart</option>
+          </select>
+          <select class="cp-select" id="cpHeroesRarityFilter" style="width:150px;">
+            <option value="">All Stars</option>
+            <option value="1">★1</option>
+            <option value="2">★2</option>
+            <option value="3">★3</option>
+            <option value="4">★4</option>
+            <option value="5">★5</option>
+            <option value="6">★6</option>
+            <option value="7">★7</option>
+            <option value="8">★8</option>
+            <option value="9">★9</option>
+            <option value="10">★10</option>
+          </select>
+        </div>
         <div class="cp-hero-grid cp-hero-grid--full" id="cpHeroesGrid"></div>
       </div>
     `;
@@ -3562,8 +3588,24 @@ const ChessPalPages = (() => {
     const admin = isAdminMode();
     const owned = admin ? null : getOwnedHeroSet();
     const all = getAllHeroes();
-    const list = admin ? all : all.filter(h => owned && owned.has(h.id));
-    host.innerHTML = list.map(h => `
+    const baseList = admin ? all : all.filter(h => owned && owned.has(h.id));
+    const searchEl = document.getElementById('cpHeroesSearch');
+    const elemEl = document.getElementById('cpHeroesElementFilter');
+    const rarityEl = document.getElementById('cpHeroesRarityFilter');
+    const renderList = () => {
+      const q = String(searchEl?.value || '').trim().toLowerCase();
+      const ef = String(elemEl?.value || '').trim().toLowerCase();
+      const rf = String(rarityEl?.value || '').trim();
+      const list = baseList.filter((h) => {
+        if (q) {
+          const s = `${String(h.id || '').toLowerCase()} ${String(h.name || '').toLowerCase()}`;
+          if (!s.includes(q)) return false;
+        }
+        if (ef && String(h.element || '').toLowerCase() !== ef) return false;
+        if (rf && String(Math.max(1, Math.min(10, Math.floor(Number(h.rarity) || 1)))) !== rf) return false;
+        return true;
+      });
+      host.innerHTML = list.map(h => `
       <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini || h.img)}" alt="${esc(h.name)}" decoding="async" loading="lazy">
@@ -3575,19 +3617,24 @@ const ChessPalPages = (() => {
           <div class="cp-hero-mini-sub">#${esc(h.id)} · ${esc(elementLabel(h.element))}</div>
         </div>
       </button>
-    `).join('');
-    host.querySelectorAll('[data-hero-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = String(btn.getAttribute('data-hero-id') || '');
-        if (!admin) {
-          const owned2 = getOwnedHeroSet();
-          if (!owned2.has(id)) return;
-        }
-        const hero = getAllHeroes().find(x => x.id === id);
-        if (hero) showHeroModal(hero);
+    `).join('') || `<div class="cp-muted">No heroes found.</div>`;
+      host.querySelectorAll('[data-hero-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = String(btn.getAttribute('data-hero-id') || '');
+          if (!admin) {
+            const owned2 = getOwnedHeroSet();
+            if (!owned2.has(id)) return;
+          }
+          const hero = getAllHeroes().find(x => x.id === id);
+          if (hero) showHeroModal(hero);
+        });
       });
-    });
-    try { preloadImages(list.map(x => x.mini || x.img).filter(Boolean), 36); } catch {}
+    };
+    searchEl?.addEventListener('input', renderList);
+    elemEl?.addEventListener('change', renderList);
+    rarityEl?.addEventListener('change', renderList);
+    renderList();
+    try { preloadImages(baseList.map(x => x.mini || x.img).filter(Boolean), 36); } catch {}
   };
 
   // ----------------------------
@@ -3911,6 +3958,31 @@ const ChessPalPages = (() => {
   MonstersPage.render = () => {
     return `
       <div class="cp-hero-page">
+        <div class="cp-row" style="margin-top:0; gap:8px; flex-wrap:wrap;">
+          <input class="cp-input" id="cpMonstersSearch" type="text" placeholder="Search Monster by ID or name" style="flex:1 1 220px;">
+          <select class="cp-select" id="cpMonstersElementFilter" style="width:170px;">
+            <option value="">All Elements</option>
+            <option value="fire">Fire</option>
+            <option value="water">Water</option>
+            <option value="wood">Wood</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="heart">Heart</option>
+          </select>
+          <select class="cp-select" id="cpMonstersRarityFilter" style="width:150px;">
+            <option value="">All Stars</option>
+            <option value="1">★1</option>
+            <option value="2">★2</option>
+            <option value="3">★3</option>
+            <option value="4">★4</option>
+            <option value="5">★5</option>
+            <option value="6">★6</option>
+            <option value="7">★7</option>
+            <option value="8">★8</option>
+            <option value="9">★9</option>
+            <option value="10">★10</option>
+          </select>
+        </div>
         <div class="cp-hero-grid cp-hero-grid--full" id="cpMonstersGrid"></div>
       </div>
     `;
@@ -3924,8 +3996,24 @@ const ChessPalPages = (() => {
     const seen = admin ? null : getSeenMonsterSet();
     const owned = admin ? null : getOwnedMonsterSet();
     const all = getAllMonsters();
-    const list = admin ? all : all.filter(m => (owned && owned.has(m.id)) || (seen && seen.has(m.id)));
-    host.innerHTML = list.map(m => `
+    const baseList = admin ? all : all.filter(m => (owned && owned.has(m.id)) || (seen && seen.has(m.id)));
+    const searchEl = document.getElementById('cpMonstersSearch');
+    const elemEl = document.getElementById('cpMonstersElementFilter');
+    const rarityEl = document.getElementById('cpMonstersRarityFilter');
+    const renderList = () => {
+      const q = String(searchEl?.value || '').trim().toLowerCase();
+      const ef = String(elemEl?.value || '').trim().toLowerCase();
+      const rf = String(rarityEl?.value || '').trim();
+      const list = baseList.filter((m) => {
+        if (q) {
+          const s = `${String(m.id || '').toLowerCase()} ${String(m.name || '').toLowerCase()}`;
+          if (!s.includes(q)) return false;
+        }
+        if (ef && String(m.element || '').toLowerCase() !== ef) return false;
+        if (rf && String(Math.max(1, Math.min(10, Math.floor(Number(m.rarity) || 1)))) !== rf) return false;
+        return true;
+      });
+      host.innerHTML = list.map(m => `
       <button class="cp-hero-card ${(!admin && owned && !owned.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}" ${(!admin && owned && !owned.has(m.id)) ? 'disabled' : ''}>
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}" decoding="async" loading="lazy">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
@@ -3936,19 +4024,24 @@ const ChessPalPages = (() => {
           <div class="cp-hero-mini-sub">#${esc(m.id)} · ${esc(elementLabel(m.element))}</div>
         </div>
       </button>
-    `).join('');
-    host.querySelectorAll('[data-monster-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = String(btn.getAttribute('data-monster-id') || '');
-        if (!admin) {
-          const owned2 = getOwnedMonsterSet();
-          if (!owned2.has(id)) return;
-        }
-        const m = getAllMonsters().find(x => x.id === id);
-        if (m) showMonsterModal(m);
+    `).join('') || `<div class="cp-muted">No monsters found.</div>`;
+      host.querySelectorAll('[data-monster-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = String(btn.getAttribute('data-monster-id') || '');
+          if (!admin) {
+            const owned2 = getOwnedMonsterSet();
+            if (!owned2.has(id)) return;
+          }
+          const m = getAllMonsters().find(x => x.id === id);
+          if (m) showMonsterModal(m);
+        });
       });
-    });
-    try { preloadImages(list.map(x => x.mini || x.img).filter(Boolean), 36); } catch {}
+    };
+    searchEl?.addEventListener('input', renderList);
+    elemEl?.addEventListener('change', renderList);
+    rarityEl?.addEventListener('change', renderList);
+    renderList();
+    try { preloadImages(baseList.map(x => x.mini || x.img).filter(Boolean), 36); } catch {}
   };
 
   // ----------------------------
@@ -4619,6 +4712,189 @@ const ChessPalPages = (() => {
     } catch {}
   }
 
+  const CHESSCOM_REWARD_KEY = 'chessPalChessComReward';
+
+  function loadChessComRewardState() {
+    try {
+      const raw = localStorage.getItem(CHESSCOM_REWARD_KEY);
+      if (!raw) return { chessComId: '', claimDate: '', todayWins: 0, claimedWins: 0, rapid: null };
+      const v = JSON.parse(raw);
+      return {
+        chessComId: String(v?.chessComId || '').trim().toLowerCase(),
+        claimDate: String(v?.claimDate || '').trim(),
+        todayWins: Math.max(0, Math.floor(Number(v?.todayWins) || 0)),
+        claimedWins: Math.max(0, Math.floor(Number(v?.claimedWins) || 0)),
+        lastCheckedAt: Math.max(0, Math.floor(Number(v?.lastCheckedAt) || 0)),
+        rapid: v?.rapid && typeof v.rapid === 'object' ? {
+          win: Math.max(0, Math.floor(Number(v.rapid.win) || 0)),
+          loss: Math.max(0, Math.floor(Number(v.rapid.loss) || 0)),
+          draw: Math.max(0, Math.floor(Number(v.rapid.draw) || 0)),
+        } : null,
+      };
+    } catch {
+      return { chessComId: '', claimDate: '', todayWins: 0, claimedWins: 0, rapid: null };
+    }
+  }
+
+  function saveChessComRewardState(s) {
+    try { localStorage.setItem(CHESSCOM_REWARD_KEY, JSON.stringify(s || {})); } catch {}
+    try { window.dispatchEvent(new Event('cpChessComRewardChanged')); } catch {}
+  }
+
+  function isChessComClaimedToday(stateLike) {
+    const s = stateLike || loadChessComRewardState();
+    return String(s?.claimDate || '') === localDateKey(new Date());
+  }
+
+  async function fetchChessComRapidAndTodayWins(chessComId) {
+    const id = String(chessComId || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]{2,30}$/.test(id)) throw new Error('Invalid chess.com ID format.');
+    const statsResp = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(id)}/stats`, { method: 'GET' });
+    if (!statsResp.ok) throw new Error('Failed to load chess.com stats.');
+    const stats = await statsResp.json().catch(() => ({}));
+    const rapid = stats?.chess_rapid?.record || {};
+    const rapidRecord = {
+      win: Math.max(0, Math.floor(Number(rapid?.win) || 0)),
+      loss: Math.max(0, Math.floor(Number(rapid?.loss) || 0)),
+      draw: Math.max(0, Math.floor(Number(rapid?.draw) || 0)),
+    };
+
+    const archivesResp = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(id)}/games/archives`, { method: 'GET' });
+    if (!archivesResp.ok) throw new Error('Failed to load chess.com archives.');
+    const archivesData = await archivesResp.json().catch(() => ({}));
+    const archives = Array.isArray(archivesData?.archives) ? archivesData.archives : [];
+    const todayKey = localDateKey(new Date());
+    let winsToday = 0;
+    if (archives.length) {
+      const latest = String(archives[archives.length - 1] || '').trim();
+      if (latest) {
+        const gamesResp = await fetch(latest, { method: 'GET' });
+        if (gamesResp.ok) {
+          const gamesData = await gamesResp.json().catch(() => ({}));
+          const games = Array.isArray(gamesData?.games) ? gamesData.games : [];
+          winsToday = games.filter((g) => {
+            const endTs = Math.floor(Number(g?.end_time) || 0);
+            if (!(endTs > 0)) return false;
+            const day = localDateKey(new Date(endTs * 1000));
+            if (day !== todayKey) return false;
+            const w = String(g?.white?.username || '').trim().toLowerCase();
+            const b = String(g?.black?.username || '').trim().toLowerCase();
+            const winner = String(g?.winner || '').trim().toLowerCase();
+            if (winner === 'white' && w === id) return true;
+            if (winner === 'black' && b === id) return true;
+            return false;
+          }).length;
+        }
+      }
+    }
+    return { rapid: rapidRecord, todayWins: Math.max(0, winsToday) };
+  }
+
+  function showChessComRewardModal(onUpdated) {
+    const old = document.getElementById('cpChessComOverlay');
+    if (old) old.remove();
+    const st = loadChessComRewardState();
+    const overlay = document.createElement('div');
+    overlay.id = 'cpChessComOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Chess.com reward">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Chess.com game play</div>
+          <div class="cp-muted" style="margin-top:6px;">Set your Chess.com ID, view Rapid record, and claim Gold once per day based on today's wins.</div>
+          <div class="cp-setting-item" style="margin-top:12px;">
+            <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Chess.com ID</div>
+            <div class="cp-row" style="margin-top:0; gap:8px; align-items:center;">
+              <input class="cp-input" id="cpChessComIdInput" type="text" placeholder="username" value="${esc(String(st.chessComId || ''))}" style="flex:1 1 auto;">
+              <button class="cp-tool-btn" type="button" id="cpChessComRefresh">Refresh</button>
+            </div>
+          </div>
+          <div class="cp-setting-item" style="margin-top:10px;">
+            <div class="cp-setting-help" id="cpChessComRapidText">Rapid Record: ${esc(st.rapid ? `${st.rapid.win}-${st.rapid.loss}-${st.rapid.draw}` : 'N/A')}</div>
+            <div class="cp-setting-help" id="cpChessComTodayWins">Today Wins: ${esc(String(Math.max(0, Number(st.todayWins) || 0)))}</div>
+            <div class="cp-setting-help" id="cpChessComClaimInfo">Claim status: ${isChessComClaimedToday(st) ? 'Claimed today' : 'Not claimed today'}</div>
+          </div>
+          <div class="cp-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">
+            <button class="cp-tool-btn" type="button" id="cpChessComClaimBtn" ${isChessComClaimedToday(st) ? 'disabled' : ''}>Claim Gold</button>
+            <button class="cp-tool-btn" type="button" id="cpChessComCloseBtn">Close</button>
+          </div>
+          <div class="cp-muted" id="cpChessComMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const msg = overlay.querySelector('#cpChessComMsg');
+    const rapidText = overlay.querySelector('#cpChessComRapidText');
+    const winsText = overlay.querySelector('#cpChessComTodayWins');
+    const claimText = overlay.querySelector('#cpChessComClaimInfo');
+    const claimBtn = overlay.querySelector('#cpChessComClaimBtn');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    const setUiByState = (s) => {
+      const r = s?.rapid || null;
+      if (rapidText) rapidText.textContent = `Rapid Record: ${r ? `${r.win}-${r.loss}-${r.draw}` : 'N/A'}`;
+      if (winsText) winsText.textContent = `Today Wins: ${Math.max(0, Math.floor(Number(s?.todayWins) || 0))}`;
+      const claimed = isChessComClaimedToday(s);
+      if (claimText) claimText.textContent = `Claim status: ${claimed ? 'Claimed today' : 'Not claimed today'}`;
+      if (claimBtn) claimBtn.disabled = claimed;
+    };
+    setUiByState(st);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    overlay.querySelector('#cpChessComCloseBtn')?.addEventListener('click', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+
+    overlay.querySelector('#cpChessComRefresh')?.addEventListener('click', async () => {
+      try {
+        setMsg('');
+        const id = String(overlay.querySelector('#cpChessComIdInput')?.value || '').trim().toLowerCase();
+        if (!id) throw new Error('Please enter chess.com ID.');
+        const data = await fetchChessComRapidAndTodayWins(id);
+        const cur = loadChessComRewardState();
+        const next = {
+          ...cur,
+          chessComId: id,
+          rapid: data.rapid,
+          todayWins: data.todayWins,
+          lastCheckedAt: Date.now(),
+        };
+        saveChessComRewardState(next);
+        setUiByState(next);
+        setMsg('Chess.com data updated.');
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Refresh failed'));
+      }
+    }, { passive: true });
+
+    overlay.querySelector('#cpChessComClaimBtn')?.addEventListener('click', () => {
+      try {
+        setMsg('');
+        const cur = loadChessComRewardState();
+        if (isChessComClaimedToday(cur)) throw new Error('Already claimed today.');
+        const wins = Math.max(0, Math.floor(Number(cur?.todayWins) || 0));
+        if (wins <= 0) throw new Error('No win today, no reward.');
+        let slots = loadStorage();
+        const before = JSON.stringify(slots);
+        slots = addItemToStorage(slots, 'gold_coin', wins);
+        if (JSON.stringify(slots) === before) throw new Error('Storage is full.');
+        saveStorage(slots);
+        const next = { ...cur, claimDate: localDateKey(new Date()), claimedWins: wins };
+        saveChessComRewardState(next);
+        setUiByState(next);
+        setMsg(`Claimed ${wins} Gold Coin.`);
+        try { onUpdated && onUpdated(); } catch {}
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Claim failed'));
+      }
+    }, { passive: true });
+  }
+
   function swapOrStackSlots(slots, fromIdx, toIdx) {
     const a = slots[fromIdx] || null;
     const b = slots[toIdx] || null;
@@ -4825,7 +5101,9 @@ const ChessPalPages = (() => {
     }, { passive: true });
 
     document.getElementById('cpRewardChesscom')?.addEventListener('click', () => {
-      setMsg('Reward #2 is coming soon.');
+      showChessComRewardModal(() => {
+        try { Router.renderCurrent(); } catch {}
+      });
     }, { passive: true });
     document.getElementById('cpRewardPuzzle')?.addEventListener('click', () => {
       setMsg('Reward #3 is coming soon.');
@@ -5016,12 +5294,18 @@ const ChessPalPages = (() => {
             </div>
           </div>
           <div class="cp-setting-item" style="margin-top:12px;">
-            <div class="cp-setting-help" style="margin-top:0; margin-bottom:8px;">Hero summon rates (relative weight; 0 means disabled for that hero)</div>
-            <div id="cpSummonHeroRateRows" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px;"></div>
+            <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
+              <div class="cp-setting-help" style="margin:0;">Hero summon rates (relative weight; 0 means disabled)</div>
+              <button class="cp-tool-btn" type="button" id="cpSummonHeroRatesToggle" aria-expanded="false">Expand</button>
+            </div>
+            <div id="cpSummonHeroRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
           <div class="cp-setting-item" style="margin-top:10px;">
-            <div class="cp-setting-help" style="margin-top:0; margin-bottom:8px;">Monster summon rates (relative weight; 0 means disabled for that monster)</div>
-            <div id="cpSummonMonsterRateRows" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px;"></div>
+            <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
+              <div class="cp-setting-help" style="margin:0;">Monster summon rates (relative weight; 0 means disabled)</div>
+              <button class="cp-tool-btn" type="button" id="cpSummonMonsterRatesToggle" aria-expanded="false">Expand</button>
+            </div>
+            <div id="cpSummonMonsterRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
           <div class="cp-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">
             <button class="cp-tool-btn" type="button" id="cpSummonCfgCancel">Cancel</button>
@@ -5047,9 +5331,10 @@ const ChessPalPages = (() => {
       heroRowsHost.innerHTML = heroes.map((h) => {
         const id = String(h?.id || '').trim();
         const w = Number(cfg?.heroRates?.[id]);
+        const stars = Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)));
         return `
           <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
-            <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(h?.name || id))}</span>
+            <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(h?.name || id))} · ★${esc(String(stars))}</span>
             <input class="cp-input" data-summon-hero-rate="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(w) ? w : 1))}" style="width:92px;">
           </label>
         `;
@@ -5059,14 +5344,33 @@ const ChessPalPages = (() => {
       monsterRowsHost.innerHTML = monsters.map((m) => {
         const id = String(m?.id || '').trim();
         const w = Number(cfg?.monsterRates?.[id]);
+        const stars = Math.max(1, Math.min(10, Math.floor(Number(m?.rarity) || 1)));
         return `
           <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
-            <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(m?.name || id))}</span>
+            <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(m?.name || id))} · ★${esc(String(stars))}</span>
             <input class="cp-input" data-summon-mon-rate="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(w) ? w : 1))}" style="width:92px;">
           </label>
         `;
       }).join('');
     }
+    const heroToggle = overlay.querySelector('#cpSummonHeroRatesToggle');
+    const monToggle = overlay.querySelector('#cpSummonMonsterRatesToggle');
+    heroToggle?.addEventListener('click', () => {
+      const open = heroRowsHost?.style.display !== 'none';
+      if (heroRowsHost) heroRowsHost.style.display = open ? 'none' : 'grid';
+      if (heroToggle) {
+        heroToggle.textContent = open ? 'Expand' : 'Collapse';
+        heroToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      }
+    }, { passive: true });
+    monToggle?.addEventListener('click', () => {
+      const open = monsterRowsHost?.style.display !== 'none';
+      if (monsterRowsHost) monsterRowsHost.style.display = open ? 'none' : 'grid';
+      if (monToggle) {
+        monToggle.textContent = open ? 'Expand' : 'Collapse';
+        monToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      }
+    }, { passive: true });
 
     const close = () => {
       try { overlay.remove(); } catch {}
