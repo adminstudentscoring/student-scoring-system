@@ -189,7 +189,7 @@ const ChessPalPages = (() => {
       pieceStyle: 'none',
       // Backgrounds
       practiceBg: 'images/Mode/Practice/Map/Map001-Grassland.jpg',
-      summonBg: 'images/Summon/Su001-Castling.png',
+      summonBg: 'images/Summon/Su001-Summon-Hero.jpg',
       // Admin tuning (used for Practice combat math)
       streakMult: 1.05,
       atkScale: 0.10,
@@ -1320,7 +1320,7 @@ const ChessPalPages = (() => {
         </div>
 
         <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="shop" aria-label="Shop">
-          <img class="cp-chapter-img" src="images/Summon/Su001-Castling.png" alt="Shop" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <img class="cp-chapter-img" src="images/Summon/Su001-Summon-Hero.jpg" alt="Shop" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
           <div class="cp-chapter-label">Shop</div>
         </div>
 
@@ -5464,7 +5464,7 @@ const ChessPalPages = (() => {
           <div class="cp-square-label">Mall</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-shop="summon" aria-label="Summon">
-          ${renderImgWithFallback('images/Summon/Su002-Castling.png', 'Summon', 'cp-square-img')}
+          ${renderImgWithFallback('images/Summon/Su002-Summon-Monster.jpg', 'Summon', 'cp-square-img')}
           <div class="cp-square-label">Summon</div>
         </button>
       </div>
@@ -6346,71 +6346,44 @@ const ChessPalPages = (() => {
   const SUMMON_MEDIA = {
     hero: {
       poster: [
-        'images/Summon/Su001-Castling.png',
-        'images/Summon/Su001-Castling.jpg',
-        'images/Summon/SU001-Castling.png',
-        'images/Summon/SU001-Castling.jpg',
-        'images/Summon/su001-castling.png',
-        'images/Summon/su001-castling.jpg',
+        'images/Summon/Su001-Summon-Hero.jpg',
       ],
       video: [
-        'images/Summon/Su001-Castling.mp4',
-        'images/Summon/Su001-Castling.webm',
-        'images/Summon/SU001-Castling.mp4',
-        'images/Summon/SU001-Castling.webm',
-        'images/Summon/su001-castling.mp4',
-        'images/Summon/su001-castling.webm',
+        'images/Summon/Su001-Summon-Hero.mp4',
+        'images/Summon/Su001-Summon-Hero.webm',
       ],
     },
     monster: {
       poster: [
-        'images/Summon/Su002-Castling.png',
-        'images/Summon/Su002-Castling.jpg',
-        'images/Summon/SU002-Castling.png',
-        'images/Summon/SU002-Castling.jpg',
-        'images/Summon/su002-castling.png',
-        'images/Summon/su002-castling.jpg',
+        'images/Summon/Su002-Summon-Monster.jpg',
       ],
       video: [
-        'images/Summon/Su002-Castling.mp4',
-        'images/Summon/Su002-Castling.webm',
-        'images/Summon/SU002-Castling.mp4',
-        'images/Summon/SU002-Castling.webm',
-        'images/Summon/su002-castling.mp4',
-        'images/Summon/su002-castling.webm',
+        'images/Summon/Su002-Summon-Monster.mp4',
+        'images/Summon/Su002-Summon-Monster.webm',
       ],
     },
     hero_amateur: {
       poster: [
-        'images/Summon/Su003-Castling.png',
-        'images/Summon/Su003-Castling.jpg',
-        'images/Summon/SU003-Castling.png',
-        'images/Summon/SU003-Castling.jpg',
-        'images/Summon/su003-castling.png',
-        'images/Summon/su003-castling.jpg',
+        'images/Summon/Su003-Amatuer-Summon-Hero.png',
       ],
       video: [
-        'images/Summon/Su003-Castling.mp4',
-        'images/Summon/Su003-Castling.webm',
-        'images/Summon/SU003-Castling.mp4',
-        'images/Summon/SU003-Castling.webm',
-        'images/Summon/su003-castling.mp4',
-        'images/Summon/su003-castling.webm',
+        'images/Summon/Su003-Amatuer-Summon-Hero.mp4',
+        'images/Summon/Su003-Amatuer-Summon-Hero.webm',
       ],
     },
     monster_amateur: {
-      poster: ['images/Summon/Su004-Castling.png', 'images/Summon/Su004-Castling.jpg'],
-      video: ['images/Summon/Su004-Castling.mp4', 'images/Summon/Su004-Castling.webm'],
+      poster: ['images/Summon/Su004-Amatuer-Summon-Monster.png'],
+      video: ['images/Summon/Su004-Amatuer-Summon-Monster.mp4', 'images/Summon/Su004-Amatuer-Summon-Monster.webm'],
     },
     item: {
-      poster: ['images/Summon/Su005-Spellbook.png', 'images/Summon/Su005-Spellbook.jpg'],
-      video: ['images/Summon/Su005-Spellbook.mp4', 'images/Summon/Su005-Spellbook.webm'],
+      poster: ['images/Summon/Su005-Summon-Item.png'],
+      video: ['images/Summon/Su005-Summon-Item.mp4', 'images/Summon/Su005-Summon-Item.webm'],
     },
   };
 
   function getSummonPoster(kind) {
     const list = SUMMON_MEDIA?.[String(kind || '').trim()]?.poster;
-    return String((Array.isArray(list) && list[0]) || 'images/Summon/Su001-Castling.jpg');
+    return String((Array.isArray(list) && list[0]) || 'images/Summon/Su001-Summon-Hero.jpg');
   }
 
   async function playSummonCinematic(kind) {
