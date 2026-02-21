@@ -2487,6 +2487,80 @@ const ChessPalPages = (() => {
           if (adv[d] === a) return 0.75;
           return 1;
         };
+        const clampNum = (v, lo, hi, fallback = 0) => {
+          const n = Number(v);
+          if (!Number.isFinite(n)) return fallback;
+          return Math.max(lo, Math.min(hi, n));
+        };
+        const getMonsterSkillSpec = (monsterLike) => {
+          const mid = String(monsterLike?.monsterId || '').trim().padStart(3, '0');
+          const mdef = getMonsterBase(mid) || getMonsterFromDbQuick(mid) || {};
+          const passive = (mdef?.passiveSkill && typeof mdef.passiveSkill === 'object') ? mdef.passiveSkill : { params: {} };
+          const active = (mdef?.activeSkill && typeof mdef.activeSkill === 'object') ? mdef.activeSkill : { params: {}, cd: 0 };
+          const passiveParams = (passive?.params && typeof passive.params === 'object') ? passive.params : {};
+          const activeParams = (active?.params && typeof active.params === 'object') ? active.params : {};
+          const activeCd = Math.max(0, Math.floor(Number(active?.cd) || 0));
+          return { mid, mdef, passiveParams, activeParams, activeCd, activeName: String(active?.name || 'Skill') };
+        };
+        const getMonsterPassiveCombatFx = (monsterLike) => {
+          const spec = getMonsterSkillSpec(monsterLike);
+          const p = spec.passiveParams || {};
+          const hp = Math.max(0, Number(monsterLike?.hp) || 0);
+          const hpMax = Math.max(1, Number(monsterLike?.maxHp) || 1);
+          const lowHp = (hp / hpMax) <= 0.5;
+          const element = String(monsterLike?.element || '').toLowerCase();
+          const atkBonus = clampNum(p.atkBonus, -0.5, 2.0, 0);
+          const lowHpAtkBonus = lowHp ? clampNum(p.lowHpAtkBonus, 0, 1.5, 0) : 0;
+          const elemBonusKey = `${element}DmgBonus`;
+          const elemAtkBonus = clampNum(p?.[elemBonusKey], -0.5, 1.5, 0);
+          // Some early placeholders used slow/miss/evasion wording. Normalize them as dodge chance.
+          const dodgeChance = clampNum((Number(p.evasion) || 0) + (Number(p.enemyMissChance) || 0) + (Number(p.slowChance) || 0) * 0.5, 0, 0.45, 0);
+          const incomingReduction = clampNum(p.damageReduction, 0, 0.75, 0);
+          const regenPct = clampNum(p.healMaxHpPctPerTurn, 0, 0.2, 0);
+          return {
+            incomingReduction,
+            dodgeChance,
+            regenPct,
+            atkMult: Math.max(0.1, 1 + atkBonus + lowHpAtkBonus + elemAtkBonus),
+          };
+        };
+        const getMonsterActiveCombatFx = (monsterLike) => {
+          const spec = getMonsterSkillSpec(monsterLike);
+          const a = spec.activeParams || {};
+          const convertList = Array.isArray(a.convert) ? a.convert : (a.convert ? [a.convert] : []);
+          const convertCount = convertList.reduce((s, it) => s + Math.max(0, Math.floor(Number(it?.count) || 0)), 0);
+          // Board-convert/time effects are normalized into combat buffs for NPC usage.
+          const bonusFromConvert = clampNum(convertCount * 0.03, 0, 0.25, 0);
+          const bonusFromTime = clampNum(Number(a.extraTimeSec) * 0.05, 0, 0.2, 0);
+          const atkMultThisTurn = Math.max(0.1, 1 + clampNum(a.atkMultThisTurn, -0.7, 2.0, 0) + bonusFromConvert + bonusFromTime);
+          const dmgFlat = Math.max(0, Math.floor(Number(a.dmg) || 0));
+          const healFlat = Math.max(0, Math.floor(Number(a.healFlat) || 0));
+          const healPct = clampNum(a.healMaxHpPctPerTurn, 0, 0.2, 0);
+          const guard = clampNum(a.damageReduction, 0, 0.65, 0);
+          const hasEffect = atkMultThisTurn !== 1 || dmgFlat > 0 || healFlat > 0 || healPct > 0 || guard > 0;
+          return {
+            cd: spec.activeCd,
+            name: spec.activeName,
+            hasEffect,
+            atkMultThisTurn,
+            dmgFlat,
+            healFlat,
+            healPct,
+            guard,
+          };
+        };
+        const syncTargetBackCompat = () => {
+          try {
+            const mons = Array.isArray(b?.monsters) ? b.monsters : null;
+            if (!mons || !mons.length) return;
+            const ti = Number.isFinite(Number(b?.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
+            const t = mons[Math.max(0, Math.min(mons.length - 1, ti))];
+            if (!t) return;
+            b.monsterHp = Math.max(0, Number(t.hp) || 0);
+            b.monsterMaxHp = Math.max(1, Number(t.maxHp) || 1);
+            b.monsterAtk = Math.max(0, Number(t.atk) || 0);
+          } catch {}
+        };
         const monsters = Array.isArray(b.monsters) ? b.monsters : null;
         const aliveMons = (monsters || []).filter(x => (Number(x?.hp) || 0) > 0);
         // Auto-target: if user didn't pick, attack the monster with highest expected total damage.
@@ -2626,15 +2700,28 @@ const ChessPalPages = (() => {
           }
           await playBeamBetween({ fromEl: slotEl, toEl: targetEl, variant: 'player' });
           await shake(targetEl);
-          showDamageFloat(dmg, el, mult, targetVisual.box || targetVisual.img);
+          const targetPassive = getMonsterPassiveCombatFx(currentTarget);
+          const targetGuard = clampNum(currentTarget?.tempDamageReduction, 0, 0.75, 0);
+          const dodge = clampNum(targetPassive?.dodgeChance, 0, 0.45, 0);
+          if (dodge > 0 && Math.random() < dodge) {
+            showDamageFloat(0, el, mult, targetVisual.box || targetVisual.img);
+            continue;
+          }
+          const incomingReduction = clampNum((targetPassive?.incomingReduction || 0) + targetGuard, 0, 0.85, 0);
+          const finalDmg = Math.max(0, Math.floor(dmg * (1 - incomingReduction)));
+          showDamageFloat(finalDmg, el, mult, targetVisual.box || targetVisual.img);
           const mMax = Math.max(0, Number(b.monsterMaxHp) || 0);
-          b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - dmg));
+          b.monsterHp = Math.max(0, Math.min(mMax, (Number(b.monsterHp) || 0) - finalDmg));
           // Sync into multi-monster pool (if any)
           try {
             if (monsters && monsters.length) {
               const ti = Number.isFinite(Number(b.targetMonsterIdx)) ? Math.floor(Number(b.targetMonsterIdx)) : 0;
               const t = monsters[Math.max(0, Math.min(monsters.length - 1, ti))];
               if (t) t.hp = Number(b.monsterHp) || 0;
+              if (t && Number(t.tempDamageReductionRounds) > 0) {
+                t.tempDamageReductionRounds = Math.max(0, Math.floor(Number(t.tempDamageReductionRounds) - 1));
+                if ((Number(t.tempDamageReductionRounds) || 0) <= 0) t.tempDamageReduction = 0;
+              }
             }
           } catch {}
           updateHpUI();
@@ -2766,7 +2853,8 @@ const ChessPalPages = (() => {
                       const mid = String(mm?.monsterId || '004').trim().padStart(3, '0');
                       const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
                       const eff = getMonsterEffective(mid, lv);
-                      const m = getMonsterFromDbQuick(mid);
+                      const m = getMonsterBase(mid) || getMonsterFromDbQuick(mid);
+                      const activeCd = Math.max(0, Math.floor(Number(m?.activeSkill?.cd) || 0));
                       return {
                         idx,
                         monsterId: mid,
@@ -2777,6 +2865,10 @@ const ChessPalPages = (() => {
                         maxHp: eff.hpMax,
                         atk: eff.atk,
                         hp: eff.hpMax,
+                        activeCd,
+                        skillCdLeft: activeCd,
+                        tempDamageReduction: 0,
+                        tempDamageReductionRounds: 0,
                       };
                     });
                     b.monsters = nextMonsters;
@@ -2845,7 +2937,45 @@ const ChessPalPages = (() => {
         })();
         if (counterAttackers.length > 0) {
           for (const { m, idx } of counterAttackers) {
-            const rawAtk = Math.max(0, Math.floor(Number(m?.atk) || 0));
+            const pfx = getMonsterPassiveCombatFx(m);
+            const afx = getMonsterActiveCombatFx(m);
+            // Passive regen before monster action.
+            try {
+              const maxHp = Math.max(1, Math.floor(Number(m?.maxHp) || 1));
+              const regen = Math.max(0, Math.floor(maxHp * Math.max(0, Number(pfx?.regenPct) || 0)));
+              if (regen > 0) {
+                m.hp = Math.max(0, Math.min(maxHp, (Number(m?.hp) || 0) + regen));
+                syncTargetBackCompat();
+                updateHpUI();
+              }
+            } catch {}
+            if (!Number.isFinite(Number(m.skillCdLeft))) m.skillCdLeft = Math.max(0, Math.floor(Number(afx.cd) || 0));
+            let activeUsed = false;
+            let atkMultByActive = 1;
+            let atkFlatByActive = 0;
+            if (afx.hasEffect && ((Number(afx.cd) <= 0) || (Number(m.skillCdLeft) <= 0))) {
+              activeUsed = true;
+              atkMultByActive = Math.max(0.1, Number(afx.atkMultThisTurn) || 1);
+              atkFlatByActive = Math.max(0, Math.floor(Number(afx.dmgFlat) || 0));
+              try {
+                const maxHp = Math.max(1, Math.floor(Number(m?.maxHp) || 1));
+                const healAmt = Math.max(0, Math.floor(Number(afx.healFlat) || 0) + Math.floor(maxHp * Math.max(0, Number(afx.healPct) || 0)));
+                if (healAmt > 0) m.hp = Math.max(0, Math.min(maxHp, (Number(m?.hp) || 0) + healAmt));
+                const guard = Math.max(0, Number(afx.guard) || 0);
+                if (guard > 0) {
+                  m.tempDamageReduction = Math.max(0, Math.min(0.75, guard));
+                  m.tempDamageReductionRounds = 1;
+                }
+                syncTargetBackCompat();
+                updateHpUI();
+              } catch {}
+              try { setMsg(`${String(m?.name || 'Monster')} used ${String(afx.name || 'Skill')}.`); } catch {}
+            }
+            if (Number(afx.cd) > 0) {
+              m.skillCdLeft = activeUsed ? Math.max(0, Math.floor(Number(afx.cd) || 0)) : Math.max(0, Math.floor(Number(m.skillCdLeft) || 0) - 1);
+            }
+            const baseAtk = Math.max(0, Math.floor(Number(m?.atk) || 0));
+            const rawAtk = Math.max(0, Math.floor(baseAtk * Math.max(0.1, Number(pfx?.atkMult) || 1) * atkMultByActive + atkFlatByActive));
             if (rawAtk <= 0) continue;
             const visual = getBossVisualByIdx(idx);
             const fromEl = visual.img || visual.box;
@@ -3180,7 +3310,8 @@ const ChessPalPages = (() => {
           const mid = String(mm?.monsterId || '004').trim().padStart(3, '0');
           const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
           const eff = getMonsterEffective(mid, lv);
-          const m = getMonsterFromDbQuick(mid);
+          const m = getMonsterBase(mid) || getMonsterFromDbQuick(mid);
+          const activeCd = Math.max(0, Math.floor(Number(m?.activeSkill?.cd) || 0));
           return {
             idx,
             monsterId: mid,
@@ -3191,14 +3322,24 @@ const ChessPalPages = (() => {
             maxHp: eff.hpMax,
             atk: eff.atk,
             hp: eff.hpMax,
+            activeCd,
+            skillCdLeft: activeCd,
+            tempDamageReduction: 0,
+            tempDamageReductionRounds: 0,
           };
         });
         // If continuing in-place within the same stage, try to preserve HP/target by matching ids.
         const prev = Array.isArray(b.monsters) ? b.monsters : null;
         if (prev && prev.length) {
           nextMonsters.forEach((nm) => {
-            const hit = prev.find(x => String(x?.monsterId || '') === nm.monsterId);
-            if (hit) nm.hp = Number.isFinite(Number(hit.hp)) ? Math.max(0, Math.min(nm.maxHp, Number(hit.hp))) : nm.hp;
+            const hit = prev.find(x => String(x?.monsterId || '') === nm.monsterId && Number(x?.idx) === Number(nm.idx))
+              || prev.find(x => String(x?.monsterId || '') === nm.monsterId);
+            if (hit) {
+              nm.hp = Number.isFinite(Number(hit.hp)) ? Math.max(0, Math.min(nm.maxHp, Number(hit.hp))) : nm.hp;
+              nm.skillCdLeft = Number.isFinite(Number(hit.skillCdLeft)) ? Math.max(0, Math.floor(Number(hit.skillCdLeft) || 0)) : nm.skillCdLeft;
+              nm.tempDamageReduction = Number.isFinite(Number(hit.tempDamageReduction)) ? Math.max(0, Math.min(0.75, Number(hit.tempDamageReduction) || 0)) : 0;
+              nm.tempDamageReductionRounds = Number.isFinite(Number(hit.tempDamageReductionRounds)) ? Math.max(0, Math.floor(Number(hit.tempDamageReductionRounds) || 0)) : 0;
+            }
           });
         }
         b.monsters = nextMonsters;

@@ -92,7 +92,7 @@
       hp: 880,
       atk: 210,
       rcv: 0,
-      passiveSkill: { name: 'Abyssal Dominion', text: 'Start each battle with +1 cascade chain (placeholder).', params: { startCascadeBonus: 1 } },
+      passiveSkill: { name: 'Abyssal Dominion', text: 'ATK +8% while active.', params: { atkBonus: 0.08 } },
       activeSkill: { name: 'Void Eclipse', cd: 9, text: 'Convert 3 tiles to Dark; deal heavy dark damage (placeholder).', params: { convert: { count: 3, to: 'dark' }, dmg: 360 } },
       img: 'images/Monsters/M006-Abyss_Monarch/M006-Abyss_Monarch.png',
       mini: 'images/Monsters/M006-Abyss_Monarch/M006-Abyss_Monarch-mini.png'
@@ -122,7 +122,7 @@
       hp: 860,
       atk: 220,
       rcv: 0,
-      passiveSkill: { name: 'Deep Pressure', text: 'Enemies take +10% damage after cascades (placeholder).', params: { postCascadeVulnerability: 0.10 } },
+      passiveSkill: { name: 'Deep Pressure', text: 'ATK +10% while active.', params: { atkBonus: 0.10 } },
       activeSkill: { name: 'Tsunami Break', cd: 10, text: 'Convert 3 tiles to Water; +1s time this turn (placeholder).', params: { convert: { count: 3, to: 'water' }, extraTimeSec: 1 } },
       img: 'images/Monsters/M008-Leviathan_Prime/M008-Leviathan_Prime.png',
       mini: 'images/Monsters/M008-Leviathan_Prime/M008-Leviathan_Prime-mini.png'
