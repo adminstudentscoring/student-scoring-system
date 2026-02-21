@@ -5344,9 +5344,13 @@ const ChessPalPages = (() => {
   function StoragePage() {}
   StoragePage.title = 'Storage';
   StoragePage.render = () => {
+    const admin = isAdminMode();
     return `
       <div class="cp-page-card">
-        <div class="cp-h1">Storage</div>
+        <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
+          <div class="cp-h1">Storage</div>
+          ${admin ? `<button class="cp-tool-btn" type="button" id="cpStorageSettingBtn">Setting</button>` : ``}
+        </div>
         
         <div class="cp-storage-grid" id="cpStorageGrid" style="margin-top:12px;"></div>
       </div>
@@ -5386,6 +5390,67 @@ const ChessPalPages = (() => {
       saveStorage(slots);
     };
     const refresh = () => { persist(); render(); };
+
+    const showStorageAdminSettingModal = () => {
+      if (!isAdminMode()) return;
+      const old = document.getElementById('cpStorageAdminOverlay');
+      if (old) old.remove();
+      const defs = Object.values(STORAGE_ITEM_DEFS || {}).filter(Boolean)
+        .slice()
+        .sort((a, b) => String(a?.name || a?.id || '').localeCompare(String(b?.name || b?.id || '')));
+      const overlay = document.createElement('div');
+      overlay.id = 'cpStorageAdminOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Storage setting">
+          <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+          <div class="cp-modal-body">
+            <div class="cp-h1" style="font-size:18px;">Storage Setting</div>
+            <div class="cp-setting-item" style="margin-top:12px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Item</div>
+              <select class="cp-select" id="cpStorageAdminItem">
+                ${defs.map((d) => `<option value="${esc(String(d.id))}">${esc(String(d.name || d.id))}</option>`).join('')}
+              </select>
+              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Quantity</div>
+              <input class="cp-input" id="cpStorageAdminQty" type="number" min="1" step="1" value="1">
+            </div>
+            <div class="cp-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">
+              <button class="cp-tool-btn" type="button" id="cpStorageAdminCancel">Cancel</button>
+              <button class="cp-primary" type="button" id="cpStorageAdminAdd">Add</button>
+            </div>
+            <div class="cp-muted" id="cpStorageAdminMsg" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const setMsg = (t) => {
+        const m = overlay.querySelector('#cpStorageAdminMsg');
+        if (m) m.textContent = String(t || '');
+      };
+      const close = () => {
+        try { overlay.remove(); } catch {}
+        try { window.removeEventListener('keydown', onKey); } catch {}
+      };
+      const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+      overlay.querySelector('#cpStorageAdminCancel')?.addEventListener('click', close, { passive: true });
+      window.addEventListener('keydown', onKey);
+      overlay.querySelector('#cpStorageAdminAdd')?.addEventListener('click', () => {
+        try {
+          const itemId = String(overlay.querySelector('#cpStorageAdminItem')?.value || '').trim().toLowerCase();
+          const qty = Math.max(1, Math.floor(Number(overlay.querySelector('#cpStorageAdminQty')?.value) || 1));
+          if (!getStorageItemDef(itemId)) throw new Error('Invalid item.');
+          const before = JSON.stringify(slots);
+          slots = addItemToStorage(slots, itemId, qty);
+          if (JSON.stringify(slots) === before) throw new Error('Storage is full.');
+          refresh();
+          setMsg(`Added ${qty} × ${String(getStorageItemDef(itemId)?.name || itemId)}.`);
+        } catch (e) {
+          setMsg(String(e?.message || e || 'Add failed'));
+        }
+      }, { passive: true });
+    };
 
     // Start in compacted order
     slots = compactStorageSlots(normalizeStorageSlots(slots));
@@ -5448,6 +5513,10 @@ const ChessPalPages = (() => {
         }
       }, { passive: true });
     });
+
+    document.getElementById('cpStorageSettingBtn')?.addEventListener('click', () => {
+      showStorageAdminSettingModal();
+    }, { passive: true });
   };
 
   function ShopPage() {}
