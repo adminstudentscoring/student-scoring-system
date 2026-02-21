@@ -38,7 +38,16 @@ const Router = (() => {
     const pops = document.getElementById('cpTopPopovers');
     if (!tools || !pops) return;
 
-    if (path !== '/practice' && path !== '/test-game') {
+    const portraitPractice = (() => {
+      try {
+        if (path !== '/practice') return false;
+        return !!(window.matchMedia && window.matchMedia('(max-width: 820px) and (orientation: portrait)').matches);
+      } catch {
+        return false;
+      }
+    })();
+
+    if ((path !== '/practice' && path !== '/test-game') || portraitPractice) {
       tools.innerHTML = '';
       pops.innerHTML = '';
       return;

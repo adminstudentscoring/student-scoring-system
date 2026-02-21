@@ -1389,6 +1389,28 @@ const ChessPalPages = (() => {
   ModePage.render = () => {
     const s = getGeneralSettings();
     const admin = isAdminMode();
+    const storyChapterBgs = {
+      1: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg',
+      2: 'images/Mode/Story/Chapter002-Riverbound_Oath/Chapter002-Riverbound_Oath.jpg',
+      3: 'images/Mode/Story/Chapter003-Ember_Trial/Chapter003-Ember_Trial.jpg',
+      4: 'images/Mode/Story/Chapter004-Cathedral_of_Thorns/Chapter004-Cathedral_of_Thorns.jpg',
+      5: 'images/Mode/Story/Chapter005-Halo_and_Dusk/Chapter005-Halo_and_Dusk.jpg',
+      6: 'images/Mode/Story/Chapter006-The_First_Bloom/Chapter006-The_First_Bloom.jpg',
+      7: 'images/Mode/Story/Chapter007-Lost_Bestiary/Chapter007-Lost_Bestiary.jpg',
+      8: 'images/Mode/Story/Chapter008-Castling_Keep_Siege/Chapter008-Castling_Keep_Siege.jpg',
+      9: 'images/Mode/Story/Chapter009-The_Board_Rewrites/Chapter009-The_Board_Rewrites.jpg',
+      10: 'images/Mode/Story/Chapter009-The_Board_Rewrites/Chapter009-The_Board_Rewrites.jpg',
+    };
+    const storyPreviewChapter = (() => {
+      try {
+        for (let ch = 1; ch <= 10; ch += 1) {
+          const cleared = Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(ch)) || 0));
+          if (cleared < 5) return ch;
+        }
+      } catch {}
+      return 10;
+    })();
+    const storyPreviewBg = String(storyChapterBgs[storyPreviewChapter] || storyChapterBgs[10]);
     const challengeUnlocked = (() => {
       if (admin) return true;
       try { return Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(3)) || 0)) >= 5; } catch { return false; }
@@ -1396,7 +1418,7 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-square-grid" aria-label="Mode">
         <button class="cp-square-tile" type="button" data-cp-mode="story" aria-label="Story Mode">
-          ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Story Mode', 'cp-square-img')}
+          ${renderImgWithFallback(storyPreviewBg, 'Story Mode', 'cp-square-img')}
           <div class="cp-square-label">Story Mode</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-mode="challenge" data-cp-locked="${challengeUnlocked ? '0' : '1'}" aria-label="Challenge Mode" ${challengeUnlocked ? '' : 'disabled'}>
@@ -3457,7 +3479,12 @@ const ChessPalPages = (() => {
       totalExp,
       activeSkill: {
         ...active,
-        cd: Number.isFinite(Number(cdLocalRaw)) ? Math.max(0, Math.floor(Number(cdLocalRaw) || 0)) : ((o.activeCd != null) ? Number(o.activeCd) : active.cd),
+        cd: (() => {
+          const raw = Number.isFinite(Number(cdLocalRaw))
+            ? Number(cdLocalRaw)
+            : ((o.activeCd != null) ? Number(o.activeCd) : Number(active.cd));
+          return Math.max(1, Math.floor(Number(raw) || 1));
+        })(),
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       leaderSkill: {
@@ -3790,15 +3817,22 @@ const ChessPalPages = (() => {
       const cdEl = overlay.querySelector('#cpPalTuneCd');
       const renderUnits = () => {
         const t = String(typeEl?.value || 'hero');
-        const list = (t === 'monster' ? monsters : heroes).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        const prevSelectedId = String(unitEl?.value || '').trim().padStart(3, '0');
+        const list = (t === 'monster' ? monsters : heroes)
+          .slice()
+          .sort((a, b) => Number(String(a?.id || '').trim()) - Number(String(b?.id || '').trim()));
         if (unitEl) {
           unitEl.innerHTML = list.map((u) => `<option value="${esc(String(u.id))}">#${esc(String(u.id))} ${esc(String(u.name || u.id))}</option>`).join('');
+          if (prevSelectedId && list.some((u) => String(u?.id || '').trim().padStart(3, '0') === prevSelectedId)) {
+            unitEl.value = prevSelectedId;
+          }
         }
         const id = String(unitEl?.value || list[0]?.id || '').trim().padStart(3, '0');
+        const picked = list.find((u) => String(u?.id || '').trim().padStart(3, '0') === id) || list[0];
         const lv = t === 'monster' ? getNumberFromMap(MONSTER_LEVEL_OVERRIDE_KEY, id) : getNumberFromMap(HERO_LEVEL_OVERRIDE_KEY, id);
         const cd = t === 'monster' ? getNumberFromMap(MONSTER_CD_OVERRIDE_KEY, id) : getNumberFromMap(HERO_CD_OVERRIDE_KEY, id);
-        if (levelEl) levelEl.value = String(Math.max(1, Math.floor(Number(lv) || Number(list[0]?.level) || 1)));
-        if (cdEl) cdEl.value = String(Math.max(0, Math.floor(Number(cd) || Number(list[0]?.activeSkill?.cd) || 0)));
+        if (levelEl) levelEl.value = String(Math.max(1, Math.floor(Number(lv) || Number(picked?.level) || 1)));
+        if (cdEl) cdEl.value = String(Math.max(1, Math.floor(Number(cd) || Number(picked?.activeSkill?.cd) || 1)));
       };
       renderUnits();
       typeEl?.addEventListener('change', renderUnits);
@@ -3808,7 +3842,13 @@ const ChessPalPages = (() => {
           const t = String(typeEl?.value || 'hero');
           const id = String(unitEl?.value || '').trim().padStart(3, '0');
           const lv = Math.max(1, Math.floor(Number(levelEl?.value) || 1));
-          const cd = Math.max(0, Math.floor(Number(cdEl?.value) || 0));
+          const fallbackCd = (() => {
+            const list = t === 'monster' ? monsters : heroes;
+            const picked = list.find((u) => String(u?.id || '').trim().padStart(3, '0') === id);
+            return Math.max(1, Math.floor(Number(picked?.activeSkill?.cd) || 1));
+          })();
+          const cdRaw = String(cdEl?.value ?? '').trim();
+          const cd = cdRaw === '' ? fallbackCd : Math.max(1, Math.floor(Number(cdRaw) || fallbackCd));
           if (!/^\d{3}$/.test(id)) throw new Error('Invalid unit.');
           if (t === 'monster') {
             setNumberInMap(MONSTER_LEVEL_OVERRIDE_KEY, id, lv);
