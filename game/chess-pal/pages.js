@@ -6467,27 +6467,46 @@ const ChessPalPages = (() => {
     return rows[rows.length - 1]?.unit || null;
   }
 
+  function showSummonItemModal(itemDef) {
+    const it = itemDef || null;
+    if (!it) return;
+    const old = document.getElementById('cpSummonItemOverlay');
+    if (old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'cpSummonItemOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Summon item result">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:20px;">Summon Result</div>
+          <div class="cp-setting-item" style="margin-top:12px; background:rgba(255,255,255,0.03);">
+            <div class="cp-row" style="margin-top:0; align-items:center; gap:10px;">
+              ${it?.img ? renderImgWithFallback(String(it.img), String(it.name || it.id || 'Item'), '') : ''}
+              <div>
+                <div class="cp-setting-label">${esc(String(it?.name || it?.id || 'Item'))}</div>
+                <div class="cp-setting-help">Obtained ×1</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => { try { overlay.remove(); } catch {} };
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+  }
+
   const SUMMON_MEDIA = {
     hero: {
       poster: [
         'images/Summon/Su001-Summon-Hero.jpg',
       ],
-      video: [
-        'images/Summon/Su001-Summon-Hero.mp4',
-        'images/Summon/Su001-Summon-Hero.MP4',
-        'images/Summon/Su001-Summon-Hero.webm',
-        'images/Summon/Su001-Summon-Hero.WebM',
-      ],
     },
     monster: {
       poster: [
         'images/Summon/Su002-Summon-Monster.jpg',
-      ],
-      video: [
-        'images/Summon/Su002-Summon-Monster.mp4',
-        'images/Summon/Su002-Summon-Monster.MP4',
-        'images/Summon/Su002-Summon-Monster.webm',
-        'images/Summon/Su002-Summon-Monster.WebM',
       ],
     },
     hero_amateur: {
@@ -6495,116 +6514,18 @@ const ChessPalPages = (() => {
         'images/Summon/Su003-Amatuer-Summon-Hero.png',
         'images/Summon/Su003-Amateur-Summon-Hero.png',
       ],
-      video: [
-        'images/Summon/Su003-Amatuer-Summon-Hero.mp4',
-        'images/Summon/Su003-Amatuer-Summon-Hero.MP4',
-        'images/Summon/Su003-Amatuer-Summon-Hero.webm',
-        'images/Summon/Su003-Amatuer-Summon-Hero.WebM',
-        'images/Summon/Su003-Amateur-Summon-Hero.mp4',
-        'images/Summon/Su003-Amateur-Summon-Hero.MP4',
-        'images/Summon/Su003-Amateur-Summon-Hero.webm',
-        'images/Summon/Su003-Amateur-Summon-Hero.WebM',
-      ],
     },
     monster_amateur: {
       poster: ['images/Summon/Su004-Amatuer-Summon-Monster.png', 'images/Summon/Su004-Amateur-Summon-Monster.png'],
-      video: [
-        'images/Summon/Su004-Amatuer-Summon-Monster.mp4',
-        'images/Summon/Su004-Amatuer-Summon-Monster.MP4',
-        'images/Summon/Su004-Amatuer-Summon-Monster.webm',
-        'images/Summon/Su004-Amatuer-Summon-Monster.WebM',
-        'images/Summon/Su004-Amateur-Summon-Monster.mp4',
-        'images/Summon/Su004-Amateur-Summon-Monster.MP4',
-        'images/Summon/Su004-Amateur-Summon-Monster.webm',
-        'images/Summon/Su004-Amateur-Summon-Monster.WebM',
-      ],
     },
     item: {
       poster: ['images/Summon/Su005-Summon-Item.png'],
-      video: [
-        'images/Summon/Su005-Summon-Item.mp4',
-        'images/Summon/Su005-Summon-Item.MP4',
-        'images/Summon/Su005-Summon-Item.webm',
-        'images/Summon/Su005-Summon-Item.WebM',
-      ],
     },
   };
 
   function getSummonPoster(kind) {
     const list = SUMMON_MEDIA?.[String(kind || '').trim()]?.poster;
     return String((Array.isArray(list) && list[0]) || 'images/Summon/Su001-Summon-Hero.jpg');
-  }
-
-  async function playSummonCinematic(kind) {
-    const cfg = SUMMON_MEDIA?.[String(kind || '').trim()] || null;
-    const candidates = Array.isArray(cfg?.video) ? cfg.video.filter(Boolean) : [];
-    if (!candidates.length) return;
-    const old = document.getElementById('cpSummonCinematicOverlay');
-    if (old) old.remove();
-    await new Promise((resolve) => {
-      let done = false;
-      let hasStarted = false;
-      let idx = 0;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        try { overlay.remove(); } catch {}
-        resolve();
-      };
-      const overlay = document.createElement('div');
-      overlay.id = 'cpSummonCinematicOverlay';
-      overlay.className = 'cp-modal-overlay';
-      overlay.innerHTML = `
-        <div class="cp-modal" style="width:min(860px,96vw); padding:0; overflow:hidden;" role="dialog" aria-modal="true" aria-label="Summon animation">
-          <div style="position:relative; width:100%; aspect-ratio:16/9; background:#000;">
-            <video id="cpSummonCinematicVideo" autoplay muted playsinline preload="auto" style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>
-            <button class="cp-tool-btn" type="button" id="cpSummonCinematicSkip" style="position:absolute; top:10px; right:10px; z-index:2;">Skip</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-      const video = overlay.querySelector('#cpSummonCinematicVideo');
-      const tryNext = () => {
-        if (!video) return finish();
-        if (idx >= candidates.length) return finish();
-        const src = String(candidates[idx] || '').trim();
-        idx += 1;
-        if (!src) return tryNext();
-        try { video.src = src; } catch { tryNext(); }
-      };
-      overlay.querySelector('#cpSummonCinematicSkip')?.addEventListener('click', finish, { passive: true });
-      video?.addEventListener('ended', finish, { passive: true });
-      video?.addEventListener('playing', () => { hasStarted = true; }, { passive: true });
-      video?.addEventListener('error', () => { tryNext(); }, { passive: true });
-      video?.addEventListener('pause', () => {
-        if (!done) {
-          try { video.play().catch(() => {}); } catch {}
-        }
-      });
-      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) finish(); });
-      tryNext();
-      try { video?.play?.().catch(() => {}); } catch {}
-      // Safety timeout: only skip when video never starts.
-      setTimeout(() => { if (!done && !hasStarted) finish(); }, 7000);
-    });
-  }
-
-  function preloadSummonCinematic(kind) {
-    try {
-      const list = SUMMON_MEDIA?.[String(kind || '').trim()]?.video;
-      const src = (Array.isArray(list) ? list[0] : '') || '';
-      if (!src) return;
-      const v = document.createElement('video');
-      v.preload = 'auto';
-      v.muted = true;
-      v.playsInline = true;
-      v.src = src;
-      v.load();
-      try {
-        if (!window.__cpSummonPreloadVideos) window.__cpSummonPreloadVideos = [];
-        window.__cpSummonPreloadVideos.push(v);
-      } catch {}
-    } catch {}
   }
 
   function SummonPage() {}
@@ -6693,13 +6614,6 @@ const ChessPalPages = (() => {
   SummonPage.init = () => {
     const msg = document.getElementById('cpSummonMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-    try {
-      preloadSummonCinematic('hero');
-      preloadSummonCinematic('monster');
-      preloadSummonCinematic('hero_amateur');
-      preloadSummonCinematic('monster_amateur');
-      preloadSummonCinematic('item');
-    } catch {}
     const bindBgFallback = (imgEl, fallbacks) => {
       if (!imgEl) return;
       imgEl.onerror = function() {
@@ -6748,7 +6662,6 @@ const ChessPalPages = (() => {
           setMsg('Summon Item is disabled by Admin.');
           return;
         }
-        await playSummonCinematic(kind);
         if (kind === 'hero_amateur') {
           await loadHeroOverrides();
           const pool = getAllHeroes().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
@@ -6816,6 +6729,7 @@ const ChessPalPages = (() => {
           }
           const r = addOwnedMonsterId(pick.id) || {};
           setMsg(r.duplicate ? `Summoned duplicate monster: ${pick.name} (EXP +${r.expGained || 0})` : `Summoned monster: ${pick.name}`);
+          showMonsterModal(pick);
           return;
         }
         if (kind === 'monster_amateur') {
@@ -6837,6 +6751,7 @@ const ChessPalPages = (() => {
           }
           const r = addOwnedMonsterId(pick.id) || {};
           setMsg(r.duplicate ? `Summoned duplicate monster: ${pick.name} (EXP +${r.expGained || 0})` : `Summoned monster: ${pick.name}`);
+          showMonsterModal(pick);
           return;
         }
         if (kind === 'item') {
@@ -6862,6 +6777,7 @@ const ChessPalPages = (() => {
           }
           saveStorage(slots);
           setMsg(`Summoned item: ${pick.name}`);
+          showSummonItemModal(pick);
           return;
         }
       } catch (e) {
