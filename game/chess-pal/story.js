@@ -62,6 +62,12 @@
     return st <= (cleared + 1);
   }
 
+  function isChapterUnlocked(chapterId) {
+    const ch = clampInt(chapterId, 1, 10);
+    if (ch <= 1) return true;
+    return getClearedStage(ch - 1) >= 5;
+  }
+
   // Per-stage board element overrides (when you want fixed pools)
   function getFixedElementPool(chapterId, stageIdx1) {
     const ch = clampInt(chapterId, 1, 10);
@@ -81,6 +87,7 @@
     hasClaimedChapterReward,
     markChapterRewardClaimed,
     isStageUnlocked,
+    isChapterUnlocked,
     getFixedElementPool,
   };
 })();

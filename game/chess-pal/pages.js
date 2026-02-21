@@ -486,22 +486,23 @@ const ChessPalPages = (() => {
 
   function defaultStoryStagesForChapter(chapterId) {
     const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
+    const stageDropChance = (stageIdx1) => (Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1))) >= 5 ? 50 : 10);
     // Sensible defaults (admin can overwrite any time)
     if (ch === 1) {
       return [
-        { monsters: [{ monsterId: '017', level: 1 }], hint: 'Match Dark, Wood, and Water to build control first.', drops: [] },
-        { monsters: [{ monsterId: '018', level: 1 }], hint: 'Attack colors are expanded. Build longer paths for bigger damage.', drops: [] },
-        { monsters: [{ monsterId: '021', level: 2 }], hint: 'Heart jewels are now available. Balance damage and recovery.', drops: [] },
-        { monsters: [{ monsterId: '027', level: 2 }], hint: 'Plan one turn ahead to prepare cascades before the boss.', drops: [] },
-        { monsters: [{ monsterId: '004', level: 1 }], hint: 'Boss Stage: Save skills and burst when your strongest color is ready.', drops: [] },
+        { monsters: [{ monsterId: '017', level: 1, monsterDropChance: stageDropChance(1) }], hint: 'Match Dark, Wood, and Water to build control first.', drops: [] },
+        { monsters: [{ monsterId: '018', level: 1, monsterDropChance: stageDropChance(2) }], hint: 'Attack colors are expanded. Build longer paths for bigger damage.', drops: [] },
+        { monsters: [{ monsterId: '021', level: 2, monsterDropChance: stageDropChance(3) }], hint: 'Heart jewels are now available. Balance damage and recovery.', drops: [] },
+        { monsters: [{ monsterId: '027', level: 2, monsterDropChance: stageDropChance(4) }], hint: 'Plan one turn ahead to prepare cascades before the boss.', drops: [] },
+        { monsters: [{ monsterId: '004', level: 1, monsterDropChance: stageDropChance(5) }], hint: 'Boss Stage: Save skills and burst when your strongest color is ready.', drops: [] },
       ];
     }
     return [
-      { monsters: [{ monsterId: '011', level: 1 }], drops: [] },
-      { monsters: [{ monsterId: '014', level: 1 }], drops: [] },
-      { monsters: [{ monsterId: '017', level: 1 }], drops: [] },
-      { monsters: [{ monsterId: '020', level: 1 }], drops: [] },
-      { monsters: [{ monsterId: '004', level: 1 }], drops: [] },
+      { monsters: [{ monsterId: '011', level: 1, monsterDropChance: stageDropChance(1) }], drops: [] },
+      { monsters: [{ monsterId: '014', level: 1, monsterDropChance: stageDropChance(2) }], drops: [] },
+      { monsters: [{ monsterId: '017', level: 1, monsterDropChance: stageDropChance(3) }], drops: [] },
+      { monsters: [{ monsterId: '020', level: 1, monsterDropChance: stageDropChance(4) }], drops: [] },
+      { monsters: [{ monsterId: '004', level: 1, monsterDropChance: stageDropChance(5) }], drops: [] },
     ];
   }
 
@@ -1408,7 +1409,7 @@ const ChessPalPages = (() => {
     return `
       <div class="cp-chapter-list" aria-label="Story chapters">
         ${chapters.map(c => `
-          <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-chapter="${esc(String(c.id))}" aria-label="${esc(c.title)}">
+          <div class="cp-chapter-tile ${(!admin && c.id > 1 && !window.ChessPalStory?.isChapterUnlocked?.(c.id)) ? 'is-locked' : ''}" role="button" tabindex="0" data-cp-chapter="${esc(String(c.id))}" data-cp-locked="${(!admin && c.id > 1 && !window.ChessPalStory?.isChapterUnlocked?.(c.id)) ? '1' : '0'}" aria-label="${esc(c.title)}">
             <img class="cp-chapter-img" src="${esc(String(c.img || fallbackImg))}" alt="${esc(c.title)}" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
             <div class="cp-chapter-label">${esc(c.title)}</div>
             ${admin ? `<button class="cp-tool-btn cp-chapter-edit" type="button" data-cp-edit-stages="${esc(String(c.id))}">Edit stages</button>` : ``}
@@ -1420,6 +1421,8 @@ const ChessPalPages = (() => {
   ModeStoryPage.init = () => {
     document.querySelectorAll('[data-cp-chapter]').forEach(btn => {
       btn.addEventListener('click', () => {
+        const locked = String(btn.getAttribute('data-cp-locked') || '0') === '1';
+        if (locked) { try { setMsg('Clear previous chapter first.'); } catch {} return; }
         const ch = Math.max(1, Math.min(10, Math.floor(Number(btn.getAttribute('data-cp-chapter')) || 1)));
         // Directly enter gameplay (no stage select screen)
         let cleared = 0;
@@ -1541,6 +1544,21 @@ const ChessPalPages = (() => {
   }
   StoryBattlePage.prototype.title = 'Story Battle';
   StoryBattlePage.prototype.render = function () {
+    const chapterLocked = (() => {
+      try {
+        if (this._ch <= 1) return false;
+        return !window.ChessPalStory?.isChapterUnlocked?.(this._ch);
+      } catch {
+        return false;
+      }
+    })();
+    if (chapterLocked) {
+      setTimeout(() => {
+        try { setMsg('Clear previous chapter first.'); } catch {}
+        try { Router.goTo('/mode/story'); } catch {}
+      }, 0);
+      return `<div class="cp-page-card"><div class="cp-muted">Chapter is locked.</div></div>`;
+    }
     const cfg = getStoryStageConfig(this._ch, this._st);
     window.__cpStoryStage = cfg;
     // Entering Story battle route should start fresh.
@@ -3371,7 +3389,7 @@ const ChessPalPages = (() => {
                 <span class="cp-chip">${esc(elementLabel(h.element))}</span>
                 <span class="cp-chip">${esc(renderStars(h.rarity))}</span>
                 <span class="cp-chip">Lv ${esc(h.level)} / ${esc(h.maxLevel)}</span>
-                ${canLevelUp ? `<button class="cp-tool-btn" type="button" id="cpHeroLevelUpBtn">Level Up</button>` : ``}
+                ${canLevelUp ? `<button class="cp-tool-btn cp-levelup-btn" type="button" id="cpHeroLevelUpBtn">Level Up</button>` : ``}
               </div>
               <div class="cp-expwrap" aria-label="EXP progress">
                 <div class="cp-expbar"><div class="cp-expfill" style="width:${esc(Math.round(xp.pct * 100))}%"></div></div>
@@ -3798,7 +3816,7 @@ const ChessPalPages = (() => {
                 <span class="cp-chip">${esc(elementLabel(m.element))}</span>
                 <span class="cp-chip">${esc(renderStars(m.rarity))}</span>
                 <span class="cp-chip">Lv ${esc(m.level)} / ${esc(m.maxLevel)}</span>
-                ${canLevelUp ? `<button class="cp-tool-btn" type="button" id="cpMonsterLevelUpBtn">Level Up</button>` : ``}
+                ${canLevelUp ? `<button class="cp-tool-btn cp-levelup-btn" type="button" id="cpMonsterLevelUpBtn">Level Up</button>` : ``}
               </div>
               <div class="cp-expwrap" aria-label="EXP progress">
                 <div class="cp-expbar"><div class="cp-expfill" style="width:${esc(Math.round(xp.pct * 100))}%"></div></div>
@@ -4838,7 +4856,12 @@ const ChessPalPages = (() => {
           <div class="cp-setting-item" style="margin-top:12px;">
             <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Chess.com ID</div>
             <div class="cp-row" style="margin-top:0; gap:8px; align-items:center;">
-              <input class="cp-input" id="cpChessComIdInput" type="text" placeholder="username" value="${esc(String(st.chessComId || ''))}" style="flex:1 1 auto;">
+              <div id="cpChessComIdInputWrap" style="flex:1 1 auto;">
+                <input class="cp-input" id="cpChessComIdInput" type="text" placeholder="username" value="${esc(String(st.chessComId || ''))}" style="width:100%;">
+              </div>
+              <div id="cpChessComIdTextWrap" style="flex:1 1 auto; display:none;">
+                <div class="cp-setting-help" id="cpChessComIdText" style="margin:0; padding:10px 12px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04);">-</div>
+              </div>
               <button class="cp-tool-btn" type="button" id="cpChessComRefresh">Refresh</button>
             </div>
           </div>
@@ -4863,11 +4886,18 @@ const ChessPalPages = (() => {
     const claimText = overlay.querySelector('#cpChessComClaimInfo');
     const claimBtn = overlay.querySelector('#cpChessComClaimBtn');
     const idInput = overlay.querySelector('#cpChessComIdInput');
+    const idInputWrap = overlay.querySelector('#cpChessComIdInputWrap');
+    const idTextWrap = overlay.querySelector('#cpChessComIdTextWrap');
+    const idText = overlay.querySelector('#cpChessComIdText');
     const studentRow = overlay.querySelector('#cpChessComStudentRow');
     const studentSel = overlay.querySelector('#cpChessComStudentSelect');
     const bindSaveBtn = overlay.querySelector('#cpChessComBindSaveBtn');
     let isAdmin = false;
     let boundStudentId = '';
+    const getCurrentChessComId = () => {
+      if (isAdmin) return String(idInput?.value || '').trim().toLowerCase();
+      return String(idText?.textContent || '').trim().toLowerCase();
+    };
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
     const setUiByState = (s) => {
       const r = s?.rapid || null;
@@ -4908,7 +4938,7 @@ const ChessPalPages = (() => {
     };
 
     const refreshByCurrentId = async () => {
-      const id = String(idInput?.value || '').trim().toLowerCase();
+      const id = getCurrentChessComId();
       if (!id) throw new Error('Chess.com ID is empty.');
       const data = await fetchChessComRapidAndTodayWins(id);
       const cur = loadChessComRewardState();
@@ -4943,7 +4973,10 @@ const ChessPalPages = (() => {
             const b = await loadBinding(firstId);
             boundStudentId = String(b?.student?.id || '').trim();
             if (idInput) idInput.value = String(b?.student?.chessComId || '').trim();
+            if (idText) idText.textContent = String(b?.student?.chessComId || '').trim();
           }
+          if (idInputWrap) idInputWrap.style.display = '';
+          if (idTextWrap) idTextWrap.style.display = 'none';
           if (idInput) idInput.disabled = false;
           if (bindSaveBtn) bindSaveBtn.disabled = false;
         } else {
@@ -4954,11 +4987,14 @@ const ChessPalPages = (() => {
             idInput.value = String(s?.chessComId || '').trim();
             idInput.disabled = true;
           }
+          if (idText) idText.textContent = String(s?.chessComId || '').trim();
+          if (idInputWrap) idInputWrap.style.display = 'none';
+          if (idTextWrap) idTextWrap.style.display = '';
           if (bindSaveBtn) bindSaveBtn.disabled = true;
           if (studentRow) studentRow.style.display = 'none';
         }
         const cur = loadChessComRewardState();
-        const next = { ...cur, chessComId: String(idInput?.value || '').trim().toLowerCase() };
+        const next = { ...cur, chessComId: getCurrentChessComId() };
         saveChessComRewardState(next);
         setUiByState(next);
       } catch (e) {
@@ -4974,6 +5010,7 @@ const ChessPalPages = (() => {
         const b = await loadBinding(sid);
         boundStudentId = String(b?.student?.id || '').trim();
         if (idInput) idInput.value = String(b?.student?.chessComId || '').trim();
+        if (idText) idText.textContent = String(b?.student?.chessComId || '').trim();
       } catch (e) {
         setMsg(String(e?.message || e || 'Load failed'));
       }
@@ -5914,6 +5951,10 @@ const ChessPalPages = (() => {
     const disabledText = !cfg.enabledNow ? (cfg.expired ? 'Summon is expired.' : 'Summon is disabled by Admin.') : '';
     const heroDisabled = !cfg.heroEnabledNow;
     const monsterDisabled = !cfg.monsterEnabledNow;
+    const silverHeroCost = 100;
+    const silverDef = getStorageItemDef('silver_coin') || { name: 'Silver Coin', img: 'images/Storage/S002-Silver-Coin.png' };
+    const silverName = String(silverDef?.name || 'Silver Coin');
+    const silverImg = String(silverDef?.img || 'images/Storage/S002-Silver-Coin.png');
     return `
       <div class="cp-page-card cp-summon-page">
         <div class="cp-row" style="margin-top:0; justify-content:flex-end;">
@@ -5940,6 +5981,16 @@ const ChessPalPages = (() => {
               </div>
             </div>
           </button>
+          <button class="cp-summon-main" type="button" id="cpSummonHeroSilver" aria-label="Summon Hero 6 star or below" ${cfg.enabledNow && !heroDisabled ? '' : 'disabled'}>
+            <img class="cp-summon-mainimg" id="cpSummonBgImgSilver" src="${esc(String(s.summonBg || ''))}" alt="Summon background" onerror="this.style.display='none';">
+            <div class="cp-summon-overlay" aria-hidden="true">
+              <div class="cp-summon-title">Summon Hero (<=6★)</div>
+              <div class="cp-summon-cost" aria-label="Cost">
+                ${renderImgWithFallback(silverImg, silverName, 'cp-summon-coin')}
+                <span class="cp-summon-x">× ${esc(String(silverHeroCost))}</span>
+              </div>
+            </div>
+          </button>
         </div>
         ${disabledText ? `<div class="cp-muted" style="margin-top:8px; text-align:center;">${esc(disabledText)}</div>` : ``}
         ${(cfg.enabledNow && heroDisabled) ? `<div class="cp-muted" style="margin-top:6px; text-align:center;">Hero summon is disabled by Admin.</div>` : ``}
@@ -5951,14 +6002,15 @@ const ChessPalPages = (() => {
   SummonPage.init = () => {
     const msg = document.getElementById('cpSummonMsg');
     const bgImg = document.getElementById('cpSummonBgImg');
+    const bgImgSilver = document.getElementById('cpSummonBgImgSilver');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
-    const syncSummonBg = () => {
-      if (!bgImg) return;
+    const syncOneBg = (imgEl) => {
+      if (!imgEl) return;
       const s = getGeneralSettings();
       const src = String(s?.summonBg || '').trim();
       if (!src) return;
-      if (bgImg.getAttribute('src') !== src) bgImg.setAttribute('src', src);
-      bgImg.onerror = function() {
+      if (imgEl.getAttribute('src') !== src) imgEl.setAttribute('src', src);
+      imgEl.onerror = function() {
         const cur = String(this.getAttribute('src') || '');
         if (!cur) return;
         if (cur.endsWith('.png')) return;
@@ -5969,6 +6021,10 @@ const ChessPalPages = (() => {
           if (!this.dataset.try3) { this.dataset.try3 = '1'; this.src = `${cur}.webp`; return; }
         } catch {}
       };
+    };
+    const syncSummonBg = () => {
+      syncOneBg(bgImg);
+      syncOneBg(bgImgSilver);
     };
     syncSummonBg();
     try {
@@ -5996,6 +6052,31 @@ const ChessPalPages = (() => {
         }
         if (kind === 'monster' && !summonCfg.monsterEnabledNow) {
           setMsg('Monster summon is disabled by Admin.');
+          return;
+        }
+        if (kind === 'hero_silver') {
+          await loadHeroOverrides();
+          const pool = getAllHeroes().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
+          if (!pool.length) {
+            setMsg('No 6★ or lower heroes available.');
+            return;
+          }
+          let slotsSilver = loadStorage();
+          const spendSilver = spendFromStorage(slotsSilver, 'silver_coin', 100);
+          if (!spendSilver.ok) {
+            setMsg('Not enough Silver Coin.');
+            return;
+          }
+          slotsSilver = spendSilver.slots;
+          saveStorage(slotsSilver);
+          const pick = pool[Math.floor(Math.random() * pool.length)] || null;
+          if (!pick) {
+            setMsg('No heroes available.');
+            return;
+          }
+          const r = addOwnedHeroId(pick.id) || {};
+          setMsg(r.duplicate ? `Summoned duplicate hero: ${pick.name} (EXP +${r.expGained || 0})` : `Summoned hero: ${pick.name}`);
+          showHeroModal(pick);
           return;
         }
         const costDef = getStorageItemDef(summonCfg.currencyId || 'gold_coin') || getStorageItemDef('gold_coin');
@@ -6035,6 +6116,7 @@ const ChessPalPages = (() => {
     };
     document.getElementById('cpSummonHero')?.addEventListener('click', () => { runSummon('hero'); }, { passive: true });
     document.getElementById('cpSummonMonster')?.addEventListener('click', () => { runSummon('monster'); }, { passive: true });
+    document.getElementById('cpSummonHeroSilver')?.addEventListener('click', () => { runSummon('hero_silver'); }, { passive: true });
   };
 
   function SettingsPage() {}

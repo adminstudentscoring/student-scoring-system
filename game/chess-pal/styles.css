@@ -346,6 +346,14 @@ body {
   cursor: not-allowed;
   opacity: 0.9;
 }
+.cp-tool-btn.cp-levelup-btn{
+  background: rgba(125, 211, 252, 0.28);
+  border-color: rgba(125, 211, 252, 0.62);
+  color: rgba(224, 242, 254, 0.98);
+}
+.cp-tool-btn.cp-levelup-btn:active{
+  background: rgba(125, 211, 252, 0.38);
+}
 
 .cp-top-popovers{
   position: sticky;

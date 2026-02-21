@@ -411,9 +411,11 @@ const Router = (() => {
       overlay.querySelector('#cpGearExitConfirm')?.addEventListener('click', () => {
         try { close(); } catch {}
         try {
+          let handled = false;
           if (typeof window.__cpResignStoryRun === 'function') {
-            window.__cpResignStoryRun();
-          } else {
+            handled = !!window.__cpResignStoryRun();
+          }
+          if (!handled) {
             goTo('/home');
           }
         } catch {}
