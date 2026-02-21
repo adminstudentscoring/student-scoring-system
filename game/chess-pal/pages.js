@@ -4584,6 +4584,233 @@ const ChessPalPages = (() => {
     render();
   };
 
+  async function applyRewindRookToUnit(slotKey) {
+    const parsed = parseTeamSlot(slotKey);
+    if (!parsed) return { ok: false, message: 'Pick a valid Hero/Monster first.' };
+    const unit = getTeamUnit(slotKey);
+    if (!unit) return { ok: false, message: 'Unit not found.' };
+    const currentCd = Math.max(0, Math.floor(Number(unit?.activeSkill?.cd) || 0));
+    if (currentCd <= 1) return { ok: false, message: 'CD is already 1. Cannot reduce further.' };
+    if (parsed.kind === 'hero') {
+      await loadHeroOverrides();
+      if (!heroOverrides[parsed.id]) heroOverrides[parsed.id] = {};
+      const used = Math.max(0, Math.floor(Number(heroOverrides[parsed.id]?.cdReduceUsed) || 0));
+      if (used >= 5) return { ok: false, message: 'This unit already used Rewind Rook 5 times.' };
+      heroOverrides[parsed.id] = {
+        ...heroOverrides[parsed.id],
+        activeCd: Math.max(1, currentCd - 1),
+        cdReduceUsed: used + 1,
+      };
+      await saveHeroOverridesToServer();
+      return { ok: true, beforeCd: currentCd, afterCd: Math.max(1, currentCd - 1), usedAfter: used + 1 };
+    }
+    await loadMonsterOverrides();
+    if (!monsterOverrides[parsed.id]) monsterOverrides[parsed.id] = {};
+    const used = Math.max(0, Math.floor(Number(monsterOverrides[parsed.id]?.cdReduceUsed) || 0));
+    if (used >= 5) return { ok: false, message: 'This unit already used Rewind Rook 5 times.' };
+    monsterOverrides[parsed.id] = {
+      ...monsterOverrides[parsed.id],
+      activeCd: Math.max(1, currentCd - 1),
+      cdReduceUsed: used + 1,
+    };
+    await saveMonsterOverridesToServer();
+    return { ok: true, beforeCd: currentCd, afterCd: Math.max(1, currentCd - 1), usedAfter: used + 1 };
+  }
+
+  function EnhancePage() {}
+  EnhancePage.title = 'Enhance';
+  EnhancePage.render = () => {
+    return `
+      <div class="cp-page-card">
+        <div class="cp-h1">Enhance</div>
+        <div class="cp-setting-item" style="margin-top:10px; background: rgba(255,255,255,0.03);">
+          <div class="cp-setting-label">Skill Enhance</div>
+          <div class="cp-setting-help">Use material to reduce active skill CD by 1. Each unit can be reduced up to 5 times; CD cannot go below 1.</div>
+          <div class="cp-enhance-grid" style="margin-top:12px;">
+            <button class="cp-enhance-slot" type="button" id="cpEnhanceTargetSlot">
+              <div class="cp-enhance-slot-title">Target Hero / Monster</div>
+              <div class="cp-enhance-slot-body" id="cpEnhanceTargetBody">Tap to select</div>
+            </button>
+            <button class="cp-enhance-slot" type="button" id="cpEnhanceMatSlot">
+              <div class="cp-enhance-slot-title">Material</div>
+              <div class="cp-enhance-slot-body" id="cpEnhanceMatBody">Tap to select</div>
+            </button>
+          </div>
+          <div class="cp-row" style="margin-top:12px; justify-content:flex-end;">
+            <button class="cp-primary" type="button" id="cpEnhanceConfirm" disabled>Confirm</button>
+          </div>
+          <div class="cp-muted" id="cpEnhanceMsg" style="margin-top:10px;"></div>
+          <div id="cpEnhanceResult" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+  };
+  EnhancePage.init = async () => {
+    try { await loadHeroOverrides(); } catch {}
+    try { await loadMonsterOverrides(); } catch {}
+    const targetSlot = document.getElementById('cpEnhanceTargetSlot');
+    const matSlot = document.getElementById('cpEnhanceMatSlot');
+    const targetBody = document.getElementById('cpEnhanceTargetBody');
+    const matBody = document.getElementById('cpEnhanceMatBody');
+    const confirmBtn = document.getElementById('cpEnhanceConfirm');
+    const resultHost = document.getElementById('cpEnhanceResult');
+    const msg = document.getElementById('cpEnhanceMsg');
+    const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+
+    let targetKey = '';
+    let materialId = '';
+
+    const showPickStorageMaterialModal = ({ allowItemIds = [], onPick }) => {
+      const old = document.getElementById('cpPickMatOverlay');
+      if (old) old.remove();
+      const allow = new Set((Array.isArray(allowItemIds) ? allowItemIds : []).map(x => String(x || '').trim().toLowerCase()).filter(Boolean));
+      const slots = loadStorage();
+      const rows = slots
+        .filter(s => s && typeof s === 'object')
+        .map(s => ({ itemId: String(s.itemId || '').trim().toLowerCase(), qty: Math.max(1, Math.floor(Number(s.qty) || 1)) }))
+        .filter(s => (allow.size ? allow.has(s.itemId) : true));
+      const merged = {};
+      rows.forEach((r) => { merged[r.itemId] = (merged[r.itemId] || 0) + r.qty; });
+      const list = Object.entries(merged).map(([itemId, qty]) => ({ itemId, qty }));
+
+      const overlay = document.createElement('div');
+      overlay.id = 'cpPickMatOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Pick material">
+          <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+          <div class="cp-modal-body">
+            <div class="cp-h1" style="font-size:18px;">Pick Material</div>
+            <div class="cp-hero-grid" style="margin-top:12px;" id="cpPickMatGrid">
+              ${list.map((r) => {
+                const def = getStorageItemDef(r.itemId);
+                return `
+                  <button class="cp-hero-card" type="button" data-pick-mat="${esc(r.itemId)}">
+                    <div class="cp-hero-mini">
+                      ${def?.img ? renderImgWithFallback(def.img, def?.name || r.itemId, '') : `<div class="cp-mini-placeholder">${esc(r.itemId)}</div>`}
+                      <div class="cp-mini-lv">Qty ${esc(String(r.qty))}</div>
+                    </div>
+                    <div class="cp-hero-mini-meta">
+                      <div class="cp-hero-mini-name">${esc(String(def?.name || r.itemId))}</div>
+                      <div class="cp-hero-mini-sub">#${esc(String(r.itemId))}</div>
+                    </div>
+                  </button>
+                `;
+              }).join('') || `<div class="cp-muted">No valid material in Storage.</div>`}
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const close = () => { try { overlay.remove(); } catch {} };
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+      overlay.querySelectorAll('[data-pick-mat]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const itemId = String(btn.getAttribute('data-pick-mat') || '').trim().toLowerCase();
+          try { onPick && onPick(itemId); } catch {}
+          close();
+        }, { passive: true });
+      });
+    };
+
+    const updateUi = () => {
+      const u = targetKey ? getTeamUnit(targetKey) : null;
+      if (targetBody) {
+        targetBody.innerHTML = u ? `
+          <div class="cp-row" style="margin-top:0; align-items:center; gap:8px;">
+            ${u.mini ? `<img src="${esc(u.mini)}" alt="${esc(u.name)}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;">` : ''}
+            <div style="text-align:left;">
+              <div>${esc(u.kind === 'monster' ? 'Monster' : 'Hero')} · ${esc(u.name || '')}</div>
+              <div class="cp-muted">CD ${esc(String(Math.max(0, Math.floor(Number(u?.activeSkill?.cd) || 0))))}</div>
+            </div>
+          </div>
+        ` : 'Tap to select';
+      }
+      if (matBody) {
+        const def = materialId ? getStorageItemDef(materialId) : null;
+        matBody.innerHTML = def ? `
+          <div class="cp-row" style="margin-top:0; align-items:center; gap:8px;">
+            ${def?.img ? renderImgWithFallback(def.img, def.name || materialId, '') : ''}
+            <div style="text-align:left;">${esc(String(def?.name || materialId))}</div>
+          </div>
+        ` : 'Tap to select';
+      }
+      if (confirmBtn) confirmBtn.disabled = !(targetKey && materialId);
+    };
+
+    targetSlot?.addEventListener('click', () => {
+      const ownedHeroIds = isAdminMode() ? getAllHeroes().map(h => h.id) : Array.from(getOwnedHeroSet());
+      const ownedMonsterIds = isAdminMode() ? getAllMonsters().map(m => m.id) : Array.from(getOwnedMonsterSet());
+      showPickTeamUnitModal({
+        title: 'Pick target unit',
+        allowHeroIds: ownedHeroIds,
+        allowMonsterIds: ownedMonsterIds,
+        onPick: (slot) => {
+          targetKey = String(slot || '').trim();
+          updateUi();
+        },
+        onClear: () => {
+          targetKey = '';
+          updateUi();
+        }
+      });
+    }, { passive: true });
+
+    matSlot?.addEventListener('click', () => {
+      showPickStorageMaterialModal({
+        allowItemIds: ['rewind_rook'],
+        onPick: (itemId) => {
+          materialId = String(itemId || '').trim().toLowerCase();
+          updateUi();
+        }
+      });
+    }, { passive: true });
+
+    confirmBtn?.addEventListener('click', async () => {
+      try {
+        setMsg('');
+        if (!targetKey) throw new Error('Please pick a target.');
+        if (materialId !== 'rewind_rook') throw new Error('Please pick Rewind Rook.');
+        const slots = loadStorage();
+        const spent = spendFromStorage(slots, materialId, 1);
+        if (!spent.ok) throw new Error('Not enough Rewind Rook.');
+        const res = await applyRewindRookToUnit(targetKey);
+        if (!res.ok) throw new Error(res.message || 'Enhance failed.');
+        saveStorage(spent.slots);
+
+        targetSlot?.classList.add('is-consuming');
+        matSlot?.classList.add('is-consuming');
+        await new Promise((resolve) => setTimeout(resolve, 520));
+        targetSlot?.classList.remove('is-consuming');
+        matSlot?.classList.remove('is-consuming');
+        materialId = '';
+        updateUi();
+
+        const nextUnit = getTeamUnit(targetKey);
+        if (resultHost && nextUnit) {
+          resultHost.innerHTML = `
+            <div class="cp-setting-item" style="background:rgba(255,255,255,0.03);">
+              <div class="cp-row" style="margin-top:0; align-items:center; gap:10px;">
+                ${nextUnit.mini ? `<img src="${esc(nextUnit.mini)}" alt="${esc(nextUnit.name)}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;">` : ''}
+                <div>
+                  <div class="cp-setting-label">${esc(nextUnit.kind === 'monster' ? 'Monster' : 'Hero')} · ${esc(nextUnit.name || '')}</div>
+                  <div class="cp-setting-help">Skill CD updated.</div>
+                  <div class="cp-cd-flash">CD ${esc(String(res.beforeCd))} → ${esc(String(res.afterCd))} · Rewind used ${esc(String(res.usedAfter))}/5</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        setMsg('Skill enhanced successfully.');
+      } catch (e) {
+        setMsg(String(e?.message || e || 'Enhance failed'));
+      }
+    }, { passive: true });
+
+    updateUi();
+  };
+
   // ----------------------------
   // Storage (inventory) - 20 slots, stack same items
   // ----------------------------
@@ -4596,6 +4823,7 @@ const ChessPalPages = (() => {
     silver_coin: { id: 'silver_coin', name: 'Silver Coin', img: 'images/Storage/S002-Silver-Coin.png' },
     // You mentioned Gold/Silver both have S001 prefix; we try multiple names via fallback.
     gold_coin: { id: 'gold_coin', name: 'Gold Coin', img: 'images/Storage/S001-Gold-Coin.png' },
+    rewind_rook: { id: 'rewind_rook', name: 'Rewind Rook', img: 'images/Storage/S010-Rewind-Rook.png' },
     exp_pawn: { id: 'exp_pawn', name: 'EXP Pawn', img: 'images/Storage/S003-Exp-Pawn.png' },
     exp_knight: { id: 'exp_knight', name: 'EXP Knight', img: 'images/Storage/S004-Exp-Knight.png' },
     exp_bishop: { id: 'exp_bishop', name: 'EXP Bishop', img: 'images/Storage/S005-Exp-Bishop.png' },
@@ -4663,6 +4891,10 @@ const ChessPalPages = (() => {
       legacy.push('images/Storage/Exp-Soldier.png');
       legacy.unshift('images/Storage/S003-Exp-Soldier.png');
       legacy.unshift('images/Storage/S002-Exp-Soldier.png');
+    }
+    if (base.includes('Rewind-Rook')) {
+      legacy.push('images/Storage/Rewind-Rook.png');
+      legacy.unshift('images/Storage/S010-Rewind-Rook.png');
     }
     return legacy;
   }
@@ -5232,6 +5464,10 @@ const ChessPalPages = (() => {
           ${renderImgWithFallback('images/Storage/S001-Gold-Coin.png', 'Mall', 'cp-square-img')}
           <div class="cp-square-label">Mall</div>
         </button>
+        <button class="cp-square-tile" type="button" data-cp-shop="summon" aria-label="Summon">
+          ${renderImgWithFallback('images/Summon/Su002-Castling.jpg', 'Summon', 'cp-square-img')}
+          <div class="cp-square-label">Summon</div>
+        </button>
       </div>
     `;
   };
@@ -5240,6 +5476,7 @@ const ChessPalPages = (() => {
       btn.addEventListener('click', () => {
         const key = String(btn.getAttribute('data-cp-shop') || '');
         if (key === 'mall') Router.goTo('/shop/mall');
+        else if (key === 'summon') Router.goTo('/summon');
         else Router.goTo('/shop/get-coins');
       }, { passive: true });
     });
@@ -6484,6 +6721,7 @@ const ChessPalPages = (() => {
       '/pal': PalPage,
       '/heroes': HeroesPage,
       '/monsters': MonstersPage,
+      '/enhance': EnhancePage,
       '/storage': StoragePage,
       '/shop': ShopPage,
       '/shop/get-coins': ShopGetCoinsPage,

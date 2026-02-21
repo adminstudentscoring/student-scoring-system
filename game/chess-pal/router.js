@@ -202,7 +202,7 @@ const Router = (() => {
     try {
       const hideTopbar =
         (p === '/practice' || p === '/test-game' || p === '/summon' || p === '/mode' || p.startsWith('/mode/')) ||
-        (p === '/home' || p === '/pal' || p === '/heroes' || p === '/monsters' || p === '/team' || p === '/storage' || p === '/settings') ||
+        (p === '/home' || p === '/pal' || p === '/heroes' || p === '/monsters' || p === '/team' || p === '/enhance' || p === '/storage' || p === '/settings') ||
         (p === '/shop' || p.startsWith('/shop/'));
       const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 980px)').matches);
       document.body.classList.toggle('cp-hide-topbar', mobile ? false : hideTopbar);

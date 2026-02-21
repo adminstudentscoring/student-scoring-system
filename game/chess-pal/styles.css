@@ -1560,5 +1560,58 @@ body {
 .cp-summon-x{
   line-height: 1;
 }
+.cp-enhance-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.cp-enhance-slot{
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.05);
+  border-radius: 14px;
+  min-height: 132px;
+  padding: 10px;
+  color: rgba(241,245,249,0.96);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 180ms ease, opacity 220ms ease, filter 220ms ease;
+}
+.cp-enhance-slot:active{ transform: translateY(1px); }
+.cp-enhance-slot-title{
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(191,219,254,0.95);
+}
+.cp-enhance-slot-body{
+  margin-top: 8px;
+  min-height: 70px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+}
+.cp-enhance-slot.is-consuming{
+  animation: cpEnhanceSwirl 520ms ease-in-out;
+}
+.cp-cd-flash{
+  margin-top: 6px;
+  font-weight: 950;
+  color: #ffffff;
+  animation: cpCdFlash 680ms steps(1, end) infinite;
+}
+@keyframes cpEnhanceSwirl {
+  0% { transform: rotate(0deg) scale(1); opacity: 1; filter: saturate(1); }
+  45% { transform: rotate(14deg) scale(0.94); opacity: 0.82; filter: saturate(1.5); }
+  100% { transform: rotate(0deg) scale(1); opacity: 1; filter: saturate(1); }
+}
+@keyframes cpCdFlash {
+  0% { color: #ffffff; text-shadow: 0 0 0 rgba(255,255,255,0); }
+  50% { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.55); }
+  100% { color: #ffffff; text-shadow: 0 0 0 rgba(255,255,255,0); }
+}
+@media (max-width: 760px){
+  .cp-enhance-grid{
+    grid-template-columns: 1fr;
+  }
+}
 /* (moved) In-game beam/board/practice styles live in `game-styles.css`. */
 
