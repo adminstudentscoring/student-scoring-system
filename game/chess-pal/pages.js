@@ -1154,6 +1154,41 @@ const ChessPalPages = (() => {
     saveMonsterProgress(p);
   }
 
+  const HERO_LEVEL_OVERRIDE_KEY = 'chessPalHeroLevelOverride';
+  const HERO_CD_OVERRIDE_KEY = 'chessPalHeroCdOverride';
+  const MONSTER_LEVEL_OVERRIDE_KEY = 'chessPalMonsterLevelOverride';
+  const MONSTER_CD_OVERRIDE_KEY = 'chessPalMonsterCdOverride';
+  function loadNumberMap(key) {
+    try {
+      const raw = localStorage.getItem(String(key || ''));
+      if (!raw) return {};
+      const v = JSON.parse(raw);
+      return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    } catch {
+      return {};
+    }
+  }
+  function saveNumberMap(key, obj) {
+    try { localStorage.setItem(String(key || ''), JSON.stringify(obj || {})); } catch {}
+    try { window.dispatchEvent(new Event('cpPalTuningChanged')); } catch {}
+  }
+  function getNumberFromMap(key, id) {
+    const k = String(id || '').trim().padStart(3, '0');
+    if (!k) return null;
+    const m = loadNumberMap(key);
+    const n = Number(m?.[k]);
+    return Number.isFinite(n) ? n : null;
+  }
+  function setNumberInMap(key, id, n) {
+    const k = String(id || '').trim().padStart(3, '0');
+    if (!k) return;
+    const m = loadNumberMap(key);
+    const x = Number(n);
+    if (!Number.isFinite(x)) delete m[k];
+    else m[k] = x;
+    saveNumberMap(key, m);
+  }
+
   function expBarInfo({ level, maxLevel, totalExp, curve }) {
     const cap = Math.max(1, Math.floor(Number(maxLevel) || 1));
     const lv = Math.max(1, Math.min(cap, Math.floor(Number(level) || 1)));
@@ -3299,10 +3334,15 @@ const ChessPalPages = (() => {
     const cap = heroMaxLevelForRarity(b.rarity);
     const curve = heroExpCurveForRarity(b.rarity);
     const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, curve, cap)));
-    const scaled = heroStatsAtLevel(b, derivedLevel, cap);
+    const lvLocalRaw = getNumberFromMap(HERO_LEVEL_OVERRIDE_KEY, b.id);
+    const level = Number.isFinite(Number(lvLocalRaw))
+      ? Math.max(1, Math.min(cap, Math.floor(Number(lvLocalRaw) || 1)))
+      : derivedLevel;
+    const scaled = heroStatsAtLevel(b, level, cap);
+    const cdLocalRaw = getNumberFromMap(HERO_CD_OVERRIDE_KEY, b.id);
     return {
       ...b,
-      level: derivedLevel,
+      level,
       maxLevel: cap,
       expCurve: curve,
       hp: (o.hp != null) ? Number(o.hp) : scaled.hp,
@@ -3319,7 +3359,7 @@ const ChessPalPages = (() => {
       totalExp,
       activeSkill: {
         ...active,
-        cd: (o.activeCd != null) ? Number(o.activeCd) : active.cd,
+        cd: Number.isFinite(Number(cdLocalRaw)) ? Math.max(0, Math.floor(Number(cdLocalRaw) || 0)) : ((o.activeCd != null) ? Number(o.activeCd) : active.cd),
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       leaderSkill: {
@@ -3572,8 +3612,12 @@ const ChessPalPages = (() => {
   function PalPage() {}
   PalPage.title = 'Pal';
   PalPage.render = () => {
+    const admin = isAdminMode();
     return `
-      <div class="cp-square-grid" aria-label="Pal">
+      <div class="cp-row" style="margin-top:0; justify-content:flex-end;">
+        ${admin ? `<button class="cp-tool-btn" type="button" id="cpPalSettingBtn">Setting</button>` : ``}
+      </div>
+      <div class="cp-square-grid" aria-label="Pal" style="margin-top:12px;">
         <button class="cp-square-tile" type="button" data-cp-pal="hero" aria-label="Hero">
           <img class="cp-square-img" src="images/Heros/002-Nyxblade/002-Nyxblade-mini.png" alt="Hero">
           <div class="cp-square-label">Hero</div>
@@ -3586,6 +3630,112 @@ const ChessPalPages = (() => {
     `;
   };
   PalPage.init = () => {
+    const showPalAdminSettingModal = () => {
+      if (!isAdminMode()) return;
+      const old = document.getElementById('cpPalAdminOverlay');
+      if (old) old.remove();
+      const heroes = getAllHeroes();
+      const monsters = getAllMonsters();
+      const overlay = document.createElement('div');
+      overlay.id = 'cpPalAdminOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Pal setting">
+          <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+          <div class="cp-modal-body">
+            <div class="cp-h1" style="font-size:18px;">Pal Setting</div>
+            <div class="cp-setting-item" style="margin-top:12px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Type</div>
+              <select class="cp-select" id="cpPalTuneType">
+                <option value="hero">Hero</option>
+                <option value="monster">Monster</option>
+              </select>
+              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Unit</div>
+              <select class="cp-select" id="cpPalTuneUnit"></select>
+              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Level</div>
+              <input class="cp-input" id="cpPalTuneLevel" type="number" min="1" step="1" value="1">
+              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">CD</div>
+              <input class="cp-input" id="cpPalTuneCd" type="number" min="0" step="1" value="0">
+            </div>
+            <div class="cp-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">
+              <button class="cp-tool-btn" type="button" id="cpPalTuneClear">Clear</button>
+              <button class="cp-primary" type="button" id="cpPalTuneApply">Apply</button>
+            </div>
+            <div class="cp-muted" id="cpPalTuneMsg" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const setMsg = (t) => {
+        const el = overlay.querySelector('#cpPalTuneMsg');
+        if (el) el.textContent = String(t || '');
+      };
+      const typeEl = overlay.querySelector('#cpPalTuneType');
+      const unitEl = overlay.querySelector('#cpPalTuneUnit');
+      const levelEl = overlay.querySelector('#cpPalTuneLevel');
+      const cdEl = overlay.querySelector('#cpPalTuneCd');
+      const renderUnits = () => {
+        const t = String(typeEl?.value || 'hero');
+        const list = (t === 'monster' ? monsters : heroes).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        if (unitEl) {
+          unitEl.innerHTML = list.map((u) => `<option value="${esc(String(u.id))}">#${esc(String(u.id))} ${esc(String(u.name || u.id))}</option>`).join('');
+        }
+        const id = String(unitEl?.value || list[0]?.id || '').trim().padStart(3, '0');
+        const lv = t === 'monster' ? getNumberFromMap(MONSTER_LEVEL_OVERRIDE_KEY, id) : getNumberFromMap(HERO_LEVEL_OVERRIDE_KEY, id);
+        const cd = t === 'monster' ? getNumberFromMap(MONSTER_CD_OVERRIDE_KEY, id) : getNumberFromMap(HERO_CD_OVERRIDE_KEY, id);
+        if (levelEl) levelEl.value = String(Math.max(1, Math.floor(Number(lv) || Number(list[0]?.level) || 1)));
+        if (cdEl) cdEl.value = String(Math.max(0, Math.floor(Number(cd) || Number(list[0]?.activeSkill?.cd) || 0)));
+      };
+      renderUnits();
+      typeEl?.addEventListener('change', renderUnits);
+      unitEl?.addEventListener('change', renderUnits);
+      overlay.querySelector('#cpPalTuneApply')?.addEventListener('click', () => {
+        try {
+          const t = String(typeEl?.value || 'hero');
+          const id = String(unitEl?.value || '').trim().padStart(3, '0');
+          const lv = Math.max(1, Math.floor(Number(levelEl?.value) || 1));
+          const cd = Math.max(0, Math.floor(Number(cdEl?.value) || 0));
+          if (!/^\d{3}$/.test(id)) throw new Error('Invalid unit.');
+          if (t === 'monster') {
+            setNumberInMap(MONSTER_LEVEL_OVERRIDE_KEY, id, lv);
+            setNumberInMap(MONSTER_CD_OVERRIDE_KEY, id, cd);
+          } else {
+            setNumberInMap(HERO_LEVEL_OVERRIDE_KEY, id, lv);
+            setNumberInMap(HERO_CD_OVERRIDE_KEY, id, cd);
+          }
+          setMsg(`Applied to ${t} #${id}: Lv ${lv}, CD ${cd}.`);
+        } catch (e) {
+          setMsg(String(e?.message || e || 'Apply failed'));
+        }
+      }, { passive: true });
+      overlay.querySelector('#cpPalTuneClear')?.addEventListener('click', () => {
+        try {
+          const t = String(typeEl?.value || 'hero');
+          const id = String(unitEl?.value || '').trim().padStart(3, '0');
+          if (!/^\d{3}$/.test(id)) throw new Error('Invalid unit.');
+          if (t === 'monster') {
+            setNumberInMap(MONSTER_LEVEL_OVERRIDE_KEY, id, null);
+            setNumberInMap(MONSTER_CD_OVERRIDE_KEY, id, null);
+          } else {
+            setNumberInMap(HERO_LEVEL_OVERRIDE_KEY, id, null);
+            setNumberInMap(HERO_CD_OVERRIDE_KEY, id, null);
+          }
+          renderUnits();
+          setMsg(`Cleared overrides for ${t} #${id}.`);
+        } catch (e) {
+          setMsg(String(e?.message || e || 'Clear failed'));
+        }
+      }, { passive: true });
+      const close = () => {
+        try { overlay.remove(); } catch {}
+        try { window.removeEventListener('keydown', onKey); } catch {}
+        try { Router.renderCurrent(); } catch {}
+      };
+      const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+      window.addEventListener('keydown', onKey);
+    };
     document.querySelectorAll('[data-cp-pal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = String(btn.getAttribute('data-cp-pal') || '');
@@ -3593,6 +3743,9 @@ const ChessPalPages = (() => {
         else Router.goTo('/heroes');
       }, { passive: true });
     });
+    document.getElementById('cpPalSettingBtn')?.addEventListener('click', () => {
+      showPalAdminSettingModal();
+    }, { passive: true });
   };
 
   function HeroesPage() {}
@@ -3752,20 +3905,23 @@ const ChessPalPages = (() => {
     const curve = monsterExpCurveForRarity(rarity);
     const totalExp = b.id ? getMonsterTotalExp(b.id) : 0;
     const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, curve, cap)));
+    const lvLocalRaw = getNumberFromMap(MONSTER_LEVEL_OVERRIDE_KEY, b.id);
 
     // Base stats (optionally overridden by admin)
     const baseHp = (o.hp != null) ? Number(o.hp) : b.hp;
     const baseAtk = (o.atk != null) ? Number(o.atk) : b.atk;
     const baseRcv = (o.rcv != null) ? Number(o.rcv) : b.rcv;
     // Simple growth for monsters: +5% per level above 1
-    const mult = 1 + Math.max(0, derivedLevel - 1) * 0.05;
+    const admin = isAdminMode();
+    const overrideLevel = (o.level != null) ? Number(o.level) : b.level;
+    const level = Number.isFinite(Number(lvLocalRaw))
+      ? Math.max(1, Math.min(cap, Math.floor(Number(lvLocalRaw) || 1)))
+      : ((admin && o.level != null) ? Math.max(1, Math.min(cap, Math.floor(Number(overrideLevel) || 1))) : derivedLevel);
+    const mult = 1 + Math.max(0, level - 1) * 0.05;
     const scaledHp = Math.max(1, Math.floor((Number(baseHp) || 1) * mult));
     const scaledAtk = Math.max(0, Math.floor((Number(baseAtk) || 0) * mult));
     const scaledRcv = Math.max(0, Math.floor((Number(baseRcv) || 0) * mult));
-
-    const admin = isAdminMode();
-    const overrideLevel = (o.level != null) ? Number(o.level) : b.level;
-    const level = (admin && o.level != null) ? Math.max(1, Math.min(cap, Math.floor(Number(overrideLevel) || 1))) : derivedLevel;
+    const cdLocalRaw = getNumberFromMap(MONSTER_CD_OVERRIDE_KEY, b.id);
 
     return {
       ...b,
@@ -3779,7 +3935,7 @@ const ChessPalPages = (() => {
       rcv: scaledRcv,
       activeSkill: {
         ...active,
-        cd: (o.activeCd != null) ? Number(o.activeCd) : active.cd,
+        cd: Number.isFinite(Number(cdLocalRaw)) ? Math.max(0, Math.floor(Number(cdLocalRaw) || 0)) : ((o.activeCd != null) ? Number(o.activeCd) : active.cd),
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       passiveSkill: {
@@ -5461,6 +5617,10 @@ const ChessPalPages = (() => {
           if (meResp && meResp.ok) {
             const me = await meResp.json().catch(() => ({}));
             currentUserId = String(me?.id || '').trim();
+            const meName = String(me?.name || 'Myself').trim() || 'Myself';
+            if (currentUserId) {
+              users.push({ id: currentUserId, name: meName });
+            }
           }
           const resp = await window.authUtils.authenticatedFetch('/students', { method: 'GET' });
           if (!resp || !resp.ok) throw new Error('Failed to load users.');
@@ -5468,6 +5628,8 @@ const ChessPalPages = (() => {
           users = (Array.isArray(arr) ? arr : [])
             .map((u) => ({ id: String(u?.id || '').trim(), name: String(u?.name || 'User').trim() || 'User' }))
             .filter((u) => u.id)
+            .concat(users)
+            .filter((u, idx, all) => all.findIndex((x) => String(x.id) === String(u.id)) === idx)
             .sort((a, b) => a.name.localeCompare(b.name));
           renderUsers();
           if (userSel && currentUserId) userSel.value = currentUserId;
@@ -6482,7 +6644,9 @@ const ChessPalPages = (() => {
           <div class="cp-h1" style="font-size:20px;">Summon Result</div>
           <div class="cp-setting-item" style="margin-top:12px; background:rgba(255,255,255,0.03);">
             <div class="cp-row" style="margin-top:0; align-items:center; gap:10px;">
-              ${it?.img ? renderImgWithFallback(String(it.img), String(it.name || it.id || 'Item'), '') : ''}
+              <div style="width:120px; height:120px; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.18); flex:0 0 auto;">
+                ${it?.img ? `<img src="${esc(String(it.img))}" alt="${esc(String(it.name || it.id || 'Item'))}" style="width:100%;height:100%;object-fit:contain;" decoding="async" loading="lazy">` : ''}
+              </div>
               <div>
                 <div class="cp-setting-label">${esc(String(it?.name || it?.id || 'Item'))}</div>
                 <div class="cp-setting-help">Obtained ×1</div>
