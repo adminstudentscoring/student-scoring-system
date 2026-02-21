@@ -5407,6 +5407,10 @@ const ChessPalPages = (() => {
           <div class="cp-modal-body">
             <div class="cp-h1" style="font-size:18px;">Storage Setting</div>
             <div class="cp-setting-item" style="margin-top:12px;">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Target user search</div>
+              <input class="cp-input" id="cpStorageAdminUserSearch" type="text" placeholder="Search by name or ID">
+              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Target user</div>
+              <select class="cp-select" id="cpStorageAdminUser"></select>
               <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Item</div>
               <select class="cp-select" id="cpStorageAdminItem">
                 ${defs.map((d) => `<option value="${esc(String(d.id))}">${esc(String(d.name || d.id))}</option>`).join('')}
@@ -5427,6 +5431,19 @@ const ChessPalPages = (() => {
         const m = overlay.querySelector('#cpStorageAdminMsg');
         if (m) m.textContent = String(t || '');
       };
+      let currentUserId = '';
+      let users = [];
+      const userSel = overlay.querySelector('#cpStorageAdminUser');
+      const userSearch = overlay.querySelector('#cpStorageAdminUserSearch');
+      const renderUsers = () => {
+        if (!userSel) return;
+        const q = String(userSearch?.value || '').trim().toLowerCase();
+        const list = users.filter((u) => {
+          if (!q) return true;
+          return String(u.id || '').toLowerCase().includes(q) || String(u.name || '').toLowerCase().includes(q);
+        });
+        userSel.innerHTML = list.map((u) => `<option value="${esc(String(u.id))}">#${esc(String(u.id))} ${esc(String(u.name || 'User'))}</option>`).join('');
+      };
       const close = () => {
         try { overlay.remove(); } catch {}
         try { window.removeEventListener('keydown', onKey); } catch {}
@@ -5436,16 +5453,54 @@ const ChessPalPages = (() => {
       overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
       overlay.querySelector('#cpStorageAdminCancel')?.addEventListener('click', close, { passive: true });
       window.addEventListener('keydown', onKey);
+      userSearch?.addEventListener('input', () => { try { renderUsers(); } catch {} });
+      (async () => {
+        try {
+          if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') throw new Error('Authentication not ready.');
+          const meResp = await window.authUtils.authenticatedFetch('/auth/me', { method: 'GET' });
+          if (meResp && meResp.ok) {
+            const me = await meResp.json().catch(() => ({}));
+            currentUserId = String(me?.id || '').trim();
+          }
+          const resp = await window.authUtils.authenticatedFetch('/students', { method: 'GET' });
+          if (!resp || !resp.ok) throw new Error('Failed to load users.');
+          const arr = await resp.json().catch(() => []);
+          users = (Array.isArray(arr) ? arr : [])
+            .map((u) => ({ id: String(u?.id || '').trim(), name: String(u?.name || 'User').trim() || 'User' }))
+            .filter((u) => u.id)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          renderUsers();
+          if (userSel && currentUserId) userSel.value = currentUserId;
+        } catch (e) {
+          setMsg(String(e?.message || e || 'Failed to load users'));
+        }
+      })();
       overlay.querySelector('#cpStorageAdminAdd')?.addEventListener('click', () => {
         try {
+          const targetUserId = String(userSel?.value || '').trim();
           const itemId = String(overlay.querySelector('#cpStorageAdminItem')?.value || '').trim().toLowerCase();
           const qty = Math.max(1, Math.floor(Number(overlay.querySelector('#cpStorageAdminQty')?.value) || 1));
+          if (!targetUserId) throw new Error('Please select a target user.');
           if (!getStorageItemDef(itemId)) throw new Error('Invalid item.');
-          const before = JSON.stringify(slots);
-          slots = addItemToStorage(slots, itemId, qty);
-          if (JSON.stringify(slots) === before) throw new Error('Storage is full.');
-          refresh();
-          setMsg(`Added ${qty} × ${String(getStorageItemDef(itemId)?.name || itemId)}.`);
+          if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') throw new Error('Authentication not ready.');
+          window.authUtils.authenticatedFetch('/admin/chess-pal/storage-grant', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: targetUserId, itemId, qty }),
+          }).then(async (resp) => {
+            if (!resp || !resp.ok) {
+              const err = await resp?.json?.().catch(() => ({}));
+              throw new Error(String(err?.error || 'Add failed'));
+            }
+            if (currentUserId && targetUserId === currentUserId) {
+              const before = JSON.stringify(slots);
+              slots = addItemToStorage(slots, itemId, qty);
+              if (JSON.stringify(slots) !== before) refresh();
+            }
+            setMsg(`Added ${qty} × ${String(getStorageItemDef(itemId)?.name || itemId)} to user #${targetUserId}.`);
+          }).catch((e) => {
+            setMsg(String(e?.message || e || 'Add failed'));
+          });
         } catch (e) {
           setMsg(String(e?.message || e || 'Add failed'));
         }

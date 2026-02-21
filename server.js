@@ -559,6 +559,48 @@ function sanitizeChessPalState(raw) {
   return out;
 }
 
+const CHESS_PAL_STORAGE_SLOT_COUNT = 20;
+function normalizeChessPalStorageSlots(slotsLike) {
+  const src = Array.isArray(slotsLike) ? slotsLike : [];
+  const out = [];
+  for (const it of src) {
+    if (!it || typeof it !== 'object') continue;
+    const itemId = String(it.itemId || '').trim().toLowerCase();
+    if (!itemId || !/^[a-z0-9_]{1,80}$/.test(itemId)) continue;
+    const qty = Math.max(1, Math.min(999999, Math.floor(Number(it.qty) || 1)));
+    const name = String(it.name || itemId).trim().slice(0, 120) || itemId;
+    out.push({ itemId, name, qty });
+    if (out.length >= CHESS_PAL_STORAGE_SLOT_COUNT) break;
+  }
+  while (out.length < CHESS_PAL_STORAGE_SLOT_COUNT) out.push(null);
+  return out;
+}
+function parseChessPalStorageState(storageRawString) {
+  try {
+    const parsed = JSON.parse(String(storageRawString || '{}'));
+    return normalizeChessPalStorageSlots(parsed?.slots);
+  } catch {
+    return normalizeChessPalStorageSlots([]);
+  }
+}
+function addItemToChessPalStorageSlots(slots, itemIdRaw, qtyRaw) {
+  const itemId = String(itemIdRaw || '').trim().toLowerCase();
+  const qty = Math.max(1, Math.min(999999, Math.floor(Number(qtyRaw) || 1)));
+  if (!itemId || !/^[a-z0-9_]{1,80}$/.test(itemId)) return { ok: false, slots, reason: 'invalid_item' };
+  const next = normalizeChessPalStorageSlots(slots);
+  const hasIdx = next.findIndex((s) => s && String(s.itemId || '').toLowerCase() === itemId);
+  if (hasIdx >= 0) {
+    const cur = next[hasIdx];
+    const curQty = Math.max(1, Math.floor(Number(cur?.qty) || 1));
+    next[hasIdx] = { ...cur, itemId, name: String(cur?.name || itemId).trim() || itemId, qty: Math.max(1, Math.min(999999, curQty + qty)) };
+    return { ok: true, slots: next };
+  }
+  const emptyIdx = next.findIndex((s) => !s);
+  if (emptyIdx < 0) return { ok: false, slots: next, reason: 'storage_full' };
+  next[emptyIdx] = { itemId, name: itemId, qty };
+  return { ok: true, slots: next };
+}
+
 app.get('/api/chess-pal/state', authenticateUser, async (req, res) => {
   try {
     const uid = String(req?.user?.id || '').trim();
@@ -596,6 +638,38 @@ app.put('/api/chess-pal/state', authenticateUser, async (req, res) => {
   } catch (e) {
     console.error('[chess-pal] PUT /api/chess-pal/state failed:', e);
     res.status(500).json({ error: 'Failed to save Chess Pal state' });
+  }
+});
+
+app.put('/api/admin/chess-pal/storage-grant', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const userId = String(req?.body?.userId || '').trim();
+    const itemId = String(req?.body?.itemId || '').trim().toLowerCase();
+    const qty = Math.max(1, Math.floor(Number(req?.body?.qty) || 1));
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!itemId || !/^[a-z0-9_]{1,80}$/.test(itemId)) return res.status(400).json({ error: 'Invalid itemId' });
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    if (!data.chessPal.userState || typeof data.chessPal.userState !== 'object' || Array.isArray(data.chessPal.userState)) {
+      data.chessPal.userState = {};
+    }
+    const now = Date.now();
+    const currentEntry = data.chessPal.userState[userId];
+    const state = sanitizeChessPalState(currentEntry?.state || {});
+    const slots = parseChessPalStorageState(state?.chessPalStorage || '');
+    const added = addItemToChessPalStorageSlots(slots, itemId, qty);
+    if (!added.ok) {
+      if (added.reason === 'storage_full') return res.status(400).json({ error: 'Target storage is full' });
+      return res.status(400).json({ error: 'Failed to add item' });
+    }
+    state.chessPalStorage = JSON.stringify({ slots: normalizeChessPalStorageSlots(added.slots) });
+    data.chessPal.userState[userId] = { state, updatedAt: now };
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+    res.json({ success: true, userId, itemId, qty, updatedAt: now });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/storage-grant failed:', e);
+    res.status(500).json({ error: 'Failed to grant item to user storage' });
   }
 });
 
