@@ -1354,13 +1354,17 @@ const ChessPalPages = (() => {
   ModePage.render = () => {
     const s = getGeneralSettings();
     const admin = isAdminMode();
+    const challengeUnlocked = (() => {
+      if (admin) return true;
+      try { return Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(3)) || 0)) >= 5; } catch { return false; }
+    })();
     return `
       <div class="cp-square-grid" aria-label="Mode">
         <button class="cp-square-tile" type="button" data-cp-mode="story" aria-label="Story Mode">
           ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Story Mode', 'cp-square-img')}
           <div class="cp-square-label">Story Mode</div>
         </button>
-        <button class="cp-square-tile" type="button" data-cp-mode="challenge" aria-label="Challenge Mode">
+        <button class="cp-square-tile" type="button" data-cp-mode="challenge" data-cp-locked="${challengeUnlocked ? '0' : '1'}" aria-label="Challenge Mode" ${challengeUnlocked ? '' : 'disabled'}>
           ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Challenge Mode', 'cp-square-img')}
           <div class="cp-square-label">Challenge Mode</div>
         </button>
@@ -1381,6 +1385,8 @@ const ChessPalPages = (() => {
     document.querySelectorAll('[data-cp-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = String(btn.getAttribute('data-cp-mode') || '').trim();
+        const locked = String(btn.getAttribute('data-cp-locked') || '0') === '1';
+        if (locked) { try { setMsg('Complete Story Mode Chapter 3 first.'); } catch {} return; }
         if (key === 'practice') Router.goTo('/practice');
         else if (key === 'story') Router.goTo('/mode/story');
         else if (key === 'challenge') Router.goTo('/mode/challenge');
@@ -5336,7 +5342,19 @@ const ChessPalPages = (() => {
     return out;
   }
 
+  function defaultOrderMapForUnits(units) {
+    const out = {};
+    (Array.isArray(units) ? units : []).forEach((u, idx) => {
+      const id = String(u?.id || '').trim();
+      if (!id) return;
+      out[id] = idx + 1;
+    });
+    return out;
+  }
+
   function defaultSummonConfig() {
+    const heroes = getAllHeroes();
+    const monsters = getAllMonsters();
     return {
       updatedAt: Date.now(),
       currencyId: 'gold_coin',
@@ -5345,8 +5363,9 @@ const ChessPalPages = (() => {
       enabled: true,
       heroEnabled: true,
       monsterEnabled: true,
-      heroRates: defaultRateMapForUnits(getAllHeroes()),
-      monsterRates: defaultRateMapForUnits(getAllMonsters()),
+      heroRates: defaultRateMapForUnits(heroes),
+      monsterRates: defaultRateMapForUnits(monsters),
+      heroOrder: defaultOrderMapForUnits(heroes),
     };
   }
 
@@ -5360,6 +5379,20 @@ const ChessPalPages = (() => {
       const fallback = Number(defaults[id]) || 1;
       const v = Number.isFinite(raw) ? raw : fallback;
       out[id] = Math.max(0, v);
+    });
+    return out;
+  }
+
+  function normalizeOrderMap(inputMap, units) {
+    const defaults = defaultOrderMapForUnits(units);
+    const out = {};
+    (Array.isArray(units) ? units : []).forEach((u, idx) => {
+      const id = String(u?.id || '').trim();
+      if (!id) return;
+      const raw = Number(inputMap?.[id]);
+      const fallback = Number(defaults[id]) || (idx + 1);
+      const v = Number.isFinite(raw) ? Math.floor(raw) : fallback;
+      out[id] = Math.max(1, v);
     });
     return out;
   }
@@ -5378,8 +5411,9 @@ const ChessPalPages = (() => {
     const monsters = getAllMonsters();
     const heroRates = normalizeRateMap(raw?.heroRates, heroes);
     const monsterRates = normalizeRateMap(raw?.monsterRates, monsters);
+    const heroOrder = normalizeOrderMap(raw?.heroOrder, heroes);
     const updatedAt = Number.isFinite(Number(raw?.updatedAt)) ? Math.floor(Number(raw.updatedAt)) : base.updatedAt;
-    return { updatedAt, currencyId, cost, limitHours, enabled, heroEnabled, monsterEnabled, heroRates, monsterRates };
+    return { updatedAt, currencyId, cost, limitHours, enabled, heroEnabled, monsterEnabled, heroRates, monsterRates, heroOrder };
   }
 
   function loadSummonConfig() {
@@ -5507,14 +5541,27 @@ const ChessPalPages = (() => {
     const monsterRowsHost = overlay.querySelector('#cpSummonMonsterRateRows');
     const heroes = getAllHeroes();
     const monsters = getAllMonsters();
+    const heroesSorted = heroes.slice().sort((a, b) => {
+      const aid = String(a?.id || '').trim();
+      const bid = String(b?.id || '').trim();
+      const ao = Math.max(1, Math.floor(Number(cfg?.heroOrder?.[aid]) || 9999));
+      const bo = Math.max(1, Math.floor(Number(cfg?.heroOrder?.[bid]) || 9999));
+      if (ao !== bo) return ao - bo;
+      const ar = Math.max(1, Math.min(10, Math.floor(Number(a?.rarity) || 1)));
+      const br = Math.max(1, Math.min(10, Math.floor(Number(b?.rarity) || 1)));
+      if (ar !== br) return br - ar;
+      return aid.localeCompare(bid);
+    });
     if (heroRowsHost) {
-      heroRowsHost.innerHTML = heroes.map((h) => {
+      heroRowsHost.innerHTML = heroesSorted.map((h) => {
         const id = String(h?.id || '').trim();
         const w = Number(cfg?.heroRates?.[id]);
+        const ord = Math.max(1, Math.floor(Number(cfg?.heroOrder?.[id]) || 1));
         const stars = Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)));
         return `
           <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
             <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(String(h?.name || id))} · ★${esc(String(stars))}</span>
+            <input class="cp-input" data-summon-hero-order="${esc(id)}" type="number" min="1" step="1" value="${esc(String(ord))}" style="width:70px;" title="Order">
             <input class="cp-input" data-summon-hero-rate="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(w) ? w : 1))}" style="width:92px;">
           </label>
         `;
@@ -5570,10 +5617,16 @@ const ChessPalPages = (() => {
         const heroEnabled = !!overlay.querySelector('#cpSummonCfgHeroEnabled')?.checked;
         const monsterEnabled = !!overlay.querySelector('#cpSummonCfgMonsterEnabled')?.checked;
         const heroRates = {};
+        const heroOrder = {};
         overlay.querySelectorAll('[data-summon-hero-rate]').forEach((el) => {
           const id = String(el.getAttribute('data-summon-hero-rate') || '').trim();
           if (!id) return;
           heroRates[id] = Math.max(0, Number(el.value) || 0);
+        });
+        overlay.querySelectorAll('[data-summon-hero-order]').forEach((el) => {
+          const id = String(el.getAttribute('data-summon-hero-order') || '').trim();
+          if (!id) return;
+          heroOrder[id] = Math.max(1, Math.floor(Number(el.value) || 1));
         });
         const monsterRates = {};
         overlay.querySelectorAll('[data-summon-mon-rate]').forEach((el) => {
@@ -5582,7 +5635,7 @@ const ChessPalPages = (() => {
           monsterRates[id] = Math.max(0, Number(el.value) || 0);
         });
         if (!getStorageItemDef(currencyId)) throw new Error('Invalid cost item.');
-        saveSummonConfig({ currencyId, cost, limitHours, enabled, heroEnabled, monsterEnabled, heroRates, monsterRates });
+        saveSummonConfig({ currencyId, cost, limitHours, enabled, heroEnabled, monsterEnabled, heroRates, monsterRates, heroOrder });
         setMsg('Saved.');
         try { onSaved && onSaved(); } catch {}
         setTimeout(() => close(), 220);
