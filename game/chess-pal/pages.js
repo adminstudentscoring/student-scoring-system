@@ -2004,6 +2004,29 @@ const ChessPalPages = (() => {
       const sid = window.__cpStoryStage?.monsterId ? String(window.__cpStoryStage.monsterId).trim().padStart(3, '0') : '004';
       return getMonsterEffective(sid, level);
     };
+    const getMonsterNpcSkillCd = (monsterDefLike) => {
+      const m = (monsterDefLike && typeof monsterDefLike === 'object') ? monsterDefLike : {};
+      const a = (m.activeSkill && typeof m.activeSkill === 'object') ? m.activeSkill : { params: {}, cd: 0 };
+      const p = (a.params && typeof a.params === 'object') ? a.params : {};
+      const explicit = Number(p.npcCd);
+      if (Number.isFinite(explicit)) return Math.max(0, Math.min(8, Math.floor(explicit)));
+      const dmg = Math.max(0, Number(p.dmg) || 0);
+      const healFlat = Math.max(0, Number(p.healFlat) || 0);
+      const healPct = Math.max(0, Number(p.healMaxHpPctPerTurn) || 0);
+      const guard = Math.max(0, Number(p.damageReduction) || 0);
+      const atkMult = Math.max(1, Number(p.atkMultThisTurn) || 1);
+      const convertList = Array.isArray(p.convert) ? p.convert : (p.convert ? [p.convert] : []);
+      const convertCount = convertList.reduce((s, it) => s + Math.max(0, Math.floor(Number(it?.count) || 0)), 0);
+      let score = 0;
+      if (dmg >= 220) score += 2; else if (dmg >= 90) score += 1;
+      if (healFlat >= 420 || healPct >= 0.08) score += 2; else if (healFlat >= 140 || healPct >= 0.03) score += 1;
+      if (guard >= 0.20) score += 2; else if (guard >= 0.10) score += 1;
+      if (atkMult >= 1.15) score += 1;
+      if (convertCount >= 3) score += 1;
+      if (score <= 1) return 0;
+      if (score <= 3) return 3;
+      return 4;
+    };
 
     const showStoryHintIfAny = () => {
       try {
@@ -2499,7 +2522,7 @@ const ChessPalPages = (() => {
           const active = (mdef?.activeSkill && typeof mdef.activeSkill === 'object') ? mdef.activeSkill : { params: {}, cd: 0 };
           const passiveParams = (passive?.params && typeof passive.params === 'object') ? passive.params : {};
           const activeParams = (active?.params && typeof active.params === 'object') ? active.params : {};
-          const activeCd = Math.max(0, Math.floor(Number(active?.cd) || 0));
+          const activeCd = getMonsterNpcSkillCd(mdef);
           return { mid, mdef, passiveParams, activeParams, activeCd, activeName: String(active?.name || 'Skill') };
         };
         const getMonsterPassiveCombatFx = (monsterLike) => {
@@ -2548,6 +2571,14 @@ const ChessPalPages = (() => {
             healPct,
             guard,
           };
+        };
+        const describeMonsterActiveFx = (fx) => {
+          const parts = [];
+          if (Number(fx?.atkMultThisTurn) > 1.01) parts.push(`ATK x${Number(fx.atkMultThisTurn).toFixed(2)}`);
+          if (Number(fx?.dmgFlat) > 0) parts.push(`extra ${Math.floor(Number(fx.dmgFlat) || 0)} damage`);
+          if (Number(fx?.healFlat) > 0 || Number(fx?.healPct) > 0) parts.push('self-heal');
+          if (Number(fx?.guard) > 0) parts.push(`guard ${Math.round(Number(fx.guard) * 100)}%`);
+          return parts.join(', ') || 'special attack';
         };
         const syncTargetBackCompat = () => {
           try {
@@ -2854,7 +2885,7 @@ const ChessPalPages = (() => {
                       const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
                       const eff = getMonsterEffective(mid, lv);
                       const m = getMonsterBase(mid) || getMonsterFromDbQuick(mid);
-                      const activeCd = Math.max(0, Math.floor(Number(m?.activeSkill?.cd) || 0));
+                      const activeCd = getMonsterNpcSkillCd(m);
                       return {
                         idx,
                         monsterId: mid,
@@ -2955,6 +2986,13 @@ const ChessPalPages = (() => {
             let atkFlatByActive = 0;
             if (afx.hasEffect && ((Number(afx.cd) <= 0) || (Number(m.skillCdLeft) <= 0))) {
               activeUsed = true;
+              try {
+                if (hintEl) {
+                  hintEl.textContent = `${String(m?.name || 'Monster')} uses ${String(afx.name || 'Skill')}: ${describeMonsterActiveFx(afx)}.`;
+                  hintEl.style.display = '';
+                  setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 1800);
+                }
+              } catch {}
               atkMultByActive = Math.max(0.1, Number(afx.atkMultThisTurn) || 1);
               atkFlatByActive = Math.max(0, Math.floor(Number(afx.dmgFlat) || 0));
               try {
@@ -3311,7 +3349,7 @@ const ChessPalPages = (() => {
           const lv = Math.max(1, Math.floor(Number(mm?.level) || 1));
           const eff = getMonsterEffective(mid, lv);
           const m = getMonsterBase(mid) || getMonsterFromDbQuick(mid);
-          const activeCd = Math.max(0, Math.floor(Number(m?.activeSkill?.cd) || 0));
+          const activeCd = getMonsterNpcSkillCd(m);
           return {
             idx,
             monsterId: mid,
@@ -4221,6 +4259,12 @@ const ChessPalPages = (() => {
     const scaledAtk = Math.max(0, Math.floor((Number(baseAtk) || 0) * mult));
     const scaledRcv = Math.max(0, Math.floor((Number(baseRcv) || 0) * mult));
     const cdLocalRaw = getNumberFromMap(MONSTER_CD_OVERRIDE_KEY, b.id);
+    const baseCd = Math.max(1, Math.floor(Number(active?.cd) || 1));
+    const cdFromLocal = Number(cdLocalRaw);
+    const cdFromServer = Number(o?.activeCd);
+    const resolvedCd = Number.isFinite(cdFromLocal) && cdFromLocal >= 1
+      ? Math.floor(cdFromLocal)
+      : (Number.isFinite(cdFromServer) && cdFromServer >= 1 ? Math.floor(cdFromServer) : baseCd);
 
     return {
       ...b,
@@ -4234,7 +4278,7 @@ const ChessPalPages = (() => {
       rcv: scaledRcv,
       activeSkill: {
         ...active,
-        cd: Number.isFinite(Number(cdLocalRaw)) ? Math.max(0, Math.floor(Number(cdLocalRaw) || 0)) : ((o.activeCd != null) ? Number(o.activeCd) : active.cd),
+        cd: resolvedCd,
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       passiveSkill: {
@@ -4393,7 +4437,7 @@ const ChessPalPages = (() => {
             </label>
             <label class="cp-admin-field">
               <span>Active Skill CD</span>
-              <input type="number" id="cpAdminActiveCd" value="${esc(merged.activeSkill?.cd ?? 0)}" min="0" step="1">
+              <input type="number" id="cpAdminActiveCd" value="${esc(Math.max(1, Math.floor(Number(merged.activeSkill?.cd) || 1)))}" min="1" step="1">
             </label>
           </div>
 
@@ -4450,7 +4494,9 @@ const ChessPalPages = (() => {
         monsterOverrides[merged.id].hp = Number.isFinite(hp) ? Math.max(1, Math.floor(hp)) : merged.hp;
         monsterOverrides[merged.id].atk = Number.isFinite(atk) ? Math.max(1, Math.floor(atk)) : merged.atk;
         monsterOverrides[merged.id].rcv = Number.isFinite(rcv) ? Math.max(0, Math.floor(rcv)) : merged.rcv;
-        monsterOverrides[merged.id].activeCd = Number.isFinite(cd) ? Math.max(0, Math.floor(cd)) : (merged.activeSkill?.cd ?? 0);
+        monsterOverrides[merged.id].activeCd = Number.isFinite(cd)
+          ? Math.max(1, Math.floor(cd))
+          : Math.max(1, Math.floor(Number(merged.activeSkill?.cd) || 1));
         monsterOverrides[merged.id].passiveParams = passiveParams;
         monsterOverrides[merged.id].activeParams = activeParams;
 
