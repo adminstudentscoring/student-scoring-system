@@ -2205,13 +2205,28 @@ const ChessPalPages = (() => {
       const itemRows = (Array.isArray(itemIds) ? itemIds : [])
         .map((id) => {
           const def = getStorageItemDef(id);
-          return `<li>${esc(String(def?.name || id))}</li>`;
+          return `
+            <li style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+              ${def?.img ? `<img src="${esc(String(def.img))}" alt="${esc(String(def?.name || id))}" style="width:32px;height:32px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">` : ``}
+              <span>${esc(String(def?.name || id))}</span>
+            </li>
+          `;
         }).join('');
       const monRows = (Array.isArray(monsterIds) ? monsterIds : [])
         .map((id) => {
           const mon = getMonsterFromDbQuick(id);
-          return `<li>${esc(String(mon?.name || `#${id}`))}</li>`;
+          const mimg = String(mon?.mini || mon?.img || '').trim();
+          return `
+            <li style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+              ${mimg ? `<img src="${esc(mimg)}" alt="${esc(String(mon?.name || `#${id}`))}" style="width:32px;height:32px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">` : ``}
+              <span>${esc(String(mon?.name || `#${id}`))}</span>
+            </li>
+          `;
         }).join('');
+      const beforeLevel = Math.max(1, Math.floor(Number(levelInfo?.before?.level) || Number(levelInfo?.after?.level) || Number(levelInfo?.level) || 1));
+      const afterLevel = Math.max(1, Math.floor(Number(levelInfo?.after?.level) || Number(levelInfo?.level) || beforeLevel));
+      const beforePct = Math.max(0, Math.min(100, Math.round((Number(levelInfo?.before?.progress) || 0) * 100)));
+      const afterPct = Math.max(0, Math.min(100, Math.round((Number(levelInfo?.after?.progress) || Number(levelInfo?.progress) || 0) * 100)));
       const overlay = document.createElement('div');
       overlay.id = 'cpResultOverlay';
       overlay.className = 'cp-modal-overlay';
@@ -2222,7 +2237,12 @@ const ChessPalPages = (() => {
             <div class="cp-setting-help" style="margin-top:12px;">Player EXP</div>
             <div class="cp-row" style="justify-content:space-between;">
               <div>+${esc(String(expGain || 0))} EXP</div>
-              <div>Lv ${esc(String(levelInfo?.after?.level || levelInfo?.level || 1))}</div>
+              <div id="cpResultLvText">Lv ${esc(String(beforeLevel))}${afterLevel !== beforeLevel ? ` -> Lv ${esc(String(afterLevel))}` : ''}</div>
+            </div>
+            <div style="margin-top:8px;">
+              <div style="height:10px; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.08);">
+                <div id="cpResultExpFill" style="height:100%; width:${esc(String(beforePct))}%; background:linear-gradient(90deg, rgba(59,130,246,0.95), rgba(125,211,252,0.95)); transition:width 1000ms ease;"></div>
+              </div>
             </div>
             <div class="cp-setting-help" style="margin-top:12px;">Items</div>
             <ul style="margin:6px 0 0 18px;">${itemRows || '<li>(None)</li>'}</ul>
@@ -2235,6 +2255,10 @@ const ChessPalPages = (() => {
         </div>
       `;
       document.body.appendChild(overlay);
+      setTimeout(() => {
+        const fill = overlay.querySelector('#cpResultExpFill');
+        if (fill) fill.style.width = `${afterPct}%`;
+      }, 80);
       overlay.querySelector('#cpResultBackStory')?.addEventListener('click', () => {
         try { overlay.remove(); } catch {}
         try { Router.goTo('/home'); } catch {}
@@ -3404,12 +3428,22 @@ const ChessPalPages = (() => {
     return '★'.repeat(k);
   }
 
+  function formatNpcSkillParams(paramsLike) {
+    const p = (paramsLike && typeof paramsLike === 'object') ? paramsLike : {};
+    const entries = Object.entries(p).slice(0, 8);
+    if (!entries.length) return 'N/A';
+    return entries.map(([k, v]) => `${String(k)}: ${String(v)}`).join(', ');
+  }
+
   function showHeroModal(hero) {
     const h = hero || null;
     if (!h) return;
     const admin = isAdminMode();
     const canLevelUp = admin || getOwnedHeroSet().has(String(h.id || ''));
     const xp = expProgressMeta({ totalExp: h.totalExp || 0, level: h.level, curve: h.expCurve, maxLevel: h.maxLevel });
+    const npcSkillName = String(h?.npcSkill?.name || `${h?.activeSkill?.name || 'Active Skill'} (NPC)`);
+    const npcSkillText = String(h?.npcSkill?.text || h?.activeSkill?.text || 'No NPC skill description.');
+    const npcSkillValues = formatNpcSkillParams(h?.npcSkill?.params || h?.activeSkill?.params);
 
     // Remove existing
     const old = document.getElementById('cpHeroModalOverlay');
@@ -3464,13 +3498,19 @@ const ChessPalPages = (() => {
                 <div class="cp-hero-skill cp-admin-box">
                   <div class="cp-skill-head">
                     <div class="cp-skill-title">Admin</div>
-                    <button class="cp-tool-btn" type="button" id="cpOpenAdminEdit">Admin Edit</button>
                   </div>
-                  <div class="cp-muted" style="margin-top:8px;">Edit HP/ATK/RCV, skill CD, and skill values.</div>
+                  <div class="cp-muted" style="margin-top:8px;">NPC Skill · ${esc(npcSkillName)}</div>
+                  <div class="cp-skill-desc" style="margin-top:6px;">${esc(npcSkillText)}</div>
+                  <div class="cp-muted" style="margin-top:8px;">Values: ${esc(npcSkillValues)}</div>
                 </div>
               ` : ''}
             </div>
           </div>
+          ${admin ? `
+            <div class="cp-row" style="justify-content:center; margin-top:12px;">
+              <button class="cp-tool-btn" type="button" id="cpOpenAdminEdit">Admin Edit</button>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -3955,6 +3995,9 @@ const ChessPalPages = (() => {
     const admin = isAdminMode();
     const canLevelUp = admin || getOwnedMonsterSet().has(String(m.id || ''));
     const xp = expProgressMeta({ totalExp: m.totalExp || 0, level: m.level, curve: m.expCurve, maxLevel: m.maxLevel });
+    const npcSkillName = String(m?.npcSkill?.name || `${m?.activeSkill?.name || 'Active Skill'} (NPC)`);
+    const npcSkillText = String(m?.npcSkill?.text || m?.activeSkill?.text || 'No NPC skill description.');
+    const npcSkillValues = formatNpcSkillParams(m?.npcSkill?.params || m?.activeSkill?.params);
     const old = document.getElementById('cpMonsterModalOverlay');
     if (old) old.remove();
 
@@ -4007,13 +4050,19 @@ const ChessPalPages = (() => {
                 <div class="cp-hero-skill cp-admin-box">
                   <div class="cp-skill-head">
                     <div class="cp-skill-title">Admin</div>
-                    <button class="cp-tool-btn" type="button" id="cpOpenMonsterAdminEdit">Admin Edit</button>
                   </div>
-                  <div class="cp-muted" style="margin-top:8px;">Edit HP/ATK/RCV, skill CD, and skill values.</div>
+                  <div class="cp-muted" style="margin-top:8px;">NPC Skill · ${esc(npcSkillName)}</div>
+                  <div class="cp-skill-desc" style="margin-top:6px;">${esc(npcSkillText)}</div>
+                  <div class="cp-muted" style="margin-top:8px;">Values: ${esc(npcSkillValues)}</div>
                 </div>
               ` : ''}
             </div>
           </div>
+          ${admin ? `
+            <div class="cp-row" style="justify-content:center; margin-top:12px;">
+              <button class="cp-tool-btn" type="button" id="cpOpenMonsterAdminEdit">Admin Edit</button>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
