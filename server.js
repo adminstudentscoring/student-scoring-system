@@ -334,8 +334,14 @@ function sanitizeChessPalStoryStages(raw) {
           const level = Math.max(1, Math.floor(Number(mon.level) || 1));
           if (!/^\d{3}$/.test(monsterId)) return null;
           const monsterDropChance = Math.max(0, Math.min(100, Math.floor(Number(mon.monsterDropChance ?? mon.captureChance) || 0)));
+          const skillFirstCd = Number.isFinite(Number(mon.skillFirstCd))
+            ? Math.max(0, Math.min(20, Math.floor(Number(mon.skillFirstCd) || 0)))
+            : null;
+          const skillCycleCd = Number.isFinite(Number(mon.skillCycleCd))
+            ? Math.max(0, Math.min(20, Math.floor(Number(mon.skillCycleCd) || 0)))
+            : null;
           const drops = sanitizeDrops(mon.drops);
-          return { monsterId, level, monsterDropChance, drops };
+          return { monsterId, level, monsterDropChance, skillFirstCd, skillCycleCd, drops };
         })
         .filter(Boolean)
         .slice(0, 4);

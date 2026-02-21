@@ -478,6 +478,8 @@ const ChessPalPages = (() => {
         monsterId: String(x?.monsterId || '004').trim().padStart(3, '0'),
         level: Math.max(1, Math.floor(Number(x?.level) || 1)),
         monsterDropChance: Math.max(0, Math.min(100, Math.floor(Number(x?.monsterDropChance ?? x?.captureChance) || 0))),
+        skillFirstCd: Number.isFinite(Number(x?.skillFirstCd)) ? Math.max(0, Math.min(20, Math.floor(Number(x.skillFirstCd) || 0))) : null,
+        skillCycleCd: Number.isFinite(Number(x?.skillCycleCd)) ? Math.max(0, Math.min(20, Math.floor(Number(x.skillCycleCd) || 0))) : null,
         drops: normalizeDrops(x?.drops),
       }))
       .filter(x => /^\d{3}$/.test(x.monsterId));
@@ -698,6 +700,16 @@ const ChessPalPages = (() => {
                                 }).join('')}
                               </div>
                             </div>
+                            <div class="cp-row" style="margin-top:8px; justify-content:space-between; align-items:center;">
+                              <div class="cp-setting-help" style="margin:0;">Monster skills</div>
+                              <button class="cp-tool-btn" type="button" data-stage-mon-skills-toggle="${esc(String(i))}-${esc(String(k))}" aria-expanded="false">Expand skills</button>
+                            </div>
+                            <div data-stage-mon-skillspanel="${esc(String(i))}-${esc(String(k))}" style="display:none; margin-top:8px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.14);">
+                              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">First skill CD (0-20)</div>
+                              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(Number.isFinite(Number(mm?.skillFirstCd)) ? Math.floor(Number(mm.skillFirstCd) || 0) : ''))}" data-stage-mon-skill-firstcd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+                              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Next skill CD (0-20)</div>
+                              <input class="cp-input" type="number" min="0" max="20" step="1" value="${esc(String(Number.isFinite(Number(mm?.skillCycleCd)) ? Math.floor(Number(mm.skillCycleCd) || 0) : ''))}" data-stage-mon-skill-cyclecd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+                            </div>
                           </div>
                         </div>
                       `;
@@ -825,6 +837,16 @@ const ChessPalPages = (() => {
                 }).join('')}
               </div>
             </div>
+            <div class="cp-row" style="margin-top:8px; justify-content:space-between; align-items:center;">
+              <div class="cp-setting-help" style="margin:0;">Monster skills</div>
+              <button class="cp-tool-btn" type="button" data-stage-mon-skills-toggle="${esc(String(i))}-${esc(String(k))}" aria-expanded="false">Expand skills</button>
+            </div>
+            <div data-stage-mon-skillspanel="${esc(String(i))}-${esc(String(k))}" style="display:none; margin-top:8px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.14);">
+              <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">First skill CD (0-20)</div>
+              <input class="cp-input" type="number" min="0" max="20" step="1" value="" data-stage-mon-skill-firstcd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+              <div class="cp-setting-help" style="margin-top:10px; margin-bottom:6px;">Next skill CD (0-20)</div>
+              <input class="cp-input" type="number" min="0" max="20" step="1" value="" data-stage-mon-skill-cyclecd="${esc(String(i))}-${esc(String(k))}" placeholder="Use default if empty">
+            </div>
           </div>
         </div>
       `;
@@ -856,6 +878,16 @@ const ChessPalPages = (() => {
           if (dropsBtn) {
             dropsBtn.textContent = open ? 'Expand rewards' : 'Collapse rewards';
             dropsBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+          }
+        }, { passive: true });
+        const skillsBtn = overlay.querySelector(`[data-stage-mon-skills-toggle="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        const skillsPanel = overlay.querySelector(`[data-stage-mon-skillspanel="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`);
+        skillsBtn?.addEventListener('click', () => {
+          const open = skillsPanel?.style.display !== 'none';
+          if (skillsPanel) skillsPanel.style.display = open ? 'none' : '';
+          if (skillsBtn) {
+            skillsBtn.textContent = open ? 'Expand skills' : 'Collapse skills';
+            skillsBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
           }
         }, { passive: true });
       };
@@ -912,6 +944,10 @@ const ChessPalPages = (() => {
               const monsterId = String(overlay.querySelector(`[data-stage-monster="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value || '').trim().padStart(3, '0');
               const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-stage-level="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value) || 1));
               const monsterDropChance = Math.max(0, Math.min(100, Math.floor(Number(overlay.querySelector(`[data-stage-mon-joinchance="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value) || 0)));
+              const firstCdRaw = String(overlay.querySelector(`[data-stage-mon-skill-firstcd="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value ?? '').trim();
+              const cycleCdRaw = String(overlay.querySelector(`[data-stage-mon-skill-cyclecd="${CSS.escape(String(i))}-${CSS.escape(String(k))}"]`)?.value ?? '').trim();
+              const skillFirstCd = firstCdRaw === '' ? null : Math.max(0, Math.min(20, Math.floor(Number(firstCdRaw) || 0)));
+              const skillCycleCd = cycleCdRaw === '' ? null : Math.max(0, Math.min(20, Math.floor(Number(cycleCdRaw) || 0)));
               const monDrops = [];
               for (let j = 0; j < 3; j += 1) {
                 const itemId = String(overlay.querySelector(`[data-stage-mon-drop-item="${CSS.escape(String(i))}-${CSS.escape(String(k))}-${CSS.escape(String(j))}"]`)?.value || '').trim().toLowerCase();
@@ -921,7 +957,7 @@ const ChessPalPages = (() => {
                 if (chance <= 0) continue;
                 monDrops.push({ itemId, chance });
               }
-              return { monsterId, level, monsterDropChance, drops: monDrops };
+              return { monsterId, level, monsterDropChance, skillFirstCd, skillCycleCd, drops: monDrops };
             })
             .filter(x => /^\d{3}$/.test(x.monsterId));
           if (!monsters.length) throw new Error('Stage must have at least 1 monster');
@@ -2046,6 +2082,39 @@ const ChessPalPages = (() => {
         }
       } catch {}
     };
+    const showMonsterSkillNotice = (text, ms = 1800) => {
+      try {
+        const msg = String(text || '').trim();
+        if (!msg) return;
+        let el = document.getElementById('cpMonsterSkillToast');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'cpMonsterSkillToast';
+          el.className = 'cp-monster-skill-toast';
+          document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.classList.add('is-show');
+        const portrait = !!(window.matchMedia && window.matchMedia('(max-width: 820px) and (orientation: portrait)').matches);
+        if (portrait) {
+          el.style.left = '50%';
+          el.style.top = '10px';
+          el.style.transform = 'translateX(-50%)';
+        } else {
+          const leftPane = document.querySelector('.cp-practice-left');
+          const rect = leftPane?.getBoundingClientRect?.();
+          const left = rect ? (rect.left + 8) : 12;
+          const top = rect ? (rect.top + 8) : 12;
+          el.style.left = `${Math.max(8, Math.floor(left))}px`;
+          el.style.top = `${Math.max(8, Math.floor(top))}px`;
+          el.style.transform = 'none';
+        }
+        try { clearTimeout(window.__cpMonsterSkillToastTimer); } catch {}
+        window.__cpMonsterSkillToastTimer = setTimeout(() => {
+          try { el.classList.remove('is-show'); } catch {}
+        }, Math.max(800, Math.floor(Number(ms) || 1800)));
+      } catch {}
+    };
     showStoryHintIfAny();
 
     const awardStoryDropIfAny = (cfg, opts = {}) => {
@@ -2561,8 +2630,15 @@ const ChessPalPages = (() => {
           const healPct = clampNum(a.healMaxHpPctPerTurn, 0, 0.2, 0);
           const guard = clampNum(a.damageReduction, 0, 0.65, 0);
           const hasEffect = atkMultThisTurn !== 1 || dmgFlat > 0 || healFlat > 0 || healPct > 0 || guard > 0;
+          const firstCd = Number.isFinite(Number(monsterLike?.skillFirstCd))
+            ? Math.max(0, Math.floor(Number(monsterLike.skillFirstCd) || 0))
+            : spec.activeCd;
+          const cycleCd = Number.isFinite(Number(monsterLike?.skillCycleCd))
+            ? Math.max(0, Math.floor(Number(monsterLike.skillCycleCd) || 0))
+            : spec.activeCd;
           return {
-            cd: spec.activeCd,
+            cd: firstCd,
+            cycleCd,
             name: spec.activeName,
             hasEffect,
             atkMultThisTurn,
@@ -2893,6 +2969,8 @@ const ChessPalPages = (() => {
                         name: String(m?.name || 'Monster'),
                         element: String(m?.element || '').trim().toLowerCase(),
                         img: String(m?.img || ''),
+                        skillFirstCd: Number.isFinite(Number(mm?.skillFirstCd)) ? Math.max(0, Math.floor(Number(mm.skillFirstCd) || 0)) : null,
+                        skillCycleCd: Number.isFinite(Number(mm?.skillCycleCd)) ? Math.max(0, Math.floor(Number(mm.skillCycleCd) || 0)) : null,
                         maxHp: eff.hpMax,
                         atk: eff.atk,
                         hp: eff.hpMax,
@@ -2986,13 +3064,7 @@ const ChessPalPages = (() => {
             let atkFlatByActive = 0;
             if (afx.hasEffect && ((Number(afx.cd) <= 0) || (Number(m.skillCdLeft) <= 0))) {
               activeUsed = true;
-              try {
-                if (hintEl) {
-                  hintEl.textContent = `${String(m?.name || 'Monster')} uses ${String(afx.name || 'Skill')}: ${describeMonsterActiveFx(afx)}.`;
-                  hintEl.style.display = '';
-                  setTimeout(() => { try { showStoryHintIfAny(); } catch {} }, 1800);
-                }
-              } catch {}
+              showMonsterSkillNotice(`${String(m?.name || 'Monster')} uses ${String(afx.name || 'Skill')}: ${describeMonsterActiveFx(afx)}.`);
               atkMultByActive = Math.max(0.1, Number(afx.atkMultThisTurn) || 1);
               atkFlatByActive = Math.max(0, Math.floor(Number(afx.dmgFlat) || 0));
               try {
@@ -3009,8 +3081,10 @@ const ChessPalPages = (() => {
               } catch {}
               try { setMsg(`${String(m?.name || 'Monster')} used ${String(afx.name || 'Skill')}.`); } catch {}
             }
-            if (Number(afx.cd) > 0) {
-              m.skillCdLeft = activeUsed ? Math.max(0, Math.floor(Number(afx.cd) || 0)) : Math.max(0, Math.floor(Number(m.skillCdLeft) || 0) - 1);
+            if (Number(afx.cycleCd) > 0 || Number(afx.cd) > 0) {
+              m.skillCdLeft = activeUsed
+                ? Math.max(0, Math.floor(Number(afx.cycleCd) || 0))
+                : Math.max(0, Math.floor(Number(m.skillCdLeft) || 0) - 1);
             }
             const baseAtk = Math.max(0, Math.floor(Number(m?.atk) || 0));
             const rawAtk = Math.max(0, Math.floor(baseAtk * Math.max(0.1, Number(pfx?.atkMult) || 1) * atkMultByActive + atkFlatByActive));
@@ -3357,6 +3431,8 @@ const ChessPalPages = (() => {
             name: String(m?.name || 'Monster'),
             element: String(m?.element || '').trim().toLowerCase(),
             img: String(m?.img || ''),
+            skillFirstCd: Number.isFinite(Number(mm?.skillFirstCd)) ? Math.max(0, Math.floor(Number(mm.skillFirstCd) || 0)) : null,
+            skillCycleCd: Number.isFinite(Number(mm?.skillCycleCd)) ? Math.max(0, Math.floor(Number(mm.skillCycleCd) || 0)) : null,
             maxHp: eff.hpMax,
             atk: eff.atk,
             hp: eff.hpMax,
