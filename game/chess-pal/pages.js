@@ -6474,7 +6474,9 @@ const ChessPalPages = (() => {
       ],
       video: [
         'images/Summon/Su001-Summon-Hero.mp4',
+        'images/Summon/Su001-Summon-Hero.MP4',
         'images/Summon/Su001-Summon-Hero.webm',
+        'images/Summon/Su001-Summon-Hero.WebM',
       ],
     },
     monster: {
@@ -6483,25 +6485,48 @@ const ChessPalPages = (() => {
       ],
       video: [
         'images/Summon/Su002-Summon-Monster.mp4',
+        'images/Summon/Su002-Summon-Monster.MP4',
         'images/Summon/Su002-Summon-Monster.webm',
+        'images/Summon/Su002-Summon-Monster.WebM',
       ],
     },
     hero_amateur: {
       poster: [
         'images/Summon/Su003-Amatuer-Summon-Hero.png',
+        'images/Summon/Su003-Amateur-Summon-Hero.png',
       ],
       video: [
         'images/Summon/Su003-Amatuer-Summon-Hero.mp4',
+        'images/Summon/Su003-Amatuer-Summon-Hero.MP4',
         'images/Summon/Su003-Amatuer-Summon-Hero.webm',
+        'images/Summon/Su003-Amatuer-Summon-Hero.WebM',
+        'images/Summon/Su003-Amateur-Summon-Hero.mp4',
+        'images/Summon/Su003-Amateur-Summon-Hero.MP4',
+        'images/Summon/Su003-Amateur-Summon-Hero.webm',
+        'images/Summon/Su003-Amateur-Summon-Hero.WebM',
       ],
     },
     monster_amateur: {
-      poster: ['images/Summon/Su004-Amatuer-Summon-Monster.png'],
-      video: ['images/Summon/Su004-Amatuer-Summon-Monster.mp4', 'images/Summon/Su004-Amatuer-Summon-Monster.webm'],
+      poster: ['images/Summon/Su004-Amatuer-Summon-Monster.png', 'images/Summon/Su004-Amateur-Summon-Monster.png'],
+      video: [
+        'images/Summon/Su004-Amatuer-Summon-Monster.mp4',
+        'images/Summon/Su004-Amatuer-Summon-Monster.MP4',
+        'images/Summon/Su004-Amatuer-Summon-Monster.webm',
+        'images/Summon/Su004-Amatuer-Summon-Monster.WebM',
+        'images/Summon/Su004-Amateur-Summon-Monster.mp4',
+        'images/Summon/Su004-Amateur-Summon-Monster.MP4',
+        'images/Summon/Su004-Amateur-Summon-Monster.webm',
+        'images/Summon/Su004-Amateur-Summon-Monster.WebM',
+      ],
     },
     item: {
       poster: ['images/Summon/Su005-Summon-Item.png'],
-      video: ['images/Summon/Su005-Summon-Item.mp4', 'images/Summon/Su005-Summon-Item.webm'],
+      video: [
+        'images/Summon/Su005-Summon-Item.mp4',
+        'images/Summon/Su005-Summon-Item.MP4',
+        'images/Summon/Su005-Summon-Item.webm',
+        'images/Summon/Su005-Summon-Item.WebM',
+      ],
     },
   };
 
@@ -6518,6 +6543,7 @@ const ChessPalPages = (() => {
     if (old) old.remove();
     await new Promise((resolve) => {
       let done = false;
+      let hasStarted = false;
       let idx = 0;
       const finish = () => {
         if (done) return;
@@ -6548,6 +6574,7 @@ const ChessPalPages = (() => {
       };
       overlay.querySelector('#cpSummonCinematicSkip')?.addEventListener('click', finish, { passive: true });
       video?.addEventListener('ended', finish, { passive: true });
+      video?.addEventListener('playing', () => { hasStarted = true; }, { passive: true });
       video?.addEventListener('error', () => { tryNext(); }, { passive: true });
       video?.addEventListener('pause', () => {
         if (!done) {
@@ -6557,9 +6584,27 @@ const ChessPalPages = (() => {
       overlay.addEventListener('click', (ev) => { if (ev.target === overlay) finish(); });
       tryNext();
       try { video?.play?.().catch(() => {}); } catch {}
-      // Safety timeout: if browser cannot play this codec, continue.
-      setTimeout(() => { if (!done) finish(); }, 12000);
+      // Safety timeout: only skip when video never starts.
+      setTimeout(() => { if (!done && !hasStarted) finish(); }, 7000);
     });
+  }
+
+  function preloadSummonCinematic(kind) {
+    try {
+      const list = SUMMON_MEDIA?.[String(kind || '').trim()]?.video;
+      const src = (Array.isArray(list) ? list[0] : '') || '';
+      if (!src) return;
+      const v = document.createElement('video');
+      v.preload = 'auto';
+      v.muted = true;
+      v.playsInline = true;
+      v.src = src;
+      v.load();
+      try {
+        if (!window.__cpSummonPreloadVideos) window.__cpSummonPreloadVideos = [];
+        window.__cpSummonPreloadVideos.push(v);
+      } catch {}
+    } catch {}
   }
 
   function SummonPage() {}
@@ -6648,6 +6693,13 @@ const ChessPalPages = (() => {
   SummonPage.init = () => {
     const msg = document.getElementById('cpSummonMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    try {
+      preloadSummonCinematic('hero');
+      preloadSummonCinematic('monster');
+      preloadSummonCinematic('hero_amateur');
+      preloadSummonCinematic('monster_amateur');
+      preloadSummonCinematic('item');
+    } catch {}
     const bindBgFallback = (imgEl, fallbacks) => {
       if (!imgEl) return;
       imgEl.onerror = function() {
