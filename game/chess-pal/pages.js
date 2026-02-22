@@ -5680,6 +5680,11 @@ const ChessPalPages = (() => {
     const key = String(itemId || '').trim().toLowerCase();
     return STORAGE_ITEM_DEFS[key] || null;
   }
+  try {
+    window.ChessPalStorage = {
+      getStorageItemDef,
+    };
+  } catch {}
 
   function getStorageImgFallbacks(primarySrc) {
     const src = String(primarySrc || '').trim();

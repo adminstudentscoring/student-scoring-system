@@ -371,6 +371,9 @@ const Router = (() => {
         .replace(/'/g, '&#39;');
       const stageItemsHtml = (() => {
         try {
+          const getItemDef = (idLike) => {
+            try { return window.ChessPalStorage?.getStorageItemDef?.(idLike) || null; } catch { return null; }
+          };
           const stageItems = (Array.isArray(window.__cpStageItemDrops) && window.__cpStageItemDrops.length)
             ? window.__cpStageItemDrops
             : (Array.isArray(window.__cpStoryRunSession?.itemDrops) ? window.__cpStoryRunSession.itemDrops : []);
@@ -384,7 +387,17 @@ const Router = (() => {
             cnt.set(id, (cnt.get(id) || 0) + 1);
           });
           const rows = Array.from(cnt.entries())
-            .map(([id, n]) => `<div class="cp-setting-help" style="margin-top:4px;">${esc(id)} ×${esc(String(n))}</div>`)
+            .map(([id, n]) => {
+              const def = getItemDef(id);
+              const name = String(def?.name || id);
+              const img = String(def?.img || '').trim();
+              return `
+                <div class="cp-setting-help" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+                  ${img ? `<img src="${esc(img)}" alt="${esc(name)}" style="width:20px;height:20px;object-fit:contain;border-radius:6px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.2);">` : ''}
+                  <span>${esc(name)} ×${esc(String(n))}</span>
+                </div>
+              `;
+            })
             .join('');
           return rows || `<div class="cp-setting-help" style="margin-top:6px;">No items obtained yet in this stage.</div>`;
         } catch {
