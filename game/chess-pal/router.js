@@ -363,12 +363,40 @@ const Router = (() => {
         try { return window.ChessPalSettings?.getGeneralSettings?.() || {}; } catch { return {}; }
       })();
       const piece = String(s.pieceStyle || 'none').toLowerCase();
+      const esc = (v) => String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+      const stageItemsHtml = (() => {
+        try {
+          const stageItems = (Array.isArray(window.__cpStageItemDrops) && window.__cpStageItemDrops.length)
+            ? window.__cpStageItemDrops
+            : (Array.isArray(window.__cpStoryRunSession?.itemDrops) ? window.__cpStoryRunSession.itemDrops : []);
+          if (!stageItems.length) {
+            return `<div class="cp-setting-help" style="margin-top:6px;">No items obtained yet in this stage.</div>`;
+          }
+          const cnt = new Map();
+          stageItems.forEach((idLike) => {
+            const id = String(idLike || '').trim().toLowerCase();
+            if (!id) return;
+            cnt.set(id, (cnt.get(id) || 0) + 1);
+          });
+          const rows = Array.from(cnt.entries())
+            .map(([id, n]) => `<div class="cp-setting-help" style="margin-top:4px;">${esc(id)} ×${esc(String(n))}</div>`)
+            .join('');
+          return rows || `<div class="cp-setting-help" style="margin-top:6px;">No items obtained yet in this stage.</div>`;
+        } catch {
+          return `<div class="cp-setting-help" style="margin-top:6px;">No items obtained yet in this stage.</div>`;
+        }
+      })();
 
       overlay.innerHTML = `
         <div class="cp-modal cp-gear-modal" role="dialog" aria-modal="true" aria-label="Game menu">
           <button class="cp-modal-close" type="button" aria-label="Close">×</button>
           <div class="cp-modal-body">
-            <div class="cp-gear-head">Game Manu</div>
+            <div class="cp-gear-head">Game Menu</div>
 
             <div class="cp-gear-mid">
               <div class="cp-gear-row">
@@ -379,6 +407,10 @@ const Router = (() => {
                 <option value="rivenhart" ${piece === 'rivenhart' ? 'selected' : ''}>Rivenhart</option>
                 <option value="seraphix" ${piece === 'seraphix' ? 'selected' : ''}>Seraphix</option>
                 </select>
+              </div>
+              <div class="cp-gear-row" style="margin-top:10px; display:block;">
+                <div class="cp-setting-label" style="margin:0;">Items obtained in this stage</div>
+                ${stageItemsHtml}
               </div>
             </div>
 

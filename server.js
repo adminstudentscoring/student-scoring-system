@@ -306,9 +306,11 @@ function sanitizeChessPalStoryStages(raw) {
         const drop = (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
         const itemId = String(drop.itemId || '').trim().toLowerCase();
         const chance = Math.max(0, Math.min(100, Math.floor(Number(drop.chance) || 0)));
+        const qtyRaw = Number(drop.qty);
+        const qty = Number.isFinite(qtyRaw) ? Math.max(1, Math.min(999, Math.floor(qtyRaw))) : 1;
         if (!/^[a-z0-9_]{1,64}$/.test(itemId)) return null;
         if (chance <= 0) return null;
-        return { itemId, chance };
+        return { itemId, chance, qty };
       })
       .filter(Boolean)
       .slice(0, 3);
