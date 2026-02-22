@@ -1293,13 +1293,22 @@ const ChessPalPages = (() => {
     if (!k) return null;
     const m = loadNumberMap(key);
     const n = Number(m?.[k]);
-    return Number.isFinite(n) ? n : null;
+    if (!Number.isFinite(n)) return null;
+    // For level overrides, non-positive values are invalid and should not lock level at 1.
+    if ((String(key) === HERO_LEVEL_OVERRIDE_KEY || String(key) === MONSTER_LEVEL_OVERRIDE_KEY) && n < 1) return null;
+    return n;
   }
   function setNumberInMap(key, id, n) {
     const k = String(id || '').trim().padStart(3, '0');
     if (!k) return;
     const m = loadNumberMap(key);
-    const x = Number(n);
+    const raw = (n == null) ? '' : String(n).trim();
+    if (!raw) {
+      delete m[k];
+      saveNumberMap(key, m);
+      return;
+    }
+    const x = Number(raw);
     if (!Number.isFinite(x)) delete m[k];
     else m[k] = x;
     saveNumberMap(key, m);
@@ -3979,8 +3988,8 @@ const ChessPalPages = (() => {
     const curve = heroExpCurveForRarity(b.rarity);
     const derivedLevel = Math.max(1, Math.min(cap, levelFromTotalExp(totalExp, curve, cap)));
     const lvLocalRaw = getNumberFromMap(HERO_LEVEL_OVERRIDE_KEY, b.id);
-    const level = Number.isFinite(Number(lvLocalRaw))
-      ? Math.max(1, Math.min(cap, Math.floor(Number(lvLocalRaw) || 1)))
+    const level = Number.isFinite(lvLocalRaw)
+      ? Math.max(1, Math.min(cap, Math.floor(lvLocalRaw || 1)))
       : derivedLevel;
     const scaled = heroStatsAtLevel(b, level, cap);
     const cdLocalRaw = getNumberFromMap(HERO_CD_OVERRIDE_KEY, b.id);
@@ -4596,8 +4605,8 @@ const ChessPalPages = (() => {
     // Simple growth for monsters: +5% per level above 1
     const admin = isAdminMode();
     const overrideLevel = (o.level != null) ? Number(o.level) : b.level;
-    const level = Number.isFinite(Number(lvLocalRaw))
-      ? Math.max(1, Math.min(cap, Math.floor(Number(lvLocalRaw) || 1)))
+    const level = Number.isFinite(lvLocalRaw)
+      ? Math.max(1, Math.min(cap, Math.floor(lvLocalRaw || 1)))
       : ((admin && o.level != null) ? Math.max(1, Math.min(cap, Math.floor(Number(overrideLevel) || 1))) : derivedLevel);
     const mult = 1 + Math.max(0, level - 1) * 0.05;
     const scaledHp = Math.max(1, Math.floor((Number(baseHp) || 1) * mult));
