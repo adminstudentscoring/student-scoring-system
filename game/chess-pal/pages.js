@@ -2454,24 +2454,35 @@ const ChessPalPages = (() => {
     const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo }) => {
       const old = document.getElementById('cpResultOverlay');
       if (old) old.remove();
-      const itemRows = (Array.isArray(itemIds) ? itemIds : [])
-        .map((id) => {
+      const toCountEntries = (idsLike) => {
+        const m = new Map();
+        (Array.isArray(idsLike) ? idsLike : []).forEach((idLike) => {
+          const id = String(idLike || '').trim().toLowerCase();
+          if (!id) return;
+          m.set(id, (m.get(id) || 0) + 1);
+        });
+        return Array.from(m.entries());
+      };
+      const itemRows = toCountEntries(itemIds)
+        .map(([id, qty]) => {
           const def = getStorageItemDef(id);
           return `
             <li style="display:flex; align-items:center; gap:8px; margin-top:6px;">
               ${def?.img ? `<img src="${esc(String(def.img))}" alt="${esc(String(def?.name || id))}" style="width:32px;height:32px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">` : ``}
               <span>${esc(String(def?.name || id))}</span>
+              <span style="opacity:0.9;">×${esc(String(qty))}</span>
             </li>
           `;
         }).join('');
-      const monRows = (Array.isArray(monsterIds) ? monsterIds : [])
-        .map((id) => {
+      const monRows = toCountEntries(monsterIds)
+        .map(([id, qty]) => {
           const mon = getMonsterFromDbQuick(id);
           const mimg = String(mon?.mini || mon?.img || '').trim();
           return `
             <li style="display:flex; align-items:center; gap:8px; margin-top:6px;">
               ${mimg ? `<img src="${esc(mimg)}" alt="${esc(String(mon?.name || `#${id}`))}" style="width:32px;height:32px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">` : ``}
               <span>${esc(String(mon?.name || `#${id}`))}</span>
+              <span style="opacity:0.9;">×${esc(String(qty))}</span>
             </li>
           `;
         }).join('');
