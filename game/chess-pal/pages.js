@@ -1210,6 +1210,8 @@ const ChessPalPages = (() => {
     const next = Math.max(0, Math.floor((Number(cur) || 0) + add));
     p[id] = { ...(p[id] || {}), totalExp: next };
     saveHeroProgress(p);
+    // Prevent stale local level tuning from locking level display/progression.
+    try { setNumberInMap(HERO_LEVEL_OVERRIDE_KEY, id, null); } catch {}
   }
 
   // ----------------------------
@@ -1264,6 +1266,8 @@ const ChessPalPages = (() => {
     const next = Math.max(0, Math.floor((Number(cur) || 0) + add));
     p[id] = { ...(p[id] || {}), totalExp: next };
     saveMonsterProgress(p);
+    // Prevent stale local level tuning from locking level display/progression.
+    try { setNumberInMap(MONSTER_LEVEL_OVERRIDE_KEY, id, null); } catch {}
   }
 
   const HERO_LEVEL_OVERRIDE_KEY = 'chessPalHeroLevelOverride';
