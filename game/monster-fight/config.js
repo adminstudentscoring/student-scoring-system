@@ -3,11 +3,8 @@
 
 const API_CONFIG = {
   // API base URL
-  // If game runs on the same domain as Student Scoring System, use relative path
-  // Otherwise, use current domain's API endpoint
-  baseURL: window.location.origin === 'http://localhost:3000' 
-    ? '/api'  // Local development: use relative path
-    : window.location.origin + '/api',  // Production: use current domain's API
+  // Always use same-origin API to avoid mixed-content issues on HTTPS.
+  baseURL: '/api',
   
   // API 端點
   endpoints: {

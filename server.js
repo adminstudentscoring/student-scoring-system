@@ -126,6 +126,26 @@ if (NODE_ENV === 'production') {
   app.set('trust proxy', true);
 }
 
+// Optional HTTPS enforcement for production behind reverse proxies.
+// Enable with FORCE_HTTPS=1 (recommended for public deployments).
+if (NODE_ENV === 'production' && String(process.env.FORCE_HTTPS || '') === '1') {
+  app.use((req, res, next) => {
+    try {
+      const host = String(req.get('host') || req.hostname || '').toLowerCase();
+      const isLocalHost = host.includes('localhost') || host.startsWith('127.0.0.1');
+      if (isLocalHost) return next();
+      const xfProto = String(req.get('x-forwarded-proto') || '').toLowerCase();
+      const isHttps = !!req.secure || xfProto === 'https';
+      if (isHttps) return next();
+      const target = `https://${host}${req.originalUrl || req.url || '/'}`;
+      if (req.method === 'GET' || req.method === 'HEAD') return res.redirect(301, target);
+      return res.redirect(308, target);
+    } catch {
+      return next();
+    }
+  });
+}
+
 // Configure CORS based on environment
 const corsOptions = {
   origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map(origin => origin.trim()),

@@ -2132,7 +2132,7 @@ function openGameInNewWindow() {
     
     if (isElectron) {
         // In Electron, use a special URL that will be handled by main.js
-        const gameWindow = window.open(`http://localhost:3000/game/game-window.html?${query}`, 'gameWindow');
+        const gameWindow = window.open(`${window.location.origin}/game/game-window.html?${query}`, 'gameWindow');
         if (!gameWindow) {
             showNotification('Please allow popups to open game in new window', 'error');
         }
