@@ -1491,6 +1491,11 @@ const ChessPalPages = (() => {
           <div class="cp-chapter-label">Shop</div>
         </div>
 
+        <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="summon" aria-label="Summon">
+          <img class="cp-chapter-img" src="images/Summon/Su002-Summon-Monster.jpg" alt="Summon" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <div class="cp-chapter-label">Summon</div>
+        </div>
+
         <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="pal" aria-label="Pal">
           <img class="cp-chapter-img" src="images/Heros/003-Rivenhart/003-Rivenhart.png" alt="Pal" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
           <div class="cp-chapter-label">Pal</div>
@@ -1501,6 +1506,7 @@ const ChessPalPages = (() => {
   HomePage.init = () => {
     const go = (key) => {
       if (key === 'shop') Router.goTo('/shop');
+      else if (key === 'summon') Router.goTo('/summon');
       else if (key === 'pal') Router.goTo('/pal');
       else Router.goTo('/mode/story');
     };
@@ -3978,6 +3984,15 @@ const ChessPalPages = (() => {
     };
   }
 
+  function stripSkillPlaceholderText(textLike) {
+    const raw = String(textLike == null ? '' : textLike).trim();
+    if (!raw) return '';
+    return raw
+      .replace(/\s*\(\s*place\s*holder\s*\)\s*/gi, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
   function mergeHero(base) {
     const b = base || {};
     const o = (heroOverrides && b.id && heroOverrides[b.id]) ? heroOverrides[b.id] : {};
@@ -4019,11 +4034,13 @@ const ChessPalPages = (() => {
       totalExp,
       activeSkill: {
         ...active,
+        text: stripSkillPlaceholderText(active?.text),
         cd: resolvedCd,
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       leaderSkill: {
         ...leader,
+        text: stripSkillPlaceholderText(leader?.text),
         params: (o.leaderParams && typeof o.leaderParams === 'object') ? o.leaderParams : leader.params
       }
     };
@@ -4632,11 +4649,13 @@ const ChessPalPages = (() => {
       rcv: scaledRcv,
       activeSkill: {
         ...active,
+        text: stripSkillPlaceholderText(active?.text),
         cd: resolvedCd,
         params: (o.activeParams && typeof o.activeParams === 'object') ? o.activeParams : active.params
       },
       passiveSkill: {
         ...passive,
+        text: stripSkillPlaceholderText(passive?.text),
         params: (o.passiveParams && typeof o.passiveParams === 'object') ? o.passiveParams : passive.params
       }
     };
@@ -6192,6 +6211,7 @@ const ChessPalPages = (() => {
         saveChessComRewardState(next);
         setUiByState(next);
         setMsg(`Claimed ${wins} Gold Coin.`);
+        showStorageGainModal({ title: 'Get Coins Result', rewards: [{ itemId: 'gold_coin', qty: wins }] });
         try { onUpdated && onUpdated(); } catch {}
       } catch (e) {
         setMsg(String(e?.message || e || 'Claim failed'));
@@ -6221,12 +6241,11 @@ const ChessPalPages = (() => {
   StoragePage.render = () => {
     const admin = isAdminMode();
     return `
-      <div class="cp-page-card">
-        <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
-          <div class="cp-h1">Storage</div>
+      <div>
+        <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center; gap:8px;">
+          <input class="cp-input" id="cpStorageSearch" type="text" placeholder="Filter by item name or ID" style="flex:1 1 auto;">
           ${admin ? `<button class="cp-tool-btn" type="button" id="cpStorageSettingBtn">Setting</button>` : ``}
         </div>
-        
         <div class="cp-storage-grid" id="cpStorageGrid" style="margin-top:12px;"></div>
       </div>
     `;
@@ -6234,6 +6253,7 @@ const ChessPalPages = (() => {
   StoragePage.init = () => {
     const host = document.getElementById('cpStorageGrid');
     if (!host) return;
+    const searchEl = document.getElementById('cpStorageSearch');
 
     let slots = loadStorage();
     // persist cleanup (e.g. remove potion) + update coins bar
@@ -6241,7 +6261,16 @@ const ChessPalPages = (() => {
     let selectedIdx = -1;
 
     const render = () => {
-      host.innerHTML = slots.map((s, i) => {
+      const q = String(searchEl?.value || '').trim().toLowerCase();
+      const rows = slots.map((s, i) => ({ s, i })).filter(({ s }) => {
+        if (!q) return true;
+        if (!s || typeof s !== 'object') return false;
+        const def = getStorageItemDef(s.itemId);
+        const name = String(def?.name || s.name || '').toLowerCase();
+        const id = String(s.itemId || '').toLowerCase();
+        return name.includes(q) || id.includes(q);
+      });
+      host.innerHTML = rows.map(({ s, i }) => {
         const isSel = i === selectedIdx;
         const title = s ? `${s.name} ×${s.qty}` : `Empty (Slot ${i + 1})`;
         const def = s ? getStorageItemDef(s.itemId) : null;
@@ -6256,7 +6285,7 @@ const ChessPalPages = (() => {
             `}
           </button>
         `;
-      }).join('');
+      }).join('') || `<div class="cp-muted">No matching item.</div>`;
     };
 
     const persist = () => {
@@ -6465,6 +6494,10 @@ const ChessPalPages = (() => {
       }, { passive: true });
     });
 
+    searchEl?.addEventListener('input', () => {
+      try { render(); } catch {}
+    });
+
     document.getElementById('cpStorageSettingBtn')?.addEventListener('click', () => {
       showStorageAdminSettingModal();
     }, { passive: true });
@@ -6550,6 +6583,7 @@ const ChessPalPages = (() => {
         saveStorage(slots);
         markClaimedFreeSilverToday();
         setMsg('Received 10 Silver Coins.');
+        showStorageGainModal({ title: 'Get Coins Result', rewards: [{ itemId: 'silver_coin', qty: 10 }] });
         try { Router.renderCurrent(); } catch {}
       } catch (e) {
         setMsg(String(e?.message || e || 'Failed'));
@@ -7321,6 +7355,7 @@ const ChessPalPages = (() => {
         }
         saveStorage(slots);
         setMsg('Purchased.');
+        showStorageGainModal({ title: 'Purchase Result', rewards: [{ itemId, qty: 1 }] });
       } catch (e) {
         setMsg(String(e?.message || e || 'Purchase failed'));
       }
@@ -7386,6 +7421,51 @@ const ChessPalPages = (() => {
                 <div class="cp-setting-help">Obtained ×1</div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => { try { overlay.remove(); } catch {} };
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+  }
+
+  function showStorageGainModal({ title = 'Obtained', rewards = [] } = {}) {
+    const rows = (Array.isArray(rewards) ? rewards : [])
+      .map((r) => ({
+        itemId: String(r?.itemId || '').trim().toLowerCase(),
+        qty: Math.max(1, Math.floor(Number(r?.qty) || 1)),
+      }))
+      .filter((r) => r.itemId && r.qty > 0);
+    if (!rows.length) return;
+    const old = document.getElementById('cpStorageGainOverlay');
+    if (old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'cpStorageGainOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Reward result">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:20px;">${esc(String(title || 'Obtained'))}</div>
+          <div style="display:grid; gap:8px; margin-top:12px;">
+            ${rows.map((r) => {
+              const def = getStorageItemDef(r.itemId);
+              const name = String(def?.name || r.itemId);
+              const img = String(def?.img || '').trim();
+              return `
+                <div class="cp-setting-item" style="margin-top:0; background:rgba(255,255,255,0.03);">
+                  <div class="cp-row" style="margin-top:0; align-items:center; justify-content:space-between; gap:8px;">
+                    <div class="cp-row" style="margin-top:0; align-items:center; gap:10px;">
+                      ${img ? `<img src="${esc(img)}" alt="${esc(name)}" style="width:36px;height:36px;object-fit:contain;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.16);" decoding="async" loading="lazy">` : ''}
+                      <div class="cp-setting-label">${esc(name)}</div>
+                    </div>
+                    <div class="cp-setting-help">×${esc(String(r.qty))}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       </div>
