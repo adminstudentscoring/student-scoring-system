@@ -5696,7 +5696,7 @@ const ChessPalPages = (() => {
     exp_knight: { id: 'exp_knight', name: 'EXP Knight', img: 'images/Storage/S004-Exp-Knight.png' },
     exp_bishop: { id: 'exp_bishop', name: 'EXP Bishop', img: 'images/Storage/S005-Exp-Bishop.png' },
     exp_rook: { id: 'exp_rook', name: 'EXP Rook', img: 'images/Storage/S006-Exp-Rook.png' },
-    exp_queen: { id: 'exp_queen', name: 'EXP Queen', img: 'images/Storage/S007-Exp-Queen.png' },
+    exp_queen: { id: 'exp_queen', name: 'EXP Queen', img: 'images/Storage/S008-Exp-Queen.png' },
     exp_king: { id: 'exp_king', name: 'EXP King', img: 'images/Storage/S008-Exp-King.png' },
   };
 
@@ -5751,8 +5751,8 @@ const ChessPalPages = (() => {
     }
     if (base.includes('Exp-Queen')) {
       legacy.push('images/Storage/Exp-Queen.png');
-      legacy.unshift('images/Storage/S008-Exp-Queen.png');
       legacy.unshift('images/Storage/S007-Exp-Queen.png');
+      legacy.unshift('images/Storage/S008-Exp-Queen.png');
     }
     if (base.includes('Exp-King')) {
       legacy.push('images/Storage/Exp-King.png');
