@@ -134,8 +134,16 @@ if (String(process.env.FORCE_HTTPS || '') === '1') {
       const host = String(req.get('host') || req.hostname || '').toLowerCase();
       const isLocalHost = host.includes('localhost') || host.startsWith('127.0.0.1');
       if (isLocalHost) return next();
-      const xfProto = String(req.get('x-forwarded-proto') || '').toLowerCase();
-      const isHttps = !!req.secure || xfProto === 'https';
+      const xfProto = String(req.get('x-forwarded-proto') || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+      const xForwardedSsl = String(req.get('x-forwarded-ssl') || '').trim().toLowerCase();
+      const cfVisitor = String(req.get('cf-visitor') || '').toLowerCase();
+      const isHttps = !!req.secure
+        || xfProto === 'https'
+        || xForwardedSsl === 'on'
+        || cfVisitor.includes('"scheme":"https"');
       if (isHttps) return next();
       const target = `https://${host}${req.originalUrl || req.url || '/'}`;
       if (req.method === 'GET' || req.method === 'HEAD') return res.redirect(301, target);
@@ -6414,6 +6422,7 @@ async function startServer() {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
     console.log(`Environment: ${NODE_ENV}`);
+    console.log(`FORCE_HTTPS: ${String(process.env.FORCE_HTTPS || '') || '(unset)'}`);
     console.log(`Data file: ${DATA_FILE}`);
   });
 
