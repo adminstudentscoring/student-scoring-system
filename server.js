@@ -126,9 +126,9 @@ if (NODE_ENV === 'production') {
   app.set('trust proxy', true);
 }
 
-// Optional HTTPS enforcement for production behind reverse proxies.
-// Enable with FORCE_HTTPS=1 (recommended for public deployments).
-if (NODE_ENV === 'production' && String(process.env.FORCE_HTTPS || '') === '1') {
+// Optional HTTPS enforcement behind reverse proxies.
+// Enable with FORCE_HTTPS=1.
+if (String(process.env.FORCE_HTTPS || '') === '1') {
   app.use((req, res, next) => {
     try {
       const host = String(req.get('host') || req.hostname || '').toLowerCase();
@@ -193,8 +193,7 @@ app.use((req, res, next) => {
   }
   
   // Check if request is for root domain (without www)
-  // Only redirect in production environment
-  if (NODE_ENV === 'production' && hostname === 'studentscoring.com') {
+  if (hostname === 'studentscoring.com') {
     const path = req.originalUrl || req.url || '';
     // Never redirect API endpoints (breaks POST/multipart uploads)
     if (String(path).startsWith('/api/')) return next();
