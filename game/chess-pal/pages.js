@@ -6317,7 +6317,11 @@ const ChessPalPages = (() => {
           if (!q) return true;
           return String(u.id || '').toLowerCase().includes(q) || String(u.name || '').toLowerCase().includes(q);
         });
-        userSel.innerHTML = list.map((u) => `<option value="${esc(String(u.id))}">#${esc(String(u.id))} ${esc(String(u.name || 'User'))}</option>`).join('');
+        userSel.innerHTML = list.map((u) => {
+          const role = String(u?.role || '').toLowerCase();
+          const roleTag = role === 'teacher' ? ' [Teacher]' : (role === 'student' ? ' [Student]' : '');
+          return `<option value="${esc(String(u.id))}">#${esc(String(u.id))} ${esc(String(u.name || 'User'))}${esc(roleTag)}</option>`;
+        }).join('');
       };
       const close = () => {
         try { overlay.remove(); } catch {}
@@ -6341,11 +6345,22 @@ const ChessPalPages = (() => {
               users.push({ id: currentUserId, name: meName });
             }
           }
-          const resp = await window.authUtils.authenticatedFetch('/students', { method: 'GET' });
-          if (!resp || !resp.ok) throw new Error('Failed to load users.');
-          const arr = await resp.json().catch(() => []);
-          users = (Array.isArray(arr) ? arr : [])
-            .map((u) => ({ id: String(u?.id || '').trim(), name: String(u?.name || 'User').trim() || 'User' }))
+          let rows = [];
+          const allUsersResp = await window.authUtils.authenticatedFetch('/admin/chess-pal/users', { method: 'GET' });
+          if (allUsersResp && allUsersResp.ok) {
+            rows = await allUsersResp.json().catch(() => []);
+          } else {
+            // Backward compatibility fallback: old servers only exposed students.
+            const studentResp = await window.authUtils.authenticatedFetch('/students', { method: 'GET' });
+            if (!studentResp || !studentResp.ok) throw new Error('Failed to load users.');
+            rows = await studentResp.json().catch(() => []);
+          }
+          users = (Array.isArray(rows) ? rows : [])
+            .map((u) => ({
+              id: String(u?.id || '').trim(),
+              name: String(u?.name || 'User').trim() || 'User',
+              role: String(u?.role || '').trim().toLowerCase(),
+            }))
             .filter((u) => u.id)
             .concat(users)
             .filter((u, idx, all) => all.findIndex((x) => String(x.id) === String(u.id)) === idx)

@@ -708,6 +708,40 @@ app.put('/api/admin/chess-pal/storage-grant', authenticateUser, authorizeRole('a
   }
 });
 
+app.get('/api/admin/chess-pal/users', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const data = await readData();
+    const users = await readUsers();
+    const teacherRows = (Array.isArray(users) ? users : [])
+      .filter((u) => String(u?.role || '').toLowerCase() === 'teacher')
+      .map((u) => ({
+        id: String(u?.id || '').trim(),
+        name: String(u?.name || 'Teacher').trim() || 'Teacher',
+        role: 'teacher',
+      }))
+      .filter((u) => u.id);
+    const studentRows = (Array.isArray(data?.students) ? data.students : [])
+      .map((s) => ({
+        id: String(s?.id || '').trim(),
+        name: String(s?.name || 'Student').trim() || 'Student',
+        role: 'student',
+      }))
+      .filter((s) => s.id);
+    const merged = teacherRows
+      .concat(studentRows)
+      .filter((u, idx, all) => all.findIndex((x) => String(x.id) === String(u.id)) === idx)
+      .sort((a, b) => {
+        const aName = String(a?.name || '');
+        const bName = String(b?.name || '');
+        return aName.localeCompare(bName);
+      });
+    res.json(merged);
+  } catch (e) {
+    console.error('[chess-pal] GET /api/admin/chess-pal/users failed:', e);
+    res.status(500).json({ error: 'Failed to load users' });
+  }
+});
+
 // Log whether level-badge assets exist at startup (helps diagnose production 404s).
 (async () => {
   try {
