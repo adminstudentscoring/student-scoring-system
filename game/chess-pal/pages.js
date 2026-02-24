@@ -698,6 +698,25 @@ const ChessPalPages = (() => {
     saveEventGoldProgressMap(m);
   }
 
+  function getEventGoldStageConfig(chapterId, stageIdx1) {
+    const ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
+    const st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
+    const stages = getEventGoldStagesForChapter(ch);
+    const cfg = stages[st - 1] || { monsterId: '017', level: 1, hint: '', drops: [] };
+    const monsters = normalizeStageMonsters(cfg);
+    const first = monsters[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
+    return {
+      mode: 'event_gold',
+      chapter: ch,
+      stage: st,
+      monsters,
+      monsterId: String(first.monsterId || '017').trim().padStart(3, '0'),
+      monsterLevel: Math.max(1, Math.floor(Number(first.level) || 1)),
+      hint: String(cfg.hint || '').trim(),
+      drops: Array.isArray(cfg.drops) ? cfg.drops : [],
+    };
+  }
+
   async function syncStoryStagesFromServer() {
     try {
       if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
@@ -2088,20 +2107,22 @@ function EventGoldBattlePage(chapterId, stageIdx1) {
 }
 EventGoldBattlePage.prototype.title = 'Gold Farming Battle';
 EventGoldBattlePage.prototype.render = function () {
-  const stages = getEventGoldStagesForChapter(this._ch);
-  const cfg = stages[this._st - 1] || {};
-  const mons = normalizeStageMonsters(cfg);
-  const first = mons[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
-  window.__cpStoryStage = {
-    mode: 'event_gold',
-    chapter: this._ch,
-    stage: this._st,
-    monsters: mons,
-    monsterId: String(first.monsterId || '017').trim().padStart(3, '0'),
-    monsterLevel: Math.max(1, Math.floor(Number(first.level) || 1)),
-    hint: String(cfg?.hint || 'Fire / Water / Wood / Heart only.'),
-    drops: Array.isArray(cfg?.drops) ? cfg.drops : [],
-  };
+  window.__cpStoryStage = getEventGoldStageConfig(this._ch, this._st);
+  try {
+    const ex = window.__cpEventGoldRunSession;
+    if (!(ex && ex.active && Number(ex.chapter) === this._ch)) {
+      window.__cpEventGoldRunSession = {
+        active: true,
+        chapter: this._ch,
+        startedAt: Date.now(),
+        itemDrops: [],
+        monsterDrops: [],
+        expGain: 0,
+        completed: false,
+        resignHandled: false,
+      };
+    }
+  } catch {}
   try { window.__cpBoardElements = ['fire', 'water', 'wood', 'heart']; } catch {}
   return PracticePage.render();
 };
@@ -2693,6 +2714,34 @@ EventGoldBattlePage.prototype.destroy = function () {
       try { window.__cpStoryRunSession = null; } catch {}
       try { window.__cpStageItemDrops = []; } catch {}
     };
+    const ensureEventGoldRunSession = () => {
+      try {
+        const st = window.__cpStoryStage;
+        if (!st || String(st.mode || '') !== 'event_gold' || !Number(st.chapter)) return null;
+        const ch = Math.max(1, Math.min(3, Math.floor(Number(st.chapter) || 1)));
+        const existing = window.__cpEventGoldRunSession;
+        if (existing && existing.active && Number(existing.chapter) === ch) return existing;
+        const sess = {
+          active: true,
+          chapter: ch,
+          startedAt: Date.now(),
+          itemDrops: [],
+          monsterDrops: [],
+          expGain: 0,
+          completed: false,
+          resignHandled: false,
+        };
+        window.__cpEventGoldRunSession = sess;
+        try { window.__cpStageItemDrops = []; } catch {}
+        return sess;
+      } catch {
+        return null;
+      }
+    };
+    const clearEventGoldRunSession = () => {
+      try { window.__cpEventGoldRunSession = null; } catch {}
+      try { window.__cpStageItemDrops = []; } catch {}
+    };
 
     const pushUnique = (arr, value) => {
       const a = Array.isArray(arr) ? arr : [];
@@ -2782,7 +2831,7 @@ EventGoldBattlePage.prototype.destroy = function () {
       }, { passive: true });
     };
 
-    const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo }) => {
+    const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo, backRoute = '/home', backLabel = 'Back to Home' }) => {
       const old = document.getElementById('cpResultOverlay');
       if (old) old.remove();
       const toCountEntries = (idsLike) => {
@@ -2843,7 +2892,7 @@ EventGoldBattlePage.prototype.destroy = function () {
             <div class="cp-setting-help" style="margin-top:12px;">Monsters</div>
             <ul style="margin:6px 0 0 18px;">${monRows || '<li>(None)</li>'}</ul>
             <div class="cp-row" style="justify-content:center; margin-top:16px;">
-              <button class="cp-primary" type="button" id="cpResultBackStory">Back to Home</button>
+              <button class="cp-primary" type="button" id="cpResultBackStory">${esc(String(backLabel || 'Back to Home'))}</button>
             </div>
           </div>
         </div>
@@ -2855,13 +2904,22 @@ EventGoldBattlePage.prototype.destroy = function () {
       }, 80);
       overlay.querySelector('#cpResultBackStory')?.addEventListener('click', () => {
         try { overlay.remove(); } catch {}
-        try { Router.goTo('/home'); } catch {}
+        try { Router.goTo(String(backRoute || '/home')); } catch {}
       }, { passive: true });
     };
 
     const resignStoryRunIfAny = () => {
       try {
         if (!isStoryBattleActive()) return false;
+        if (isEventGoldBattleActive()) {
+          const esess = window.__cpEventGoldRunSession;
+          if (!esess || !esess.active || esess.completed) return false;
+          if (esess.resignHandled) return true;
+          esess.resignHandled = true;
+          clearEventGoldRunSession();
+          showFailResignModal();
+          return true;
+        }
         const sess = window.__cpStoryRunSession;
         if (!sess || !sess.active || sess.completed) return false;
         if (sess.resignHandled) return true;
@@ -2882,7 +2940,10 @@ EventGoldBattlePage.prototype.destroy = function () {
           const to = String(toPath || '');
           const inStory = from.startsWith('/mode/story/ch');
           const stayStory = to.startsWith('/mode/story/ch');
-          if (!inStory || stayStory) return true;
+          const inEvent = from.startsWith('/mode/challenge/event/gold/ch');
+          const stayEvent = to.startsWith('/mode/challenge/event/gold/ch');
+          if (!inStory && !inEvent) return true;
+          if ((inStory && stayStory) || (inEvent && stayEvent)) return true;
           if (resignStoryRunIfAny()) return false;
           return true;
         } catch {
@@ -3351,26 +3412,51 @@ EventGoldBattlePage.prototype.destroy = function () {
             if (isEventGoldBattleActive()) {
               const chapterNum = Math.max(1, Math.min(3, Math.floor(Number(window.__cpStoryStage?.chapter) || 1)));
               const stageNum = Math.max(1, Math.min(5, Math.floor(Number(window.__cpStoryStage?.stage) || 1)));
+              const sess = ensureEventGoldRunSession();
+              const cfgNow = getEventGoldStageConfig(chapterNum, stageNum);
+              try {
+                const dropRes = awardStoryDropIfAny(cfgNow, { apply: false }) || { items: [], monsters: [] };
+                try { window.__cpStageItemDrops = Array.isArray(dropRes.items) ? dropRes.items.slice() : []; } catch {}
+                if (sess) {
+                  sess.itemDrops = (Array.isArray(sess.itemDrops) ? sess.itemDrops : []).concat(Array.isArray(dropRes.items) ? dropRes.items : []);
+                  sess.monsterDrops = (Array.isArray(sess.monsterDrops) ? sess.monsterDrops : []).concat(Array.isArray(dropRes.monsters) ? dropRes.monsters : []);
+                  sess.expGain = Math.max(0, Number(sess.expGain) || 0) + calcStagePlayerExp(cfgNow);
+                }
+              } catch {}
               markEventGoldStageCleared(chapterNum, stageNum);
+              if (stageNum < 5) {
+                setTimeout(() => {
+                  Router.goTo(`/mode/challenge/event/gold/ch${chapterNum}/s${stageNum + 1}`);
+                }, 120);
+                return;
+              }
               try {
                 let slots = loadStorage();
-                const goldGain = Math.max(1, Math.floor((chapterNum === 3 && stageNum >= 5) ? 3 : 1));
-                slots = addItemToStorage(slots, 'gold_coin', goldGain);
+                const itemIds = (sess && Array.isArray(sess.itemDrops)) ? sess.itemDrops : [];
+                itemIds.forEach((itemId) => { slots = addItemToStorage(slots, itemId, 1); });
+                // Chapter reward: one gold coin per chapter clear.
+                slots = addItemToStorage(slots, 'gold_coin', 1);
+                itemIds.push('gold_coin');
                 saveStorage(slots);
-                showStorageGainModal({
-                  title: `Gold Farming · Chapter ${chapterNum} Stage ${stageNum} Cleared`,
-                  rewards: [{ itemId: 'gold_coin', qty: goldGain }],
-                });
-              } catch {}
-              setTimeout(() => {
-                if (stageNum < 5) {
-                  Router.goTo(`/mode/challenge/event/gold/ch${chapterNum}/s${stageNum + 1}`);
-                } else if (chapterNum < 3) {
-                  Router.goTo(`/mode/challenge/event/gold/ch${chapterNum + 1}/s1`);
-                } else {
-                  Router.goTo('/mode/challenge/event/gold');
+                const monIds = (sess && Array.isArray(sess.monsterDrops)) ? sess.monsterDrops : [];
+                monIds.forEach((mid) => addOwnedMonsterId(String(mid || '').trim().padStart(3, '0')));
+                const expGain = Math.max(0, Math.floor(Number(sess?.expGain) || 0));
+                const expResult = addPlayerExp(expGain);
+                if (sess) {
+                  sess.completed = true;
+                  sess.active = false;
                 }
-              }, 120);
+                showChapterClearModal({
+                  chapter: chapterNum,
+                  itemIds,
+                  monsterIds: monIds,
+                  expGain,
+                  levelInfo: expResult,
+                  backRoute: '/mode/challenge/event/gold',
+                  backLabel: 'Back to Gold Farming',
+                });
+                clearEventGoldRunSession();
+              } catch {}
               return;
             }
             // Story Mode: clear stage and auto-advance (no respawn/level-up loop)
