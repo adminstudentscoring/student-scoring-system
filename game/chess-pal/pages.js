@@ -8524,9 +8524,9 @@ EventGoldBattlePage.prototype.destroy = function () {
           saveStorage(slots);
           await loadMonsterOverrides();
           const pool = getAllMonsters();
-          const pick = weightedPickByRates(pool, summonCfg.amateurMonsterRates, {
-            starWeights: summonCfg.amateurMonsterStarWeights,
-            elementWeights: summonCfg.amateurMonsterElementWeights,
+          const pick = weightedPickByRates(pool, summonCfg.monsterRates, {
+            starWeights: summonCfg.monsterStarWeights,
+            elementWeights: summonCfg.monsterElementWeights,
             equalByStar: true,
           });
           if (!pick) {
@@ -8550,9 +8550,9 @@ EventGoldBattlePage.prototype.destroy = function () {
           saveStorage(slots);
           await loadMonsterOverrides();
           const pool = getAllMonsters().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
-          const pick = weightedPickByRates(pool, summonCfg.monsterRates, {
-            starWeights: summonCfg.monsterStarWeights,
-            elementWeights: summonCfg.monsterElementWeights,
+          const pick = weightedPickByRates(pool, summonCfg.amateurMonsterRates, {
+            starWeights: summonCfg.amateurMonsterStarWeights,
+            elementWeights: summonCfg.amateurMonsterElementWeights,
             equalByStar: true,
           });
           if (!pick) {
