@@ -1578,6 +1578,39 @@ const ChessPalPages = (() => {
 
     const msg = overlay.querySelector('#cpLevelUpMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    const animateUnitExpInModal = ({ unitKind, beforeMeta, afterUnit }) => {
+      try {
+        if (!beforeMeta || !afterUnit) return;
+        const overlayId = String(unitKind || '').toLowerCase() === 'monster' ? 'cpMonsterModalOverlay' : 'cpHeroModalOverlay';
+        const overlayEl = document.getElementById(overlayId);
+        if (!overlayEl) return;
+        const fill = overlayEl.querySelector('.cp-expfill');
+        const text = overlayEl.querySelector('.cp-exptext');
+        if (!fill || !text) return;
+        const afterMeta = expProgressMeta({
+          totalExp: Number(afterUnit?.totalExp || 0),
+          level: Number(afterUnit?.level || 1),
+          curve: Number(afterUnit?.expCurve || 50),
+          maxLevel: Number(afterUnit?.maxLevel || 99),
+        });
+        const beforePct = Math.max(0, Math.min(100, Math.round((Number(beforeMeta?.pct) || 0) * 100)));
+        const afterPct = Math.max(0, Math.min(100, Math.round((Number(afterMeta?.pct) || 0) * 100)));
+        fill.style.transition = 'none';
+        fill.style.width = `${beforePct}%`;
+        text.textContent = `${Math.max(0, Math.floor(Number(beforeMeta?.cur) || 0))} / ${Math.max(0, Math.floor(Number(beforeMeta?.need) || 1))} EXP`;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            fill.style.transition = 'width 950ms ease';
+            fill.style.width = `${afterPct}%`;
+            setTimeout(() => {
+              try {
+                text.textContent = `${Math.max(0, Math.floor(Number(afterMeta?.cur) || 0))} / ${Math.max(0, Math.floor(Number(afterMeta?.need) || 1))} EXP`;
+              } catch {}
+            }, 960);
+          });
+        });
+      } catch {}
+    };
 
     const expDefs = [
       { itemId: 'exp_pawn', label: 'EXP Pawn', exp: 500, desc: 'Small EXP.' },
@@ -1629,6 +1662,23 @@ const ChessPalPages = (() => {
         slots[idx] = (curQty <= 1) ? null : { ...slots[idx], qty: curQty - 1 };
         saveStorage(slots);
 
+        // Snapshot EXP before consume for progress animation.
+        const beforeUnit = (() => {
+          try {
+            return (k === 'monster')
+              ? mergeMonster(getMonsterById(unitId))
+              : mergeHero(getHeroById(unitId));
+          } catch {
+            return null;
+          }
+        })();
+        const beforeMeta = beforeUnit ? expProgressMeta({
+          totalExp: Number(beforeUnit?.totalExp || 0),
+          level: Number(beforeUnit?.level || 1),
+          curve: Number(beforeUnit?.expCurve || 50),
+          maxLevel: Number(beforeUnit?.maxLevel || 99),
+        }) : null;
+
         // add exp
         if (k === 'monster') {
           addMonsterExp(unitId, def.exp);
@@ -1647,10 +1697,16 @@ const ChessPalPages = (() => {
         try {
           if (k === 'monster') {
             const refreshed = mergeMonster(getMonsterById(unitId));
-            if (refreshed) showMonsterModal(refreshed);
+            if (refreshed) {
+              showMonsterModal(refreshed);
+              setTimeout(() => { try { animateUnitExpInModal({ unitKind: 'monster', beforeMeta, afterUnit: refreshed }); } catch {} }, 40);
+            }
           } else {
             const refreshed = mergeHero(getHeroById(unitId));
-            if (refreshed) showHeroModal(refreshed);
+            if (refreshed) {
+              showHeroModal(refreshed);
+              setTimeout(() => { try { animateUnitExpInModal({ unitKind: 'hero', beforeMeta, afterUnit: refreshed }); } catch {} }, 40);
+            }
           }
         } catch {}
       }, { passive: true });
@@ -5973,6 +6029,39 @@ EventGoldBattlePage.prototype.destroy = function () {
     const resultHost = document.getElementById('cpEnhanceResult');
     const msg = document.getElementById('cpEnhanceMsg');
     const setMsg = (t) => { if (msg) msg.textContent = String(t || ''); };
+    const showEnhanceResultModal = ({ unit, beforeCd, afterCd }) => {
+      const old = document.getElementById('cpEnhanceResultOverlay');
+      if (old) old.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'cpEnhanceResultOverlay';
+      overlay.className = 'cp-modal-overlay';
+      const unitImg = String(unit?.img || unit?.mini || '').trim();
+      const unitName = String(unit?.name || 'Unit');
+      const unitType = String(unit?.kind || '').toLowerCase() === 'monster' ? 'Monster' : 'Hero';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Enhance result">
+          <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+          <div class="cp-modal-body">
+            <div class="cp-h1" style="font-size:20px;">Enhance Result</div>
+            <div class="cp-setting-item" style="margin-top:12px; background:rgba(255,255,255,0.03);">
+              <div class="cp-row" style="margin-top:0; align-items:center; gap:10px;">
+                <div style="width:112px;height:112px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);">
+                  ${unitImg ? `<img src="${esc(unitImg)}" alt="${esc(unitName)}" style="width:100%;height:100%;object-fit:contain;" decoding="async" loading="lazy">` : ''}
+                </div>
+                <div>
+                  <div class="cp-setting-label">${esc(unitType)} · ${esc(unitName)}</div>
+                  <div class="cp-cd-flash">CD ${esc(String(beforeCd))} -> ${esc(String(afterCd))}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const close = () => { try { overlay.remove(); } catch {} };
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    };
 
     let targetKey = '';
     let materialId = '';
@@ -6034,24 +6123,19 @@ EventGoldBattlePage.prototype.destroy = function () {
     const updateUi = () => {
       const u = targetKey ? getTeamUnit(targetKey) : null;
       if (targetBody) {
-        targetBody.innerHTML = u ? `
-          <div class="cp-row" style="margin-top:0; align-items:center; gap:8px;">
-            ${u.mini ? `<img src="${esc(u.mini)}" alt="${esc(u.name)}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;">` : ''}
-            <div style="text-align:left;">
-              <div>${esc(u.kind === 'monster' ? 'Monster' : 'Hero')} · ${esc(u.name || '')}</div>
-              <div class="cp-muted">CD ${esc(String(Math.max(0, Math.floor(Number(u?.activeSkill?.cd) || 0))))}</div>
-            </div>
-          </div>
-        ` : 'Tap to select';
+        const src = String(u?.img || u?.mini || '').trim();
+        targetSlot?.classList.toggle('has-media', !!(u && src));
+        targetBody.innerHTML = (u && src)
+          ? `<div class="cp-enhance-media"><img src="${esc(src)}" alt="${esc(String(u?.name || 'Unit'))}" decoding="async" loading="lazy"></div>`
+          : 'Tap to select';
       }
       if (matBody) {
         const def = materialId ? getStorageItemDef(materialId) : null;
-        matBody.innerHTML = def ? `
-          <div class="cp-row" style="margin-top:0; align-items:center; gap:8px;">
-            ${def?.img ? renderImgWithFallback(def.img, def.name || materialId, '') : ''}
-            <div style="text-align:left;">${esc(String(def?.name || materialId))}</div>
-          </div>
-        ` : 'Tap to select';
+        const src = String(def?.img || '').trim();
+        matSlot?.classList.toggle('has-media', !!(def && src));
+        matBody.innerHTML = (def && src)
+          ? `<div class="cp-enhance-media"><img src="${esc(src)}" alt="${esc(String(def?.name || materialId))}" decoding="async" loading="lazy"></div>`
+          : 'Tap to select';
       }
       if (confirmBtn) confirmBtn.disabled = !(targetKey && materialId);
     };
@@ -6119,6 +6203,7 @@ EventGoldBattlePage.prototype.destroy = function () {
             </div>
           `;
         }
+        try { showEnhanceResultModal({ unit: nextUnit, beforeCd: res.beforeCd, afterCd: res.afterCd }); } catch {}
         setMsg('Skill enhanced successfully.');
       } catch (e) {
         setMsg(String(e?.message || e || 'Enhance failed'));
