@@ -298,6 +298,7 @@ const ChessPalPages = (() => {
       const generalSettings = (data && data.generalSettings && typeof data.generalSettings === 'object' && !Array.isArray(data.generalSettings)) ? data.generalSettings : null;
       const summonConfig = (data && data.summonConfig && typeof data.summonConfig === 'object' && !Array.isArray(data.summonConfig)) ? data.summonConfig : null;
       const mallConfig = (data && data.mallConfig && typeof data.mallConfig === 'object' && !Array.isArray(data.mallConfig)) ? data.mallConfig : null;
+      const eventGoldStages = (data && data.eventGoldStages && typeof data.eventGoldStages === 'object' && !Array.isArray(data.eventGoldStages)) ? data.eventGoldStages : null;
       if (generalSettings) {
         try { localStorage.setItem('chessPalGeneralSettings', JSON.stringify(generalSettings)); } catch {}
       }
@@ -307,9 +308,13 @@ const ChessPalPages = (() => {
       if (mallConfig) {
         try { localStorage.setItem('chessPalMallConfig', JSON.stringify(mallConfig)); } catch {}
       }
+      if (eventGoldStages) {
+        try { localStorage.setItem('chessPalEventGoldStages', JSON.stringify(eventGoldStages)); } catch {}
+      }
       try { applyGeneralSettings(getGeneralSettings()); } catch {}
       try { window.dispatchEvent(new Event('cpSummonConfigChanged')); } catch {}
       try { window.dispatchEvent(new Event('cpMallConfigChanged')); } catch {}
+      try { window.dispatchEvent(new Event('cpEventGoldStagesChanged')); } catch {}
     } catch {}
   }
 
@@ -555,6 +560,71 @@ const ChessPalPages = (() => {
     const next = loadStoryStages();
     next[ch] = Array.isArray(stages) ? stages : defaultStoryStagesForChapter(ch);
     saveStoryStages(next);
+  }
+
+  const EVENT_GOLD_STAGES_KEY = 'chessPalEventGoldStages';
+  const EVENT_GOLD_PROGRESS_KEY = 'chessPalEventGoldProgress';
+
+  function defaultEventGoldStages() {
+    const ids = ['017', '018', '021', '025', '029', '033', '037', '041', '045', '049'];
+    return ids.map((id, idx) => ({
+      monsters: [{ monsterId: id, level: Math.max(1, idx + 1), monsterDropChance: 0, drops: [] }],
+      hint: 'Fire / Water / Wood / Heart only.',
+      drops: [],
+    }));
+  }
+
+  function getEventGoldStages() {
+    let raw = null;
+    try {
+      const v = JSON.parse(localStorage.getItem(EVENT_GOLD_STAGES_KEY) || 'null');
+      raw = (v && typeof v === 'object' && !Array.isArray(v))
+        ? (Array.isArray(v.stages) ? v.stages : null)
+        : null;
+    } catch {}
+    const base = defaultEventGoldStages();
+    const src = (Array.isArray(raw) && raw.length) ? raw : base;
+    const out = Array.from({ length: 10 }, (_, i) => {
+      const st = src[i] || base[i] || base[0];
+      const mons = normalizeStageMonsters(st);
+      const first = mons[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
+      return {
+        monsters: [{ ...first, monsterDropChance: 0, drops: [] }],
+        hint: String(st?.hint || 'Fire / Water / Wood / Heart only.'),
+        drops: [],
+      };
+    });
+    return out;
+  }
+
+  function saveEventGoldStages(stagesLike) {
+    const arr = Array.isArray(stagesLike) ? stagesLike : defaultEventGoldStages();
+    const stages = Array.from({ length: 10 }, (_, i) => {
+      const st = arr[i] || {};
+      const first = normalizeStageMonsters(st)[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
+      return {
+        monsters: [{ ...first, monsterDropChance: 0, drops: [] }],
+        hint: String(st?.hint || 'Fire / Water / Wood / Heart only.'),
+        drops: [],
+      };
+    });
+    try { localStorage.setItem(EVENT_GOLD_STAGES_KEY, JSON.stringify({ stages })); } catch {}
+    try { window.dispatchEvent(new Event('cpEventGoldStagesChanged')); } catch {}
+    if (isAdminMode()) {
+      saveChessPalGlobalConfigToServer({ eventGoldStages: { stages } }).catch(() => {});
+    }
+  }
+
+  function getEventGoldClearedStage() {
+    try { return Math.max(0, Math.min(10, Math.floor(Number(localStorage.getItem(EVENT_GOLD_PROGRESS_KEY)) || 0))); } catch {}
+    return 0;
+  }
+
+  function markEventGoldStageCleared(stageIdx1) {
+    const st = Math.max(1, Math.min(10, Math.floor(Number(stageIdx1) || 1)));
+    const cur = getEventGoldClearedStage();
+    if (st <= cur) return;
+    try { localStorage.setItem(EVENT_GOLD_PROGRESS_KEY, String(st)); } catch {}
   }
 
   async function syncStoryStagesFromServer() {
@@ -1714,6 +1784,85 @@ const ChessPalPages = (() => {
     return uniq.length ? uniq : core;
   }
 
+  function showAdminEditEventGoldStagesModal() {
+    if (!isAdminMode()) return;
+    const old = document.getElementById('cpEditEventGoldStagesOverlay');
+    if (old) old.remove();
+    const allMonsters = getAllMonsters();
+    const monsterOptions = allMonsters
+      .slice()
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map(m => `<option value="${esc(String(m.id))}">#${esc(String(m.id))} ${esc(String(m.name || 'Monster'))} · ${esc(elementLabel(m.element))} · ${esc(renderStars(m.rarity))}</option>`)
+      .join('');
+    const stages = getEventGoldStages();
+    const overlay = document.createElement('div');
+    overlay.id = 'cpEditEventGoldStagesOverlay';
+    overlay.className = 'cp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="cp-modal cp-editstages-modal" role="dialog" aria-modal="true" aria-label="Gold farming stage settings">
+        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:18px;">Edit stages · Gold Farming Mode</div>
+          <div class="cp-muted" style="margin-top:6px;">Element pool is fixed to Fire / Water / Wood / Heart. Configure monster and level for Stage 1-10.</div>
+          <div class="cp-editstages-list" style="margin-top:12px;">
+            ${Array.from({ length: 10 }, (_, i) => {
+              const cfg = stages[i] || {};
+              const first = normalizeStageMonsters(cfg)[0] || { monsterId: '017', level: 1 };
+              return `
+                <div class="cp-setting-item">
+                  <div class="cp-setting-label">Stage ${esc(String(i + 1))}</div>
+                  <div class="cp-row">
+                    <div style="flex:1 1 260px;">
+                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
+                      <select class="cp-select" data-evgold-monster="${esc(String(i))}">${monsterOptions}</select>
+                    </div>
+                    <div style="width: 140px;">
+                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
+                      <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(first.level) || 1))))}" data-evgold-level="${esc(String(i))}">
+                    </div>
+                  </div>
+                  <div class="cp-setting-help" style="margin-top:10px;">Hint</div>
+                  <input class="cp-input" type="text" value="${esc(String(cfg?.hint || 'Fire / Water / Wood / Heart only.'))}" data-evgold-hint="${esc(String(i))}" placeholder="Optional hint">
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="cp-row" style="justify-content:flex-end;">
+            <button class="cp-tool-btn" type="button" id="cpEditEventGoldCancel">Cancel</button>
+            <button class="cp-primary" type="button" id="cpEditEventGoldSave">Save</button>
+          </div>
+          <div class="cp-muted" id="cpEditEventGoldMsg" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    stages.forEach((cfg, i) => {
+      const first = normalizeStageMonsters(cfg)[0] || { monsterId: '017', level: 1 };
+      const sel = overlay.querySelector(`[data-evgold-monster="${CSS.escape(String(i))}"]`);
+      if (sel) sel.value = String(first.monsterId || '017').trim().padStart(3, '0');
+    });
+    const close = () => { try { overlay.remove(); } catch {} };
+    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+    overlay.querySelector('#cpEditEventGoldCancel')?.addEventListener('click', close, { passive: true });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('#cpEditEventGoldSave')?.addEventListener('click', () => {
+      const msg = overlay.querySelector('#cpEditEventGoldMsg');
+      try {
+        const next = Array.from({ length: 10 }, (_, i) => {
+          const monsterId = String(overlay.querySelector(`[data-evgold-monster="${CSS.escape(String(i))}"]`)?.value || '017').trim().padStart(3, '0');
+          const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-evgold-level="${CSS.escape(String(i))}"]`)?.value) || 1));
+          const hint = String(overlay.querySelector(`[data-evgold-hint="${CSS.escape(String(i))}"]`)?.value || '').trim();
+          return { monsters: [{ monsterId, level, monsterDropChance: 0, drops: [] }], hint, drops: [] };
+        });
+        saveEventGoldStages(next);
+        if (msg) msg.textContent = 'Saved.';
+        setTimeout(close, 400);
+      } catch {
+        if (msg) msg.textContent = 'Failed to save.';
+      }
+    });
+  }
+
   function getMonsterFromDbQuick(monsterId) {
     const id = String(monsterId || '').trim().padStart(3, '0');
     const arr = window.CP_DATA?.MONSTER_DB;
@@ -1843,9 +1992,9 @@ function ModeChallengeTimedPage() {}
 ModeChallengeTimedPage.title = 'Event Mode';
 ModeChallengeTimedPage.render = () => `
   <div class="cp-square-grid" aria-label="Event Mode">
-    <button class="cp-square-tile" type="button" data-cp-go="/practice" aria-label="Enter Event Mode">
-      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Enter Event Mode', 'cp-square-img')}
-      <div class="cp-square-label">Enter Event Mode</div>
+    <button class="cp-square-tile" type="button" data-cp-go="/mode/challenge/event/gold" aria-label="Gold Farming Mode">
+      ${renderImgWithFallback('images/Storage/S001-Gold-Coin.png', 'Gold Farming Mode', 'cp-square-img')}
+      <div class="cp-square-label">Gold Farming Mode</div>
     </button>
     <button class="cp-square-tile" type="button" data-cp-go="/mode/challenge" aria-label="Back">
       ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Back', 'cp-square-img')}
@@ -1854,9 +2003,105 @@ ModeChallengeTimedPage.render = () => `
   </div>
 `;
 ModeChallengeTimedPage.init = () => {
+  if (isAdminMode()) {
+    const host = document.querySelector('.cp-square-grid[aria-label="Event Mode"]');
+    if (host) {
+      const wrap = document.createElement('div');
+      wrap.className = 'cp-row';
+      wrap.style.marginTop = '10px';
+      wrap.innerHTML = `<button class="cp-tool-btn" type="button" id="cpEventGoldSettingBtn">Setting</button>`;
+      host.insertAdjacentElement('beforebegin', wrap);
+      wrap.querySelector('#cpEventGoldSettingBtn')?.addEventListener('click', () => {
+        try { showAdminEditEventGoldStagesModal(); } catch {}
+      }, { passive: true });
+    }
+  }
   document.querySelectorAll('[data-cp-go]').forEach((btn) => {
     btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/challenge')), { passive: true });
   });
+};
+
+function EventGoldModePage() {}
+EventGoldModePage.title = 'Gold Farming Mode';
+EventGoldModePage.render = () => {
+  const cleared = getEventGoldClearedStage();
+  const stages = getEventGoldStages();
+  return `
+    <div class="cp-chapter-list" aria-label="Gold Farming stages">
+      ${Array.from({ length: 10 }, (_, i) => {
+        const idx = i + 1;
+        const cfg = stages[i] || {};
+        const first = normalizeStageMonsters(cfg)[0] || { monsterId: '017', level: 1 };
+        const mon = getMonsterFromDbQuick(first.monsterId);
+        const img = String(mon?.img || 'images/Storage/S001-Gold-Coin.png');
+        const name = String(mon?.name || `Stage ${idx}`);
+        const locked = idx > (cleared + 1) && !isAdminMode();
+        return `
+          <div class="cp-chapter-tile ${locked ? 'is-locked' : ''}" role="button" tabindex="0" data-cp-event-gold-stage="${esc(String(idx))}" data-cp-locked="${locked ? '1' : '0'}" aria-label="Stage ${esc(String(idx))}">
+            <img class="cp-chapter-img" src="${esc(img)}" alt="${esc(name)}" decoding="async" loading="lazy">
+            <div class="cp-chapter-label">Stage ${esc(String(idx))}</div>
+            <div class="cp-chapter-sub">${locked ? 'Locked' : `${esc(name)} · Lv ${esc(String(first.level || 1))}`}</div>
+          </div>
+        `;
+      }).join('')}
+      <button class="cp-tool-btn" type="button" data-cp-go="/mode/challenge/event">Back</button>
+    </div>
+  `;
+};
+EventGoldModePage.init = () => {
+  document.querySelectorAll('[data-cp-go]').forEach((btn) => btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/challenge/event')), { passive: true }));
+  document.querySelectorAll('[data-cp-event-gold-stage]').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      const locked = String(tile.getAttribute('data-cp-locked') || '0') === '1';
+      if (locked) { try { setMsg('Clear previous stage first.'); } catch {} return; }
+      const s = Math.max(1, Math.min(10, Math.floor(Number(tile.getAttribute('data-cp-event-gold-stage')) || 1)));
+      Router.goTo(`/mode/challenge/event/gold/s${s}`);
+    }, { passive: true });
+  });
+};
+
+function EventGoldBattlePage(stageIdx1) {
+  this._st = Math.max(1, Math.min(10, Math.floor(Number(stageIdx1) || 1)));
+}
+EventGoldBattlePage.prototype.title = 'Gold Farming Battle';
+EventGoldBattlePage.prototype.render = function () {
+  const stages = getEventGoldStages();
+  const cfg = stages[this._st - 1] || {};
+  const mons = normalizeStageMonsters(cfg);
+  const first = mons[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
+  window.__cpStoryStage = {
+    mode: 'event_gold',
+    chapter: 0,
+    stage: this._st,
+    monsters: [{ ...first, monsterDropChance: 0, drops: [] }],
+    monsterId: String(first.monsterId || '017').trim().padStart(3, '0'),
+    monsterLevel: Math.max(1, Math.floor(Number(first.level) || 1)),
+    hint: String(cfg?.hint || 'Fire / Water / Wood / Heart only.'),
+    drops: [],
+  };
+  try { window.__cpBoardElements = ['fire', 'water', 'wood', 'heart']; } catch {}
+  return PracticePage.render();
+};
+EventGoldBattlePage.prototype.init = function () {
+  PracticePage.init();
+  try {
+    const old = document.getElementById('cpStageIntro');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'cpStageIntro';
+    wrap.className = 'cp-stage-intro';
+    const t = document.createElement('div');
+    t.className = 'cp-stage-intro-text';
+    t.textContent = `Gold Farming · Stage ${this._st}`;
+    wrap.appendChild(t);
+    document.body.appendChild(wrap);
+    setTimeout(() => { try { wrap.remove(); } catch {} }, 2600);
+  } catch {}
+};
+EventGoldBattlePage.prototype.destroy = function () {
+  try { delete window.__cpStoryStage; } catch {}
+  try { delete window.__cpBoardElements; } catch {}
+  try { PracticePage.destroy(); } catch {}
 };
 
   function PracticePage() {}
@@ -1919,7 +2164,9 @@ ModeChallengeTimedPage.init = () => {
         </div>
       `).join('');
     };
-    const storyStage = story?.stage ? Math.max(1, Math.min(5, Math.floor(Number(story.stage) || 1))) : 0;
+    const storyStage = (story?.mode === 'event_gold')
+      ? 0
+      : (story?.stage ? Math.max(1, Math.min(5, Math.floor(Number(story.stage) || 1))) : 0);
     return `
       <div class="cp-practice" ${storyStage ? `data-story-stage="${esc(String(storyStage))}"` : ``}>
         <div class="cp-practice-bg" aria-hidden="true">
@@ -2380,6 +2627,14 @@ ModeChallengeTimedPage.init = () => {
       try {
         const st = window.__cpStoryStage;
         return !!(st && Number(st.chapter) && Number(st.stage));
+      } catch {
+        return false;
+      }
+    };
+    const isEventGoldBattleActive = () => {
+      try {
+        const st = window.__cpStoryStage;
+        return !!(st && String(st.mode || '') === 'event_gold' && Number(st.stage));
       } catch {
         return false;
       }
@@ -3070,6 +3325,25 @@ ModeChallengeTimedPage.init = () => {
         // Monster(s) death: if all dead, handle stage clear/respawn
         if (allDead) {
           try {
+            if (isEventGoldBattleActive()) {
+              const stageNum = Math.max(1, Math.min(10, Math.floor(Number(window.__cpStoryStage?.stage) || 1)));
+              markEventGoldStageCleared(stageNum);
+              try {
+                let slots = loadStorage();
+                const goldGain = Math.max(1, Math.floor(stageNum >= 10 ? 3 : 1));
+                slots = addItemToStorage(slots, 'gold_coin', goldGain);
+                saveStorage(slots);
+                showStorageGainModal({
+                  title: `Gold Farming · Stage ${stageNum} Cleared`,
+                  rewards: [{ itemId: 'gold_coin', qty: goldGain }],
+                });
+              } catch {}
+              setTimeout(() => {
+                if (stageNum < 10) Router.goTo(`/mode/challenge/event/gold/s${stageNum + 1}`);
+                else Router.goTo('/mode/challenge/event/gold');
+              }, 120);
+              return;
+            }
             // Story Mode: clear stage and auto-advance (no respawn/level-up loop)
             const st = window.__cpStoryStage;
             if (st && Number(st.chapter) && Number(st.stage)) {
@@ -6668,6 +6942,38 @@ ModeChallengeTimedPage.init = () => {
     };
   }
 
+  const SUMMON_ELEMENT_KEYS = ['fire', 'water', 'wood', 'light', 'dark'];
+
+  function defaultStarWeightMap(maxStar = 10) {
+    const out = {};
+    for (let i = 1; i <= Math.max(1, Math.floor(Number(maxStar) || 10)); i += 1) out[String(i)] = 1;
+    return out;
+  }
+
+  function defaultElementWeightMap() {
+    return { fire: 1, water: 1, wood: 1, light: 1, dark: 1 };
+  }
+
+  function normalizeStarWeightMap(raw, maxStar = 10) {
+    const base = defaultStarWeightMap(maxStar);
+    const out = {};
+    Object.keys(base).forEach((k) => {
+      const v = Number(raw?.[k]);
+      out[k] = Math.max(0, Number.isFinite(v) ? v : base[k]);
+    });
+    return out;
+  }
+
+  function normalizeElementWeightMap(raw) {
+    const base = defaultElementWeightMap();
+    const out = {};
+    SUMMON_ELEMENT_KEYS.forEach((k) => {
+      const v = Number(raw?.[k]);
+      out[k] = Math.max(0, Number.isFinite(v) ? v : base[k]);
+    });
+    return out;
+  }
+
   function defaultRateMapForUnits(units) {
     const rarityWeights = summonBaseRarityWeights();
     const out = {};
@@ -6716,6 +7022,14 @@ ModeChallengeTimedPage.init = () => {
       amateurHeroLabel: 'Amateur Summon Hero',
       amateurMonsterLabel: 'Amateur Summon Monster',
       itemLabel: 'Summon Item',
+      heroStarWeights: defaultStarWeightMap(10),
+      heroElementWeights: defaultElementWeightMap(),
+      monsterStarWeights: defaultStarWeightMap(10),
+      monsterElementWeights: defaultElementWeightMap(),
+      amateurHeroStarWeights: defaultStarWeightMap(6),
+      amateurHeroElementWeights: defaultElementWeightMap(),
+      amateurMonsterStarWeights: defaultStarWeightMap(6),
+      amateurMonsterElementWeights: defaultElementWeightMap(),
       heroRates: defaultRateMapForUnits(heroes),
       monsterRates: defaultRateMapForUnits(monsters),
       amateurHeroRates: defaultRateMapForUnits(heroAmateur),
@@ -6772,6 +7086,14 @@ ModeChallengeTimedPage.init = () => {
     const amateurHeroLabel = String(raw?.amateurHeroLabel || base.amateurHeroLabel || 'Amateur Summon Hero').trim() || 'Amateur Summon Hero';
     const amateurMonsterLabel = String(raw?.amateurMonsterLabel || base.amateurMonsterLabel || 'Amateur Summon Monster').trim() || 'Amateur Summon Monster';
     const itemLabel = String(raw?.itemLabel || base.itemLabel || 'Summon Item').trim() || 'Summon Item';
+    const heroStarWeights = normalizeStarWeightMap(raw?.heroStarWeights, 10);
+    const heroElementWeights = normalizeElementWeightMap(raw?.heroElementWeights);
+    const monsterStarWeights = normalizeStarWeightMap(raw?.monsterStarWeights, 10);
+    const monsterElementWeights = normalizeElementWeightMap(raw?.monsterElementWeights);
+    const amateurHeroStarWeights = normalizeStarWeightMap(raw?.amateurHeroStarWeights, 6);
+    const amateurHeroElementWeights = normalizeElementWeightMap(raw?.amateurHeroElementWeights);
+    const amateurMonsterStarWeights = normalizeStarWeightMap(raw?.amateurMonsterStarWeights, 6);
+    const amateurMonsterElementWeights = normalizeElementWeightMap(raw?.amateurMonsterElementWeights);
     const heroRates = normalizeRateMap(raw?.heroRates, heroes);
     const monsterRates = normalizeRateMap(raw?.monsterRates, monsters);
     const amateurHeroRates = normalizeRateMap(raw?.amateurHeroRates, heroAmateur);
@@ -6785,6 +7107,8 @@ ModeChallengeTimedPage.init = () => {
       amateurHeroCurrencyId, amateurHeroCost, amateurMonsterCurrencyId, amateurMonsterCost,
       itemCurrencyId, itemCost,
       heroLabel, monsterLabel, amateurHeroLabel, amateurMonsterLabel, itemLabel,
+      heroStarWeights, heroElementWeights, monsterStarWeights, monsterElementWeights,
+      amateurHeroStarWeights, amateurHeroElementWeights, amateurMonsterStarWeights, amateurMonsterElementWeights,
       heroRates, monsterRates, amateurHeroRates, amateurMonsterRates, itemRates,
     };
   }
@@ -6927,6 +7251,31 @@ ModeChallengeTimedPage.init = () => {
               </label>
             </div>
           </div>
+          <div class="cp-setting-item" style="margin-top:10px;">
+            <div class="cp-setting-help" style="margin:0 0 8px 0;">Star / Element weights (same-star units share that star weight equally)</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:8px;">
+              <div>
+                <div class="cp-setting-label" style="font-size:13px;">Hero</div>
+                <div id="cpSummonHeroStarWeights" style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+                <div id="cpSummonHeroElementWeights" style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+              </div>
+              <div>
+                <div class="cp-setting-label" style="font-size:13px;">Monster</div>
+                <div id="cpSummonMonsterStarWeights" style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+                <div id="cpSummonMonsterElementWeights" style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+              </div>
+              <div>
+                <div class="cp-setting-label" style="font-size:13px;">Amateur Hero</div>
+                <div id="cpSummonAmHeroStarWeights" style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+                <div id="cpSummonAmHeroElementWeights" style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+              </div>
+              <div>
+                <div class="cp-setting-label" style="font-size:13px;">Amateur Monster</div>
+                <div id="cpSummonAmMonsterStarWeights" style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+                <div id="cpSummonAmMonsterElementWeights" style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; margin-top:6px;"></div>
+              </div>
+            </div>
+          </div>
           <div class="cp-setting-item" style="margin-top:12px;">
             <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
               <div class="cp-setting-help" style="margin:0;">Hero summon rates (relative weight + percentage; 0 means disabled)</div>
@@ -7023,6 +7372,34 @@ ModeChallengeTimedPage.init = () => {
     setSelectValue('cpSummonCfgAmateurHeroCurrency', cfg.amateurHeroCurrencyId || 'silver_coin');
     setSelectValue('cpSummonCfgAmateurMonsterCurrency', cfg.amateurMonsterCurrencyId || 'silver_coin');
     setSelectValue('cpSummonCfgItemCurrency', cfg.itemCurrencyId || 'gold_coin');
+    const renderStarWeightInputs = (hostId, weights, maxStar) => {
+      const host = overlay.querySelector(`#${hostId}`);
+      if (!host) return;
+      host.innerHTML = Array.from({ length: maxStar }, (_, i) => i + 1).map((star) => `
+        <label class="cp-setting-help" style="margin:0; display:flex; flex-direction:column; gap:2px;">
+          <span>★${esc(String(star))}</span>
+          <input class="cp-input" data-summon-star-weight="${esc(String(hostId))}:${esc(String(star))}" type="number" min="0" step="0.1" value="${esc(String(Number(weights?.[star]) || 1))}">
+        </label>
+      `).join('');
+    };
+    const renderElementWeightInputs = (hostId, weights) => {
+      const host = overlay.querySelector(`#${hostId}`);
+      if (!host) return;
+      host.innerHTML = SUMMON_ELEMENT_KEYS.map((el) => `
+        <label class="cp-setting-help" style="margin:0; display:flex; flex-direction:column; gap:2px;">
+          <span>${esc(el.charAt(0).toUpperCase() + el.slice(1))}</span>
+          <input class="cp-input" data-summon-element-weight="${esc(String(hostId))}:${esc(el)}" type="number" min="0" step="0.1" value="${esc(String(Number(weights?.[el]) || 1))}">
+        </label>
+      `).join('');
+    };
+    renderStarWeightInputs('cpSummonHeroStarWeights', cfg.heroStarWeights, 10);
+    renderElementWeightInputs('cpSummonHeroElementWeights', cfg.heroElementWeights);
+    renderStarWeightInputs('cpSummonMonsterStarWeights', cfg.monsterStarWeights, 10);
+    renderElementWeightInputs('cpSummonMonsterElementWeights', cfg.monsterElementWeights);
+    renderStarWeightInputs('cpSummonAmHeroStarWeights', cfg.amateurHeroStarWeights, 6);
+    renderElementWeightInputs('cpSummonAmHeroElementWeights', cfg.amateurHeroElementWeights);
+    renderStarWeightInputs('cpSummonAmMonsterStarWeights', cfg.amateurMonsterStarWeights, 6);
+    renderElementWeightInputs('cpSummonAmMonsterElementWeights', cfg.amateurMonsterElementWeights);
     const rowTemplate = ({ id, name, stars, element, weight, attr, group }) => `
       <label class="cp-setting-help" data-sort-id="${esc(String(id))}" data-sort-stars="${esc(String(Math.max(0, Math.floor(Number(stars) || 0))))}" data-sort-element="${esc(String(element || '').toLowerCase())}" style="display:flex; align-items:center; gap:8px; margin:0;">
         <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)}${stars ? ` · ★${esc(String(stars))}` : ''} · ${esc(name)}</span>
@@ -7106,12 +7483,53 @@ ModeChallengeTimedPage.init = () => {
     bindSort('cpSummonMonsterSort', monsterRowsHost);
     bindSort('cpSummonAmHeroSort', amHeroRowsHost);
     bindSort('cpSummonAmMonsterSort', amMonsterRowsHost);
+    const heroById = Object.fromEntries(heroes.map((h) => [String(h?.id || '').trim(), h]));
+    const monsterById = Object.fromEntries(monsters.map((m) => [String(m?.id || '').trim(), m]));
+    const amHeroById = Object.fromEntries(amateurHeroes.map((h) => [String(h?.id || '').trim(), h]));
+    const amMonsterById = Object.fromEntries(amateurMonsters.map((m) => [String(m?.id || '').trim(), m]));
+    const countByStar = (arr) => {
+      const out = {};
+      (Array.isArray(arr) ? arr : []).forEach((u) => {
+        const s = Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1)));
+        out[s] = Math.max(0, Number(out[s]) || 0) + 1;
+      });
+      return out;
+    };
+    const heroCnt = countByStar(heroes);
+    const monCnt = countByStar(monsters);
+    const amHeroCnt = countByStar(amateurHeroes);
+    const amMonCnt = countByStar(amateurMonsters);
+    const getGroupWeightFactor = (group, id) => {
+      const g = String(group || '');
+      const uid = String(id || '').trim();
+      const pick = (() => {
+        if (g === 'hero') return { unit: heroById[uid], starMapId: 'cpSummonHeroStarWeights', elMapId: 'cpSummonHeroElementWeights', cnt: heroCnt };
+        if (g === 'monster') return { unit: monsterById[uid], starMapId: 'cpSummonMonsterStarWeights', elMapId: 'cpSummonMonsterElementWeights', cnt: monCnt };
+        if (g === 'amhero') return { unit: amHeroById[uid], starMapId: 'cpSummonAmHeroStarWeights', elMapId: 'cpSummonAmHeroElementWeights', cnt: amHeroCnt };
+        if (g === 'ammonster') return { unit: amMonsterById[uid], starMapId: 'cpSummonAmMonsterStarWeights', elMapId: 'cpSummonAmMonsterElementWeights', cnt: amMonCnt };
+        return null;
+      })();
+      if (!pick?.unit) return 1;
+      const star = Math.max(1, Math.min(10, Math.floor(Number(pick.unit?.rarity) || 1)));
+      const el = String(pick.unit?.element || '').trim().toLowerCase();
+      const starEl = overlay.querySelector(`[data-summon-star-weight="${CSS.escape(String(pick.starMapId))}:${CSS.escape(String(star))}"]`);
+      const elemEl = overlay.querySelector(`[data-summon-element-weight="${CSS.escape(String(pick.elMapId))}:${CSS.escape(String(el))}"]`);
+      const starW = Math.max(0, Number(starEl?.value) || 0);
+      const elemW = Math.max(0, Number(elemEl?.value) || 0);
+      const split = Math.max(1, Number(pick.cnt?.[star]) || 1);
+      return (starW * elemW) / split;
+    };
     const updatePercentages = (group, selector) => {
       const entries = Array.from(overlay.querySelectorAll(selector));
-      const total = entries.reduce((sum, el) => sum + Math.max(0, Number(el?.value) || 0), 0);
+      const values = entries.map((el) => {
+        const id = String(el.getAttribute(selector.slice(1, -1)) || '').trim();
+        const raw = Math.max(0, Number(el?.value) || 0);
+        return { el, id, val: raw * getGroupWeightFactor(group, id) };
+      });
+      const total = values.reduce((sum, row) => sum + row.val, 0);
       entries.forEach((el) => {
         const id = String(el.getAttribute(selector.slice(1, -1)) || '').trim();
-        const val = Math.max(0, Number(el?.value) || 0);
+        const val = values.find((x) => x.el === el)?.val || 0;
         const pct = total > 0 ? (val / total) * 100 : 0;
         const pctEl = overlay.querySelector(`[data-summon-pct="${CSS.escape(group)}:${CSS.escape(id)}"]`);
         if (pctEl) pctEl.textContent = `${pct.toFixed(2)}%`;
@@ -7128,6 +7546,14 @@ ModeChallengeTimedPage.init = () => {
     bindRatePct('amhero', '[data-summon-amhero-rate]');
     bindRatePct('ammonster', '[data-summon-ammonster-rate]');
     bindRatePct('item', '[data-summon-item-rate]');
+    overlay.querySelectorAll('[data-summon-star-weight], [data-summon-element-weight]').forEach((el) => {
+      el.addEventListener('input', () => {
+        updatePercentages('hero', '[data-summon-hero-rate]');
+        updatePercentages('monster', '[data-summon-mon-rate]');
+        updatePercentages('amhero', '[data-summon-amhero-rate]');
+        updatePercentages('ammonster', '[data-summon-ammonster-rate]');
+      });
+    });
     const heroToggle = overlay.querySelector('#cpSummonHeroRatesToggle');
     const monToggle = overlay.querySelector('#cpSummonMonsterRatesToggle');
     const amHeroToggle = overlay.querySelector('#cpSummonAmHeroRatesToggle');
@@ -7174,6 +7600,23 @@ ModeChallengeTimedPage.init = () => {
       }
     }, { passive: true });
 
+    const collectStarWeights = (hostId, maxStar) => {
+      const out = {};
+      for (let i = 1; i <= maxStar; i += 1) {
+        const el = overlay.querySelector(`[data-summon-star-weight="${CSS.escape(String(hostId))}:${CSS.escape(String(i))}"]`);
+        out[String(i)] = Math.max(0, Number(el?.value) || 0);
+      }
+      return out;
+    };
+    const collectElementWeights = (hostId) => {
+      const out = {};
+      SUMMON_ELEMENT_KEYS.forEach((k) => {
+        const el = overlay.querySelector(`[data-summon-element-weight="${CSS.escape(String(hostId))}:${CSS.escape(k)}"]`);
+        out[k] = Math.max(0, Number(el?.value) || 0);
+      });
+      return out;
+    };
+
     const close = () => {
       try { overlay.remove(); } catch {}
       try { window.removeEventListener('keydown', onKey); } catch {}
@@ -7207,6 +7650,14 @@ ModeChallengeTimedPage.init = () => {
         const amateurHeroLabel = String(overlay.querySelector('#cpSummonCfgAmateurHeroLabel')?.value || '').trim() || 'Amateur Summon Hero';
         const amateurMonsterLabel = String(overlay.querySelector('#cpSummonCfgAmateurMonsterLabel')?.value || '').trim() || 'Amateur Summon Monster';
         const itemLabel = String(overlay.querySelector('#cpSummonCfgItemLabel')?.value || '').trim() || 'Summon Item';
+        const heroStarWeights = collectStarWeights('cpSummonHeroStarWeights', 10);
+        const heroElementWeights = collectElementWeights('cpSummonHeroElementWeights');
+        const monsterStarWeights = collectStarWeights('cpSummonMonsterStarWeights', 10);
+        const monsterElementWeights = collectElementWeights('cpSummonMonsterElementWeights');
+        const amateurHeroStarWeights = collectStarWeights('cpSummonAmHeroStarWeights', 6);
+        const amateurHeroElementWeights = collectElementWeights('cpSummonAmHeroElementWeights');
+        const amateurMonsterStarWeights = collectStarWeights('cpSummonAmMonsterStarWeights', 6);
+        const amateurMonsterElementWeights = collectElementWeights('cpSummonAmMonsterElementWeights');
         const heroRates = {};
         overlay.querySelectorAll('[data-summon-hero-rate]').forEach((el) => {
           const id = String(el.getAttribute('data-summon-hero-rate') || '').trim();
@@ -7247,6 +7698,8 @@ ModeChallengeTimedPage.init = () => {
           amateurHeroCurrencyId, amateurHeroCost, amateurMonsterCurrencyId, amateurMonsterCost,
           itemCurrencyId, itemCost,
           heroLabel, monsterLabel, amateurHeroLabel, amateurMonsterLabel, itemLabel,
+          heroStarWeights, heroElementWeights, monsterStarWeights, monsterElementWeights,
+          amateurHeroStarWeights, amateurHeroElementWeights, amateurMonsterStarWeights, amateurMonsterElementWeights,
           heroRates, monsterRates, amateurHeroRates, amateurMonsterRates, itemRates,
         });
         setMsg('Saved.');
@@ -7585,14 +8038,32 @@ ModeChallengeTimedPage.init = () => {
     return { ok: true, slots: next };
   }
 
-  function weightedPickByRates(units, ratesLike) {
+  function weightedPickByRates(units, ratesLike, opts = {}) {
     const list = Array.isArray(units) ? units : [];
     if (!list.length) return null;
     const rates = ratesLike || {};
+    const starWeights = (opts && typeof opts.starWeights === 'object' && !Array.isArray(opts.starWeights)) ? opts.starWeights : null;
+    const elementWeights = (opts && typeof opts.elementWeights === 'object' && !Array.isArray(opts.elementWeights)) ? opts.elementWeights : null;
+    const equalByStar = opts?.equalByStar !== false;
+    const starCountMap = {};
+    if (equalByStar) {
+      list.forEach((u) => {
+        const star = Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1)));
+        starCountMap[star] = Math.max(0, Number(starCountMap[star]) || 0) + 1;
+      });
+    }
     let total = 0;
     const rows = list.map((u) => {
       const id = String(u?.id || '').trim();
-      const w = Math.max(0, Number(rates?.[id]) || 0);
+      const baseW = Math.max(0, Number(rates?.[id]) || 0);
+      const star = Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1)));
+      const element = String(u?.element || '').trim().toLowerCase();
+      const starW = starWeights ? Math.max(0, Number(starWeights?.[star]) || 0) : 1;
+      const elemW = elementWeights
+        ? Math.max(0, Number(elementWeights?.[element]) || (SUMMON_ELEMENT_KEYS.includes(element) ? 1 : 1))
+        : 1;
+      const split = equalByStar ? Math.max(1, Number(starCountMap?.[star]) || 1) : 1;
+      const w = Math.max(0, (baseW * starW * elemW) / split);
       total += w;
       return { unit: u, w };
     });
@@ -7868,7 +8339,11 @@ ModeChallengeTimedPage.init = () => {
           }
           slotsSilver = spendSilver.slots;
           saveStorage(slotsSilver);
-          const pick = weightedPickByRates(pool, summonCfg.amateurHeroRates);
+          const pick = weightedPickByRates(pool, summonCfg.amateurHeroRates, {
+            starWeights: summonCfg.amateurHeroStarWeights,
+            elementWeights: summonCfg.amateurHeroElementWeights,
+            equalByStar: true,
+          });
           if (!pick) {
             setMsg('No heroes available.');
             return;
@@ -7890,7 +8365,11 @@ ModeChallengeTimedPage.init = () => {
           saveStorage(slots);
           await loadHeroOverrides();
           const pool = getAllHeroes();
-          const pick = weightedPickByRates(pool, summonCfg.heroRates);
+          const pick = weightedPickByRates(pool, summonCfg.heroRates, {
+            starWeights: summonCfg.heroStarWeights,
+            elementWeights: summonCfg.heroElementWeights,
+            equalByStar: true,
+          });
           if (!pick) {
             setMsg('No heroes available.');
             return;
@@ -7912,7 +8391,11 @@ ModeChallengeTimedPage.init = () => {
           saveStorage(slots);
           await loadMonsterOverrides();
           const pool = getAllMonsters();
-          const pick = weightedPickByRates(pool, summonCfg.amateurMonsterRates);
+          const pick = weightedPickByRates(pool, summonCfg.amateurMonsterRates, {
+            starWeights: summonCfg.amateurMonsterStarWeights,
+            elementWeights: summonCfg.amateurMonsterElementWeights,
+            equalByStar: true,
+          });
           if (!pick) {
             setMsg('No monsters available.');
             return;
@@ -7934,7 +8417,11 @@ ModeChallengeTimedPage.init = () => {
           saveStorage(slots);
           await loadMonsterOverrides();
           const pool = getAllMonsters().filter((u) => Math.max(1, Math.min(10, Math.floor(Number(u?.rarity) || 1))) <= 6);
-          const pick = weightedPickByRates(pool, summonCfg.monsterRates);
+          const pick = weightedPickByRates(pool, summonCfg.monsterRates, {
+            starWeights: summonCfg.monsterStarWeights,
+            elementWeights: summonCfg.monsterElementWeights,
+            equalByStar: true,
+          });
           if (!pick) {
             setMsg('No 6★ or lower monsters available.');
             return;
@@ -8287,6 +8774,17 @@ ModeChallengeTimedPage.init = () => {
       '/mode/challenge': ModeChallengePage,
       '/mode/challenge/event': ModeChallengeTimedPage,
       '/mode/challenge/timed': ModeChallengeTimedPage,
+      '/mode/challenge/event/gold': EventGoldModePage,
+      '/mode/challenge/event/gold/s1': new EventGoldBattlePage(1),
+      '/mode/challenge/event/gold/s2': new EventGoldBattlePage(2),
+      '/mode/challenge/event/gold/s3': new EventGoldBattlePage(3),
+      '/mode/challenge/event/gold/s4': new EventGoldBattlePage(4),
+      '/mode/challenge/event/gold/s5': new EventGoldBattlePage(5),
+      '/mode/challenge/event/gold/s6': new EventGoldBattlePage(6),
+      '/mode/challenge/event/gold/s7': new EventGoldBattlePage(7),
+      '/mode/challenge/event/gold/s8': new EventGoldBattlePage(8),
+      '/mode/challenge/event/gold/s9': new EventGoldBattlePage(9),
+      '/mode/challenge/event/gold/s10': new EventGoldBattlePage(10),
       '/practice': PracticePage,
       '/test-game': TestGamePage,
       '/team': TeamPage,

@@ -409,6 +409,7 @@ function sanitizeChessPalGlobalConfig(raw) {
     generalSettings: clampObj(pickObj(src.generalSettings), 250_000),
     summonConfig: clampObj(pickObj(src.summonConfig), 500_000),
     mallConfig: clampObj(pickObj(src.mallConfig), 500_000),
+    eventGoldStages: clampObj(pickObj(src.eventGoldStages), 500_000),
   };
 }
 
@@ -436,6 +437,7 @@ app.put('/api/admin/chess-pal/global-config', authenticateUser, authorizeRole('a
       generalSettings: Object.prototype.hasOwnProperty.call(body, 'generalSettings') ? body.generalSettings : current.generalSettings,
       summonConfig: Object.prototype.hasOwnProperty.call(body, 'summonConfig') ? body.summonConfig : current.summonConfig,
       mallConfig: Object.prototype.hasOwnProperty.call(body, 'mallConfig') ? body.mallConfig : current.mallConfig,
+      eventGoldStages: Object.prototype.hasOwnProperty.call(body, 'eventGoldStages') ? body.eventGoldStages : current.eventGoldStages,
     };
     const next = sanitizeChessPalGlobalConfig(merged);
     const now = Date.now();
