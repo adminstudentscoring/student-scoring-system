@@ -1817,13 +1817,47 @@ const ChessPalPages = (() => {
   ModeChallengePage.title = 'Challenge Mode';
   ModeChallengePage.render = () => `
     <div class="cp-square-grid" aria-label="Challenge Mode">
+    <button class="cp-square-tile" type="button" data-cp-challenge="timed" aria-label="Timed Mode">
+      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Timed Mode', 'cp-square-img')}
+      <div class="cp-square-label">Timed Mode</div>
+    </button>
       <button class="cp-square-tile" type="button" data-cp-modeback aria-label="Back">
         ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Back', 'cp-square-img')}
         <div class="cp-square-label">Back</div>
       </button>
     </div>
   `;
-  ModeChallengePage.init = ModeStoryPage.init;
+ModeChallengePage.init = () => {
+  document.querySelectorAll('[data-cp-modeback]').forEach((btn) => {
+    btn.addEventListener('click', () => Router.goTo('/mode'), { passive: true });
+  });
+  document.querySelectorAll('[data-cp-challenge]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = String(btn.getAttribute('data-cp-challenge') || '').trim();
+      if (key === 'timed') Router.goTo('/mode/challenge/timed');
+    }, { passive: true });
+  });
+};
+
+function ModeChallengeTimedPage() {}
+ModeChallengeTimedPage.title = 'Timed Mode';
+ModeChallengeTimedPage.render = () => `
+  <div class="cp-square-grid" aria-label="Timed Mode">
+    <button class="cp-square-tile" type="button" data-cp-go="/practice" aria-label="Start Timed Mode">
+      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Start Timed Mode', 'cp-square-img')}
+      <div class="cp-square-label">Start Timed Mode</div>
+    </button>
+    <button class="cp-square-tile" type="button" data-cp-go="/mode/challenge" aria-label="Back">
+      ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Back', 'cp-square-img')}
+      <div class="cp-square-label">Back</div>
+    </button>
+  </div>
+`;
+ModeChallengeTimedPage.init = () => {
+  document.querySelectorAll('[data-cp-go]').forEach((btn) => {
+    btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/challenge')), { passive: true });
+  });
+};
 
   function PracticePage() {}
   PracticePage.title = 'Practice';
@@ -6963,7 +6997,7 @@ const ChessPalPages = (() => {
     setSelectValue('cpSummonCfgItemCurrency', cfg.itemCurrencyId || 'gold_coin');
     const rowTemplate = ({ id, name, stars, weight, attr, group }) => `
       <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
-        <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)} ${esc(name)}${stars ? ` · ★${esc(String(stars))}` : ''}</span>
+        <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)}${stars ? ` · ★${esc(String(stars))}` : ''} · ${esc(name)}</span>
         <span data-summon-pct="${esc(group)}:${esc(id)}" style="min-width:56px; text-align:right; font-weight:900; color:rgba(255,255,255,0.78);">0%</span>
         <input class="cp-input" ${attr}="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(weight) ? weight : 1))}" style="width:92px;">
       </label>
@@ -8186,6 +8220,7 @@ const ChessPalPages = (() => {
       '/mode/story/ch10/s4': new StoryBattlePage(10, 4),
       '/mode/story/ch10/s5': new StoryBattlePage(10, 5),
       '/mode/challenge': ModeChallengePage,
+      '/mode/challenge/timed': ModeChallengeTimedPage,
       '/practice': PracticePage,
       '/test-game': TestGamePage,
       '/team': TeamPage,
