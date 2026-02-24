@@ -630,6 +630,22 @@ body {
   background: #ffffff;
 }
 
+.cp-search-input{
+  width: min(100%, 460px);
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(125,211,252,0.32);
+  background: linear-gradient(180deg, rgba(10,16,30,0.92), rgba(8,12,24,0.9));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 8px 20px rgba(2,6,23,0.25);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.cp-search-input:focus{
+  border-color: rgba(56,189,248,0.76);
+  box-shadow: inset 0 0 0 1px rgba(186,230,253,0.32), 0 10px 24px rgba(14,116,144,0.25);
+}
+.cp-search-input--short{ width: min(100%, 380px); }
+.cp-search-input--storage{ width: min(100%, 340px); }
+
 .cp-jewel-preview{
   margin-top: 10px;
 }
@@ -1073,6 +1089,15 @@ body {
 .cp-hero-card[data-element="dark"] .cp-hero-mini{ border-color: rgba(99,102,241,0.65); }
 .cp-hero-card[data-element="heart"] .cp-hero-mini{ border-color: rgba(236,72,153,0.55); }
 .cp-hero-card:active{ transform: translateY(1px); }
+.cp-hero-card.is-inteam{
+  border-color: rgba(56,189,248,0.85);
+  box-shadow: 0 0 0 1px rgba(125,211,252,0.35), 0 0 0 0 rgba(56,189,248,0.18), 0 14px 26px rgba(14,116,144,0.3);
+  animation: cpTeamGlow 1.25s ease-in-out infinite alternate;
+}
+@keyframes cpTeamGlow{
+  from { box-shadow: 0 0 0 1px rgba(125,211,252,0.30), 0 0 8px rgba(56,189,248,0.25), 0 12px 22px rgba(14,116,144,0.20); }
+  to { box-shadow: 0 0 0 1px rgba(186,230,253,0.60), 0 0 16px rgba(56,189,248,0.55), 0 14px 28px rgba(14,116,144,0.35); }
+}
 
 /* Locked (seen but not owned) monster card */
 .cp-hero-card.is-locked{

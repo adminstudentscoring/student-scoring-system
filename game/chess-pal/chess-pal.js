@@ -625,6 +625,12 @@ const ChessPal = (() => {
   }
 
   function onCellClick(row, col) {
+    try {
+      if (window.__cpPracticeCombatInFlight || window.__cpActionLocked) {
+        pushLog('Action is locked during combat resolution.');
+        return;
+      }
+    } catch {}
     if (state.isAnimating) {
       pushLog('Wait for animations to finish.');
       return;

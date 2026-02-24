@@ -1739,6 +1739,10 @@ const ChessPalPages = (() => {
           <img class="cp-chapter-img" src="images/Heros/003-Rivenhart/003-Rivenhart.png" alt="Pal" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
           <div class="cp-chapter-label">Pal</div>
         </div>
+        <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-home="achievement" aria-label="Achievement">
+          <img class="cp-chapter-img" src="images/Storage/S001-Gold-Coin.png" alt="Achievement" decoding="async" loading="lazy" onerror="this.onerror=null;this.src='${esc(fallbackImg)}';">
+          <div class="cp-chapter-label">Achievement</div>
+        </div>
       </div>
     `;
   };
@@ -1747,6 +1751,7 @@ const ChessPalPages = (() => {
       if (key === 'shop') Router.goTo('/shop');
       else if (key === 'summon') Router.goTo('/summon');
       else if (key === 'pal') Router.goTo('/pal');
+      else if (key === 'achievement') Router.goTo('/achievement');
       else Router.goTo('/mode/story');
     };
 
@@ -2308,6 +2313,8 @@ EventGoldBattlePage.prototype.destroy = function () {
     // Ensure any old timers are cleared first
     try { window.ChessPal?.destroy?.(); } catch {}
     try { window.initChessPal?.(); } catch {}
+    try { window.__cpActionLocked = false; } catch {}
+    try { window.__cpPracticeCombatInFlight = false; } catch {}
 
     const row = document.getElementById('cpPracticeTeamRow');
     const bgImg = document.getElementById('cpPracticeBgImg');
@@ -2947,9 +2954,10 @@ EventGoldBattlePage.prototype.destroy = function () {
             </div>
             <div style="margin-top:8px;">
               <div style="height:10px; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.08);">
-                <div id="cpResultExpFill" style="height:100%; width:${esc(String(beforePct))}%; background:linear-gradient(90deg, rgba(59,130,246,0.95), rgba(125,211,252,0.95)); transition:width 1000ms ease;"></div>
+                <div id="cpResultExpFill" style="height:100%; width:${esc(String(beforePct))}%; background:linear-gradient(90deg, rgba(59,130,246,0.95), rgba(125,211,252,0.95));"></div>
               </div>
             </div>
+            <div class="cp-setting-help" id="cpResultExpText" style="margin-top:6px;">EXP Progress ${esc(String(beforePct))}%</div>
             <div class="cp-setting-help" style="margin-top:12px;">Items</div>
             <ul style="margin:6px 0 0 18px;">${itemRows || '<li>(None)</li>'}</ul>
             <div class="cp-setting-help" style="margin-top:12px;">Monsters</div>
@@ -2963,7 +2971,30 @@ EventGoldBattlePage.prototype.destroy = function () {
       document.body.appendChild(overlay);
       setTimeout(() => {
         const fill = overlay.querySelector('#cpResultExpFill');
-        if (fill) fill.style.width = `${afterPct}%`;
+        const expText = overlay.querySelector('#cpResultExpText');
+        if (fill) {
+          fill.style.transition = 'none';
+          fill.style.width = `${beforePct}%`;
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              fill.style.transition = 'width 1100ms ease';
+              fill.style.width = `${afterPct}%`;
+            });
+          });
+        }
+        if (expText) {
+          const start = beforePct;
+          const end = afterPct;
+          const started = Date.now();
+          const duration = 1100;
+          const tick = () => {
+            const t = Math.min(1, (Date.now() - started) / duration);
+            const now = Math.round(start + (end - start) * t);
+            expText.textContent = `EXP Progress ${now}%`;
+            if (t < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
       }, 80);
       overlay.querySelector('#cpResultBackStory')?.addEventListener('click', () => {
         try { overlay.remove(); } catch {}
@@ -3067,6 +3098,7 @@ EventGoldBattlePage.prototype.destroy = function () {
       try {
         if (window.__cpPracticeCombatInFlight) return;
         window.__cpPracticeCombatInFlight = true;
+        window.__cpActionLocked = true;
       } catch {}
 
       try {
@@ -3898,6 +3930,7 @@ EventGoldBattlePage.prototype.destroy = function () {
         try { b.teamAtkMultThisTurn = 1; } catch {}
         try { b.skillDamageReductionThisTurn = 0; } catch {}
         try { window.__cpPracticeCombatInFlight = false; } catch {}
+        try { window.__cpActionLocked = false; } catch {}
       }
     };
 
@@ -4028,6 +4061,12 @@ EventGoldBattlePage.prototype.destroy = function () {
       const castSkill = (unit) => {
         const u = unit || null;
         if (!u || !u.activeSkill) return;
+        try {
+          if (window.__cpPracticeCombatInFlight || window.__cpActionLocked) {
+            setMsg('Action is locked during combat resolution.');
+            return;
+          }
+        } catch {}
         const b = getBattle();
         if (!b.skillCds || typeof b.skillCds !== 'object') b.skillCds = {};
         if (!b.teamExecuteMarks || typeof b.teamExecuteMarks !== 'object') b.teamExecuteMarks = {};
@@ -4119,6 +4158,12 @@ EventGoldBattlePage.prototype.destroy = function () {
       row.querySelectorAll('.cp-practice-slot[data-team-slotkey]').forEach((slotBtn) => {
         slotBtn.addEventListener('click', (ev) => {
           ev.preventDefault();
+          try {
+            if (window.__cpPracticeCombatInFlight || window.__cpActionLocked) {
+              setMsg('Action is locked during combat resolution.');
+              return;
+            }
+          } catch {}
           const sk = String(slotBtn.getAttribute('data-team-slotkey') || '');
           const u = sk ? getTeamUnit(sk) : null;
           if (!u) return;
@@ -4317,6 +4362,16 @@ EventGoldBattlePage.prototype.destroy = function () {
   TestGamePage.render = PracticePage.render;
   TestGamePage.init = PracticePage.init;
   TestGamePage.destroy = PracticePage.destroy;
+
+  function AchievementPage() {}
+  AchievementPage.title = 'Achievement';
+  AchievementPage.render = () => `
+    <div class="cp-page-card">
+      <div class="cp-h1">Achievement</div>
+      <div class="cp-muted" style="margin-top:8px;">Coming soon.</div>
+    </div>
+  `;
+  AchievementPage.init = () => {};
 
   function PlaceholderPage(title, desc) {
     return {
@@ -4948,7 +5003,7 @@ EventGoldBattlePage.prototype.destroy = function () {
     return `
       <div class="cp-hero-page">
         <div class="cp-row" style="margin-top:0; gap:8px; flex-wrap:wrap;">
-          <input class="cp-input" id="cpHeroesSearch" type="text" placeholder="Search Hero by ID or name" style="flex:1 1 220px;">
+          <input class="cp-input cp-search-input cp-search-input--short" id="cpHeroesSearch" type="text" placeholder="Search Hero by ID or name">
           <select class="cp-select" id="cpHeroesElementFilter" style="width:170px;">
             <option value="">All Elements</option>
             <option value="fire">Fire</option>
@@ -4985,6 +5040,17 @@ EventGoldBattlePage.prototype.destroy = function () {
     const owned = admin ? null : getOwnedHeroSet();
     const all = getAllHeroes();
     const baseList = admin ? all : all.filter(h => owned && owned.has(h.id));
+    const teamHeroSet = (() => {
+      const set = new Set();
+      try {
+        const team = getTeam();
+        ['a', 'b', 'c', 'd'].forEach((k) => {
+          const u = getTeamUnit(team?.[k]);
+          if (u && String(u.kind || '') === 'hero') set.add(String(u.id || '').trim().padStart(3, '0'));
+        });
+      } catch {}
+      return set;
+    })();
     const searchEl = document.getElementById('cpHeroesSearch');
     const elemEl = document.getElementById('cpHeroesElementFilter');
     const rarityEl = document.getElementById('cpHeroesRarityFilter');
@@ -5000,12 +5066,18 @@ EventGoldBattlePage.prototype.destroy = function () {
         if (ef && String(h.element || '').toLowerCase() !== ef) return false;
         if (rf && String(Math.max(1, Math.min(10, Math.floor(Number(h.rarity) || 1)))) !== rf) return false;
         return true;
+      }).sort((a, b) => {
+        const aIn = teamHeroSet.has(String(a?.id || '').trim().padStart(3, '0')) ? 1 : 0;
+        const bIn = teamHeroSet.has(String(b?.id || '').trim().padStart(3, '0')) ? 1 : 0;
+        if (bIn !== aIn) return bIn - aIn;
+        return Number(String(a?.id || 0)) - Number(String(b?.id || 0));
       });
       host.innerHTML = list.map(h => `
-      <button class="cp-hero-card" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
+      <button class="cp-hero-card ${teamHeroSet.has(String(h.id || '').trim().padStart(3, '0')) ? 'is-inteam' : ''}" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini || h.img)}" alt="${esc(h.name)}" decoding="async" loading="lazy">
           <div class="cp-mini-lv">Lv ${esc(h.level)}</div>
+          ${teamHeroSet.has(String(h.id || '').trim().padStart(3, '0')) ? `<div class="cp-mini-lv" style="left:8px; right:auto;">In Team</div>` : ``}
           ${jewelIconSrcForElement(h.element) ? `<img class="cp-hero-jewel" src="${esc(jewelIconSrcForElement(h.element))}" alt="" aria-hidden="true">` : ``}
         </div>
         <div class="cp-hero-mini-meta">
@@ -5377,7 +5449,7 @@ EventGoldBattlePage.prototype.destroy = function () {
     return `
       <div class="cp-hero-page">
         <div class="cp-row" style="margin-top:0; gap:8px; flex-wrap:wrap;">
-          <input class="cp-input" id="cpMonstersSearch" type="text" placeholder="Search Monster by ID or name" style="flex:1 1 220px;">
+          <input class="cp-input cp-search-input cp-search-input--short" id="cpMonstersSearch" type="text" placeholder="Search Monster by ID or name">
           <select class="cp-select" id="cpMonstersElementFilter" style="width:170px;">
             <option value="">All Elements</option>
             <option value="fire">Fire</option>
@@ -5415,6 +5487,17 @@ EventGoldBattlePage.prototype.destroy = function () {
     const owned = admin ? null : getOwnedMonsterSet();
     const all = getAllMonsters();
     const baseList = admin ? all : all.filter(m => (owned && owned.has(m.id)) || (seen && seen.has(m.id)));
+    const teamMonsterSet = (() => {
+      const set = new Set();
+      try {
+        const team = getTeam();
+        ['a', 'b', 'c', 'd'].forEach((k) => {
+          const u = getTeamUnit(team?.[k]);
+          if (u && String(u.kind || '') === 'monster') set.add(String(u.id || '').trim().padStart(3, '0'));
+        });
+      } catch {}
+      return set;
+    })();
     const searchEl = document.getElementById('cpMonstersSearch');
     const elemEl = document.getElementById('cpMonstersElementFilter');
     const rarityEl = document.getElementById('cpMonstersRarityFilter');
@@ -5430,12 +5513,18 @@ EventGoldBattlePage.prototype.destroy = function () {
         if (ef && String(m.element || '').toLowerCase() !== ef) return false;
         if (rf && String(Math.max(1, Math.min(10, Math.floor(Number(m.rarity) || 1)))) !== rf) return false;
         return true;
+      }).sort((a, b) => {
+        const aIn = teamMonsterSet.has(String(a?.id || '').trim().padStart(3, '0')) ? 1 : 0;
+        const bIn = teamMonsterSet.has(String(b?.id || '').trim().padStart(3, '0')) ? 1 : 0;
+        if (bIn !== aIn) return bIn - aIn;
+        return Number(String(a?.id || 0)) - Number(String(b?.id || 0));
       });
       host.innerHTML = list.map(m => `
-      <button class="cp-hero-card ${(!admin && owned && !owned.has(m.id)) ? 'is-locked' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}" ${(!admin && owned && !owned.has(m.id)) ? 'disabled' : ''}>
+      <button class="cp-hero-card ${(!admin && owned && !owned.has(m.id)) ? 'is-locked' : ''} ${teamMonsterSet.has(String(m.id || '').trim().padStart(3, '0')) ? 'is-inteam' : ''}" type="button" data-monster-id="${esc(m.id)}" data-element="${esc(String(m.element || ''))}" ${(!admin && owned && !owned.has(m.id)) ? 'disabled' : ''}>
         <div class="cp-hero-mini">
           ${m.mini ? `<img src="${esc(m.mini)}" alt="${esc(m.name)}" decoding="async" loading="lazy">` : `<div class="cp-mini-placeholder">${esc(m.name)}</div>`}
           <div class="cp-mini-lv">Lv ${esc(m.level)}</div>
+          ${teamMonsterSet.has(String(m.id || '').trim().padStart(3, '0')) ? `<div class="cp-mini-lv" style="left:8px; right:auto;">In Team</div>` : ``}
         </div>
         <div class="cp-hero-mini-meta">
           <div class="cp-hero-mini-name">${esc(m.name)}</div>
@@ -6758,7 +6847,7 @@ EventGoldBattlePage.prototype.destroy = function () {
     return `
       <div>
         <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center; gap:8px;">
-          <input class="cp-input" id="cpStorageSearch" type="text" placeholder="Filter by item name or ID" style="flex:1 1 auto;">
+          <input class="cp-input cp-search-input cp-search-input--storage" id="cpStorageSearch" type="text" placeholder="Filter by item name or ID">
           ${admin ? `<button class="cp-tool-btn" type="button" id="cpStorageSettingBtn">Setting</button>` : ``}
         </div>
         <div class="cp-storage-grid" id="cpStorageGrid" style="margin-top:12px;"></div>
@@ -7032,7 +7121,7 @@ EventGoldBattlePage.prototype.destroy = function () {
           <div class="cp-square-label">Mall</div>
         </button>
         <button class="cp-square-tile" type="button" data-cp-shop="summon" aria-label="Summon">
-          ${renderImgWithFallback('images/Summon/Su002-Summon-Monster.jpg', 'Summon', 'cp-square-img')}
+          ${renderImgWithFallback('images/Summon/Su001-Summon-Hero.jpg', 'Summon', 'cp-square-img')}
           <div class="cp-square-label">Summon</div>
         </button>
       </div>
@@ -9013,6 +9102,7 @@ EventGoldBattlePage.prototype.destroy = function () {
       '/mode/challenge/event/gold/s3': new EventGoldBattlePage(1, 3),
       '/mode/challenge/event/gold/s4': new EventGoldBattlePage(1, 4),
       '/mode/challenge/event/gold/s5': new EventGoldBattlePage(1, 5),
+      '/achievement': AchievementPage,
       '/practice': PracticePage,
       '/test-game': TestGamePage,
       '/team': TeamPage,
