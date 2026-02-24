@@ -322,13 +322,20 @@ const ChessPalPages = (() => {
     if (!isAdminMode()) return;
     if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
     const patch = (patchLike && typeof patchLike === 'object' && !Array.isArray(patchLike)) ? patchLike : {};
-    try {
-      await window.authUtils.authenticatedFetch('/admin/chess-pal/global-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
-    } catch {}
+    const resp = await window.authUtils.authenticatedFetch('/admin/chess-pal/global-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!resp || !resp.ok) {
+      let msg = 'Failed to save global config.';
+      try {
+        const err = await resp?.json?.();
+        if (err && typeof err.error === 'string' && err.error.trim()) msg = err.error.trim();
+      } catch {}
+      throw new Error(msg);
+    }
+    return resp.json().catch(() => ({}));
   }
 
   // ----------------------------
@@ -7238,18 +7245,29 @@ EventGoldBattlePage.prototype.destroy = function () {
     }
   }
 
-  function saveSummonConfig(cfg) {
+  async function saveSummonConfig(cfg) {
     let saved = null;
     try {
       const next = normalizeSummonConfig(cfg);
       next.updatedAt = Date.now();
       localStorage.setItem(SUMMON_CONFIG_KEY, JSON.stringify(next));
       saved = next;
-    } catch {}
+    } catch {
+      throw new Error('Failed to save summon config locally.');
+    }
     try { window.dispatchEvent(new Event('cpSummonConfigChanged')); } catch {}
     if (saved && isAdminMode()) {
-      saveChessPalGlobalConfigToServer({ summonConfig: saved }).catch(() => {});
+      const serverData = await saveChessPalGlobalConfigToServer({ summonConfig: saved });
+      const serverSummon = (serverData && typeof serverData.summonConfig === 'object' && !Array.isArray(serverData.summonConfig))
+        ? serverData.summonConfig
+        : null;
+      if (serverSummon) {
+        const merged = normalizeSummonConfig(serverSummon);
+        try { localStorage.setItem(SUMMON_CONFIG_KEY, JSON.stringify(merged)); } catch {}
+        try { window.dispatchEvent(new Event('cpSummonConfigChanged')); } catch {}
+      }
     }
+    return saved;
   }
 
   function getSummonConfigForNow() {
@@ -7741,7 +7759,7 @@ EventGoldBattlePage.prototype.destroy = function () {
     overlay.querySelector('#cpSummonCfgCancel')?.addEventListener('click', close, { passive: true });
     window.addEventListener('keydown', onKey);
 
-    overlay.querySelector('#cpSummonCfgSave')?.addEventListener('click', () => {
+    overlay.querySelector('#cpSummonCfgSave')?.addEventListener('click', async () => {
       try {
         const limitHours = Math.max(0, Math.floor(Number(overlay.querySelector('#cpSummonCfgLimit')?.value) || 0));
         const enabled = !!overlay.querySelector('#cpSummonCfgEnabled')?.checked;
@@ -7806,7 +7824,7 @@ EventGoldBattlePage.prototype.destroy = function () {
         [heroCurrencyId, monsterCurrencyId, amateurHeroCurrencyId, amateurMonsterCurrencyId, itemCurrencyId].forEach((id) => {
           if (!getStorageItemDef(id)) throw new Error('Invalid cost item.');
         });
-        saveSummonConfig({
+        await saveSummonConfig({
           limitHours, enabled,
           heroEnabled, monsterEnabled, amateurHeroEnabled, amateurMonsterEnabled, itemEnabled,
           heroCurrencyId, heroCost, monsterCurrencyId, monsterCost,
