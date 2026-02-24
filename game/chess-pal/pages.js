@@ -14,6 +14,7 @@ const ChessPalPages = (() => {
     'chessPalTeams',
     'chessPalStorage',
     'chessPalFreeSilverClaimDate',
+    'chessPalOnboarding',
   ];
   let cpCloudSyncReady = false;
   let cpCloudHydrating = false;
@@ -1168,6 +1169,7 @@ const ChessPalPages = (() => {
     const close = () => {
       try { overlay.remove(); } catch {}
       try { window.removeEventListener('keydown', onKey); } catch {}
+      try { window.ChessPalTutorialFlow?.onHeroModalClosed?.(); } catch {}
     };
     const onKey = (ev) => { if (ev.key === 'Escape') close(); };
     // Keep Edit Stages modal open when clicking outside.
@@ -1652,6 +1654,15 @@ const ChessPalPages = (() => {
     grid.querySelectorAll('[data-exp-item]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const itemId = String(btn.getAttribute('data-exp-item') || '').toLowerCase();
+        try {
+          if (window.ChessPalTutorialFlow?.isActive?.()) {
+            const allow = !!window.ChessPalTutorialFlow?.allowLevelUpItem?.(itemId);
+            if (!allow) {
+              setMsg('Please use EXP Pawn for this tutorial step.');
+              return;
+            }
+          }
+        } catch {}
         const def = expDefs.find(x => x.itemId === itemId);
         if (!def) return;
         // consume one from storage
@@ -1689,6 +1700,9 @@ const ChessPalPages = (() => {
           addHeroExp(unitId, def.exp);
           try { setNumberInMap(HERO_LEVEL_OVERRIDE_KEY, unitId, null); } catch {}
         }
+        try {
+          if (itemId === 'exp_pawn') window.ChessPalTutorialFlow?.onExpPawnUsed?.();
+        } catch {}
 
         setMsg(`Used ${def.label}.`);
         close();
@@ -1748,6 +1762,14 @@ const ChessPalPages = (() => {
   };
   HomePage.init = () => {
     const go = (key) => {
+      try {
+        if (window.ChessPalTutorialFlow?.isActive?.()) {
+          const ok = !!window.ChessPalTutorialFlow?.guardHomeTile?.(key);
+          if (!ok) { try { setMsg('Please follow the tutorial step.'); } catch {} return; }
+          if (key === 'story') window.ChessPalTutorialFlow?.onHomeStorySelected?.();
+          if (key === 'pal') window.ChessPalTutorialFlow?.onHomePalSelected?.();
+        }
+      } catch {}
       if (key === 'shop') Router.goTo('/shop');
       else if (key === 'summon') Router.goTo('/summon');
       else if (key === 'pal') Router.goTo('/pal');
@@ -1764,6 +1786,7 @@ const ChessPalPages = (() => {
         }
       });
     });
+    try { window.ChessPalTutorialFlow?.applyRouteFocus?.('/home'); } catch {}
   };
 
   function ModePage() {}
@@ -1824,6 +1847,13 @@ const ChessPalPages = (() => {
     document.querySelectorAll('[data-cp-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = String(btn.getAttribute('data-cp-mode') || '').trim();
+        try {
+          if (window.ChessPalTutorialFlow?.isActive?.()) {
+            const ok = !!window.ChessPalTutorialFlow?.guardModeTile?.(key);
+            if (!ok) { try { setMsg('Please follow the tutorial step.'); } catch {} return; }
+            if (key === 'story') window.ChessPalTutorialFlow?.onModeStorySelected?.();
+          }
+        } catch {}
         const locked = String(btn.getAttribute('data-cp-locked') || '0') === '1';
         if (locked) { try { setMsg('Complete Story Mode Chapter 3 first.'); } catch {} return; }
         if (key === 'practice') Router.goTo('/practice');
@@ -1832,7 +1862,85 @@ const ChessPalPages = (() => {
         else if (key === 'test') Router.goTo('/test-game');
       }, { passive: true });
     });
+    try { window.ChessPalTutorialFlow?.applyRouteFocus?.('/mode'); } catch {}
   };
+
+  function showTeamSelectBeforeStoryChapter({ chapterId, nextStage, forced = false, onConfirm } = {}) {
+    const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
+    const st = Math.max(1, Math.min(5, Math.floor(Number(nextStage) || 1)));
+    const old = document.getElementById('cpTeamPickOverlay');
+    if (old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'cpTeamPickOverlay';
+    overlay.className = 'cp-modal-overlay';
+    const state = loadTeams();
+    const activeIdx = Math.max(0, Math.min(4, Math.floor(Number(state?.active) || 0)));
+    overlay.innerHTML = `
+      <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Select team">
+        ${forced ? '' : `<button class="cp-modal-close" type="button" aria-label="Close">×</button>`}
+        <div class="cp-modal-body">
+          <div class="cp-h1" style="font-size:20px;">Select Team</div>
+          <div class="cp-muted" style="margin-top:8px;">Choose Team 1-5 before entering Chapter ${esc(String(ch))}.</div>
+          <div id="cpTeamPickGrid" class="cp-setting-grid" style="margin-top:12px; grid-template-columns:1fr;">
+            ${Array.from({ length: 5 }).map((_, i) => {
+              const idx = i;
+              const row = (Array.isArray(state?.teams?.[idx]) ? state.teams[idx] : [null, null, null, null]);
+              const names = row.map((slot) => {
+                const unit = slot ? getTeamUnit(slot) : null;
+                return unit ? String(unit.name || '') : 'Empty';
+              }).join(' / ');
+              return `
+                <label class="cp-setting-item" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                  <input type="radio" name="cpTeamPick" value="${esc(String(idx))}" ${idx === activeIdx ? 'checked' : ''}>
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                    <div style="font-weight:900;">Team ${idx + 1}</div>
+                    <div class="cp-setting-help" style="margin-top:0;">${esc(names)}</div>
+                  </div>
+                </label>
+              `;
+            }).join('')}
+          </div>
+          <div class="cp-row" style="justify-content:center; margin-top:14px; gap:10px;">
+            ${forced ? '' : `<button class="cp-tool-btn" type="button" id="cpTeamPickCancel">Cancel</button>`}
+            <button class="cp-primary" type="button" id="cpTeamPickConfirm">Confirm</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      try { overlay.remove(); } catch {}
+      try { window.removeEventListener('keydown', onKey); } catch {}
+      try { window.ChessPalTutorialFlow?.clearSpotlight?.(); } catch {}
+    };
+    const onKey = (ev) => {
+      if (ev.key === 'Escape' && !forced) close();
+    };
+    if (!forced) {
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
+      overlay.querySelector('#cpTeamPickCancel')?.addEventListener('click', close, { passive: true });
+    }
+    window.addEventListener('keydown', onKey);
+    setTimeout(() => {
+      try {
+        if (forced) window.ChessPalTutorialFlow?.spotlight?.('#cpTeamPickConfirm');
+      } catch {}
+    }, 30);
+
+    overlay.querySelector('#cpTeamPickConfirm')?.addEventListener('click', () => {
+      const picked = overlay.querySelector('input[name="cpTeamPick"]:checked');
+      const idx = Math.max(0, Math.min(4, Math.floor(Number(picked?.value) || 0)));
+      const nextState = loadTeams();
+      nextState.active = idx;
+      saveTeams(nextState);
+      try { window.ChessPalTutorialFlow?.onTeamConfirmed?.(ch); } catch {}
+      try { if (typeof onConfirm === 'function') onConfirm({ chapterId: ch, stage: st, teamIndex: idx }); } catch {}
+      close();
+      Router.goTo(`/mode/story/ch${ch}/s${st}`);
+    }, { passive: true });
+  }
 
   function ModeStoryPage() {}
   ModeStoryPage.title = 'Story Mode';
@@ -1869,11 +1977,21 @@ const ChessPalPages = (() => {
         const locked = String(btn.getAttribute('data-cp-locked') || '0') === '1';
         if (locked) { try { setMsg('Clear previous chapter first.'); } catch {} return; }
         const ch = Math.max(1, Math.min(10, Math.floor(Number(btn.getAttribute('data-cp-chapter')) || 1)));
+        try {
+          if (window.ChessPalTutorialFlow?.isActive?.()) {
+            const ok = !!window.ChessPalTutorialFlow?.guardChapterSelection?.(ch);
+            if (!ok) { try { setMsg('Please follow the tutorial step.'); } catch {} return; }
+            window.ChessPalTutorialFlow?.onChapterSelected?.(ch);
+          }
+        } catch {}
         // Directly enter gameplay (no stage select screen)
         let cleared = 0;
         try { cleared = Math.max(0, Math.floor(Number(window.ChessPalStory?.getClearedStage?.(ch)) || 0)); } catch {}
         const next = (cleared >= 5) ? 1 : Math.min(5, cleared + 1);
-        Router.goTo(`/mode/story/ch${ch}/s${next}`);
+        const forced = !!window.ChessPalTutorialFlow?.isActive?.()
+          && (String(window.ChessPalTutorialFlow?.getState?.()?.step || '') === 'story_ch1_team_confirm'
+            || String(window.ChessPalTutorialFlow?.getState?.()?.step || '') === 'story_ch2_team_confirm');
+        showTeamSelectBeforeStoryChapter({ chapterId: ch, nextStage: next, forced });
       }, { passive: true });
     });
     document.querySelectorAll('[data-cp-chapter]').forEach(tile => {
@@ -1894,6 +2012,7 @@ const ChessPalPages = (() => {
         }, { passive: false });
       });
     }
+    try { window.ChessPalTutorialFlow?.applyRouteFocus?.('/mode/story'); } catch {}
   };
 
   function StoryCh1Page() {}
@@ -2045,6 +2164,17 @@ const ChessPalPages = (() => {
   };
   StoryBattlePage.prototype.init = function () {
     PracticePage.init();
+    try {
+      const ch = Math.max(1, Math.min(10, Math.floor(Number(this._ch) || 1)));
+      const st = Math.max(1, Math.min(5, Math.floor(Number(this._st) || 1)));
+      if (window.ChessPalTutorialFlow?.isActive?.()) {
+        window.__cpActionLocked = true;
+        const opened = !!window.ChessPalTutorialFlow?.maybeShowStageTutorial?.(ch, st, () => {
+          try { window.__cpActionLocked = false; } catch {}
+        });
+        if (!opened) window.__cpActionLocked = false;
+      }
+    } catch {}
     // Stage intro banner (Story only)
     try {
       const st = window.__cpStoryStage;
@@ -2904,6 +3034,15 @@ EventGoldBattlePage.prototype.destroy = function () {
     const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo, backRoute = '/home', backLabel = 'Back to Home' }) => {
       const old = document.getElementById('cpResultOverlay');
       if (old) old.remove();
+      let resolvedBackRoute = String(backRoute || '/home');
+      let resolvedBackLabel = String(backLabel || 'Back to Home');
+      try {
+        if (window.ChessPalTutorialFlow?.isActive?.() && Math.floor(Number(chapter) || 0) === 1) {
+          resolvedBackRoute = '/home';
+          resolvedBackLabel = 'Back to Home';
+          window.ChessPalTutorialFlow?.onChapterClearShown?.(1);
+        }
+      } catch {}
       const toCountEntries = (idsLike) => {
         const m = new Map();
         (Array.isArray(idsLike) ? idsLike : []).forEach((idLike) => {
@@ -2963,7 +3102,7 @@ EventGoldBattlePage.prototype.destroy = function () {
             <div class="cp-setting-help" style="margin-top:12px;">Monsters</div>
             <ul style="margin:6px 0 0 18px;">${monRows || '<li>(None)</li>'}</ul>
             <div class="cp-row" style="justify-content:center; margin-top:16px;">
-              <button class="cp-primary" type="button" id="cpResultBackStory">${esc(String(backLabel || 'Back to Home'))}</button>
+              <button class="cp-primary" type="button" id="cpResultBackStory">${esc(String(resolvedBackLabel || 'Back to Home'))}</button>
             </div>
           </div>
         </div>
@@ -2998,7 +3137,8 @@ EventGoldBattlePage.prototype.destroy = function () {
       }, 80);
       overlay.querySelector('#cpResultBackStory')?.addEventListener('click', () => {
         try { overlay.remove(); } catch {}
-        try { Router.goTo(String(backRoute || '/home')); } catch {}
+        try { window.ChessPalTutorialFlow?.onChapterClearBack?.(Math.floor(Number(chapter) || 0)); } catch {}
+        try { Router.goTo(String(resolvedBackRoute || '/home')); } catch {}
       }, { passive: true });
     };
 
@@ -3707,6 +3847,15 @@ EventGoldBattlePage.prototype.destroy = function () {
                   try { showStoryHintIfAny(); } catch {}
                   try { showStageIntro(cfg.chapter, cfg.stage); } catch {}
                   try { updateHpUI(); } catch {}
+                  try {
+                    if (window.ChessPalTutorialFlow?.isActive?.()) {
+                      window.__cpActionLocked = true;
+                      const opened = !!window.ChessPalTutorialFlow?.maybeShowStageTutorial?.(cfg.chapter, cfg.stage, () => {
+                        try { window.__cpActionLocked = false; } catch {}
+                      });
+                      if (!opened) window.__cpActionLocked = false;
+                    }
+                  } catch {}
                 } catch {}
               };
 
@@ -4726,7 +4875,16 @@ EventGoldBattlePage.prototype.destroy = function () {
     }
     const lvlBtn = overlay.querySelector('#cpHeroLevelUpBtn');
     if (lvlBtn) {
+      try {
+        const step = String(window.ChessPalTutorialFlow?.getState?.()?.step || '');
+        if (window.ChessPalTutorialFlow?.isActive?.() && step === 'hero_levelup_click') {
+          setTimeout(() => {
+            try { window.ChessPalTutorialFlow?.spotlight?.('#cpHeroLevelUpBtn'); } catch {}
+          }, 40);
+        }
+      } catch {}
       lvlBtn.addEventListener('click', () => {
+        try { window.ChessPalTutorialFlow?.onHeroLevelUpClicked?.(); } catch {}
         showLevelUpModal({ kind: 'hero', id: String(h.id || ''), name: String(h.name || '') });
       }, { passive: true });
     }
@@ -4978,6 +5136,13 @@ EventGoldBattlePage.prototype.destroy = function () {
     document.querySelectorAll('[data-cp-pal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = String(btn.getAttribute('data-cp-pal') || '');
+        try {
+          if (window.ChessPalTutorialFlow?.isActive?.()) {
+            const ok = !!window.ChessPalTutorialFlow?.guardPalTile?.(key);
+            if (!ok) { try { setMsg('Please follow the tutorial step.'); } catch {} return; }
+            if (key === 'hero') window.ChessPalTutorialFlow?.onPalHeroSelected?.();
+          }
+        } catch {}
         if (key === 'monster') Router.goTo('/monsters');
         else Router.goTo('/heroes');
       }, { passive: true });
@@ -4985,6 +5150,7 @@ EventGoldBattlePage.prototype.destroy = function () {
     document.getElementById('cpPalSettingBtn')?.addEventListener('click', () => {
       showPalAdminSettingModal();
     }, { passive: true });
+    try { window.ChessPalTutorialFlow?.applyRouteFocus?.('/pal'); } catch {}
   };
 
   function HeroesPage() {}

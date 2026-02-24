@@ -646,6 +646,33 @@ body {
 .cp-search-input--short{ width: min(100%, 380px); }
 .cp-search-input--storage{ width: min(100%, 340px); }
 
+body.cp-tutorial-dim-active #cpPageContainer{
+  position: relative;
+}
+body.cp-tutorial-dim-active #cpPageContainer > *{
+  filter: brightness(0.42) saturate(0.7);
+}
+body.cp-tutorial-dim-active #cpPageContainer{
+  pointer-events: none;
+}
+body.cp-tutorial-dim-active #cpPageContainer .cp-tutorial-focus,
+body.cp-tutorial-dim-active #cpPageContainer .cp-tutorial-focus *{
+  pointer-events: auto;
+}
+.cp-tutorial-focus{
+  position: relative !important;
+  z-index: 60 !important;
+  filter: none !important;
+  opacity: 1 !important;
+  box-shadow: 0 0 0 2px rgba(125,211,252,0.95), 0 0 0 6px rgba(56,189,248,0.35), 0 18px 28px rgba(2,6,23,0.55) !important;
+  border-radius: 14px;
+  animation: cpTutorialPulse 1.15s ease-in-out infinite alternate;
+}
+@keyframes cpTutorialPulse{
+  from { box-shadow: 0 0 0 2px rgba(125,211,252,0.9), 0 0 0 4px rgba(56,189,248,0.20), 0 12px 20px rgba(2,6,23,0.45); }
+  to { box-shadow: 0 0 0 2px rgba(186,230,253,1), 0 0 0 8px rgba(56,189,248,0.45), 0 22px 34px rgba(2,6,23,0.6); }
+}
+
 .cp-jewel-preview{
   margin-top: 10px;
 }
@@ -1097,6 +1124,27 @@ body {
 @keyframes cpTeamGlow{
   from { box-shadow: 0 0 0 1px rgba(125,211,252,0.30), 0 0 8px rgba(56,189,248,0.25), 0 12px 22px rgba(14,116,144,0.20); }
   to { box-shadow: 0 0 0 1px rgba(186,230,253,0.60), 0 0 16px rgba(56,189,248,0.55), 0 14px 28px rgba(14,116,144,0.35); }
+}
+
+body.cp-tutorial-dim-active .cp-app{
+  position: relative;
+}
+body.cp-tutorial-dim-active .cp-app::after{
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,0.68);
+  z-index: 44;
+  pointer-events: none;
+}
+.cp-tutorial-focus{
+  position: relative !important;
+  z-index: 46 !important;
+  outline: 2px solid rgba(125,211,252,0.95);
+  box-shadow: 0 0 0 2px rgba(14,165,233,0.35), 0 0 24px rgba(56,189,248,0.58);
+}
+.cp-tutorial-modal{
+  z-index: 80;
 }
 
 /* Locked (seen but not owned) monster card */

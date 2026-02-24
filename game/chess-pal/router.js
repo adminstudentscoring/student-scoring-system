@@ -234,6 +234,7 @@ const Router = (() => {
       container.innerHTML = page?.render?.() || '';
       try { page?.init?.(); } catch {}
       updateSidebarCoins();
+      try { window.ChessPalTutorialFlow?.applyRouteFocus?.(p); } catch {}
       setTimeout(() => { container.style.opacity = '1'; }, 20);
     }, 220);
   }
@@ -282,6 +283,18 @@ const Router = (() => {
     document.querySelectorAll('.cp-nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const r = btn.getAttribute('data-route') || '/home';
+        try {
+          if (window.ChessPalTutorialFlow?.isActive?.()) {
+            const ok = !!window.ChessPalTutorialFlow?.guardNavRoute?.(r);
+            if (!ok) {
+              try { console.warn('Please follow the tutorial step.'); } catch {}
+              return;
+            }
+            if (String(r) === '/mode') {
+              try { window.ChessPalTutorialFlow?.onModeSelected?.(); } catch {}
+            }
+          }
+        } catch {}
         goTo(r);
         closeSidebarIfOverlay();
       }, { passive: true });
