@@ -139,11 +139,12 @@ body {
   background: linear-gradient(180deg, rgba(10, 15, 28, 0.98) 0%, rgba(6, 9, 18, 0.96) 100%);
   border-right: 1px solid rgba(255,255,255,0.08);
   padding: 18px 14px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
   position: relative;
   z-index: 20;
+  overflow: hidden;
 }
 
 .cp-side-title{
@@ -162,6 +163,9 @@ body {
   flex-direction: column;
   gap: 10px;
   margin-top: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .cp-nav-btn{
