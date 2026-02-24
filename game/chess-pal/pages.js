@@ -565,26 +565,25 @@ const ChessPalPages = (() => {
   const EVENT_GOLD_STAGES_KEY = 'chessPalEventGoldStages';
   const EVENT_GOLD_PROGRESS_KEY = 'chessPalEventGoldProgress';
 
-  function defaultEventGoldStages() {
-    const ids = ['017', '018', '021', '025', '029', '033', '037', '041', '045', '049'];
+  function defaultEventGoldStagesForChapter(chapterId) {
+    const ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
+    const idsByChapter = {
+      1: ['017', '018', '021', '025', '029'],
+      2: ['033', '037', '041', '045', '049'],
+      3: ['050', '051', '052', '053', '054'],
+    };
+    const ids = idsByChapter[ch] || idsByChapter[1];
     return ids.map((id, idx) => ({
-      monsters: [{ monsterId: id, level: Math.max(1, idx + 1), monsterDropChance: 0, drops: [] }],
+      monsters: [{ monsterId: id, level: Math.max(1, idx + 1), monsterDropChance: (idx === 4 ? 50 : 10), drops: [] }],
       hint: 'Fire / Water / Wood / Heart only.',
       drops: [],
     }));
   }
 
-  function getEventGoldStages() {
-    let raw = null;
-    try {
-      const v = JSON.parse(localStorage.getItem(EVENT_GOLD_STAGES_KEY) || 'null');
-      raw = (v && typeof v === 'object' && !Array.isArray(v))
-        ? (Array.isArray(v.stages) ? v.stages : null)
-        : null;
-    } catch {}
-    const base = defaultEventGoldStages();
-    const src = (Array.isArray(raw) && raw.length) ? raw : base;
-    const out = Array.from({ length: 10 }, (_, i) => {
+  function normalizeEventGoldStagesForChapter(stagesLike, chapterId) {
+    const base = defaultEventGoldStagesForChapter(chapterId);
+    const src = Array.isArray(stagesLike) ? stagesLike : [];
+    return Array.from({ length: 5 }, (_, i) => {
       const st = src[i] || base[i] || base[0];
       const monsters = normalizeStageMonsters(st);
       const first = monsters[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
@@ -596,40 +595,107 @@ const ChessPalPages = (() => {
         drops: Array.isArray(st?.drops) ? st.drops : [],
       };
     });
+  }
+
+  function loadEventGoldStagesAll() {
+    const out = {
+      1: defaultEventGoldStagesForChapter(1),
+      2: defaultEventGoldStagesForChapter(2),
+      3: defaultEventGoldStagesForChapter(3),
+    };
+    let raw = null;
+    try {
+      const v = JSON.parse(localStorage.getItem(EVENT_GOLD_STAGES_KEY) || 'null');
+      raw = (v && typeof v === 'object' && !Array.isArray(v)) ? v : null;
+    } catch {}
+    if (!raw) return out;
+    const chaptersRaw = (raw.chapters && typeof raw.chapters === 'object' && !Array.isArray(raw.chapters)) ? raw.chapters : null;
+    if (chaptersRaw) {
+      out[1] = normalizeEventGoldStagesForChapter(chaptersRaw['1'], 1);
+      out[2] = normalizeEventGoldStagesForChapter(chaptersRaw['2'], 2);
+      out[3] = normalizeEventGoldStagesForChapter(chaptersRaw['3'], 3);
+      return out;
+    }
+    // Migration from old 10-stage single-chapter format.
+    const oldStages = Array.isArray(raw.stages) ? raw.stages : null;
+    if (oldStages && oldStages.length) {
+      out[1] = normalizeEventGoldStagesForChapter(oldStages.slice(0, 5), 1);
+      out[2] = normalizeEventGoldStagesForChapter(oldStages.slice(5, 10), 2);
+      out[3] = normalizeEventGoldStagesForChapter([], 3);
+      return out;
+    }
     return out;
   }
 
-  function saveEventGoldStages(stagesLike) {
-    const arr = Array.isArray(stagesLike) ? stagesLike : defaultEventGoldStages();
-    const stages = Array.from({ length: 10 }, (_, i) => {
-      const st = arr[i] || {};
-      const monsters = normalizeStageMonsters(st);
-      const first = monsters[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
-      return {
-        monsters,
-        monsterId: first.monsterId,
-        level: first.level,
-        hint: String(st?.hint || 'Fire / Water / Wood / Heart only.'),
-        drops: Array.isArray(st?.drops) ? st.drops : [],
-      };
-    });
-    try { localStorage.setItem(EVENT_GOLD_STAGES_KEY, JSON.stringify({ stages })); } catch {}
+  function getEventGoldStagesForChapter(chapterId) {
+    const ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
+    const all = loadEventGoldStagesAll();
+    return normalizeEventGoldStagesForChapter(all?.[ch], ch);
+  }
+
+  function saveEventGoldStagesForChapter(chapterId, stagesLike) {
+    const ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
+    const all = loadEventGoldStagesAll();
+    all[ch] = normalizeEventGoldStagesForChapter(stagesLike, ch);
+    const payload = { chapters: { '1': all[1], '2': all[2], '3': all[3] } };
+    try { localStorage.setItem(EVENT_GOLD_STAGES_KEY, JSON.stringify(payload)); } catch {}
     try { window.dispatchEvent(new Event('cpEventGoldStagesChanged')); } catch {}
-    if (isAdminMode()) {
-      saveChessPalGlobalConfigToServer({ eventGoldStages: { stages } }).catch(() => {});
+    if (isAdminMode()) saveChessPalGlobalConfigToServer({ eventGoldStages: payload }).catch(() => {});
+  }
+
+  function loadEventGoldProgressMap() {
+    try {
+      const raw = localStorage.getItem(EVENT_GOLD_PROGRESS_KEY);
+      if (!raw) return { '1': 0, '2': 0, '3': 0 };
+      const v = JSON.parse(raw);
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        return {
+          '1': Math.max(0, Math.min(5, Math.floor(Number(v?.['1']) || 0))),
+          '2': Math.max(0, Math.min(5, Math.floor(Number(v?.['2']) || 0))),
+          '3': Math.max(0, Math.min(5, Math.floor(Number(v?.['3']) || 0))),
+        };
+      }
+      // Migration from old numeric progress (1..10)
+      const n = Math.max(0, Math.min(15, Math.floor(Number(v) || 0)));
+      return {
+        '1': Math.max(0, Math.min(5, n)),
+        '2': Math.max(0, Math.min(5, n - 5)),
+        '3': Math.max(0, Math.min(5, n - 10)),
+      };
+    } catch {
+      return { '1': 0, '2': 0, '3': 0 };
     }
   }
 
-  function getEventGoldClearedStage() {
-    try { return Math.max(0, Math.min(10, Math.floor(Number(localStorage.getItem(EVENT_GOLD_PROGRESS_KEY)) || 0))); } catch {}
-    return 0;
+  function saveEventGoldProgressMap(mapLike) {
+    const m = {
+      '1': Math.max(0, Math.min(5, Math.floor(Number(mapLike?.['1']) || 0))),
+      '2': Math.max(0, Math.min(5, Math.floor(Number(mapLike?.['2']) || 0))),
+      '3': Math.max(0, Math.min(5, Math.floor(Number(mapLike?.['3']) || 0))),
+    };
+    try { localStorage.setItem(EVENT_GOLD_PROGRESS_KEY, JSON.stringify(m)); } catch {}
   }
 
-  function markEventGoldStageCleared(stageIdx1) {
-    const st = Math.max(1, Math.min(10, Math.floor(Number(stageIdx1) || 1)));
-    const cur = getEventGoldClearedStage();
+  function getEventGoldClearedStage(chapterId) {
+    const ch = String(Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1))));
+    const m = loadEventGoldProgressMap();
+    return Math.max(0, Math.min(5, Math.floor(Number(m?.[ch]) || 0)));
+  }
+
+  function isEventGoldChapterUnlocked(chapterId) {
+    const ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
+    if (ch <= 1) return true;
+    return getEventGoldClearedStage(ch - 1) >= 5;
+  }
+
+  function markEventGoldStageCleared(chapterId, stageIdx1) {
+    const ch = String(Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1))));
+    const st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
+    const m = loadEventGoldProgressMap();
+    const cur = Math.max(0, Math.min(5, Math.floor(Number(m?.[ch]) || 0)));
     if (st <= cur) return;
-    try { localStorage.setItem(EVENT_GOLD_PROGRESS_KEY, String(st)); } catch {}
+    m[ch] = st;
+    saveEventGoldProgressMap(m);
   }
 
   async function syncStoryStagesFromServer() {
@@ -1805,14 +1871,15 @@ const ChessPalPages = (() => {
     return uniq.length ? uniq : core;
   }
 
-  function showAdminEditEventGoldStagesModal() {
+  function showAdminEditEventGoldStagesModal(chapterId) {
+    const ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
     showAdminEditStoryStagesModal(1, {
-      stageCount: 10,
-      modalTitle: 'Edit stages · Gold Farming Mode',
+      stageCount: 5,
+      modalTitle: `Edit stages · Gold Farming Chapter ${ch}`,
       modalDesc: 'Pick Monster and Level for each stage. Element pool is fixed to Fire / Water / Wood / Heart.',
-      stageLabel: (i) => (i === 9 ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`),
-      getStages: () => getEventGoldStages(),
-      onSaveStages: (stages) => saveEventGoldStages(stages),
+      stageLabel: (i) => (i === 4 ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`),
+      getStages: () => getEventGoldStagesForChapter(ch),
+      onSaveStages: (stages) => saveEventGoldStagesForChapter(ch, stages),
     });
   }
 
@@ -1965,21 +2032,26 @@ function EventGoldModePage() {}
 EventGoldModePage.title = 'Gold Farming Mode';
 EventGoldModePage.render = () => {
   const admin = isAdminMode();
-  const stages = getEventGoldStages();
-  const cleared = getEventGoldClearedStage();
-  const next = (cleared >= 10) ? 1 : Math.min(10, cleared + 1);
-  const firstCfg = stages[Math.max(0, next - 1)] || stages[0] || {};
-  const firstMon = normalizeStageMonsters(firstCfg)[0] || { monsterId: '017', level: 1 };
-  const mon = getMonsterFromDbQuick(firstMon.monsterId);
-  const img = String(mon?.img || 'images/Storage/S001-Gold-Coin.png');
+  const chapterDefs = [
+    { id: 1, title: 'Gold Farming Chapter 1', img: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg' },
+    { id: 2, title: 'Gold Farming Chapter 2', img: 'images/Mode/Story/Chapter002-Riverbound_Oath/Chapter002-Riverbound_Oath.jpg' },
+    { id: 3, title: 'Gold Farming Chapter 3', img: 'images/Mode/Story/Chapter003-Ember_Trial/Chapter003-Ember_Trial.jpg' },
+  ];
   return `
-    <div class="cp-chapter-list" aria-label="Gold Farming chapter">
-      <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-event-gold-chapter="1" aria-label="Gold Farming Chapter">
-        <img class="cp-chapter-img" src="${esc(img)}" alt="Gold Farming Chapter" decoding="async" loading="lazy">
-        <div class="cp-chapter-label">Gold Farming Chapter</div>
-        <div class="cp-chapter-sub">10 stages · Fire / Water / Wood / Heart · Next Stage ${esc(String(next))}</div>
-        ${admin ? `<button class="cp-tool-btn cp-chapter-edit" type="button" data-cp-edit-event-gold="1">Edit stages</button>` : ``}
-      </div>
+    <div class="cp-chapter-list" aria-label="Gold Farming chapters">
+      ${chapterDefs.map((c) => {
+        const locked = (!admin && !isEventGoldChapterUnlocked(c.id));
+        const cleared = getEventGoldClearedStage(c.id);
+        const next = (cleared >= 5) ? 1 : Math.min(5, cleared + 1);
+        return `
+          <div class="cp-chapter-tile ${locked ? 'is-locked' : ''}" role="button" tabindex="0" data-cp-event-gold-chapter="${esc(String(c.id))}" data-cp-locked="${locked ? '1' : '0'}" aria-label="${esc(c.title)}">
+            <img class="cp-chapter-img" src="${esc(String(c.img))}" alt="${esc(c.title)}" decoding="async" loading="lazy">
+            <div class="cp-chapter-label">${esc(c.title)}</div>
+            <div class="cp-chapter-sub">${locked ? 'Locked' : `5 stages · Fire / Water / Wood / Heart · Next Stage ${esc(String(next))}`}</div>
+            ${admin ? `<button class="cp-tool-btn cp-chapter-edit" type="button" data-cp-edit-event-gold="${esc(String(c.id))}">Edit stages</button>` : ``}
+          </div>
+        `;
+      }).join('')}
       <button class="cp-tool-btn" type="button" data-cp-go="/mode/challenge/event">Back</button>
     </div>
   `;
@@ -1988,9 +2060,12 @@ EventGoldModePage.init = () => {
   document.querySelectorAll('[data-cp-go]').forEach((btn) => btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/challenge/event')), { passive: true }));
   document.querySelectorAll('[data-cp-event-gold-chapter]').forEach((tile) => {
     tile.addEventListener('click', () => {
-      const cleared = getEventGoldClearedStage();
-      const s = (cleared >= 10) ? 1 : Math.min(10, cleared + 1);
-      Router.goTo(`/mode/challenge/event/gold/ch1/s${s}`);
+      const locked = String(tile.getAttribute('data-cp-locked') || '0') === '1';
+      if (locked) { try { setMsg('Clear previous chapter first.'); } catch {} return; }
+      const ch = Math.max(1, Math.min(3, Math.floor(Number(tile.getAttribute('data-cp-event-gold-chapter')) || 1)));
+      const cleared = getEventGoldClearedStage(ch);
+      const s = (cleared >= 5) ? 1 : Math.min(5, cleared + 1);
+      Router.goTo(`/mode/challenge/event/gold/ch${ch}/s${s}`);
     }, { passive: true });
     tile.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { try { ev.preventDefault(); } catch {} try { tile.click(); } catch {} }
@@ -2000,24 +2075,26 @@ EventGoldModePage.init = () => {
     document.querySelectorAll('[data-cp-edit-event-gold]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         try { ev.preventDefault(); ev.stopPropagation(); } catch {}
-        try { showAdminEditEventGoldStagesModal(); } catch {}
+        const ch = Math.max(1, Math.min(3, Math.floor(Number(btn.getAttribute('data-cp-edit-event-gold')) || 1)));
+        try { showAdminEditEventGoldStagesModal(ch); } catch {}
       }, { passive: false });
     });
   }
 };
 
-function EventGoldBattlePage(stageIdx1) {
-  this._st = Math.max(1, Math.min(10, Math.floor(Number(stageIdx1) || 1)));
+function EventGoldBattlePage(chapterId, stageIdx1) {
+  this._ch = Math.max(1, Math.min(3, Math.floor(Number(chapterId) || 1)));
+  this._st = Math.max(1, Math.min(5, Math.floor(Number(stageIdx1) || 1)));
 }
 EventGoldBattlePage.prototype.title = 'Gold Farming Battle';
 EventGoldBattlePage.prototype.render = function () {
-  const stages = getEventGoldStages();
+  const stages = getEventGoldStagesForChapter(this._ch);
   const cfg = stages[this._st - 1] || {};
   const mons = normalizeStageMonsters(cfg);
   const first = mons[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
   window.__cpStoryStage = {
     mode: 'event_gold',
-    chapter: 1,
+    chapter: this._ch,
     stage: this._st,
     monsters: mons,
     monsterId: String(first.monsterId || '017').trim().padStart(3, '0'),
@@ -2038,7 +2115,7 @@ EventGoldBattlePage.prototype.init = function () {
     wrap.className = 'cp-stage-intro';
     const t = document.createElement('div');
     t.className = 'cp-stage-intro-text';
-    t.textContent = `Gold Farming Chapter 1 · Stage ${this._st}`;
+    t.textContent = `Gold Farming Chapter ${this._ch} · Stage ${this._st}`;
     wrap.appendChild(t);
     document.body.appendChild(wrap);
     setTimeout(() => { try { wrap.remove(); } catch {} }, 2600);
@@ -3272,21 +3349,27 @@ EventGoldBattlePage.prototype.destroy = function () {
         if (allDead) {
           try {
             if (isEventGoldBattleActive()) {
-              const stageNum = Math.max(1, Math.min(10, Math.floor(Number(window.__cpStoryStage?.stage) || 1)));
-              markEventGoldStageCleared(stageNum);
+              const chapterNum = Math.max(1, Math.min(3, Math.floor(Number(window.__cpStoryStage?.chapter) || 1)));
+              const stageNum = Math.max(1, Math.min(5, Math.floor(Number(window.__cpStoryStage?.stage) || 1)));
+              markEventGoldStageCleared(chapterNum, stageNum);
               try {
                 let slots = loadStorage();
-                const goldGain = Math.max(1, Math.floor(stageNum >= 10 ? 3 : 1));
+                const goldGain = Math.max(1, Math.floor((chapterNum === 3 && stageNum >= 5) ? 3 : 1));
                 slots = addItemToStorage(slots, 'gold_coin', goldGain);
                 saveStorage(slots);
                 showStorageGainModal({
-                  title: `Gold Farming · Stage ${stageNum} Cleared`,
+                  title: `Gold Farming · Chapter ${chapterNum} Stage ${stageNum} Cleared`,
                   rewards: [{ itemId: 'gold_coin', qty: goldGain }],
                 });
               } catch {}
               setTimeout(() => {
-                if (stageNum < 10) Router.goTo(`/mode/challenge/event/gold/ch1/s${stageNum + 1}`);
-                else Router.goTo('/mode/challenge/event/gold');
+                if (stageNum < 5) {
+                  Router.goTo(`/mode/challenge/event/gold/ch${chapterNum}/s${stageNum + 1}`);
+                } else if (chapterNum < 3) {
+                  Router.goTo(`/mode/challenge/event/gold/ch${chapterNum + 1}/s1`);
+                } else {
+                  Router.goTo('/mode/challenge/event/gold');
+                }
               }, 120);
               return;
             }
@@ -8721,26 +8804,26 @@ EventGoldBattlePage.prototype.destroy = function () {
       '/mode/challenge/event': ModeChallengeTimedPage,
       '/mode/challenge/timed': ModeChallengeTimedPage,
       '/mode/challenge/event/gold': EventGoldModePage,
-      '/mode/challenge/event/gold/ch1/s1': new EventGoldBattlePage(1),
-      '/mode/challenge/event/gold/ch1/s2': new EventGoldBattlePage(2),
-      '/mode/challenge/event/gold/ch1/s3': new EventGoldBattlePage(3),
-      '/mode/challenge/event/gold/ch1/s4': new EventGoldBattlePage(4),
-      '/mode/challenge/event/gold/ch1/s5': new EventGoldBattlePage(5),
-      '/mode/challenge/event/gold/ch1/s6': new EventGoldBattlePage(6),
-      '/mode/challenge/event/gold/ch1/s7': new EventGoldBattlePage(7),
-      '/mode/challenge/event/gold/ch1/s8': new EventGoldBattlePage(8),
-      '/mode/challenge/event/gold/ch1/s9': new EventGoldBattlePage(9),
-      '/mode/challenge/event/gold/ch1/s10': new EventGoldBattlePage(10),
-      '/mode/challenge/event/gold/s1': new EventGoldBattlePage(1),
-      '/mode/challenge/event/gold/s2': new EventGoldBattlePage(2),
-      '/mode/challenge/event/gold/s3': new EventGoldBattlePage(3),
-      '/mode/challenge/event/gold/s4': new EventGoldBattlePage(4),
-      '/mode/challenge/event/gold/s5': new EventGoldBattlePage(5),
-      '/mode/challenge/event/gold/s6': new EventGoldBattlePage(6),
-      '/mode/challenge/event/gold/s7': new EventGoldBattlePage(7),
-      '/mode/challenge/event/gold/s8': new EventGoldBattlePage(8),
-      '/mode/challenge/event/gold/s9': new EventGoldBattlePage(9),
-      '/mode/challenge/event/gold/s10': new EventGoldBattlePage(10),
+      '/mode/challenge/event/gold/ch1/s1': new EventGoldBattlePage(1, 1),
+      '/mode/challenge/event/gold/ch1/s2': new EventGoldBattlePage(1, 2),
+      '/mode/challenge/event/gold/ch1/s3': new EventGoldBattlePage(1, 3),
+      '/mode/challenge/event/gold/ch1/s4': new EventGoldBattlePage(1, 4),
+      '/mode/challenge/event/gold/ch1/s5': new EventGoldBattlePage(1, 5),
+      '/mode/challenge/event/gold/ch2/s1': new EventGoldBattlePage(2, 1),
+      '/mode/challenge/event/gold/ch2/s2': new EventGoldBattlePage(2, 2),
+      '/mode/challenge/event/gold/ch2/s3': new EventGoldBattlePage(2, 3),
+      '/mode/challenge/event/gold/ch2/s4': new EventGoldBattlePage(2, 4),
+      '/mode/challenge/event/gold/ch2/s5': new EventGoldBattlePage(2, 5),
+      '/mode/challenge/event/gold/ch3/s1': new EventGoldBattlePage(3, 1),
+      '/mode/challenge/event/gold/ch3/s2': new EventGoldBattlePage(3, 2),
+      '/mode/challenge/event/gold/ch3/s3': new EventGoldBattlePage(3, 3),
+      '/mode/challenge/event/gold/ch3/s4': new EventGoldBattlePage(3, 4),
+      '/mode/challenge/event/gold/ch3/s5': new EventGoldBattlePage(3, 5),
+      '/mode/challenge/event/gold/s1': new EventGoldBattlePage(1, 1),
+      '/mode/challenge/event/gold/s2': new EventGoldBattlePage(1, 2),
+      '/mode/challenge/event/gold/s3': new EventGoldBattlePage(1, 3),
+      '/mode/challenge/event/gold/s4': new EventGoldBattlePage(1, 4),
+      '/mode/challenge/event/gold/s5': new EventGoldBattlePage(1, 5),
       '/practice': PracticePage,
       '/test-game': TestGamePage,
       '/team': TeamPage,
