@@ -4363,16 +4363,6 @@ EventGoldBattlePage.prototype.destroy = function () {
   TestGamePage.init = PracticePage.init;
   TestGamePage.destroy = PracticePage.destroy;
 
-  function AchievementPage() {}
-  AchievementPage.title = 'Achievement';
-  AchievementPage.render = () => `
-    <div class="cp-page-card">
-      <div class="cp-h1">Achievement</div>
-      <div class="cp-muted" style="margin-top:8px;">Coming soon.</div>
-    </div>
-  `;
-  AchievementPage.init = () => {};
-
   function PlaceholderPage(title, desc) {
     return {
       title,
@@ -9102,7 +9092,7 @@ EventGoldBattlePage.prototype.destroy = function () {
       '/mode/challenge/event/gold/s3': new EventGoldBattlePage(1, 3),
       '/mode/challenge/event/gold/s4': new EventGoldBattlePage(1, 4),
       '/mode/challenge/event/gold/s5': new EventGoldBattlePage(1, 5),
-      '/achievement': AchievementPage,
+      '/achievement': (window.ChessPalAchievement && window.ChessPalAchievement.AchievementPage) ? window.ChessPalAchievement.AchievementPage : PlaceholderPage('Achievement', 'Coming soon.'),
       '/practice': PracticePage,
       '/test-game': TestGamePage,
       '/team': TeamPage,
