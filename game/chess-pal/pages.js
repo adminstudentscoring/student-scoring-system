@@ -1817,9 +1817,9 @@ const ChessPalPages = (() => {
   ModeChallengePage.title = 'Challenge Mode';
   ModeChallengePage.render = () => `
     <div class="cp-square-grid" aria-label="Challenge Mode">
-    <button class="cp-square-tile" type="button" data-cp-challenge="timed" aria-label="Timed Mode">
-      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Timed Mode', 'cp-square-img')}
-      <div class="cp-square-label">Timed Mode</div>
+    <button class="cp-square-tile" type="button" data-cp-challenge="event" aria-label="Event Mode">
+      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Event Mode', 'cp-square-img')}
+      <div class="cp-square-label">Event Mode</div>
     </button>
       <button class="cp-square-tile" type="button" data-cp-modeback aria-label="Back">
         ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Back', 'cp-square-img')}
@@ -1834,18 +1834,18 @@ ModeChallengePage.init = () => {
   document.querySelectorAll('[data-cp-challenge]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = String(btn.getAttribute('data-cp-challenge') || '').trim();
-      if (key === 'timed') Router.goTo('/mode/challenge/timed');
+      if (key === 'event') Router.goTo('/mode/challenge/event');
     }, { passive: true });
   });
 };
 
 function ModeChallengeTimedPage() {}
-ModeChallengeTimedPage.title = 'Timed Mode';
+ModeChallengeTimedPage.title = 'Event Mode';
 ModeChallengeTimedPage.render = () => `
-  <div class="cp-square-grid" aria-label="Timed Mode">
-    <button class="cp-square-tile" type="button" data-cp-go="/practice" aria-label="Start Timed Mode">
-      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Start Timed Mode', 'cp-square-img')}
-      <div class="cp-square-label">Start Timed Mode</div>
+  <div class="cp-square-grid" aria-label="Event Mode">
+    <button class="cp-square-tile" type="button" data-cp-go="/practice" aria-label="Enter Event Mode">
+      ${renderImgWithFallback('images/Mode/Practice/Map/Map001-Grassland.jpg', 'Enter Event Mode', 'cp-square-img')}
+      <div class="cp-square-label">Enter Event Mode</div>
     </button>
     <button class="cp-square-tile" type="button" data-cp-go="/mode/challenge" aria-label="Back">
       ${renderImgWithFallback('images/Monsters/M010-Dawn_Seraph/M010-Dawn_Seraph.png', 'Back', 'cp-square-img')}
@@ -8220,6 +8220,7 @@ ModeChallengeTimedPage.init = () => {
       '/mode/story/ch10/s4': new StoryBattlePage(10, 4),
       '/mode/story/ch10/s5': new StoryBattlePage(10, 5),
       '/mode/challenge': ModeChallengePage,
+      '/mode/challenge/event': ModeChallengeTimedPage,
       '/mode/challenge/timed': ModeChallengeTimedPage,
       '/practice': PracticePage,
       '/test-game': TestGamePage,
