@@ -6930,28 +6930,56 @@ ModeChallengeTimedPage.init = () => {
           <div class="cp-setting-item" style="margin-top:12px;">
             <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
               <div class="cp-setting-help" style="margin:0;">Hero summon rates (relative weight + percentage; 0 means disabled)</div>
-              <button class="cp-tool-btn" type="button" id="cpSummonHeroRatesToggle" aria-expanded="false">Expand</button>
+              <div class="cp-row" style="margin-top:0; gap:6px;">
+                <select class="cp-select" id="cpSummonHeroSort" style="min-width:120px;">
+                  <option value="no">No.</option>
+                  <option value="star">Star</option>
+                  <option value="element">Element</option>
+                </select>
+                <button class="cp-tool-btn" type="button" id="cpSummonHeroRatesToggle" aria-expanded="false">Expand</button>
+              </div>
             </div>
             <div id="cpSummonHeroRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
           <div class="cp-setting-item" style="margin-top:10px;">
             <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
               <div class="cp-setting-help" style="margin:0;">Monster summon rates (relative weight + percentage; 0 means disabled)</div>
-              <button class="cp-tool-btn" type="button" id="cpSummonMonsterRatesToggle" aria-expanded="false">Expand</button>
+              <div class="cp-row" style="margin-top:0; gap:6px;">
+                <select class="cp-select" id="cpSummonMonsterSort" style="min-width:120px;">
+                  <option value="no">No.</option>
+                  <option value="star">Star</option>
+                  <option value="element">Element</option>
+                </select>
+                <button class="cp-tool-btn" type="button" id="cpSummonMonsterRatesToggle" aria-expanded="false">Expand</button>
+              </div>
             </div>
             <div id="cpSummonMonsterRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
           <div class="cp-setting-item" style="margin-top:10px;">
             <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
               <div class="cp-setting-help" style="margin:0;">Amateur Hero summon rates (relative weight + percentage)</div>
-              <button class="cp-tool-btn" type="button" id="cpSummonAmHeroRatesToggle" aria-expanded="false">Expand</button>
+              <div class="cp-row" style="margin-top:0; gap:6px;">
+                <select class="cp-select" id="cpSummonAmHeroSort" style="min-width:120px;">
+                  <option value="no">No.</option>
+                  <option value="star">Star</option>
+                  <option value="element">Element</option>
+                </select>
+                <button class="cp-tool-btn" type="button" id="cpSummonAmHeroRatesToggle" aria-expanded="false">Expand</button>
+              </div>
             </div>
             <div id="cpSummonAmHeroRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
           <div class="cp-setting-item" style="margin-top:10px;">
             <div class="cp-row" style="margin-top:0; justify-content:space-between; align-items:center;">
               <div class="cp-setting-help" style="margin:0;">Amateur Monster summon rates (relative weight + percentage)</div>
-              <button class="cp-tool-btn" type="button" id="cpSummonAmMonsterRatesToggle" aria-expanded="false">Expand</button>
+              <div class="cp-row" style="margin-top:0; gap:6px;">
+                <select class="cp-select" id="cpSummonAmMonsterSort" style="min-width:120px;">
+                  <option value="no">No.</option>
+                  <option value="star">Star</option>
+                  <option value="element">Element</option>
+                </select>
+                <button class="cp-tool-btn" type="button" id="cpSummonAmMonsterRatesToggle" aria-expanded="false">Expand</button>
+              </div>
             </div>
             <div id="cpSummonAmMonsterRateRows" style="display:none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:8px; max-height:220px; overflow:auto; padding-right:4px; margin-top:8px;"></div>
           </div>
@@ -6995,8 +7023,8 @@ ModeChallengeTimedPage.init = () => {
     setSelectValue('cpSummonCfgAmateurHeroCurrency', cfg.amateurHeroCurrencyId || 'silver_coin');
     setSelectValue('cpSummonCfgAmateurMonsterCurrency', cfg.amateurMonsterCurrencyId || 'silver_coin');
     setSelectValue('cpSummonCfgItemCurrency', cfg.itemCurrencyId || 'gold_coin');
-    const rowTemplate = ({ id, name, stars, weight, attr, group }) => `
-      <label class="cp-setting-help" style="display:flex; align-items:center; gap:8px; margin:0;">
+    const rowTemplate = ({ id, name, stars, element, weight, attr, group }) => `
+      <label class="cp-setting-help" data-sort-id="${esc(String(id))}" data-sort-stars="${esc(String(Math.max(0, Math.floor(Number(stars) || 0))))}" data-sort-element="${esc(String(element || '').toLowerCase())}" style="display:flex; align-items:center; gap:8px; margin:0;">
         <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${esc(id)}${stars ? ` · ★${esc(String(stars))}` : ''} · ${esc(name)}</span>
         <span data-summon-pct="${esc(group)}:${esc(id)}" style="min-width:56px; text-align:right; font-weight:900; color:rgba(255,255,255,0.78);">0%</span>
         <input class="cp-input" ${attr}="${esc(id)}" type="number" min="0" step="0.1" value="${esc(String(Number.isFinite(weight) ? weight : 1))}" style="width:92px;">
@@ -7007,7 +7035,7 @@ ModeChallengeTimedPage.init = () => {
         const id = String(h?.id || '').trim();
         const w = Number(cfg?.heroRates?.[id]);
         const stars = Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)));
-        return rowTemplate({ id, name: String(h?.name || id), stars, weight: w, attr: 'data-summon-hero-rate', group: 'hero' });
+        return rowTemplate({ id, name: String(h?.name || id), stars, element: String(h?.element || ''), weight: w, attr: 'data-summon-hero-rate', group: 'hero' });
       }).join('');
     }
     if (monsterRowsHost) {
@@ -7015,7 +7043,7 @@ ModeChallengeTimedPage.init = () => {
         const id = String(m?.id || '').trim();
         const w = Number(cfg?.monsterRates?.[id]);
         const stars = Math.max(1, Math.min(10, Math.floor(Number(m?.rarity) || 1)));
-        return rowTemplate({ id, name: String(m?.name || id), stars, weight: w, attr: 'data-summon-mon-rate', group: 'monster' });
+        return rowTemplate({ id, name: String(m?.name || id), stars, element: String(m?.element || ''), weight: w, attr: 'data-summon-mon-rate', group: 'monster' });
       }).join('');
     }
     if (amHeroRowsHost) {
@@ -7023,7 +7051,7 @@ ModeChallengeTimedPage.init = () => {
         const id = String(h?.id || '').trim();
         const w = Number(cfg?.amateurHeroRates?.[id]);
         const stars = Math.max(1, Math.min(10, Math.floor(Number(h?.rarity) || 1)));
-        return rowTemplate({ id, name: String(h?.name || id), stars, weight: w, attr: 'data-summon-amhero-rate', group: 'amhero' });
+        return rowTemplate({ id, name: String(h?.name || id), stars, element: String(h?.element || ''), weight: w, attr: 'data-summon-amhero-rate', group: 'amhero' });
       }).join('');
     }
     if (amMonsterRowsHost) {
@@ -7031,16 +7059,53 @@ ModeChallengeTimedPage.init = () => {
         const id = String(m?.id || '').trim();
         const w = Number(cfg?.amateurMonsterRates?.[id]);
         const stars = Math.max(1, Math.min(10, Math.floor(Number(m?.rarity) || 1)));
-        return rowTemplate({ id, name: String(m?.name || id), stars, weight: w, attr: 'data-summon-ammonster-rate', group: 'ammonster' });
+        return rowTemplate({ id, name: String(m?.name || id), stars, element: String(m?.element || ''), weight: w, attr: 'data-summon-ammonster-rate', group: 'ammonster' });
       }).join('');
     }
     if (itemRowsHost) {
       itemRowsHost.innerHTML = summonItems.map((it) => {
         const id = String(it?.id || '').trim();
         const w = Number(cfg?.itemRates?.[id]);
-        return rowTemplate({ id, name: String(it?.name || id), stars: null, weight: w, attr: 'data-summon-item-rate', group: 'item' });
+        return rowTemplate({ id, name: String(it?.name || id), stars: null, element: '', weight: w, attr: 'data-summon-item-rate', group: 'item' });
       }).join('');
     }
+    const parseSortId = (v) => Math.max(0, Math.floor(Number(String(v || '').replace(/[^\d]/g, '')) || 0));
+    const sortRows = (host, mode) => {
+      if (!host) return;
+      const rows = Array.from(host.children || []);
+      const mm = String(mode || 'no').toLowerCase();
+      rows.sort((a, b) => {
+        const idA = parseSortId(a.getAttribute('data-sort-id'));
+        const idB = parseSortId(b.getAttribute('data-sort-id'));
+        const starA = Math.max(0, Math.floor(Number(a.getAttribute('data-sort-stars')) || 0));
+        const starB = Math.max(0, Math.floor(Number(b.getAttribute('data-sort-stars')) || 0));
+        const elA = String(a.getAttribute('data-sort-element') || '');
+        const elB = String(b.getAttribute('data-sort-element') || '');
+        if (mm === 'star') {
+          if (starB !== starA) return starB - starA;
+          if (elA !== elB) return elA.localeCompare(elB);
+          return idA - idB;
+        }
+        if (mm === 'element') {
+          if (elA !== elB) return elA.localeCompare(elB);
+          if (starB !== starA) return starB - starA;
+          return idA - idB;
+        }
+        return idA - idB;
+      });
+      rows.forEach((r) => host.appendChild(r));
+    };
+    const bindSort = (selectId, host) => {
+      const sel = overlay.querySelector(`#${selectId}`);
+      if (!sel) return;
+      const apply = () => sortRows(host, sel.value);
+      sel.addEventListener('change', apply, { passive: true });
+      apply();
+    };
+    bindSort('cpSummonHeroSort', heroRowsHost);
+    bindSort('cpSummonMonsterSort', monsterRowsHost);
+    bindSort('cpSummonAmHeroSort', amHeroRowsHost);
+    bindSort('cpSummonAmMonsterSort', amMonsterRowsHost);
     const updatePercentages = (group, selector) => {
       const entries = Array.from(overlay.querySelectorAll(selector));
       const total = entries.reduce((sum, el) => sum + Math.max(0, Number(el?.value) || 0), 0);
