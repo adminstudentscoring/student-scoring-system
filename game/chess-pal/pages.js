@@ -2052,9 +2052,9 @@ EventGoldModePage.title = 'Gold Farming Mode';
 EventGoldModePage.render = () => {
   const admin = isAdminMode();
   const chapterDefs = [
-    { id: 1, title: 'Gold Farming Chapter 1', img: 'images/Mode/Story/Chapter001-Grassland_Awakening/Chapter001-Grassland_Awakening.jpg' },
-    { id: 2, title: 'Gold Farming Chapter 2', img: 'images/Mode/Story/Chapter002-Riverbound_Oath/Chapter002-Riverbound_Oath.jpg' },
-    { id: 3, title: 'Gold Farming Chapter 3', img: 'images/Mode/Story/Chapter003-Ember_Trial/Chapter003-Ember_Trial.jpg' },
+    { id: 1, title: 'Gold Farming Chapter 1', img: 'images/Mode/Event/Gold-Farming/Chapter001-Gold-Farming.png' },
+    { id: 2, title: 'Gold Farming Chapter 2', img: 'images/Mode/Event/Gold-Farming/Chapter002-Gold-Farming.png' },
+    { id: 3, title: 'Gold Farming Chapter 3', img: 'images/Mode/Event/Gold-Farming/Chapter003-Gold-Farming.png' },
   ];
   return `
     <div class="cp-chapter-list" aria-label="Gold Farming chapters">
