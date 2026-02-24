@@ -586,12 +586,14 @@ const ChessPalPages = (() => {
     const src = (Array.isArray(raw) && raw.length) ? raw : base;
     const out = Array.from({ length: 10 }, (_, i) => {
       const st = src[i] || base[i] || base[0];
-      const mons = normalizeStageMonsters(st);
-      const first = mons[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
+      const monsters = normalizeStageMonsters(st);
+      const first = monsters[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
       return {
-        monsters: [{ ...first, monsterDropChance: 0, drops: [] }],
+        monsters,
+        monsterId: first.monsterId,
+        level: first.level,
         hint: String(st?.hint || 'Fire / Water / Wood / Heart only.'),
-        drops: [],
+        drops: Array.isArray(st?.drops) ? st.drops : [],
       };
     });
     return out;
@@ -601,11 +603,14 @@ const ChessPalPages = (() => {
     const arr = Array.isArray(stagesLike) ? stagesLike : defaultEventGoldStages();
     const stages = Array.from({ length: 10 }, (_, i) => {
       const st = arr[i] || {};
-      const first = normalizeStageMonsters(st)[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
+      const monsters = normalizeStageMonsters(st);
+      const first = monsters[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
       return {
-        monsters: [{ ...first, monsterDropChance: 0, drops: [] }],
+        monsters,
+        monsterId: first.monsterId,
+        level: first.level,
         hint: String(st?.hint || 'Fire / Water / Wood / Heart only.'),
-        drops: [],
+        drops: Array.isArray(st?.drops) ? st.drops : [],
       };
     });
     try { localStorage.setItem(EVENT_GOLD_STAGES_KEY, JSON.stringify({ stages })); } catch {}
@@ -670,10 +675,21 @@ const ChessPalPages = (() => {
     return { stages, updatedAt };
   }
 
-  function showAdminEditStoryStagesModal(chapterId) {
+  function showAdminEditStoryStagesModal(chapterId, opts = null) {
     if (!isAdminMode()) return;
     const ch = Math.max(1, Math.min(10, Math.floor(Number(chapterId) || 1)));
-    const current = getStoryStagesForChapter(ch);
+    const custom = (opts && typeof opts === 'object' && !Array.isArray(opts)) ? opts : {};
+    const stageCount = Math.max(1, Math.min(20, Math.floor(Number(custom.stageCount) || 5)));
+    const currentRaw = (typeof custom.getStages === 'function') ? custom.getStages() : getStoryStagesForChapter(ch);
+    const current = Array.isArray(currentRaw) ? currentRaw : getStoryStagesForChapter(ch);
+    const modalTitle = String(custom.modalTitle || `Edit stages · Chapter ${ch}`);
+    const modalDesc = String(custom.modalDesc || 'Pick Monster and Level for each stage. Stage 5 is always labeled Boss Stage.');
+    const stageLabel = (typeof custom.stageLabel === 'function')
+      ? custom.stageLabel
+      : ((i) => (i === 4 ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`));
+    const onSaveStages = (typeof custom.onSaveStages === 'function')
+      ? custom.onSaveStages
+      : null;
     const allMonsters = getAllMonsters();
 
     const itemOptions = (() => {
@@ -730,13 +746,13 @@ const ChessPalPages = (() => {
       <div class="cp-modal cp-editstages-modal" role="dialog" aria-modal="true" aria-label="Edit stages">
         <button class="cp-modal-close" type="button" aria-label="Close">×</button>
         <div class="cp-modal-body">
-          <div class="cp-h1" style="font-size:18px;">Edit stages · Chapter ${esc(String(ch))}</div>
-          <div class="cp-muted" style="margin-top:6px;">Pick Monster and Level for each stage. Stage 5 is always labeled Boss Stage.</div>
+          <div class="cp-h1" style="font-size:18px;">${esc(modalTitle)}</div>
+          <div class="cp-muted" style="margin-top:6px;">${esc(modalDesc)}</div>
 
           <div class="cp-editstages-list" style="margin-top:12px;">
-            ${Array.from({ length: 5 }, (_, i) => {
+            ${Array.from({ length: stageCount }, (_, i) => {
               const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
-              const label = (i === 4) ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`;
+              const label = String(stageLabel(i, stageCount) || `Stage ${i + 1}`);
               const mons0 = normalizeStageMonsters(s);
               return `
                 <div class="cp-setting-item cp-editstages-stage">
@@ -846,7 +862,7 @@ const ChessPalPages = (() => {
     document.body.appendChild(overlay);
 
     // set default selected values
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < stageCount; i += 1) {
       const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
       const mons0 = normalizeStageMonsters(s);
       for (let k = 0; k < mons0.length; k += 1) {
@@ -865,7 +881,7 @@ const ChessPalPages = (() => {
     }
 
     // live previews
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < stageCount; i += 1) {
       const s = current[i] || { monsterId: '004', level: 1, monsters: null, drops: [] };
       const mons0 = normalizeStageMonsters(s);
       for (let k = 0; k < mons0.length; k += 1) {
@@ -979,7 +995,7 @@ const ChessPalPages = (() => {
         </div>
       `;
     };
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < stageCount; i += 1) {
       const addBtn = overlay.querySelector(`[data-stage-mon-add="${CSS.escape(String(i))}"]`);
       const rmBtn = overlay.querySelector(`[data-stage-mon-remove="${CSS.escape(String(i))}"]`);
       const box = overlay.querySelector(`[data-stage-monsters-box="${CSS.escape(String(i))}"]`);
@@ -1075,7 +1091,7 @@ const ChessPalPages = (() => {
       try {
         setMsg('');
         const stages = [];
-        for (let i = 0; i < 5; i += 1) {
+        for (let i = 0; i < stageCount; i += 1) {
           const box = overlay.querySelector(`[data-stage-monsters-box="${CSS.escape(String(i))}"]`);
           const rows = Array.from(box?.querySelectorAll('[data-stage-monster-row]') || []);
           const monsters = rows
@@ -1112,12 +1128,17 @@ const ChessPalPages = (() => {
           // Back-compat: keep monsterId/level in sync with the first monster
           stages.push({ monsters, monsterId: monsters[0].monsterId, level: monsters[0].level, hint, drops });
         }
-        const nextAll = loadStoryStages();
-        nextAll[String(ch)] = stages;
-        const saved = await saveStoryStagesToServer(nextAll);
-        saveStoryStages(saved?.stages || nextAll);
-        setStoryStagesUpdatedAtLocal(Number(saved?.updatedAt) || Date.now());
-        setMsg('Saved globally.');
+        if (onSaveStages) {
+          await Promise.resolve(onSaveStages(stages, { chapter: ch }));
+          setMsg('Saved globally.');
+        } else {
+          const nextAll = loadStoryStages();
+          nextAll[String(ch)] = stages;
+          const saved = await saveStoryStagesToServer(nextAll);
+          saveStoryStages(saved?.stages || nextAll);
+          setStoryStagesUpdatedAtLocal(Number(saved?.updatedAt) || Date.now());
+          setMsg('Saved globally.');
+        }
         setTimeout(() => close(), 250);
       } catch (e) {
         setMsg(String(e?.message || e || 'Save failed'));
@@ -1785,81 +1806,13 @@ const ChessPalPages = (() => {
   }
 
   function showAdminEditEventGoldStagesModal() {
-    if (!isAdminMode()) return;
-    const old = document.getElementById('cpEditEventGoldStagesOverlay');
-    if (old) old.remove();
-    const allMonsters = getAllMonsters();
-    const monsterOptions = allMonsters
-      .slice()
-      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
-      .map(m => `<option value="${esc(String(m.id))}">#${esc(String(m.id))} ${esc(String(m.name || 'Monster'))} · ${esc(elementLabel(m.element))} · ${esc(renderStars(m.rarity))}</option>`)
-      .join('');
-    const stages = getEventGoldStages();
-    const overlay = document.createElement('div');
-    overlay.id = 'cpEditEventGoldStagesOverlay';
-    overlay.className = 'cp-modal-overlay';
-    overlay.innerHTML = `
-      <div class="cp-modal cp-editstages-modal" role="dialog" aria-modal="true" aria-label="Gold farming stage settings">
-        <button class="cp-modal-close" type="button" aria-label="Close">×</button>
-        <div class="cp-modal-body">
-          <div class="cp-h1" style="font-size:18px;">Edit stages · Gold Farming Mode</div>
-          <div class="cp-muted" style="margin-top:6px;">Element pool is fixed to Fire / Water / Wood / Heart. Configure monster and level for Stage 1-10.</div>
-          <div class="cp-editstages-list" style="margin-top:12px;">
-            ${Array.from({ length: 10 }, (_, i) => {
-              const cfg = stages[i] || {};
-              const first = normalizeStageMonsters(cfg)[0] || { monsterId: '017', level: 1 };
-              return `
-                <div class="cp-setting-item">
-                  <div class="cp-setting-label">Stage ${esc(String(i + 1))}</div>
-                  <div class="cp-row">
-                    <div style="flex:1 1 260px;">
-                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Monster</div>
-                      <select class="cp-select" data-evgold-monster="${esc(String(i))}">${monsterOptions}</select>
-                    </div>
-                    <div style="width: 140px;">
-                      <div class="cp-setting-help" style="margin-top:0; margin-bottom:6px;">Lv</div>
-                      <input class="cp-input" type="number" min="1" step="1" value="${esc(String(Math.max(1, Math.floor(Number(first.level) || 1))))}" data-evgold-level="${esc(String(i))}">
-                    </div>
-                  </div>
-                  <div class="cp-setting-help" style="margin-top:10px;">Hint</div>
-                  <input class="cp-input" type="text" value="${esc(String(cfg?.hint || 'Fire / Water / Wood / Heart only.'))}" data-evgold-hint="${esc(String(i))}" placeholder="Optional hint">
-                </div>
-              `;
-            }).join('')}
-          </div>
-          <div class="cp-row" style="justify-content:flex-end;">
-            <button class="cp-tool-btn" type="button" id="cpEditEventGoldCancel">Cancel</button>
-            <button class="cp-primary" type="button" id="cpEditEventGoldSave">Save</button>
-          </div>
-          <div class="cp-muted" id="cpEditEventGoldMsg" style="margin-top:10px;"></div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    stages.forEach((cfg, i) => {
-      const first = normalizeStageMonsters(cfg)[0] || { monsterId: '017', level: 1 };
-      const sel = overlay.querySelector(`[data-evgold-monster="${CSS.escape(String(i))}"]`);
-      if (sel) sel.value = String(first.monsterId || '017').trim().padStart(3, '0');
-    });
-    const close = () => { try { overlay.remove(); } catch {} };
-    overlay.querySelector('.cp-modal-close')?.addEventListener('click', close, { passive: true });
-    overlay.querySelector('#cpEditEventGoldCancel')?.addEventListener('click', close, { passive: true });
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('#cpEditEventGoldSave')?.addEventListener('click', () => {
-      const msg = overlay.querySelector('#cpEditEventGoldMsg');
-      try {
-        const next = Array.from({ length: 10 }, (_, i) => {
-          const monsterId = String(overlay.querySelector(`[data-evgold-monster="${CSS.escape(String(i))}"]`)?.value || '017').trim().padStart(3, '0');
-          const level = Math.max(1, Math.floor(Number(overlay.querySelector(`[data-evgold-level="${CSS.escape(String(i))}"]`)?.value) || 1));
-          const hint = String(overlay.querySelector(`[data-evgold-hint="${CSS.escape(String(i))}"]`)?.value || '').trim();
-          return { monsters: [{ monsterId, level, monsterDropChance: 0, drops: [] }], hint, drops: [] };
-        });
-        saveEventGoldStages(next);
-        if (msg) msg.textContent = 'Saved.';
-        setTimeout(close, 400);
-      } catch {
-        if (msg) msg.textContent = 'Failed to save.';
-      }
+    showAdminEditStoryStagesModal(1, {
+      stageCount: 10,
+      modalTitle: 'Edit stages · Gold Farming Mode',
+      modalDesc: 'Pick Monster and Level for each stage. Element pool is fixed to Fire / Water / Wood / Heart.',
+      stageLabel: (i) => (i === 9 ? `Stage ${i + 1} · Boss Stage` : `Stage ${i + 1}`),
+      getStages: () => getEventGoldStages(),
+      onSaveStages: (stages) => saveEventGoldStages(stages),
     });
   }
 
@@ -2003,19 +1956,6 @@ ModeChallengeTimedPage.render = () => `
   </div>
 `;
 ModeChallengeTimedPage.init = () => {
-  if (isAdminMode()) {
-    const host = document.querySelector('.cp-square-grid[aria-label="Event Mode"]');
-    if (host) {
-      const wrap = document.createElement('div');
-      wrap.className = 'cp-row';
-      wrap.style.marginTop = '10px';
-      wrap.innerHTML = `<button class="cp-tool-btn" type="button" id="cpEventGoldSettingBtn">Setting</button>`;
-      host.insertAdjacentElement('beforebegin', wrap);
-      wrap.querySelector('#cpEventGoldSettingBtn')?.addEventListener('click', () => {
-        try { showAdminEditEventGoldStagesModal(); } catch {}
-      }, { passive: true });
-    }
-  }
   document.querySelectorAll('[data-cp-go]').forEach((btn) => {
     btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/challenge')), { passive: true });
   });
@@ -2024,40 +1964,46 @@ ModeChallengeTimedPage.init = () => {
 function EventGoldModePage() {}
 EventGoldModePage.title = 'Gold Farming Mode';
 EventGoldModePage.render = () => {
-  const cleared = getEventGoldClearedStage();
+  const admin = isAdminMode();
   const stages = getEventGoldStages();
+  const cleared = getEventGoldClearedStage();
+  const next = (cleared >= 10) ? 1 : Math.min(10, cleared + 1);
+  const firstCfg = stages[Math.max(0, next - 1)] || stages[0] || {};
+  const firstMon = normalizeStageMonsters(firstCfg)[0] || { monsterId: '017', level: 1 };
+  const mon = getMonsterFromDbQuick(firstMon.monsterId);
+  const img = String(mon?.img || 'images/Storage/S001-Gold-Coin.png');
   return `
-    <div class="cp-chapter-list" aria-label="Gold Farming stages">
-      ${Array.from({ length: 10 }, (_, i) => {
-        const idx = i + 1;
-        const cfg = stages[i] || {};
-        const first = normalizeStageMonsters(cfg)[0] || { monsterId: '017', level: 1 };
-        const mon = getMonsterFromDbQuick(first.monsterId);
-        const img = String(mon?.img || 'images/Storage/S001-Gold-Coin.png');
-        const name = String(mon?.name || `Stage ${idx}`);
-        const locked = idx > (cleared + 1) && !isAdminMode();
-        return `
-          <div class="cp-chapter-tile ${locked ? 'is-locked' : ''}" role="button" tabindex="0" data-cp-event-gold-stage="${esc(String(idx))}" data-cp-locked="${locked ? '1' : '0'}" aria-label="Stage ${esc(String(idx))}">
-            <img class="cp-chapter-img" src="${esc(img)}" alt="${esc(name)}" decoding="async" loading="lazy">
-            <div class="cp-chapter-label">Stage ${esc(String(idx))}</div>
-            <div class="cp-chapter-sub">${locked ? 'Locked' : `${esc(name)} · Lv ${esc(String(first.level || 1))}`}</div>
-          </div>
-        `;
-      }).join('')}
+    <div class="cp-chapter-list" aria-label="Gold Farming chapter">
+      <div class="cp-chapter-tile" role="button" tabindex="0" data-cp-event-gold-chapter="1" aria-label="Gold Farming Chapter">
+        <img class="cp-chapter-img" src="${esc(img)}" alt="Gold Farming Chapter" decoding="async" loading="lazy">
+        <div class="cp-chapter-label">Gold Farming Chapter</div>
+        <div class="cp-chapter-sub">10 stages · Fire / Water / Wood / Heart · Next Stage ${esc(String(next))}</div>
+        ${admin ? `<button class="cp-tool-btn cp-chapter-edit" type="button" data-cp-edit-event-gold="1">Edit stages</button>` : ``}
+      </div>
       <button class="cp-tool-btn" type="button" data-cp-go="/mode/challenge/event">Back</button>
     </div>
   `;
 };
 EventGoldModePage.init = () => {
   document.querySelectorAll('[data-cp-go]').forEach((btn) => btn.addEventListener('click', () => Router.goTo(String(btn.getAttribute('data-cp-go') || '/mode/challenge/event')), { passive: true }));
-  document.querySelectorAll('[data-cp-event-gold-stage]').forEach((tile) => {
+  document.querySelectorAll('[data-cp-event-gold-chapter]').forEach((tile) => {
     tile.addEventListener('click', () => {
-      const locked = String(tile.getAttribute('data-cp-locked') || '0') === '1';
-      if (locked) { try { setMsg('Clear previous stage first.'); } catch {} return; }
-      const s = Math.max(1, Math.min(10, Math.floor(Number(tile.getAttribute('data-cp-event-gold-stage')) || 1)));
-      Router.goTo(`/mode/challenge/event/gold/s${s}`);
+      const cleared = getEventGoldClearedStage();
+      const s = (cleared >= 10) ? 1 : Math.min(10, cleared + 1);
+      Router.goTo(`/mode/challenge/event/gold/ch1/s${s}`);
     }, { passive: true });
+    tile.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { try { ev.preventDefault(); } catch {} try { tile.click(); } catch {} }
+    });
   });
+  if (isAdminMode()) {
+    document.querySelectorAll('[data-cp-edit-event-gold]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        try { ev.preventDefault(); ev.stopPropagation(); } catch {}
+        try { showAdminEditEventGoldStagesModal(); } catch {}
+      }, { passive: false });
+    });
+  }
 };
 
 function EventGoldBattlePage(stageIdx1) {
@@ -2071,13 +2017,13 @@ EventGoldBattlePage.prototype.render = function () {
   const first = mons[0] || { monsterId: '017', level: 1, monsterDropChance: 0, drops: [] };
   window.__cpStoryStage = {
     mode: 'event_gold',
-    chapter: 0,
+    chapter: 1,
     stage: this._st,
-    monsters: [{ ...first, monsterDropChance: 0, drops: [] }],
+    monsters: mons,
     monsterId: String(first.monsterId || '017').trim().padStart(3, '0'),
     monsterLevel: Math.max(1, Math.floor(Number(first.level) || 1)),
     hint: String(cfg?.hint || 'Fire / Water / Wood / Heart only.'),
-    drops: [],
+    drops: Array.isArray(cfg?.drops) ? cfg.drops : [],
   };
   try { window.__cpBoardElements = ['fire', 'water', 'wood', 'heart']; } catch {}
   return PracticePage.render();
@@ -2092,7 +2038,7 @@ EventGoldBattlePage.prototype.init = function () {
     wrap.className = 'cp-stage-intro';
     const t = document.createElement('div');
     t.className = 'cp-stage-intro-text';
-    t.textContent = `Gold Farming · Stage ${this._st}`;
+    t.textContent = `Gold Farming Chapter 1 · Stage ${this._st}`;
     wrap.appendChild(t);
     document.body.appendChild(wrap);
     setTimeout(() => { try { wrap.remove(); } catch {} }, 2600);
@@ -3339,7 +3285,7 @@ EventGoldBattlePage.prototype.destroy = function () {
                 });
               } catch {}
               setTimeout(() => {
-                if (stageNum < 10) Router.goTo(`/mode/challenge/event/gold/s${stageNum + 1}`);
+                if (stageNum < 10) Router.goTo(`/mode/challenge/event/gold/ch1/s${stageNum + 1}`);
                 else Router.goTo('/mode/challenge/event/gold');
               }, 120);
               return;
@@ -8775,6 +8721,16 @@ EventGoldBattlePage.prototype.destroy = function () {
       '/mode/challenge/event': ModeChallengeTimedPage,
       '/mode/challenge/timed': ModeChallengeTimedPage,
       '/mode/challenge/event/gold': EventGoldModePage,
+      '/mode/challenge/event/gold/ch1/s1': new EventGoldBattlePage(1),
+      '/mode/challenge/event/gold/ch1/s2': new EventGoldBattlePage(2),
+      '/mode/challenge/event/gold/ch1/s3': new EventGoldBattlePage(3),
+      '/mode/challenge/event/gold/ch1/s4': new EventGoldBattlePage(4),
+      '/mode/challenge/event/gold/ch1/s5': new EventGoldBattlePage(5),
+      '/mode/challenge/event/gold/ch1/s6': new EventGoldBattlePage(6),
+      '/mode/challenge/event/gold/ch1/s7': new EventGoldBattlePage(7),
+      '/mode/challenge/event/gold/ch1/s8': new EventGoldBattlePage(8),
+      '/mode/challenge/event/gold/ch1/s9': new EventGoldBattlePage(9),
+      '/mode/challenge/event/gold/ch1/s10': new EventGoldBattlePage(10),
       '/mode/challenge/event/gold/s1': new EventGoldBattlePage(1),
       '/mode/challenge/event/gold/s2': new EventGoldBattlePage(2),
       '/mode/challenge/event/gold/s3': new EventGoldBattlePage(3),
