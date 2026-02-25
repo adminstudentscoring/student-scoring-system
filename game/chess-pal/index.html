@@ -8,9 +8,9 @@
     <meta http-equiv="Expires" content="0">
     <title>Chess Pal</title>
     <!-- Bump this value on each deploy to force clients to fetch latest assets. -->
-    <script>window.__CP_ASSET_VERSION = '20260220-2';</script>
-    <link rel="stylesheet" href="styles.css?v=20260220-2">
-    <link rel="stylesheet" href="game-styles.css?v=20260220-2">
+    <script>window.__CP_ASSET_VERSION = '20260220-3';</script>
+    <link rel="stylesheet" href="styles.css?v=20260220-3">
+    <link rel="stylesheet" href="game-styles.css?v=20260220-3">
 </head>
 <body>
     <div class="cp-app" id="cpApp">
@@ -93,17 +93,31 @@
 
     <div class="cp-overlay" id="cpOverlay" aria-hidden="true"></div>
 
-    <script src="config.js?v=20260220-2"></script>
-    <script src="/auth.js?v=20260220-2"></script>
-    <script src="chess-pal.js?v=20260220-2"></script>
-    <script src="hero.js?v=20260220-2"></script>
-    <script src="monster.js?v=20260220-2"></script>
-    <script src="story.js?v=20260220-2"></script>
-    <script src="achievement.js?v=20260220-2"></script>
-    <script src="tutorial-content.js?v=20260220-2"></script>
-    <script src="tutorial-flow.js?v=20260220-2"></script>
-    <script src="pages.js?v=20260220-2"></script>
-    <script src="router.js?v=20260220-2"></script>
+    <script src="config.js?v=20260220-3"></script>
+    <script>
+      (function () {
+        try {
+          var qs = new URLSearchParams(window.location.search || '');
+          var isPublic = String(qs.get('public') || '').trim() === '1';
+          if (isPublic) {
+            window.__cpPublicMode = true;
+            return;
+          }
+          document.write('<script src="/auth.js?v=20260220-3"><\\/script>');
+        } catch (e) {
+          document.write('<script src="/auth.js?v=20260220-3"><\\/script>');
+        }
+      })();
+    </script>
+    <script src="chess-pal.js?v=20260220-3"></script>
+    <script src="hero.js?v=20260220-3"></script>
+    <script src="monster.js?v=20260220-3"></script>
+    <script src="story.js?v=20260220-3"></script>
+    <script src="achievement.js?v=20260220-3"></script>
+    <script src="tutorial-content.js?v=20260220-3"></script>
+    <script src="tutorial-flow.js?v=20260220-3"></script>
+    <script src="pages.js?v=20260220-3"></script>
+    <script src="router.js?v=20260220-3"></script>
 </body>
 </html>
 

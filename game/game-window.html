@@ -192,10 +192,14 @@
                         showError('Royal Exchange script loaded but init function missing.');
                     }
                 } else if (gameKey === 'chessPal') {
+                    const isPublic = String(params.get('public') || '').trim() === '1';
+                    const cpSrc = isPublic
+                        ? '/game/chess-pal/index.html?public=1'
+                        : '/game/chess-pal/index.html';
                     content.innerHTML = `
                         <iframe
                             id="chessPalFrame"
-                            src="/game/chess-pal/index.html"
+                            src="${cpSrc}"
                             title="Chess Pal"
                             style="display:block; width:100%; height:100vh; border:0; background:#060912;"
                             allow="autoplay; fullscreen"

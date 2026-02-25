@@ -392,7 +392,7 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             console.warn('Unable to persist chessPalPlayers', e);
         }
-        const url = `/game/game-window.html?game=chessPal&role=student`;
+        const url = `/game/game-window.html?game=chessPal&role=student&public=1`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
