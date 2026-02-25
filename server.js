@@ -760,16 +760,25 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
     }
 
     const data = await readData();
+    const users = await readUsers();
     if (!data.chessPal) data.chessPal = {};
     if (!data.chessPal.userState || typeof data.chessPal.userState !== 'object' || Array.isArray(data.chessPal.userState)) {
       data.chessPal.userState = {};
     }
 
     const now = Date.now();
+    const teacherIds = (Array.isArray(users) ? users : [])
+      .filter((u) => String(u?.role || '').toLowerCase() === 'teacher')
+      .map((u) => String(u?.id || '').trim())
+      .filter(Boolean);
+    const studentIds = (Array.isArray(data?.students) ? data.students : [])
+      .map((s) => String(s?.id || '').trim())
+      .filter(Boolean);
+    const knownIds = Array.from(new Set(teacherIds.concat(studentIds)));
     let affected = 0;
     if (scope === 'full') {
       if (mode === 'all') {
-        const ids = Object.keys(data.chessPal.userState || {});
+        const ids = Array.from(new Set(Object.keys(data.chessPal.userState || {}).concat(knownIds)));
         for (const uid of ids) {
           data.chessPal.userState[uid] = { state: {}, updatedAt: now };
         }
@@ -779,14 +788,16 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
         affected = 1;
       }
     } else if (mode === 'all') {
-      const entries = Object.entries(data.chessPal.userState || {});
-      for (const [uid, entry] of entries) {
+      const ids = Array.from(new Set(Object.keys(data.chessPal.userState || {}).concat(knownIds)));
+      for (const uid of ids) {
+        const entry = data.chessPal.userState[uid];
         const state = sanitizeChessPalState(entry?.state || {});
-        if (!Object.prototype.hasOwnProperty.call(state, 'chessPalOnboarding')) continue;
-        delete state.chessPalOnboarding;
+        if (Object.prototype.hasOwnProperty.call(state, 'chessPalOnboarding')) {
+          delete state.chessPalOnboarding;
+        }
         data.chessPal.userState[uid] = { state, updatedAt: now };
-        affected += 1;
       }
+      affected = ids.length;
     } else {
       const entry = data.chessPal.userState[userId];
       const state = sanitizeChessPalState(entry?.state || {});
