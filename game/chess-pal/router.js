@@ -152,8 +152,19 @@ const Router = (() => {
 
   function getSidebarPlayerName() {
     try {
-      const u = window.authUtils?.getCurrentUser?.() || null;
-      const name = String(u?.name || u?.displayName || u?.username || u?.email || 'Player').trim();
+      // Prefer shared student context for public share links.
+      let name = '';
+      try {
+        const raw = localStorage.getItem('chessPalPlayers');
+        const arr = JSON.parse(raw || '[]');
+        const p0 = Array.isArray(arr) ? arr[0] : null;
+        name = String(p0?.name || '').trim();
+      } catch {}
+      if (!name) {
+        const u = window.authUtils?.getCurrentUser?.() || null;
+        name = String(u?.name || u?.displayName || u?.username || u?.email || '').trim();
+      }
+      if (!name) name = 'Player';
       return name || 'Player';
     } catch {
       return 'Player';

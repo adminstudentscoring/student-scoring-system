@@ -3045,6 +3045,29 @@ EventGoldBattlePage.prototype.destroy = function () {
       }, { passive: true });
     };
 
+    const showChapter1TrainingReviveModal = () => {
+      const old = document.getElementById('cpResultOverlay');
+      if (old) old.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'cpResultOverlay';
+      overlay.className = 'cp-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cp-modal" role="dialog" aria-modal="true" aria-label="Chapter 1 protection">
+          <div class="cp-modal-body" style="text-align:center; padding:24px;">
+            <div class="cp-h1" style="font-size:24px;">Training Protection</div>
+            <div class="cp-muted" style="margin-top:10px;">Chapter 1 protection activated. HP is fully restored.</div>
+            <div class="cp-row" style="justify-content:center; gap:10px; margin-top:16px;">
+              <button class="cp-primary" type="button" id="cpResultTrainingOk">OK</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#cpResultTrainingOk')?.addEventListener('click', () => {
+        try { overlay.remove(); } catch {}
+      }, { passive: true });
+    };
+
     const showChapterClearModal = ({ chapter, itemIds, monsterIds, expGain, levelInfo, backRoute = '/home', backLabel = 'Back to Home' }) => {
       const old = document.getElementById('cpResultOverlay');
       if (old) old.remove();
@@ -3737,6 +3760,10 @@ EventGoldBattlePage.prototype.destroy = function () {
                   let slots = loadStorage();
                   const itemIds = (sess && Array.isArray(sess.itemDrops)) ? sess.itemDrops : [];
                   itemIds.forEach((itemId) => { slots = addItemToStorage(slots, itemId, 1); });
+                  if (ch === 1) {
+                    slots = addItemToStorage(slots, 'exp_pawn', 1);
+                    itemIds.push('exp_pawn');
+                  }
 
                   if (ch && window.ChessPalStory?.hasClaimedChapterReward && window.ChessPalStory?.markChapterRewardClaimed) {
                     const claimed = !!window.ChessPalStory.hasClaimedChapterReward(ch);
@@ -4042,6 +4069,16 @@ EventGoldBattlePage.prototype.destroy = function () {
           }
         }
         if ((Number(b.playerHp) || 0) <= 0 && isStoryBattleActive()) {
+          try {
+            const chNow = Math.max(1, Math.floor(Number(window.__cpStoryStage?.chapter) || 1));
+            if (chNow === 1) {
+              const pMax = Math.max(0, Number(b.playerMaxHp) || 0);
+              b.playerHp = pMax;
+              updateHpUI();
+              showChapter1TrainingReviveModal();
+              return;
+            }
+          } catch {}
           showStoryDefeatSettleModal({
             onRevive: () => {
               try {
@@ -5234,10 +5271,25 @@ EventGoldBattlePage.prototype.destroy = function () {
     const searchEl = document.getElementById('cpHeroesSearch');
     const elemEl = document.getElementById('cpHeroesElementFilter');
     const rarityEl = document.getElementById('cpHeroesRarityFilter');
+    try {
+      if (window.ChessPalTutorialFlow?.isActive?.() && String(window.ChessPalTutorialFlow?.getState?.()?.step || '') === 'hero_levelup_click') {
+        if (searchEl) searchEl.value = '';
+        if (elemEl) elemEl.value = '';
+        if (rarityEl) rarityEl.value = '';
+      }
+    } catch {}
     const renderList = () => {
       const q = String(searchEl?.value || '').trim().toLowerCase();
       const ef = String(elemEl?.value || '').trim().toLowerCase();
       const rf = String(rarityEl?.value || '').trim();
+      const forceNyx = (() => {
+        try {
+          if (!window.ChessPalTutorialFlow?.isActive?.()) return false;
+          return String(window.ChessPalTutorialFlow?.getState?.()?.step || '') === 'hero_levelup_click';
+        } catch {
+          return false;
+        }
+      })();
       const list = baseList.filter((h) => {
         if (q) {
           const s = `${String(h.id || '').toLowerCase()} ${String(h.name || '').toLowerCase()}`;
@@ -5253,7 +5305,7 @@ EventGoldBattlePage.prototype.destroy = function () {
         return Number(String(a?.id || 0)) - Number(String(b?.id || 0));
       });
       host.innerHTML = list.map(h => `
-      <button class="cp-hero-card ${teamHeroSet.has(String(h.id || '').trim().padStart(3, '0')) ? 'is-inteam' : ''}" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
+      <button class="cp-hero-card ${teamHeroSet.has(String(h.id || '').trim().padStart(3, '0')) ? 'is-inteam' : ''} ${(forceNyx && String(h.id || '').trim().padStart(3, '0') === '002') ? 'is-tutorial-target' : ''}" type="button" data-hero-id="${esc(h.id)}" data-element="${esc(String(h.element || ''))}">
         <div class="cp-hero-mini">
           <img src="${esc(h.mini || h.img)}" alt="${esc(h.name)}" decoding="async" loading="lazy">
           <div class="cp-mini-lv">Lv ${esc(h.level)}</div>
@@ -5287,6 +5339,7 @@ EventGoldBattlePage.prototype.destroy = function () {
           if (hero) showHeroModal(hero);
         });
       });
+      try { window.ChessPalTutorialFlow?.applyRouteFocus?.('/heroes'); } catch {}
     };
     searchEl?.addEventListener('input', renderList);
     elemEl?.addEventListener('change', renderList);
