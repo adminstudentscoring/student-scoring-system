@@ -9320,12 +9320,30 @@ EventGoldBattlePage.prototype.destroy = function () {
       };
       const clearLocalChessPalState = () => {
         try {
-          const keys = [];
-          for (let i = 0; i < localStorage.length; i += 1) {
-            const k = localStorage.key(i);
-            if (String(k || '').startsWith('chessPal')) keys.push(k);
-          }
-          keys.forEach((k) => {
+          // Only clear player-progress keys. Keep admin/global config keys
+          // like story stage definitions, summon config, mall config, etc.
+          const progressKeys = new Set([
+            'chessPalPreset',
+            'chessPalChessComReward',
+            'chessPalOwnedHeroes',
+            'chessPalOwnedMonsters',
+            'chessPalSeenMonsters',
+            'chessPalStoryProgress',
+            'chessPalPlayerProgress',
+            'chessPalHeroProgress',
+            'chessPalMonsterProgress',
+            'chessPalTeams',
+            'chessPalStorage',
+            'chessPalFreeSilverClaimDate',
+            'chessPalOnboarding',
+            'chessPalCloudLocalUpdatedAt',
+            'chessPalEventGoldProgress',
+            'chessPalHeroLevelOverride',
+            'chessPalHeroCdOverride',
+            'chessPalMonsterLevelOverride',
+            'chessPalMonsterCdOverride',
+          ]);
+          progressKeys.forEach((k) => {
             try { localStorage.removeItem(k); } catch {}
           });
         } catch {}
