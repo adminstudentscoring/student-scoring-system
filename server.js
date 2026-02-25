@@ -748,8 +748,12 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
   try {
     const mode = String(req?.body?.mode || '').trim().toLowerCase();
     const userId = String(req?.body?.userId || '').trim();
+    const scope = String(req?.body?.scope || 'full').trim().toLowerCase();
     if (mode !== 'all' && mode !== 'user') {
       return res.status(400).json({ error: 'Invalid mode. Use "all" or "user".' });
+    }
+    if (scope !== 'full' && scope !== 'onboarding') {
+      return res.status(400).json({ error: 'Invalid scope. Use "full" or "onboarding".' });
     }
     if (mode === 'user' && !userId) {
       return res.status(400).json({ error: 'userId is required when mode is "user".' });
@@ -761,21 +765,41 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
       data.chessPal.userState = {};
     }
 
+    const now = Date.now();
     let affected = 0;
-    if (mode === 'all') {
-      affected = Object.keys(data.chessPal.userState || {}).length;
-      data.chessPal.userState = {};
+    if (scope === 'full') {
+      if (mode === 'all') {
+        affected = Object.keys(data.chessPal.userState || {}).length;
+        data.chessPal.userState = {};
+      } else if (Object.prototype.hasOwnProperty.call(data.chessPal.userState, userId)) {
+        delete data.chessPal.userState[userId];
+        affected = 1;
+      }
+    } else if (mode === 'all') {
+      const entries = Object.entries(data.chessPal.userState || {});
+      for (const [uid, entry] of entries) {
+        const state = sanitizeChessPalState(entry?.state || {});
+        if (!Object.prototype.hasOwnProperty.call(state, 'chessPalOnboarding')) continue;
+        delete state.chessPalOnboarding;
+        data.chessPal.userState[uid] = { state, updatedAt: now };
+        affected += 1;
+      }
     } else if (Object.prototype.hasOwnProperty.call(data.chessPal.userState, userId)) {
-      delete data.chessPal.userState[userId];
-      affected = 1;
+      const entry = data.chessPal.userState[userId];
+      const state = sanitizeChessPalState(entry?.state || {});
+      if (Object.prototype.hasOwnProperty.call(state, 'chessPalOnboarding')) {
+        delete state.chessPalOnboarding;
+        data.chessPal.userState[userId] = { state, updatedAt: now };
+        affected = 1;
+      }
     }
 
-    const now = Date.now();
     data.lastUpdate = new Date().toISOString();
     await writeData(data);
     res.json({
       success: true,
       mode,
+      scope,
       userId: mode === 'user' ? userId : null,
       affected,
       updatedAt: now,

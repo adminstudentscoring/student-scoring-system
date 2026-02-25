@@ -9158,6 +9158,10 @@ EventGoldBattlePage.prototype.destroy = function () {
                   <select class="cp-select" id="cpResetStateUser"></select>
                 </label>
                 <div class="cp-row" style="justify-content:flex-end; gap:8px;">
+                  <button class="cp-tool-btn" type="button" id="cpResetOnboardingUserBtn" style="background:#7f1d1d; border-color:#b91c1c; color:#fee2e2;">Reset Tutorial (Selected User)</button>
+                  <button class="cp-tool-btn" type="button" id="cpResetOnboardingAllBtn" style="background:#7f1d1d; border-color:#b91c1c; color:#fee2e2;">Reset Tutorial (All Users)</button>
+                </div>
+                <div class="cp-row" style="justify-content:flex-end; gap:8px;">
                   <button class="cp-tool-btn" type="button" id="cpResetStateUserBtn" style="background:#7f1d1d; border-color:#b91c1c; color:#fee2e2;">Reset Selected User</button>
                   <button class="cp-tool-btn" type="button" id="cpResetStateAllBtn" style="background:#7f1d1d; border-color:#b91c1c; color:#fee2e2;">Reset All Users</button>
                 </div>
@@ -9257,6 +9261,8 @@ EventGoldBattlePage.prototype.destroy = function () {
       const summonBgPrev = document.getElementById('cpSummonBgPreview');
       const resetUserSearch = document.getElementById('cpResetStateUserSearch');
       const resetUserSel = document.getElementById('cpResetStateUser');
+      const resetOnboardingUserBtn = document.getElementById('cpResetOnboardingUserBtn');
+      const resetOnboardingAllBtn = document.getElementById('cpResetOnboardingAllBtn');
       const resetUserBtn = document.getElementById('cpResetStateUserBtn');
       const resetAllBtn = document.getElementById('cpResetStateAllBtn');
       const resetMsg = document.getElementById('cpResetStateMsg');
@@ -9292,8 +9298,13 @@ EventGoldBattlePage.prototype.destroy = function () {
       const setResetMsg = (t) => { if (resetMsg) resetMsg.textContent = String(t || ''); };
       const setResetBusy = (busy) => {
         const disabled = !!busy;
+        if (resetOnboardingUserBtn) resetOnboardingUserBtn.disabled = disabled;
+        if (resetOnboardingAllBtn) resetOnboardingAllBtn.disabled = disabled;
         if (resetUserBtn) resetUserBtn.disabled = disabled;
         if (resetAllBtn) resetAllBtn.disabled = disabled;
+      };
+      const clearLocalChessPalOnboardingOnly = () => {
+        try { localStorage.removeItem('chessPalOnboarding'); } catch {}
       };
       const clearLocalChessPalState = () => {
         try {
@@ -9382,6 +9393,46 @@ EventGoldBattlePage.prototype.destroy = function () {
             try { Router.goTo('/home'); } catch {}
           }
           setResetMsg(`Reset completed for #${userId}. Affected: ${Math.max(0, Math.floor(Number(result?.affected) || 0))}.`);
+        } catch (e) {
+          setResetMsg(String(e?.message || e || 'Reset failed.'));
+        } finally {
+          setResetBusy(false);
+        }
+      }, { passive: true });
+
+      resetOnboardingUserBtn?.addEventListener('click', async () => {
+        try {
+          const userId = String(resetUserSel?.value || '').trim();
+          if (!userId) throw new Error('Please select a target user.');
+          const target = adminUsers.find((u) => String(u.id) === userId);
+          const targetName = String(target?.name || userId);
+          const ok = window.confirm(`Reset tutorial progress for "${targetName}" (#${userId})?`);
+          if (!ok) return;
+          setResetBusy(true);
+          const result = await resetChessPalStateByAdmin({ mode: 'user', scope: 'onboarding', userId });
+          if (currentUserId && userId === currentUserId) {
+            clearLocalChessPalOnboardingOnly();
+            try { Router.goTo('/home'); } catch {}
+          }
+          setResetMsg(`Tutorial reset completed for #${userId}. Affected: ${Math.max(0, Math.floor(Number(result?.affected) || 0))}.`);
+        } catch (e) {
+          setResetMsg(String(e?.message || e || 'Reset failed.'));
+        } finally {
+          setResetBusy(false);
+        }
+      }, { passive: true });
+
+      resetOnboardingAllBtn?.addEventListener('click', async () => {
+        try {
+          const ok = window.confirm('Reset tutorial progress for ALL users?');
+          if (!ok) return;
+          setResetBusy(true);
+          const result = await resetChessPalStateByAdmin({ mode: 'all', scope: 'onboarding' });
+          if (currentUserId) {
+            clearLocalChessPalOnboardingOnly();
+            try { Router.goTo('/home'); } catch {}
+          }
+          setResetMsg(`All users tutorial reset completed. Affected: ${Math.max(0, Math.floor(Number(result?.affected) || 0))}.`);
         } catch (e) {
           setResetMsg(String(e?.message || e || 'Reset failed.'));
         } finally {
