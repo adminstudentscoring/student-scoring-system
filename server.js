@@ -767,14 +767,17 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
     }
 
     const now = Date.now();
-    const teacherIds = (Array.isArray(users) ? users : [])
-      .filter((u) => String(u?.role || '').toLowerCase() === 'teacher')
+    const accountIds = (Array.isArray(users) ? users : [])
+      .filter((u) => {
+        const role = String(u?.role || '').toLowerCase();
+        return role === 'teacher' || role === 'student';
+      })
       .map((u) => String(u?.id || '').trim())
       .filter(Boolean);
     const studentIds = (Array.isArray(data?.students) ? data.students : [])
       .map((s) => String(s?.id || '').trim())
       .filter(Boolean);
-    const knownIds = Array.from(new Set(teacherIds.concat(studentIds)));
+    const knownIds = Array.from(new Set(accountIds.concat(studentIds)));
     let affected = 0;
     if (scope === 'full') {
       if (mode === 'all') {
