@@ -744,6 +744,48 @@ app.get('/api/admin/chess-pal/users', authenticateUser, authorizeRole('admin'), 
   }
 });
 
+app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const mode = String(req?.body?.mode || '').trim().toLowerCase();
+    const userId = String(req?.body?.userId || '').trim();
+    if (mode !== 'all' && mode !== 'user') {
+      return res.status(400).json({ error: 'Invalid mode. Use "all" or "user".' });
+    }
+    if (mode === 'user' && !userId) {
+      return res.status(400).json({ error: 'userId is required when mode is "user".' });
+    }
+
+    const data = await readData();
+    if (!data.chessPal) data.chessPal = {};
+    if (!data.chessPal.userState || typeof data.chessPal.userState !== 'object' || Array.isArray(data.chessPal.userState)) {
+      data.chessPal.userState = {};
+    }
+
+    let affected = 0;
+    if (mode === 'all') {
+      affected = Object.keys(data.chessPal.userState || {}).length;
+      data.chessPal.userState = {};
+    } else if (Object.prototype.hasOwnProperty.call(data.chessPal.userState, userId)) {
+      delete data.chessPal.userState[userId];
+      affected = 1;
+    }
+
+    const now = Date.now();
+    data.lastUpdate = new Date().toISOString();
+    await writeData(data);
+    res.json({
+      success: true,
+      mode,
+      userId: mode === 'user' ? userId : null,
+      affected,
+      updatedAt: now,
+    });
+  } catch (e) {
+    console.error('[chess-pal] PUT /api/admin/chess-pal/state-reset failed:', e);
+    res.status(500).json({ error: 'Failed to reset Chess Pal state' });
+  }
+});
+
 // Log whether level-badge assets exist at startup (helps diagnose production 404s).
 (async () => {
   try {

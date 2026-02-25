@@ -9143,6 +9143,27 @@ EventGoldBattlePage.prototype.destroy = function () {
                 </div>
               </div>
             </div>
+
+            <div class="cp-setting-item">
+              <div class="cp-setting-label">Admin · Reset Progress</div>
+              <div class="cp-setting-help">Force a fresh start by clearing Chess Pal DB state for one user or all users.</div>
+
+              <div style="display:grid; grid-template-columns: 1fr; gap: 10px; margin-top:10px;">
+                <label class="cp-setting-help" style="display:block;">
+                  Target user search
+                  <input class="cp-input" id="cpResetStateUserSearch" type="text" placeholder="Search by name or ID">
+                </label>
+                <label class="cp-setting-help" style="display:block;">
+                  Target user
+                  <select class="cp-select" id="cpResetStateUser"></select>
+                </label>
+                <div class="cp-row" style="justify-content:flex-end; gap:8px;">
+                  <button class="cp-tool-btn" type="button" id="cpResetStateUserBtn" style="background:#7f1d1d; border-color:#b91c1c; color:#fee2e2;">Reset Selected User</button>
+                  <button class="cp-tool-btn" type="button" id="cpResetStateAllBtn" style="background:#7f1d1d; border-color:#b91c1c; color:#fee2e2;">Reset All Users</button>
+                </div>
+                <div class="cp-muted" id="cpResetStateMsg"></div>
+              </div>
+            </div>
           ` : ``}
         </div>
       </div>
@@ -9234,6 +9255,11 @@ EventGoldBattlePage.prototype.destroy = function () {
       const summonBg = document.getElementById('cpSettingSummonBg');
       const practiceBgPrev = document.getElementById('cpPracticeBgPreview');
       const summonBgPrev = document.getElementById('cpSummonBgPreview');
+      const resetUserSearch = document.getElementById('cpResetStateUserSearch');
+      const resetUserSel = document.getElementById('cpResetStateUser');
+      const resetUserBtn = document.getElementById('cpResetStateUserBtn');
+      const resetAllBtn = document.getElementById('cpResetStateAllBtn');
+      const resetMsg = document.getElementById('cpResetStateMsg');
       const applyNum = (key, raw, min, max) => {
         const next = getGeneralSettings();
         const n = Number(raw);
@@ -9261,6 +9287,124 @@ EventGoldBattlePage.prototype.destroy = function () {
       summonBg?.addEventListener('change', () => {
         applyStr('summonBg', summonBg.value);
         if (summonBgPrev) summonBgPrev.setAttribute('src', String(summonBg.value || '').trim());
+      }, { passive: true });
+
+      const setResetMsg = (t) => { if (resetMsg) resetMsg.textContent = String(t || ''); };
+      const setResetBusy = (busy) => {
+        const disabled = !!busy;
+        if (resetUserBtn) resetUserBtn.disabled = disabled;
+        if (resetAllBtn) resetAllBtn.disabled = disabled;
+      };
+      const clearLocalChessPalState = () => {
+        try {
+          const keys = [];
+          for (let i = 0; i < localStorage.length; i += 1) {
+            const k = localStorage.key(i);
+            if (String(k || '').startsWith('chessPal')) keys.push(k);
+          }
+          keys.forEach((k) => {
+            try { localStorage.removeItem(k); } catch {}
+          });
+        } catch {}
+        try { window.__cpStoryRunSession = null; } catch {}
+        try { window.__cpEventGoldRunSession = null; } catch {}
+      };
+      const resetChessPalStateByAdmin = async (payload) => {
+        if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') {
+          throw new Error('Authentication not ready.');
+        }
+        const resp = await window.authUtils.authenticatedFetch('/admin/chess-pal/state-reset', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {}),
+        });
+        if (!resp || !resp.ok) {
+          const err = await resp?.json?.().catch(() => ({}));
+          throw new Error(String(err?.error || 'Reset failed'));
+        }
+        return resp.json().catch(() => ({}));
+      };
+
+      let adminUsers = [];
+      let currentUserId = '';
+      const renderResetUsers = () => {
+        if (!resetUserSel) return;
+        const q = String(resetUserSearch?.value || '').trim().toLowerCase();
+        const list = adminUsers.filter((u) => {
+          if (!q) return true;
+          return String(u?.id || '').toLowerCase().includes(q) || String(u?.name || '').toLowerCase().includes(q);
+        });
+        resetUserSel.innerHTML = list.map((u) => {
+          const role = String(u?.role || '').toLowerCase();
+          const roleTag = role === 'teacher' ? ' [Teacher]' : (role === 'student' ? ' [Student]' : '');
+          return `<option value="${esc(String(u.id || ''))}">#${esc(String(u.id || ''))} ${esc(String(u.name || 'User'))}${esc(roleTag)}</option>`;
+        }).join('');
+      };
+
+      resetUserSearch?.addEventListener('input', () => { try { renderResetUsers(); } catch {} });
+      (async () => {
+        try {
+          const meResp = await window.authUtils?.authenticatedFetch?.('/auth/me', { method: 'GET' });
+          if (meResp && meResp.ok) {
+            const me = await meResp.json().catch(() => ({}));
+            currentUserId = String(me?.id || '').trim();
+          }
+          const usersResp = await window.authUtils?.authenticatedFetch?.('/admin/chess-pal/users', { method: 'GET' });
+          if (!usersResp || !usersResp.ok) throw new Error('Failed to load users.');
+          const rows = await usersResp.json().catch(() => []);
+          adminUsers = (Array.isArray(rows) ? rows : [])
+            .map((u) => ({
+              id: String(u?.id || '').trim(),
+              name: String(u?.name || 'User').trim() || 'User',
+              role: String(u?.role || '').trim().toLowerCase(),
+            }))
+            .filter((u) => u.id)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          renderResetUsers();
+          if (resetUserSel && currentUserId) resetUserSel.value = currentUserId;
+        } catch (e) {
+          setResetMsg(String(e?.message || e || 'Failed to load users.'));
+        }
+      })();
+
+      resetUserBtn?.addEventListener('click', async () => {
+        try {
+          const userId = String(resetUserSel?.value || '').trim();
+          if (!userId) throw new Error('Please select a target user.');
+          const target = adminUsers.find((u) => String(u.id) === userId);
+          const targetName = String(target?.name || userId);
+          const ok = window.confirm(`Reset Chess Pal progress for "${targetName}" (#${userId})?`);
+          if (!ok) return;
+          setResetBusy(true);
+          const result = await resetChessPalStateByAdmin({ mode: 'user', userId });
+          if (currentUserId && userId === currentUserId) {
+            clearLocalChessPalState();
+            try { Router.goTo('/home'); } catch {}
+          }
+          setResetMsg(`Reset completed for #${userId}. Affected: ${Math.max(0, Math.floor(Number(result?.affected) || 0))}.`);
+        } catch (e) {
+          setResetMsg(String(e?.message || e || 'Reset failed.'));
+        } finally {
+          setResetBusy(false);
+        }
+      }, { passive: true });
+
+      resetAllBtn?.addEventListener('click', async () => {
+        try {
+          const ok = window.confirm('Reset Chess Pal progress for ALL users? This cannot be undone.');
+          if (!ok) return;
+          setResetBusy(true);
+          const result = await resetChessPalStateByAdmin({ mode: 'all' });
+          if (currentUserId) {
+            clearLocalChessPalState();
+            try { Router.goTo('/home'); } catch {}
+          }
+          setResetMsg(`All users reset completed. Affected: ${Math.max(0, Math.floor(Number(result?.affected) || 0))}.`);
+        } catch (e) {
+          setResetMsg(String(e?.message || e || 'Reset failed.'));
+        } finally {
+          setResetBusy(false);
+        }
       }, { passive: true });
     }
   };
