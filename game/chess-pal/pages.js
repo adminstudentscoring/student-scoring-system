@@ -4884,6 +4884,16 @@ EventGoldBattlePage.prototype.destroy = function () {
         }
       } catch {}
       lvlBtn.addEventListener('click', () => {
+        try {
+          if (window.ChessPalTutorialFlow?.isActive?.()) {
+            const hid = String(h?.id || '').trim().padStart(3, '0');
+            const ok = !!window.ChessPalTutorialFlow?.guardHeroSelection?.(hid);
+            if (!ok) {
+              try { setMsg('Please level up #002 Nyxblade first.'); } catch {}
+              return;
+            }
+          }
+        } catch {}
         try { window.ChessPalTutorialFlow?.onHeroLevelUpClicked?.(); } catch {}
         showLevelUpModal({ kind: 'hero', id: String(h.id || ''), name: String(h.name || '') });
       }, { passive: true });
@@ -5249,6 +5259,16 @@ EventGoldBattlePage.prototype.destroy = function () {
             const owned2 = getOwnedHeroSet();
             if (!owned2.has(id)) return;
           }
+          try {
+            if (window.ChessPalTutorialFlow?.isActive?.()) {
+              const ok = !!window.ChessPalTutorialFlow?.guardHeroSelection?.(id);
+              if (!ok) {
+                const req = String(window.ChessPalTutorialFlow?.requiredHeroIdForLevelUpStep?.() || '002');
+                try { setMsg(`Please select #${req} Nyxblade for this tutorial step.`); } catch {}
+                return;
+              }
+            }
+          } catch {}
           const hero = getAllHeroes().find(x => x.id === id);
           if (hero) showHeroModal(hero);
         });

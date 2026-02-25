@@ -1126,17 +1126,6 @@ body.cp-tutorial-dim-active #cpPageContainer .cp-tutorial-focus *{
   to { box-shadow: 0 0 0 1px rgba(186,230,253,0.60), 0 0 16px rgba(56,189,248,0.55), 0 14px 28px rgba(14,116,144,0.35); }
 }
 
-body.cp-tutorial-dim-active .cp-app{
-  position: relative;
-}
-body.cp-tutorial-dim-active .cp-app::after{
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: rgba(2,6,23,0.68);
-  z-index: 44;
-  pointer-events: none;
-}
 .cp-tutorial-focus{
   position: relative !important;
   z-index: 46 !important;

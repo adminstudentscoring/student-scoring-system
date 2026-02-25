@@ -109,7 +109,7 @@
     if (path === '/mode/story' && step === 'story_ch1_click') return spotlight('[data-cp-chapter="1"]');
     if (path === '/home' && step === 'home_pal_click') return spotlight('[data-cp-home="pal"]');
     if (path === '/pal' && step === 'pal_hero_click') return spotlight('[data-cp-pal="hero"]');
-    if (path === '/heroes' && step === 'hero_levelup_click') return spotlight('[data-hero-id]');
+    if (path === '/heroes' && step === 'hero_levelup_click') return spotlight('[data-hero-id="002"]');
     if (path === '/home' && step === 'home_mode_click') return spotlight('.cp-nav-btn[data-route="/mode"]');
     if (path === '/mode' && step === 'mode_story_click') return spotlight('[data-cp-mode="story"]');
     if (path === '/mode/story' && step === 'story_ch2_click') return spotlight('[data-cp-chapter="2"]');
@@ -163,6 +163,18 @@
     if (step === 'mode_story_click') return r === '/mode';
     if (step === 'story_ch2_click' || step === 'story_ch2_team_confirm' || step === 'ch2s1_end_tutorial_modal') return r === '/mode/story';
     return true;
+  }
+
+  function requiredHeroIdForLevelUpStep() {
+    return '002';
+  }
+
+  function guardHeroSelection(heroId) {
+    if (!isActive()) return true;
+    const step = String(getState().step || '');
+    if (step !== 'hero_levelup_click') return true;
+    const id = String(heroId || '').trim().padStart(3, '0');
+    return id === requiredHeroIdForLevelUpStep();
   }
 
   function onHomeStorySelected() {
@@ -373,7 +385,9 @@
     guardModeTile,
     guardPalTile,
     guardChapterSelection,
+    guardHeroSelection,
     guardNavRoute,
+    requiredHeroIdForLevelUpStep,
     onHomeStorySelected,
     onHomePalSelected,
     onPalHeroSelected,
