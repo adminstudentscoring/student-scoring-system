@@ -769,10 +769,13 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
     let affected = 0;
     if (scope === 'full') {
       if (mode === 'all') {
-        affected = Object.keys(data.chessPal.userState || {}).length;
-        data.chessPal.userState = {};
-      } else if (Object.prototype.hasOwnProperty.call(data.chessPal.userState, userId)) {
-        delete data.chessPal.userState[userId];
+        const ids = Object.keys(data.chessPal.userState || {});
+        for (const uid of ids) {
+          data.chessPal.userState[uid] = { state: {}, updatedAt: now };
+        }
+        affected = ids.length;
+      } else {
+        data.chessPal.userState[userId] = { state: {}, updatedAt: now };
         affected = 1;
       }
     } else if (mode === 'all') {
@@ -784,14 +787,14 @@ app.put('/api/admin/chess-pal/state-reset', authenticateUser, authorizeRole('adm
         data.chessPal.userState[uid] = { state, updatedAt: now };
         affected += 1;
       }
-    } else if (Object.prototype.hasOwnProperty.call(data.chessPal.userState, userId)) {
+    } else {
       const entry = data.chessPal.userState[userId];
       const state = sanitizeChessPalState(entry?.state || {});
       if (Object.prototype.hasOwnProperty.call(state, 'chessPalOnboarding')) {
         delete state.chessPalOnboarding;
-        data.chessPal.userState[userId] = { state, updatedAt: now };
-        affected = 1;
       }
+      data.chessPal.userState[userId] = { state, updatedAt: now };
+      affected = 1;
     }
 
     data.lastUpdate = new Date().toISOString();

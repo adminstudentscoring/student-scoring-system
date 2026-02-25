@@ -53,6 +53,12 @@ const ChessPalPages = (() => {
     }
   }
 
+  function clearChessPalCloudKeysLocal() {
+    for (const k of CHESS_PAL_CLOUD_KEYS) {
+      try { localStorage.removeItem(k); } catch {}
+    }
+  }
+
   async function saveChessPalCloudStateNow() {
     if (!cpCloudSyncReady || cpCloudHydrating) {
       cpCloudPendingDirty = true;
@@ -116,6 +122,12 @@ const ChessPalPages = (() => {
         // - if local has data and is newer (or cloud empty), push local to cloud
         if (cloudHasData && (!localHasData || cloudTs >= localTs)) {
           importChessPalCloudState(cloudState);
+          try { localStorage.setItem(CHESS_PAL_CLOUD_LOCAL_TS_KEY, String(cloudTs || Date.now())); } catch {}
+        } else if (!cloudHasData && cloudTs > 0 && cloudTs >= localTs) {
+          // Server can intentionally force-reset progress to an empty state.
+          // When that reset timestamp is newer, clear local keys instead of re-uploading stale local data.
+          clearChessPalCloudKeysLocal();
+          try { localStorage.setItem(CHESS_PAL_CLOUD_LOCAL_TS_KEY, String(cloudTs)); } catch {}
         } else if (localHasData) {
           await window.authUtils.authenticatedFetch('/chess-pal/state', {
             method: 'PUT',
