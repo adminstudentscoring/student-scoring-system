@@ -1,6 +1,15 @@
 // Page components for Chess Pal (iPad-first)
 
 const ChessPalPages = (() => {
+  function isChessPalPublicMode() {
+    try {
+      const qs = new URLSearchParams(window.location.search || '');
+      return String(qs.get('public') || '').trim() === '1';
+    } catch {
+      return false;
+    }
+  }
+
   const CHESS_PAL_CLOUD_KEYS = [
     'chessPalPreset',
     'chessPalChessComReward',
@@ -88,6 +97,7 @@ const ChessPalPages = (() => {
 
   async function initChessPalCloudStateSync() {
     try {
+      if (isChessPalPublicMode()) return;
       if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
       cpCloudHydrating = true;
       const localStateBefore = exportChessPalCloudState();
@@ -288,10 +298,13 @@ const ChessPalPages = (() => {
     try { window.addEventListener(evName, queueChessPalCloudSave); } catch {}
   });
   try { patchLocalStorageForCloudSync(); } catch {}
-  try { initChessPalCloudStateSync(); } catch {}
+  try {
+    if (!isChessPalPublicMode()) initChessPalCloudStateSync();
+  } catch {}
 
   async function syncChessPalGlobalConfigFromServer() {
     try {
+      if (isChessPalPublicMode()) return;
       if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
       const resp = await window.authUtils.authenticatedFetch('/chess-pal/global-config', { method: 'GET' });
       if (!resp || !resp.ok) return;
@@ -727,6 +740,7 @@ const ChessPalPages = (() => {
 
   async function syncStoryStagesFromServer() {
     try {
+      if (isChessPalPublicMode()) return;
       if (!window.authUtils || typeof window.authUtils.authenticatedFetch !== 'function') return;
       const resp = await window.authUtils.authenticatedFetch('/chess-pal/story-stages', { method: 'GET' });
       if (!resp || !resp.ok) return;

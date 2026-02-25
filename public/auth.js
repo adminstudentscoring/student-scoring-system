@@ -2,6 +2,17 @@
  * Authentication utilities for frontend
  */
 
+function isChessPalPublicMode() {
+    try {
+        const path = String(window.location.pathname || '');
+        if (!path.includes('/game/chess-pal/')) return false;
+        const qs = new URLSearchParams(window.location.search || '');
+        return String(qs.get('public') || '').trim() === '1';
+    } catch {
+        return false;
+    }
+}
+
 function buildApiUrl(url) {
     const u = String(url || '');
     // Always use absolute path so the browser never treats "api" as a hostname (e.g. https://api/...).
@@ -49,6 +60,10 @@ function hasRole(role) {
  * Logout user
  */
 function logout() {
+    if (isChessPalPublicMode()) {
+        // Public student share links must not force login redirect.
+        return;
+    }
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     window.location.href = '/login.html';
@@ -74,8 +89,9 @@ async function authenticatedFetch(url, options = {}) {
         headers
     });
     
-    // If unauthorized, redirect to login
+    // If unauthorized, redirect to login (except Chess Pal public mode)
     if (response.status === 401) {
+        if (isChessPalPublicMode()) return response;
         logout();
         return null;
     }
@@ -110,6 +126,7 @@ async function verifyAuth() {
  * Require authentication - redirect to login if not authenticated
  */
 function requireAuth() {
+    if (isChessPalPublicMode()) return true;
     if (!isAuthenticated()) {
         window.location.href = '/login.html';
         return false;
@@ -121,6 +138,7 @@ function requireAuth() {
  * Require specific role - redirect if user doesn't have role
  */
 function requireRole(role) {
+    if (isChessPalPublicMode()) return false;
     if (!requireAuth()) return false;
     
     if (!hasRole(role)) {
