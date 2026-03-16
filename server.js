@@ -2,7 +2,6 @@
 require('dotenv').config();
 
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
@@ -160,8 +159,8 @@ const corsOptions = {
   credentials: true
 };
 app.use(cors(corsOptions));
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Avoid noisy 404s in DevTools when no favicon is provided
 app.get('/favicon.ico', (req, res) => {
@@ -4347,9 +4346,6 @@ async function startServer() {
     return 'Unknown';
   }
 
-  function nowIso() {
-    return new Date().toISOString();
-  }
 
   function updateStudentPresence(orgId, student) {
     const map = vcpOrgStudentsMap(orgId);
