@@ -102,6 +102,24 @@ const TRANSACTIONS_FILE = path.join(__dirname, process.env.TRANSACTIONS_FILE || 
 const EXPENSES_FILE = path.join(__dirname, process.env.EXPENSES_FILE || path.join(DATA_DIR, 'expenses.json'));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
+// Generic JSON store factory
+const { createJsonStore } = require('./server/storage/jsonStore');
+
+// --- JSON stores for simple read/write pairs ---
+const ordersStore = createJsonStore(ORDERS_FILE, []);
+const enrollmentsStore = createJsonStore(ENROLLMENTS_FILE, []);
+const attendanceStore = createJsonStore(ATTENDANCE_FILE, []);
+const transactionsStore = createJsonStore(TRANSACTIONS_FILE, []);
+const expensesStore = createJsonStore(EXPENSES_FILE, []);
+
+// --- JSON stores for wrapped-field pairs (used internally by their wrapper functions) ---
+const organizationsStore = createJsonStore(ORGANIZATIONS_FILE, { organizations: [], lastUpdate: null });
+const usersStore = createJsonStore(USERS_FILE, { users: [], lastUpdate: null });
+const coursesStore = createJsonStore(COURSES_FILE, { courses: [], lastUpdate: null });
+const packagesStore = createJsonStore(PACKAGES_FILE, { packages: [], lastUpdate: null });
+const subscriptionPricesStore = createJsonStore(SUBSCRIPTION_PRICES_FILE, { prices: [], lastUpdate: null });
+const subscriptionPackagesStore = createJsonStore(SUBSCRIPTION_PACKAGES_FILE, { packages: [], lastUpdate: null });
+
 // Import authentication utilities
 const { hashPassword, comparePassword, generateToken, verifyToken } = require('./auth');
 const { authenticateUser, authorizeRole, optionalAuth } = require('./middleware/auth');
@@ -282,48 +300,24 @@ async function ensureDataDir() {
 
 // Read organizations data
 async function readOrganizations() {
-  try {
-    const content = await fs.readFile(ORGANIZATIONS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    return data.organizations || [];
-  } catch (error) {
-    console.error('Error reading organizations:', error);
-    return [];
-  }
+  const data = await organizationsStore.read();
+  return data.organizations || [];
 }
 
 // Write organizations data
 async function writeOrganizations(organizations) {
-  try {
-    await fs.writeFile(ORGANIZATIONS_FILE, JSON.stringify({ organizations, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing organizations:', error);
-    return false;
-  }
+  return organizationsStore.write({ organizations, lastUpdate: new Date().toISOString() });
 }
 
 // Read users data
 async function readUsers() {
-  try {
-    const content = await fs.readFile(USERS_FILE, 'utf8');
-    const data = JSON.parse(content);
-    return data.users || [];
-  } catch (error) {
-    console.error('Error reading users:', error);
-    return [];
-  }
+  const data = await usersStore.read();
+  return data.users || [];
 }
 
 // Write users data
 async function writeUsers(users) {
-  try {
-    await fs.writeFile(USERS_FILE, JSON.stringify({ users, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing users:', error);
-    return false;
-  }
+  return usersStore.write({ users, lastUpdate: new Date().toISOString() });
 }
 
 // ===== Chess.com settings storage (org-scoped) =====
@@ -1101,93 +1095,41 @@ let syncBlundersForMaster = async () => ({ ok: false, error: 'sync not initializ
 
 // Read courses data
 async function readCourses() {
-  try {
-    const content = await fs.readFile(COURSES_FILE, 'utf8');
-    const data = JSON.parse(content);
-    return data.courses || [];
-  } catch (error) {
-    console.error('Error reading courses:', error);
-    return [];
-  }
+  const data = await coursesStore.read();
+  return data.courses || [];
 }
 
 // Write courses data
 async function writeCourses(courses) {
-  try {
-    await fs.writeFile(COURSES_FILE, JSON.stringify({ courses, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing courses:', error);
-    return false;
-  }
+  return coursesStore.write({ courses, lastUpdate: new Date().toISOString() });
 }
 
 // Read packages data
 async function readPackages() {
-  try {
-    const content = await fs.readFile(PACKAGES_FILE, 'utf8');
-    const data = JSON.parse(content);
-    return data.packages || [];
-  } catch (error) {
-    // If file doesn't exist, return empty array
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    console.error('Error reading packages:', error);
-    return [];
-  }
+  const data = await packagesStore.read();
+  return data.packages || [];
 }
 
 // Write packages data
 async function writePackages(packages) {
-  try {
-    await fs.writeFile(PACKAGES_FILE, JSON.stringify({ packages, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing packages:', error);
-    return false;
-  }
+  return packagesStore.write({ packages, lastUpdate: new Date().toISOString() });
 }
 
 // Read subscription prices data (Admin Subscription Setting -> Price Setting)
 async function readSubscriptionPrices() {
-  try {
-    const content = await fs.readFile(SUBSCRIPTION_PRICES_FILE, 'utf8');
-    const data = JSON.parse(content || '{}');
-    return Array.isArray(data.prices) ? data.prices : [];
-  } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    console.error('Error reading subscription prices:', error);
-    return [];
-  }
+  const data = await subscriptionPricesStore.read();
+  return Array.isArray(data.prices) ? data.prices : [];
 }
 
 // Write subscription prices data
 async function writeSubscriptionPrices(prices) {
-  try {
-    await fs.writeFile(
-      SUBSCRIPTION_PRICES_FILE,
-      JSON.stringify({ prices, lastUpdate: new Date().toISOString() }, null, 2),
-      'utf8'
-    );
-    return true;
-  } catch (error) {
-    console.error('Error writing subscription prices:', error);
-    return false;
-  }
+  return subscriptionPricesStore.write({ prices, lastUpdate: new Date().toISOString() });
 }
 
 // Read subscription packages data (Admin Subscription Setting -> Package Setting)
 async function readSubscriptionPackages() {
-  try {
-    const content = await fs.readFile(SUBSCRIPTION_PACKAGES_FILE, 'utf8');
-    const data = JSON.parse(content || '{}');
-    return Array.isArray(data.packages) ? data.packages : [];
-  } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    console.error('Error reading subscription packages:', error);
-    return [];
-  }
+  const data = await subscriptionPackagesStore.read();
+  return Array.isArray(data.packages) ? data.packages : [];
 }
 
 function resolveOrgIdFromUser(user) {
@@ -1204,17 +1146,7 @@ const paypalBilling = createPayPalBillingHelpers({
 
 // Write subscription packages data
 async function writeSubscriptionPackages(packages) {
-  try {
-    await fs.writeFile(
-      SUBSCRIPTION_PACKAGES_FILE,
-      JSON.stringify({ packages, lastUpdate: new Date().toISOString() }, null, 2),
-      'utf8'
-    );
-    return true;
-  } catch (error) {
-    console.error('Error writing subscription packages:', error);
-    return false;
-  }
+  return subscriptionPackagesStore.write({ packages, lastUpdate: new Date().toISOString() });
 }
 
 function normalizeSubscriptionStatus(v) {
@@ -2973,71 +2905,17 @@ app.post('/api/reset', async (req, res) => {
   }
 });
 
-// Read orders data
-async function readOrders() {
-  try {
-    const content = await fs.readFile(ORDERS_FILE, 'utf8');
-    return JSON.parse(content);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading orders:', error);
-    return [];
-  }
-}
+// Read/write orders data (via jsonStore)
+async function readOrders() { return ordersStore.read(); }
+async function writeOrders(orders) { return ordersStore.write(orders); }
 
-// Write orders data
-async function writeOrders(orders) {
-  try {
-    await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing orders:', error);
-    return false;
-  }
-}
+// Read/write enrollments data (via jsonStore)
+async function readEnrollments() { return enrollmentsStore.read(); }
+async function writeEnrollments(enrollments) { return enrollmentsStore.write(enrollments); }
 
-// Read enrollments data
-async function readEnrollments() {
-  try {
-    const content = await fs.readFile(ENROLLMENTS_FILE, 'utf8');
-    return JSON.parse(content);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading enrollments:', error);
-    return [];
-  }
-}
-
-// Write enrollments data
-async function writeEnrollments(enrollments) {
-  try {
-    await fs.writeFile(ENROLLMENTS_FILE, JSON.stringify(enrollments, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing enrollments:', error);
-    return false;
-  }
-}
-
-// Read attendance data
-async function readAttendance() {
-  try {
-    const content = await fs.readFile(ATTENDANCE_FILE, 'utf8');
-    return JSON.parse(content);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading attendance:', error);
-    return [];
-  }
-}
-
-// Write attendance data
-async function writeAttendance(data) {
-  try {
-    await fs.writeFile(ATTENDANCE_FILE, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing attendance:', error);
-    return false;
-  }
-}
+// Read/write attendance data (via jsonStore)
+async function readAttendance() { return attendanceStore.read(); }
+async function writeAttendance(data) { return attendanceStore.write(data); }
 
 // ===== Attendance routes (moved to server/routes/attendanceRoutes.js) =====
 const { registerAttendanceRoutes } = require('./server/routes/attendanceRoutes');
@@ -3049,27 +2927,9 @@ registerAttendanceRoutes(app, {
   writeAttendance
 });
 
-// Read transactions data
-async function readTransactions() {
-  try {
-    const content = await fs.readFile(TRANSACTIONS_FILE, 'utf8');
-    return JSON.parse(content);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading transactions:', error);
-    return [];
-  }
-}
-
-// Write transactions data
-async function writeTransactions(data) {
-  try {
-    await fs.writeFile(TRANSACTIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing transactions:', error);
-    return false;
-  }
-}
+// Read/write transactions data (via jsonStore)
+async function readTransactions() { return transactionsStore.read(); }
+async function writeTransactions(data) { return transactionsStore.write(data); }
 
 // ===== Organizations billing + finance routes (moved to server/routes/organizationsBillingRoutes.js) =====
 const { registerOrganizationsBillingRoutes } = require('./server/routes/organizationsBillingRoutes');
@@ -3115,27 +2975,9 @@ registerMyOwnAppRoutes(app, {
 
 // (moved to server/routes/organizationsBillingRoutes.js)
 
-// Read expenses data
-async function readExpenses() {
-  try {
-    const content = await fs.readFile(EXPENSES_FILE, 'utf8');
-    return JSON.parse(content);
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading expenses:', error);
-    return [];
-  }
-}
-
-// Write expenses data
-async function writeExpenses(data) {
-  try {
-    await fs.writeFile(EXPENSES_FILE, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error writing expenses:', error);
-    return false;
-  }
-}
+// Read/write expenses data (via jsonStore)
+async function readExpenses() { return expensesStore.read(); }
+async function writeExpenses(data) { return expensesStore.write(data); }
 
 // (moved to server/routes/organizationsBillingRoutes.js)
 
