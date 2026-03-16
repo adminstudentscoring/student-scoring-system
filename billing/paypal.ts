@@ -4,7 +4,7 @@ const PAYPAL_BASE =
 
 const APP_BASE_URL = String(process.env.APP_BASE_URL || 'https://www.studentscoring.com').replace(/\/+$/, '');
 
-function requireEnv(name) {
+function requireEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} is required`);
   return v;
@@ -14,10 +14,10 @@ const CLIENT_ID = requireEnv('PAYPAL_CLIENT_ID');
 const CLIENT_SECRET = requireEnv('PAYPAL_CLIENT_SECRET');
 const WEBHOOK_ID = requireEnv('PAYPAL_WEBHOOK_ID');
 
-let cachedToken = null;
-let cachedTokenExpMs = 0;
+let cachedToken: string | null = null;
+let cachedTokenExpMs: number = 0;
 
-async function getAccessToken() {
+async function getAccessToken(): Promise<string | null> {
   const now = Date.now();
   if (cachedToken && now + 60_000 < cachedTokenExpMs) {
     return cachedToken;
@@ -42,7 +42,7 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-async function paypalRequest(path, options = {}) {
+async function paypalRequest(path: string, options: any = {}): Promise<Response> {
   const token = await getAccessToken();
   const resp = await fetch(`${PAYPAL_BASE}${path}`, {
     ...options,
@@ -55,7 +55,7 @@ async function paypalRequest(path, options = {}) {
   return resp;
 }
 
-async function createProductIfNeeded(productName) {
+async function createProductIfNeeded(productName: string): Promise<string> {
   // PayPal doesn't have a simple "get product by name" endpoint for us here.
   // We create once and store product_id in DB.
   const resp = await paypalRequest('/v1/catalogs/products', {
@@ -74,7 +74,7 @@ async function createProductIfNeeded(productName) {
   return data.id;
 }
 
-function toPayPalPlanSpec({ productId, name, billingType, currency, amount }) {
+function toPayPalPlanSpec({ productId, name, billingType, currency, amount }: any): any {
   const bt = String(billingType || 'monthly');
   const interval_unit = bt === 'yearly' ? 'YEAR' : 'MONTH';
 
@@ -104,7 +104,7 @@ function toPayPalPlanSpec({ productId, name, billingType, currency, amount }) {
   };
 }
 
-async function createPlan(planSpec) {
+async function createPlan(planSpec: any): Promise<string> {
   const resp = await paypalRequest('/v1/billing/plans', {
     method: 'POST',
     body: JSON.stringify(planSpec)
@@ -117,13 +117,13 @@ async function createPlan(planSpec) {
   return data.id;
 }
 
-async function getPlan(planId) {
+async function getPlan(planId: string): Promise<any> {
   const resp = await paypalRequest(`/v1/billing/plans/${encodeURIComponent(planId)}`, { method: 'GET' });
   if (!resp.ok) return null;
   return resp.json();
 }
 
-function planMatches(plan, expected) {
+function planMatches(plan: any, expected: any): boolean {
   try {
     const cycle = plan?.billing_cycles?.[0];
     const unit = cycle?.frequency?.interval_unit;
@@ -141,7 +141,7 @@ function planMatches(plan, expected) {
   }
 }
 
-async function createSubscription({ planId, orgId, returnPath = '/organization.html', cancelPath = '/organization.html' }) {
+async function createSubscription({ planId, orgId, returnPath = '/organization.html', cancelPath = '/organization.html' }: any): Promise<any> {
   const resp = await paypalRequest('/v1/billing/subscriptions', {
     method: 'POST',
     body: JSON.stringify({
@@ -164,7 +164,7 @@ async function createSubscription({ planId, orgId, returnPath = '/organization.h
   return { id: data.id, status: data.status, approvalUrl: approval?.href || null, raw: data };
 }
 
-async function getSubscription(subscriptionId) {
+async function getSubscription(subscriptionId: string): Promise<any> {
   const resp = await paypalRequest(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'GET' });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
@@ -173,7 +173,7 @@ async function getSubscription(subscriptionId) {
   return resp.json();
 }
 
-async function cancelSubscription({ subscriptionId, reason = 'Customer requested cancellation' }) {
+async function cancelSubscription({ subscriptionId, reason = 'Customer requested cancellation' }: any): Promise<any> {
   const resp = await paypalRequest(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, {
     method: 'POST',
     body: JSON.stringify({ reason })
@@ -191,8 +191,8 @@ async function cancelSubscription({ subscriptionId, reason = 'Customer requested
   return { ok: true };
 }
 
-function getWebhookHeaders(req) {
-  const lower = {};
+function getWebhookHeaders(req: any): any {
+  const lower: Record<string, any> = {};
   for (const [k, v] of Object.entries(req.headers || {})) {
     lower[String(k).toLowerCase()] = v;
   }
@@ -205,7 +205,7 @@ function getWebhookHeaders(req) {
   };
 }
 
-async function verifyWebhookSignature({ req, eventBody }) {
+async function verifyWebhookSignature({ req, eventBody }: any): Promise<any> {
   const h = getWebhookHeaders(req);
   if (!h.transmissionId || !h.transmissionTime || !h.certUrl || !h.authAlgo || !h.transmissionSig) {
     return { ok: false, reason: 'Missing PayPal transmission headers' };

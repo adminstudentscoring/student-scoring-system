@@ -1,7 +1,7 @@
 // Blunders storage + settings helpers extracted from server.js.
 // This module is intentionally dependency-injected so we can reuse the same paths/constants from server.js.
 
-function createBlundersStorage(deps) {
+function createBlundersStorage(deps: any): any {
   const fs = deps?.fs;
   const path = require('path');
 

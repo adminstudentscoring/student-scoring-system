@@ -2,7 +2,7 @@
 // Includes: bucketing, sorting, drop/mate helpers, pruning, preserve-progress merge,
 // and Challenge-mode puzzle picking.
 
-function createBlundersPuzzles(deps) {
+function createBlundersPuzzles(deps: any): any {
   const readBlundersPuzzles = deps?.readBlundersPuzzles;
   const writeBlundersPuzzles = deps?.writeBlundersPuzzles;
   const appDb = deps?.appDb;

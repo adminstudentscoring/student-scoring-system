@@ -1,7 +1,7 @@
 // Postgres-backed Chess.com settings store.
 // Keeps data org-scoped, per student: chessId + optional password.
 
-function createChessComSettingsDb(deps) {
+function createChessComSettingsDb(deps: any): any {
   const appDb = deps?.appDb;
 
   if (!appDb || typeof appDb.getPool !== 'function') {

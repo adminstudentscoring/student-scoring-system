@@ -1,7 +1,7 @@
 // Blunders AI coach comment logic extracted from server.js.
 // Includes file cache (with lock), cache helpers, and OpenAI generation.
 
-function createBlundersAi(deps) {
+function createBlundersAi(deps: any): any {
   const fs = deps?.fs;
   const BLUNDERS_AI_COMMENTS_FILE = deps?.BLUNDERS_AI_COMMENTS_FILE;
   const nowIso = deps?.nowIso;

@@ -1,12 +1,12 @@
 const billingDb = require('./db');
 
-function addDays(date, days) {
+function addDays(date: any, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + Number(days || 0));
   return d;
 }
 
-function computeEntitlementStatus(now, end, graceUntil) {
+function computeEntitlementStatus(now: Date, end: any, graceUntil: any): string {
   const t = now.getTime();
   const endMs = end ? new Date(end).getTime() : 0;
   const graceMs = graceUntil ? new Date(graceUntil).getTime() : 0;
@@ -16,7 +16,7 @@ function computeEntitlementStatus(now, end, graceUntil) {
   return 'expired';
 }
 
-async function ensureTrialForOrg(orgId, days = 14) {
+async function ensureTrialForOrg(orgId: string, days = 14): Promise<any> {
   if (!orgId) return null;
   const start = new Date();
   const end = addDays(start, days);
@@ -31,19 +31,19 @@ async function ensureTrialForOrg(orgId, days = 14) {
   return { trialStart: start.toISOString(), trialEnd: end.toISOString() };
 }
 
-async function getTrial(orgId) {
+async function getTrial(orgId: string): Promise<any> {
   if (!orgId) return null;
   const res = await billingDb.query('SELECT * FROM billing_trials WHERE org_id=$1', [String(orgId)]);
   return res.rows[0] || null;
 }
 
-async function getEntitlement(orgId) {
+async function getEntitlement(orgId: string): Promise<any> {
   if (!orgId) return null;
   const res = await billingDb.query('SELECT * FROM billing_entitlements WHERE org_id=$1', [String(orgId)]);
   return res.rows[0] || null;
 }
 
-async function getOrgAccessSnapshot(orgId) {
+async function getOrgAccessSnapshot(orgId: string): Promise<any> {
   const now = new Date();
   const entitlement = await getEntitlement(orgId);
   const entitlementStatus = entitlement
@@ -75,7 +75,7 @@ async function getOrgAccessSnapshot(orgId) {
   };
 }
 
-function isBillingAllowedPath(path) {
+function isBillingAllowedPath(path: string): boolean {
   const p = String(path || '');
   return p.startsWith('/api/organizations/billing/');
 }

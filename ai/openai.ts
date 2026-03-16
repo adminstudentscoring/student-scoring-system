@@ -1,7 +1,13 @@
 // Minimal OpenAI client (no extra deps). Uses global fetch (Node 20+).
 // NOTE: Do NOT hardcode API keys in code. Use process.env.OPENAI_API_KEY.
 
-function getOpenAiConfig() {
+interface OpenAiConfig {
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+}
+
+function getOpenAiConfig(): OpenAiConfig {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   const model = String(process.env.OPENAI_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
   const baseUrlRaw = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com').trim() || 'https://api.openai.com';
@@ -9,12 +15,12 @@ function getOpenAiConfig() {
   return { apiKey, model, baseUrl };
 }
 
-function openAiEnabled() {
+function openAiEnabled(): boolean {
   const { apiKey } = getOpenAiConfig();
   return !!apiKey;
 }
 
-async function openAiJson({ system, user, maxOutputTokens = 250 }) {
+async function openAiJson({ system, user, maxOutputTokens = 250 }: { system: string; user: string; maxOutputTokens?: number }): Promise<any> {
   const { apiKey, model, baseUrl } = getOpenAiConfig();
   if (!apiKey) throw new Error('OpenAI not configured (missing OPENAI_API_KEY)');
 

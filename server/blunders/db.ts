@@ -1,7 +1,7 @@
 // Blunders Postgres DB helpers extracted from server.js.
 // Focused on upsert helpers used by tagging + DB sync retry queue.
 
-function createBlundersDb(deps) {
+function createBlundersDb(deps: any): any {
   const nowIso = deps?.nowIso;
   const enqueueBlundersDbRetry = deps?.enqueueBlundersDbRetry;
   const puzzleSortKeyMs = deps?.puzzleSortKeyMs;

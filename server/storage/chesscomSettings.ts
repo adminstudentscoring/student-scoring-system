@@ -1,6 +1,6 @@
 // Chess.com settings storage (org-scoped), extracted from server.js.
 
-function createChessComSettingsStore(deps) {
+function createChessComSettingsStore(deps: any): any {
   const fs = deps?.fs;
   const CHESSCOM_SETTINGS_FILE = deps?.CHESSCOM_SETTINGS_FILE;
 

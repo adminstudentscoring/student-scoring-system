@@ -6,7 +6,7 @@
  * Exports a single async setup function that wires all VCP state,
  * WebSocket handlers, timers, and helper utilities.
  */
-async function setupVcpChess({ wss, WebSocket, fs, VCP_CHESS_GAMES_FILE, verifyToken, readData, readUsers, nowIso }) {
+async function setupVcpChess({ wss, WebSocket, fs, VCP_CHESS_GAMES_FILE, verifyToken, readData, readUsers, nowIso }: any): Promise<void> {
 
   // ============================
   // V.Chess Platform (WebSocket realtime)

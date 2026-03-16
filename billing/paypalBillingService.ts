@@ -2,7 +2,7 @@
 // Keeps behavior identical while allowing server.js to stay small.
 "use strict";
 
-function createPayPalBillingHelpers(deps) {
+function createPayPalBillingHelpers(deps: any): any {
   const billingDb = deps && deps.billingDb;
   const paypal = deps && deps.paypal;
   const readSubscriptionPrices = deps && deps.readSubscriptionPrices;

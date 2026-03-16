@@ -2,7 +2,7 @@
 // Includes HK day helpers, Chess.com fetch helpers, ratings cache refresh,
 // and Blunders daily auto sync scheduler.
 
-function createBlundersChessCom(deps) {
+function createBlundersChessCom(deps: any): any {
   const fs = deps?.fs;
   const CHESSCOM_RATINGS_FILE = deps?.CHESSCOM_RATINGS_FILE;
 

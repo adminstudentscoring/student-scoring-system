@@ -1,7 +1,7 @@
 // Blunders stats helpers extracted from server.js.
 // Includes rolling 3-month stats and 30-day student summary stats for AI coach comments.
 
-function createBlundersStats(deps) {
+function createBlundersStats(deps: any): any {
   const threeMonthsAgoMs = deps?.threeMonthsAgoMs;
   const puzzleSortKeyMs = deps?.puzzleSortKeyMs;
   const puzzleDropPoints = deps?.puzzleDropPoints;

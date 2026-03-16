@@ -1,7 +1,7 @@
 // Blunders tagger extracted from server.js.
 // Keep this module dependency-injected to avoid circular imports and to preserve behavior.
 
-function createBlundersTagger(deps) {
+function createBlundersTagger(deps: any): any {
   const Chess = deps?.Chess;
   const parseUciMove = deps?.parseUciMove;
   const puzzleDropPoints = deps?.puzzleDropPoints;

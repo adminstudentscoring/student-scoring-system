@@ -9,8 +9,8 @@ const billingAccess = require('../billing/access');
  * Middleware factory to filter data by organization
  * Requires readUsers function to be passed in
  */
-function createRequireOrganizationAccess(readUsersFn) {
-  return async function requireOrganizationAccess(req, res, next) {
+function createRequireOrganizationAccess(readUsersFn: () => Promise<any[]>): any {
+  return async function requireOrganizationAccess(req: any, res: any, next: any) {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -85,7 +85,7 @@ function createRequireOrganizationAccess(readUsersFn) {
 /**
  * Filter students by organization
  */
-function filterStudentsByOrganization(students, organizationId) {
+function filterStudentsByOrganization(students: any[], organizationId: string | null): any[] {
   if (!organizationId) return students; // Admin sees all
   return students.filter(s => s.organizationId === organizationId);
 }
@@ -93,7 +93,7 @@ function filterStudentsByOrganization(students, organizationId) {
 /**
  * Filter users by organization
  */
-function filterUsersByOrganization(users, organizationId) {
+function filterUsersByOrganization(users: any[], organizationId: string | null): any[] {
   if (!organizationId) return users; // Admin sees all
   return users.filter(u => 
     u.organizationId === organizationId || 

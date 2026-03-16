@@ -2,7 +2,7 @@
 // NOTE: This module intentionally uses `with (deps)` so we can move code without rewriting identifiers.
 // Do NOT add "use strict" to this file (it would break `with`).
 
-function createBlundersTeacherJobs(deps) {
+function createBlundersTeacherJobs(deps: any): any {
   const blundersTeacherJobQueue = [];
   let blundersTeacherJobRunnerRunning = false;
   const blundersTeacherJobCancel = new Set(); // jobId

@@ -2,7 +2,7 @@
 // NOTE: This module intentionally uses `with (deps)` so we can move code without rewriting identifiers.
 // Do NOT add "use strict" to this file (it would break `with`).
 
-function createBlundersSync(deps) {
+function createBlundersSync(deps: any): any {
   // Master sync internal locks (moved with the function)
   const blundersMasterLocks = new Map(); // key -> Promise
   const blundersLastMasterSync = new Map(); // key -> ms

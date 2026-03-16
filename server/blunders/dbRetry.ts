@@ -1,7 +1,7 @@
 // Blunders DB retry queue extracted from server.js.
 // This is a best-effort persistence layer to survive transient Postgres outages.
 
-function createBlundersDbRetry(deps) {
+function createBlundersDbRetry(deps: any): any {
   const fs = deps?.fs;
   const appDb = deps?.appDb;
   const nowIso = deps?.nowIso;

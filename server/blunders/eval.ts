@@ -1,6 +1,6 @@
 // Blunders evaluation / verdict helpers extracted from server.js.
 
-function createBlundersEval(deps) {
+function createBlundersEval(deps: any): any {
   const Chess = deps?.Chess;
   const parseUciMove = deps?.parseUciMove;
 

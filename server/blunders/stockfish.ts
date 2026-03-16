@@ -1,7 +1,7 @@
 // Stockfish runner extracted from server.js.
 // Spawns the stockfish JS/WASM engine as a child process and speaks UCI over stdin/stdout.
 
-function createStockfishRunner(deps) {
+function createStockfishRunner(deps: any): any {
   const fs = deps?.fs;
   const path = deps?.path;
   const spawn = deps?.spawn;
