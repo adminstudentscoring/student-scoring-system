@@ -898,8 +898,9 @@ function writeData(data: any): Promise<boolean> { return _dataStore.writeData(da
 // (moved to server/routes/monsterFightGameRoutes.js)
 
 // Broadcast to all WebSocket clients
+let wss: any;
 function broadcast(data: any): void {
-  wss.clients.forEach(client => {
+  wss.clients.forEach((client: any) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(data));
     }
@@ -1523,7 +1524,7 @@ async function startServer(): Promise<void> {
   }
   
   const server = http.createServer(app);
-  const wss = new WebSocket.Server({ server });
+  wss = new WebSocket.Server({ server });
 
   // Graceful shutdown (Railway sends SIGTERM during deploy/restart)
   const shutdown = (signal: string) => {

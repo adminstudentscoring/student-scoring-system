@@ -1,5 +1,6 @@
 // Royal Exchange routes (leaderboard)
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerRoyalExchangeRoutes(app: any, deps: any): void {
   const fs = deps && deps.fs;

@@ -8,6 +8,7 @@
 //
 // This module is kept as a stub for structural consistency.
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerMonsterFightLeaderboardRoutes(app: any, deps: any): void {
   // Leaderboard routes already live in dedicated files (see above).

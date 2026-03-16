@@ -1,5 +1,6 @@
 // Games routes entry (aggregator)
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerGameRoutes(app: any, deps: any): void {
   if (!app) throw new Error("registerGameRoutes: missing app");

@@ -2,6 +2,7 @@
 // Handles: public attempt logger, teacher read attempts, public student stats,
 // public student puzzle attempt
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerTacticsFighterAttemptsRoutes(app: any, deps: any, shared: any): void {
   const Chess = deps?.Chess;

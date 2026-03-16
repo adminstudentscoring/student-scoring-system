@@ -1,5 +1,6 @@
 // Chess Solitaire routes (Stage library)
 "use strict";
+import type { Request, Response } from 'express';
 
 function nowIso() {
   return new Date().toISOString();

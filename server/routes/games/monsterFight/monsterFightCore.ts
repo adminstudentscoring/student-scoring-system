@@ -2,6 +2,7 @@
 // Handles: game init, state, character selection, puzzle input, player actions,
 // monster turns, revive. Also contains all constants and helper functions.
 "use strict";
+import type { Request, Response } from 'express';
 
 // Monster Fight Game Configuration
   // Monster Fight Game Configuration

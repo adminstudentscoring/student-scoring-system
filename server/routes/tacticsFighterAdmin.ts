@@ -2,6 +2,7 @@
 // Handles: teacher debug, teacher settings, teacher engine analyze,
 // teacher apply-move, teacher photo recognize
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerTacticsFighterAdminRoutes(app: any, deps: any, shared: any): void {
   const Chess = deps?.Chess;

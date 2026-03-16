@@ -1,5 +1,6 @@
 // Hope Mate routes (teacher-scoped leaderboard + challenge leaderboard)
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerHopeMateRoutes(app: any, deps: any): void {
   const fs = deps && deps.fs;

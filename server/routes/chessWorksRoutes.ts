@@ -1,5 +1,6 @@
 // Chess Works routes (folders + works + assignments + groups + submissions + reviews)
 "use strict";
+import type { Request, Response } from 'express';
 
 function nowIso() {
   return new Date().toISOString();

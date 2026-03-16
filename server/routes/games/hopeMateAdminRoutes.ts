@@ -1,5 +1,6 @@
 // Hope Mate admin routes (manual stage puzzles library)
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerHopeMateAdminRoutes(app: any, deps: any): void {
   const fs = deps && deps.fs;

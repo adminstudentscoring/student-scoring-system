@@ -1,6 +1,7 @@
 // Tactics Fighter routes (Builder + Engine + attempts)
 // This file is now a thin wrapper that delegates to focused sub-modules.
 "use strict";
+import type { Request, Response } from 'express';
 
 const { registerTacticsFighterAdminRoutes } = require('./tacticsFighterAdmin');
 const { registerTacticsFighterPuzzlesRoutes } = require('./tacticsFighterPuzzles');

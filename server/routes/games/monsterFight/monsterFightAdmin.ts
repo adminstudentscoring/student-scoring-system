@@ -1,6 +1,7 @@
 // Admin/teacher management routes extracted from monsterFightRoutes.js
 // Handles: save/load game, get settings, update config
 "use strict";
+import type { Request, Response } from 'express';
 
 const { GAME_CONFIG, PLAYER_CLASSES, MONSTER_TYPES } = require('./monsterFightCore');
 

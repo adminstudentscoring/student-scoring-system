@@ -3,6 +3,7 @@
 // public student apply-move, teacher builder CRUD, public student tree,
 // public student puzzles, public student challenge ghost
 "use strict";
+import type { Request, Response } from 'express';
 
 function registerTacticsFighterPuzzlesRoutes(app: any, deps: any, shared: any): void {
   const Chess = deps?.Chess;
