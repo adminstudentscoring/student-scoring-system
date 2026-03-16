@@ -26,8 +26,9 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 
 ### Gotchas
 
-- **No ESLint / linter config** exists in the repository. There are no `npm test` or `npm run lint` scripts defined.
-- **No automated test suite** exists (no `*.test.*` or `*.spec.*` files).
+- **ESLint** is configured via flat config (`eslint.config.js`, ESLint 10+). Run `npm run lint`. All rules are set to warn, so the linter exits 0 even with warnings.
+- **Integration tests** use Node.js built-in test runner + supertest. Run `npm test`. Tests hit a running server on `http://localhost:3000`, so start the server first or the test helper will spawn one automatically.
+- `GET /api/students` uses `optionalAuth` and returns 200 without a token — use `POST /api/students` to test auth-required student routes.
 - The server uses **file-based storage** (`data/` directory) for most entities (students, users, organizations, leaderboards). PostgreSQL is used for billing, blunders, tactics fighter, and migrations.
 - `billing/paypal.js` requires `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `PAYPAL_WEBHOOK_ID` as environment variables at module load time. The server will crash without them.
 - To create the initial admin user: `node scripts/init-admin.js <email> <password> <name>`.
@@ -41,3 +42,5 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 | `npm run init-admin` | Create the first admin user |
 | `npm run db:migrate` | Run Postgres migrations manually |
 | `npm run db:ping` | Test Postgres connectivity |
+| `npm run lint` | Run ESLint (flat config, warnings only) |
+| `npm test` | Run integration tests (server must be running) |
