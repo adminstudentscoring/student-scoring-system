@@ -243,15 +243,31 @@ function registerStudentsRoutes(app, deps) {
           currentHP: LEVELS[0].maxHP,
           completedLevels: [],
           totalDamage: 0,
-          selectedStudentIds: [] // Store selected students in Class View
+          selectedStudentIds: []
         };
       }
-      // Ensure selectedStudentIds exists
       if (!data.challenge.selectedStudentIds) {
         data.challenge.selectedStudentIds = [];
       }
 
-      const currentLevelInfo = LEVELS[data.challenge.currentLevel - 1];
+      // Resolve org-specific levels (same logic as GET /api/challenge) so that
+      // maxHP, reward, and level-up thresholds match what the client displays.
+      let levels = LEVELS;
+      if (student.organizationId && readOrganizations) {
+        try {
+          const organizations = await readOrganizations();
+          const org = organizations.find(o => o.id === student.organizationId);
+          if (org) {
+            if (org.settings && org.settings.challengeLevels && org.settings.challengeLevels.levels && org.settings.challengeLevels.levels.length > 0) {
+              levels = org.settings.challengeLevels.levels;
+            } else if (org.gameConfig && org.gameConfig.classicLevels && org.gameConfig.classicLevels.length > 0) {
+              levels = org.gameConfig.classicLevels;
+            }
+          }
+        } catch (_e) { /* fall back to global LEVELS */ }
+      }
+
+      const currentLevelInfo = levels[data.challenge.currentLevel - 1] || levels[levels.length - 1] || LEVELS[0];
       if (currentLevelInfo) {
         // Fix currentHP if it exceeds maxHP (due to config changes)
         if (data.challenge.currentHP > currentLevelInfo.maxHP) {
@@ -268,7 +284,6 @@ function registerStudentsRoutes(app, deps) {
         let levelReward = null;
 
         if (levelCompleted && !data.challenge.completedLevels.includes(data.challenge.currentLevel)) {
-          // Level completed! Give reward only to selected students in Class View
           levelReward = currentLevelInfo.reward;
           data.challenge.completedLevels.push(data.challenge.currentLevel);
 
@@ -289,9 +304,9 @@ function registerStudentsRoutes(app, deps) {
           }
 
           // Move to next level
-          if (data.challenge.currentLevel < LEVELS.length) {
+          if (data.challenge.currentLevel < levels.length) {
             data.challenge.currentLevel += 1;
-            const nextLevelInfo = LEVELS[data.challenge.currentLevel - 1];
+            const nextLevelInfo = levels[data.challenge.currentLevel - 1];
             data.challenge.currentHP = nextLevelInfo.maxHP;
           }
 
@@ -302,7 +317,6 @@ function registerStudentsRoutes(app, deps) {
             students: data.students
           });
         } else {
-          // Broadcast damage dealt
           broadcast({
             type: 'damageDealt',
             damage: damage,

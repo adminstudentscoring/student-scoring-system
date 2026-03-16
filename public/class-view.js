@@ -9,6 +9,8 @@ let dragOffset = { x: 0, y: 0 };
 let isResizing = false;
 let resizeStart = { x: 0, y: 0 };
 let windowStartSize = { width: 0, height: 0 };
+const _recordingInProgress = new Set();
+let _batchAddInProgress = false;
 
 function classViewResolveAssetUrl(relativePath) {
     try {
@@ -93,6 +95,24 @@ function initWebSocket() {
     };
 }
 
+// Merge incoming challenge data while preserving levelInfo/allLevels already
+// obtained from loadChallenge(). The POST /answer response and the WebSocket
+// 'answerRecorded' payload do NOT include levelInfo, so a naive overwrite
+// causes updateChallengeDisplay() to silently bail out, leaving the HP bar
+// and monster display stale.
+function mergeChallengeData(incoming) {
+    if (!incoming) return;
+    if (!challengeData) {
+        challengeData = incoming;
+        return;
+    }
+    const prevLevelInfo = challengeData.levelInfo;
+    const prevAllLevels = challengeData.allLevels;
+    Object.assign(challengeData, incoming);
+    if (!challengeData.levelInfo && prevLevelInfo) challengeData.levelInfo = prevLevelInfo;
+    if (!challengeData.allLevels && prevAllLevels) challengeData.allLevels = prevAllLevels;
+}
+
 // Handle WebSocket messages
 function handleWebSocketMessage(data) {
     switch (data.type) {
@@ -100,7 +120,7 @@ function handleWebSocketMessage(data) {
         case 'studentUpdated':
         case 'answerRecorded':
             if (challengeEnabled && data.challenge) {
-                challengeData = data.challenge;
+                mergeChallengeData(data.challenge);
                 updateChallengeDisplay();
             }
             loadStudents();
@@ -332,8 +352,10 @@ function renderClassView() {
     }).join('');
 }
 
-// Record points
+// Record points (with per-student lock to prevent rapid duplicate requests)
 async function recordPoints(studentId) {
+    if (_recordingInProgress.has(studentId)) return;
+
     const input = document.getElementById(`class-points-${studentId}`);
     if (!input) {
         return;
@@ -345,9 +367,12 @@ async function recordPoints(studentId) {
         return;
     }
 
+    _recordingInProgress.add(studentId);
+
     // Find student card for animation
     const studentCard = document.querySelector(`.class-student-card[data-student-id="${studentId}"]`);
     const button = document.querySelector(`button[onclick*="${studentId}"]`);
+    if (button) button.disabled = true;
     const buttonRect = button ? button.getBoundingClientRect() : null;
 
     try {
@@ -380,9 +405,9 @@ async function recordPoints(studentId) {
             createParticleEffect(buttonRect, points);
         }
 
-        // Update challenge if present
+        // Merge challenge data while preserving levelInfo from loadChallenge()
         if (result.challenge) {
-            challengeData = result.challenge;
+            mergeChallengeData(result.challenge);
             updateChallengeDisplay();
         }
 
@@ -391,6 +416,9 @@ async function recordPoints(studentId) {
         loadStudents();
     } catch (error) {
         console.error('Error recording points:', error);
+    } finally {
+        _recordingInProgress.delete(studentId);
+        if (button) button.disabled = false;
     }
 }
 
@@ -1107,8 +1135,10 @@ if (window.navigator.userAgent.indexOf('Electron') === -1) {
 // Filter logic
 document.getElementById('classViewSearch')?.addEventListener('input', renderClassView);
 
-// Batch Add Points logic
+// Batch Add Points logic (with lock to prevent double-click)
 document.getElementById('batchAddPointsBtn')?.addEventListener('click', async () => {
+    if (_batchAddInProgress) return;
+
     const input = document.getElementById('batchPointsInput');
     if (!input) return;
     
@@ -1129,31 +1159,37 @@ document.getElementById('batchAddPointsBtn')?.addEventListener('click', async ()
     );
     
     if (targets.length === 0) return;
+
+    _batchAddInProgress = true;
+    const batchBtn = document.getElementById('batchAddPointsBtn');
+    if (batchBtn) batchBtn.disabled = true;
     
     let successCount = 0;
 
-    // IMPORTANT:
-    // Do this sequentially to avoid server-side read/write races on challenge HP.
-    // Parallel requests can overwrite each other's challenge updates, resulting in under-counted monster damage.
-    for (const student of targets) {
-        try {
-            const response = await fetch('/api/students/' + student.id + '/answer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ points: points })
-            });
-            if (response.ok) successCount++;
-        } catch (e) {
-            console.error(e);
+    try {
+        // IMPORTANT:
+        // Do this sequentially to avoid server-side read/write races on challenge HP.
+        // Parallel requests can overwrite each other's challenge updates, resulting in under-counted monster damage.
+        for (const student of targets) {
+            try {
+                const response = await fetch('/api/students/' + student.id + '/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ points: points })
+                });
+                if (response.ok) successCount++;
+            } catch (e) {
+                console.error(e);
+            }
         }
+        
+        // Refresh (WebSocket will trigger reload anyway, but just in case)
+        if (challengeEnabled) loadChallenge();
+    } finally {
+        _batchAddInProgress = false;
+        if (batchBtn) batchBtn.disabled = false;
     }
     
-    // Refresh (WebSocket will trigger reload anyway, but just in case)
-    if (challengeEnabled) loadChallenge();
-    
-    // Show quick toast/alert
-    // Since we don't have showNotification here easily accessible without more code copying, native alert or just relying on UI update is fine.
-    // Or we can create a simple temp toast.
     const toast = document.createElement('div');
     toast.textContent = 'Added ' + points + ' points to ' + successCount + ' students!';
     toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#10b981; color:white; padding:10px 20px; border-radius:4px; z-index:9999;';
