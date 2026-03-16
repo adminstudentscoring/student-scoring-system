@@ -4,8 +4,11 @@
   "description": "Student scoring system for Zoom classes with gamification features",
   "main": "main.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts",
+    "start:js": "node server.js",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "electron": "electron .",
     "electron-dev": "electron . --dev",
     "app": "electron .",
@@ -45,9 +48,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.18.0",
+    "@types/ws": "^8.18.1",
     "electron": "^27.0.0",
     "eslint": "^10.0.3",
     "globals": "^17.4.0",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }
