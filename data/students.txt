@@ -2672,38 +2672,38 @@
       "emergencyContactRelation": "",
       "emergencyContactNumber": "",
       "organizationId": "1773637959107",
-      "answerCount": 10,
+      "answerCount": 11,
       "totalAnswers": 0,
       "correctAnswers": 0,
       "level": 3,
       "rank": "Silver",
       "rankIndex": 2,
-      "experience": 111,
-      "score": 111,
+      "experience": 112,
+      "score": 112,
       "createdAt": "2026-03-16T05:12:51.918Z",
       "stats": {
         "daily": {
           "2026-03-16": {
-            "answerCount": 10,
-            "totalPoints": 101
+            "answerCount": 11,
+            "totalPoints": 102
           }
         },
         "weekly": {
           "2026-W11": {
-            "answerCount": 10,
-            "totalPoints": 101
+            "answerCount": 11,
+            "totalPoints": 102
           }
         },
         "monthly": {
           "2026-03": {
-            "answerCount": 10,
-            "totalPoints": 101
+            "answerCount": 11,
+            "totalPoints": 102
           }
         },
         "yearly": {
           "2026": {
-            "answerCount": 10,
-            "totalPoints": 101
+            "answerCount": 11,
+            "totalPoints": 102
           }
         }
       },
@@ -2749,14 +2749,14 @@
     }
   ],
   "battles": [],
-  "lastUpdate": "2026-03-16T06:39:35.203Z",
+  "lastUpdate": "2026-03-16T10:12:30.121Z",
   "challenge": {
     "currentLevel": 2,
-    "currentHP": 99,
+    "currentHP": 98,
     "completedLevels": [
       1
     ],
-    "totalDamage": 51,
+    "totalDamage": 52,
     "selectedStudentIds": [
       "1773637971918"
     ]

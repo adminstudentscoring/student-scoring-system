@@ -14,7 +14,8 @@
     "db:migrate": "node scripts/db-migrate.js",
     "db:ping": "node -e \"require('dotenv').config(); require('./db/postgres').dbPing().then(()=>console.log('OK')).catch((e)=>{console.error(e); process.exit(1);});\"",
     "blunders:import-db": "node scripts/blunders-import-to-db.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test test/*.test.js"
   },
   "keywords": [
     "student",
@@ -46,6 +47,7 @@
     "@eslint/js": "^10.0.1",
     "electron": "^27.0.0",
     "eslint": "^10.0.3",
-    "globals": "^17.4.0"
+    "globals": "^17.4.0",
+    "supertest": "^7.2.2"
   }
 }
