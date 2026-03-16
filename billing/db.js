@@ -1,25 +1,15 @@
-const { Pool } = require('pg');
-
-function createPool() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is required for billing database');
-  }
-
-  const isRailwayInternal = connectionString.includes('railway.internal');
-  const ssl = isRailwayInternal ? false : { rejectUnauthorized: false };
-
-  return new Pool({ connectionString, ssl });
-}
-
-const pool = createPool();
+const { dbQuery, getPool } = require('../db/postgres');
 
 async function query(text, params) {
-  return pool.query(text, params);
+  return dbQuery(text, params);
 }
 
 async function ensureBillingSchema() {
-  // Keep this migration minimal and idempotent.
+  const pool = getPool();
+  if (!pool) {
+    console.log('Billing schema: skipped (Postgres not configured).');
+    return;
+  }
   await query(`
     CREATE TABLE IF NOT EXISTS billing_meta (
       key TEXT PRIMARY KEY,
@@ -92,11 +82,9 @@ async function setMeta(key, value) {
 }
 
 module.exports = {
-  pool,
+  get pool() { return getPool(); },
   query,
   ensureBillingSchema,
   getMeta,
   setMeta
 };
-
-
