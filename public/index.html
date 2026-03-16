@@ -3,285 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:* https://cloudflareinsights.com https://*.cloudflareinsights.com;">
-    <title>Student Scoring System - Teacher Dashboard</title>
+    <title>Student Scoring System - Redirecting...</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎓 Student Scoring System</h1>
-            <div class="header-actions">
-                <button id="statisticsBtn" class="btn btn-info">📊 Statistics</button>
-                <button id="saveBtn" class="btn btn-primary">💾 Save Progress</button>
-                <button id="loadBtn" class="btn btn-info">📂 Load Progress</button>
-                <button id="resetBtn" class="btn btn-danger">Reset All Scores</button>
-                <button id="viewStudentBtn" class="btn btn-secondary">Student View</button>
-            </div>
-        </header>
-
-        <div class="content-wrapper">
-            <div class="main-content">
-            <!-- Add Student Section -->
-            <section class="card">
-                <h2>Add New Student</h2>
-                <form id="addStudentForm">
-                    <div class="form-group">
-                        <label for="studentName">Student Name:</label>
-                        <input type="text" id="studentName" required placeholder="Enter student name">
-                    </div>
-                    <div class="form-group">
-                        <label for="studentId">chess.com ID:</label>
-                        <input type="text" id="studentId" required placeholder="Enter chess.com ID">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Add Student</button>
-                </form>
-            </section>
-
-            <!-- Students List -->
-            <section class="card">
-                <h2>Students List</h2>
-                <div class="search-bar">
-                    <input type="text" id="searchInput" placeholder="Search students...">
-                </div>
-                <div id="studentsList" class="students-grid">
-                    <!-- Students will be loaded here -->
-                </div>
-            </section>
-
-            <!-- Select Students for Class -->
-            <section class="card">
-                <h2>Select Students for Class</h2>
-                <div class="search-bar">
-                    <input type="text" id="classSearchInput" placeholder="Search students for class...">
-                </div>
-                <div id="classStudentsList" class="class-students-list">
-                    <!-- Students with checkboxes will be loaded here -->
-                </div>
-                <div class="class-actions">
-                    <button id="clearClassSelectionBtn" class="btn btn-secondary">Deselect All</button>
-                    <button id="openClassViewBtn" class="btn btn-primary">Open Class View</button>
-                    <span id="selectedCount" class="selected-count">0 selected</span>
-                </div>
-            </section>
-            </div>
-
-            <!-- Right Sidebar -->
-            <div class="right-sidebar" id="rightSidebar">
-                <div class="sidebar-toggle" id="sidebarToggle">
-                    <span id="sidebarToggleIcon">◀</span>
-                </div>
-                <div class="sidebar-content">
-                    <h3>Quick Actions</h3>
-                    <button id="gameZoneBtn" class="sidebar-btn">
-                        <span class="sidebar-icon">🎮</span>
-                        <span class="sidebar-text">Application</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="floating-indicator">🔝 Always on Top</div>
-
-    <!-- Save Progress Modal -->
-    <div id="saveModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>💾 Save Challenge Progress</h2>
-                <span class="modal-close" id="saveModalClose">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="saveDay">Day:</label>
-                    <select id="saveDay" required>
-                        <option value="">Select day...</option>
-                        <option value="Monday">Monday</option>
-                        <option value="Tuesday">Tuesday</option>
-                        <option value="Wednesday">Wednesday</option>
-                        <option value="Thursday">Thursday</option>
-                        <option value="Friday">Friday</option>
-                        <option value="Saturday">Saturday</option>
-                        <option value="Sunday">Sunday</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="saveTime">Time:</label>
-                    <select id="saveTime" required>
-                        <option value="">Select time...</option>
-                    </select>
-                </div>
-                <div class="modal-actions">
-                    <button id="confirmSaveBtn" class="btn btn-success">Save</button>
-                    <button id="cancelSaveBtn" class="btn btn-secondary">Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Load Progress Modal -->
-    <div id="loadModal" class="modal">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h2>📂 Load Challenge Progress</h2>
-                <span class="modal-close" id="loadModalClose">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="search-group">
-                    <input type="text" id="saveSearchInput" placeholder="🔍 Search saves by day or time...">
-                </div>
-                <div id="recentSaves" class="saves-section">
-                    <h3>Recent Saves</h3>
-                    <div id="recentSavesList" class="saves-list"></div>
-                </div>
-                <div id="allSaves" class="saves-section">
-                    <h3>All Saves</h3>
-                    <div id="allSavesList" class="saves-list"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Statistics Modal -->
-    <div id="statisticsModal" class="modal">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h2>📊 Statistics Dashboard</h2>
-                <span class="modal-close" id="statisticsModalClose">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- Period Selection -->
-                <div class="period-selector">
-                    <button class="period-btn active" data-period="daily">Daily</button>
-                    <button class="period-btn" data-period="weekly">Weekly</button>
-                    <button class="period-btn" data-period="monthly">Monthly</button>
-                </div>
-
-                <!-- Statistics Overview -->
-                <div class="stats-overview" id="statsOverview">
-                    <div class="stat-card">
-                        <div class="stat-icon">📝</div>
-                        <div class="stat-value" id="totalAnswers">0</div>
-                        <div class="stat-label">Total Answers</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⭐</div>
-                        <div class="stat-value" id="totalPoints">0</div>
-                        <div class="stat-label">Total Points</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-value" id="avgAnswers">0</div>
-                        <div class="stat-label">Avg Answers</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-value" id="avgPoints">0</div>
-                        <div class="stat-label">Avg Points</div>
-                    </div>
-                </div>
-
-                <!-- Active Students Leaderboard -->
-                <div class="leaderboard-section">
-                    <h3>🏆 Most Active Students</h3>
-                    <div class="leaderboard-table" id="activeStudentsList">
-                        <div class="loading">Loading...</div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button id="closeStatisticsBtn" class="btn btn-secondary">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Application Modal -->
-    <div id="gameZoneModal" class="modal">
-        <div class="modal-content" id="gameZoneModalContent">
-            <div class="modal-header">
-                <h2>🎮 Application</h2>
-                <div class="modal-header-actions">
-                    <button id="gameZoneFullscreenBtn" class="btn-icon" title="Toggle Fullscreen">⛶</button>
-                    <button id="gameZoneSizeBtn" class="btn-icon" title="Toggle Size">⛶</button>
-                    <span class="modal-close" id="gameZoneModalClose">&times;</span>
-                </div>
-            </div>
-            <div class="modal-body">
-                <!-- Game Selection -->
-                <div class="game-selection-section" id="gameSelectionSection">
-                    <h3>Select a Game</h3>
-                    <div class="game-list" id="gameList">
-                        <!-- Games will be loaded here -->
-                        <div class="game-item">
-                            <div class="game-icon">🎯</div>
-                            <div class="game-info">
-                                <h4>Coming Soon</h4>
-                                <p>More games will be added soon</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Student Selection -->
-                <div class="student-selection-section" id="studentSelectionSection">
-                    <h3>Select Students</h3>
-                    <div class="student-selector-toolbar">
-                        <input type="text" id="gameStudentSearch" placeholder="🔍 Search students..." class="student-search-input">
-                        <button id="selectAllStudents" class="btn btn-sm">Select All</button>
-                        <button id="deselectAllStudents" class="btn btn-sm">Deselect All</button>
-                    </div>
-                    <div class="student-selector-list" id="gameStudentList">
-                        <!-- Students will be loaded here -->
-                    </div>
-                </div>
-
-                <!-- Game Area (will be shown when game starts) -->
-                <div class="game-area-section" id="gameAreaSection" style="display: none;">
-                    <div class="game-area-header">
-                        <button id="backToGameSelection" class="btn btn-secondary">← Back to Game Selection</button>
-                        <button id="openGameInNewWindow" class="btn btn-primary">🪟 Open in New Window</button>
-                    </div>
-                    <div class="game-area-content" id="gameAreaContent">
-                        <!-- Game content will be loaded here -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <p style="text-align:center; margin-top:40px; color:#666;">Redirecting&hellip;</p>
     <script src="auth.js"></script>
     <script>
-        // Check authentication and redirect based on role
         window.addEventListener('DOMContentLoaded', () => {
             const user = window.authUtils.getCurrentUser();
             if (user) {
-                // User is logged in, redirect to appropriate page
                 switch(user.role) {
                     case 'admin':
-                        window.location.href = '/admin.html';
+                        window.location.replace('/admin.html');
                         break;
                     case 'organization':
-                        window.location.href = '/organization.html';
+                        window.location.replace('/organization.html');
                         break;
                     case 'teacher':
-                        window.location.href = '/teacher.html';
+                        window.location.replace('/teacher.html');
                         break;
                     default:
-                        // Stay on index.html for backward compatibility
+                        window.location.replace('/login.html');
                         break;
                 }
             } else {
-                // Not logged in, redirect to login
-                window.location.href = '/login.html';
+                window.location.replace('/login.html');
             }
         });
-    </script>
-    <script src="teacher.js"></script>
-    <script>
-        // Detect if running in Electron
-        if (window.navigator.userAgent.indexOf('Electron') !== -1) {
-            document.body.classList.add('electron');
-        }
     </script>
 </body>
 </html>
