@@ -1,6 +1,8 @@
 // Load environment variables
 require('dotenv').config();
 
+import type { Express, Request, Response, NextFunction } from 'express';
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs').promises;
@@ -11,12 +13,12 @@ const { spawn } = require('child_process');
 const { Chess } = require('chess.js');
 const { openAiEnabled, openAiJson } = require('./ai/openai');
 
-const app = express();
+const app: Express = express();
 
 // ============================
 // Process-level crash diagnostics (Railway)
 // ============================
-function logProcessContext(tag, extra) {
+function logProcessContext(tag: string, extra?: Record<string, any>): void {
   try {
     const mem = process.memoryUsage ? process.memoryUsage() : null;
     console.error(`[${new Date().toISOString()}] ${tag}`, {
@@ -257,7 +259,7 @@ app.use('/game/monster-fight', express.static(path.join(__dirname, 'game/monster
 })();
 
 // Ensure data directory exists
-async function ensureDataDir() {
+async function ensureDataDir(): Promise<void> {
   const dirs = [
     path.dirname(DATA_FILE),
     SAVES_DIR,
@@ -299,24 +301,24 @@ async function ensureDataDir() {
 }
 
 // Read organizations data
-async function readOrganizations() {
+async function readOrganizations(): Promise<any[]> {
   const data = await organizationsStore.read();
   return data.organizations || [];
 }
 
 // Write organizations data
-async function writeOrganizations(organizations) {
+async function writeOrganizations(organizations: any[]): Promise<boolean> {
   return organizationsStore.write({ organizations, lastUpdate: new Date().toISOString() });
 }
 
 // Read users data
-async function readUsers() {
+async function readUsers(): Promise<any[]> {
   const data = await usersStore.read();
   return data.users || [];
 }
 
 // Write users data
-async function writeUsers(users) {
+async function writeUsers(users: any[]): Promise<boolean> {
   return usersStore.write({ users, lastUpdate: new Date().toISOString() });
 }
 
@@ -445,9 +447,9 @@ let blundersTeacherJobQueue = [];
 let blundersTeacherJobCancel = new Set(); // jobId
 let blundersTeacherRunNextJob = async () => {};
 
-function nowIso() { return new Date().toISOString(); }
+function nowIso(): string { return new Date().toISOString(); }
 
-function blundersChallengeDifficultyConfig(difficulty) {
+function blundersChallengeDifficultyConfig(difficulty: any): any {
   const d = String(difficulty || '').toLowerCase();
   // Per requirement:
   // - Easy: 3.0+ (exclude miss-mate)
@@ -513,7 +515,7 @@ let getChessComUsernameForStudent = async () => '';
 // ===== Date/schedule helpers (moved to server/lib/dateUtils.js) =====
 const { parseUciMove, dateStrFromYmd, parseDateStrToUtcMidnightMs, addDays, addMonths, DOW_NAME_TO_NUM, buildSkipDateSet, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } = require('./server/lib/dateUtils');
 
-function hkTodayDateStr() {
+function hkTodayDateStr(): string {
   const t = hkNow();
   return dateStrFromYmd(t.y, t.m, t.d);
 }
@@ -778,40 +780,40 @@ let syncBlundersForMaster = async () => ({ ok: false, error: 'sync not initializ
 }
 
 // Read courses data
-async function readCourses() {
+async function readCourses(): Promise<any[]> {
   const data = await coursesStore.read();
   return data.courses || [];
 }
 
 // Write courses data
-async function writeCourses(courses) {
+async function writeCourses(courses: any[]): Promise<boolean> {
   return coursesStore.write({ courses, lastUpdate: new Date().toISOString() });
 }
 
 // Read packages data
-async function readPackages() {
+async function readPackages(): Promise<any[]> {
   const data = await packagesStore.read();
   return data.packages || [];
 }
 
 // Write packages data
-async function writePackages(packages) {
+async function writePackages(packages: any[]): Promise<boolean> {
   return packagesStore.write({ packages, lastUpdate: new Date().toISOString() });
 }
 
 // Read subscription prices data (Admin Subscription Setting -> Price Setting)
-async function readSubscriptionPrices() {
+async function readSubscriptionPrices(): Promise<any[]> {
   const data = await subscriptionPricesStore.read();
   return Array.isArray(data.prices) ? data.prices : [];
 }
 
 // Write subscription prices data
-async function writeSubscriptionPrices(prices) {
+async function writeSubscriptionPrices(prices: any[]): Promise<boolean> {
   return subscriptionPricesStore.write({ prices, lastUpdate: new Date().toISOString() });
 }
 
 // Read subscription packages data (Admin Subscription Setting -> Package Setting)
-async function readSubscriptionPackages() {
+async function readSubscriptionPackages(): Promise<any[]> {
   const data = await subscriptionPackagesStore.read();
   return Array.isArray(data.packages) ? data.packages : [];
 }
@@ -836,7 +838,7 @@ const paypalBilling = createPayPalBillingHelpers({
 });
 
 // Write subscription packages data
-async function writeSubscriptionPackages(packages) {
+async function writeSubscriptionPackages(packages: any[]): Promise<boolean> {
   return subscriptionPackagesStore.write({ packages, lastUpdate: new Date().toISOString() });
 }
 
@@ -845,7 +847,7 @@ const checkExpiredPackages = createCheckExpiredPackages({ readPackages, writePac
 const updatePackagesForDeletedCourse = createUpdatePackagesForDeletedCourse({ readPackages, writePackages });
 
 // Read timetable data
-async function readTimetable() {
+async function readTimetable(): Promise<any> {
   try {
     const content = await fs.readFile(TIMETABLE_FILE, 'utf8');
     const data = JSON.parse(content);
@@ -863,7 +865,7 @@ async function readTimetable() {
 }
 
 // Write timetable data
-async function writeTimetable(timetableData) {
+async function writeTimetable(timetableData: any): Promise<boolean> {
   try {
     timetableData.metadata.lastUpdate = new Date().toISOString();
     await fs.writeFile(TIMETABLE_FILE, JSON.stringify(timetableData, null, 2), 'utf8');
@@ -890,13 +892,13 @@ const initializeDataFile = _dataStore.initializeDataFile;
 const initializeStudentFields = _dataStore.initializeStudentFields;
 // readData and writeData need to be available before this point in the file
 // (other init blocks reference them), so we use function declarations that hoist.
-function readData() { return _dataStore.readData(); }
-function writeData(data) { return _dataStore.writeData(data); }
+function readData(): Promise<any> { return _dataStore.readData(); }
+function writeData(data: any): Promise<boolean> { return _dataStore.writeData(data); }
 
 // (moved to server/routes/monsterFightGameRoutes.js)
 
 // Broadcast to all WebSocket clients
-function broadcast(data) {
+function broadcast(data: any): void {
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(data));
@@ -1100,14 +1102,14 @@ registerStudentsRoutes(app, {
 });
 
 // Helper function to validate date format DD/MM/YYYY
-function isValidDateFormat(dateString) {
+function isValidDateFormat(dateString: string): boolean {
   if (!dateString || dateString.trim() === '') return true; // Empty is allowed
   const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
   return regex.test(dateString);
 }
 
 // Helper function to validate date value (DD/MM/YYYY)
-function isValidDate(dateString) {
+function isValidDate(dateString: string): boolean {
   if (!dateString || dateString.trim() === '') return true; // Empty is allowed
   if (!isValidDateFormat(dateString)) return false;
   
@@ -1126,7 +1128,7 @@ function isValidDate(dateString) {
 }
 
 // Helper function to check if date is in the future
-function isFutureDate(dateString) {
+function isFutureDate(dateString: string): boolean {
   if (!dateString || dateString.trim() === '') return false;
   if (!isValidDate(dateString)) return false;
   
@@ -1142,7 +1144,7 @@ function isFutureDate(dateString) {
 }
 
 // Helper function to compare dates (DD/MM/YYYY)
-function compareDates(date1, date2) {
+function compareDates(date1: string, date2: string): number {
   if (!date1 || !date2) return 0;
   if (!isValidDate(date1) || !isValidDate(date2)) return 0;
   
@@ -1396,12 +1398,12 @@ app.post('/api/reset', async (req, res) => {
 });
 
 // Read/write orders data (via jsonStore)
-async function readOrders() { return ordersStore.read(); }
-async function writeOrders(orders) { return ordersStore.write(orders); }
+async function readOrders(): Promise<any> { return ordersStore.read(); }
+async function writeOrders(orders: any): Promise<boolean> { return ordersStore.write(orders); }
 
 // Read/write enrollments data (via jsonStore)
-async function readEnrollments() { return enrollmentsStore.read(); }
-async function writeEnrollments(enrollments) { return enrollmentsStore.write(enrollments); }
+async function readEnrollments(): Promise<any> { return enrollmentsStore.read(); }
+async function writeEnrollments(enrollments: any): Promise<boolean> { return enrollmentsStore.write(enrollments); }
 
 // ===== Initialize auto-renew now that readOrders/writeOrders/etc. are defined =====
 {
@@ -1425,8 +1427,8 @@ async function writeEnrollments(enrollments) { return enrollmentsStore.write(enr
 }
 
 // Read/write attendance data (via jsonStore)
-async function readAttendance() { return attendanceStore.read(); }
-async function writeAttendance(data) { return attendanceStore.write(data); }
+async function readAttendance(): Promise<any> { return attendanceStore.read(); }
+async function writeAttendance(data: any): Promise<boolean> { return attendanceStore.write(data); }
 
 // ===== Attendance routes (moved to server/routes/attendanceRoutes.js) =====
 const { registerAttendanceRoutes } = require('./server/routes/attendanceRoutes');
@@ -1439,8 +1441,8 @@ registerAttendanceRoutes(app, {
 });
 
 // Read/write transactions data (via jsonStore)
-async function readTransactions() { return transactionsStore.read(); }
-async function writeTransactions(data) { return transactionsStore.write(data); }
+async function readTransactions(): Promise<any> { return transactionsStore.read(); }
+async function writeTransactions(data: any): Promise<boolean> { return transactionsStore.write(data); }
 
 // ===== Organizations billing + finance routes (moved to server/routes/organizationsBillingRoutes.js) =====
 const { registerOrganizationsBillingRoutes } = require('./server/routes/organizationsBillingRoutes');
@@ -1487,15 +1489,15 @@ registerMyOwnAppRoutes(app, {
 // (moved to server/routes/organizationsBillingRoutes.js)
 
 // Read/write expenses data (via jsonStore)
-async function readExpenses() { return expensesStore.read(); }
-async function writeExpenses(data) { return expensesStore.write(data); }
+async function readExpenses(): Promise<any> { return expensesStore.read(); }
+async function writeExpenses(data: any): Promise<boolean> { return expensesStore.write(data); }
 
 // (moved to server/routes/organizationsBillingRoutes.js)
 
 // (moved to server/routes/organizationsRoutes.js)
 
 // Initialize server
-async function startServer() {
+async function startServer(): Promise<void> {
   await ensureDataDir();
   await initializeDataFile();
   await billingDb.ensureBillingSchema();
@@ -1524,7 +1526,7 @@ async function startServer() {
   const wss = new WebSocket.Server({ server });
 
   // Graceful shutdown (Railway sends SIGTERM during deploy/restart)
-  const shutdown = (signal) => {
+  const shutdown = (signal: string) => {
     logProcessContext('shutdown', { signal });
     try { server.close(() => process.exit(0)); } catch { try { process.exit(0); } catch {} }
     try { setTimeout(() => process.exit(0), 5000).unref?.(); } catch {}
@@ -1566,7 +1568,7 @@ async function startServer() {
   } catch {}
 
   // Make wss available globally for broadcast
-  global.wss = wss;
+  (global as any).wss = wss;
 }
 
 startServer();
