@@ -1,11 +1,12 @@
+import type { Pool as PoolType, QueryResult } from 'pg';
 const { dbQuery, getPool } = require('../db/postgres');
 
-async function query(text, params) {
+async function query(text: string, params?: any[]): Promise<QueryResult> {
   return dbQuery(text, params);
 }
 
-async function ensureBillingSchema() {
-  const pool = getPool();
+async function ensureBillingSchema(): Promise<void> {
+  const pool: PoolType | null = getPool();
   if (!pool) {
     console.log('Billing schema: skipped (Postgres not configured).');
     return;
@@ -65,12 +66,12 @@ async function ensureBillingSchema() {
   `);
 }
 
-async function getMeta(key) {
+async function getMeta(key: string): Promise<string | null> {
   const res = await query('SELECT value FROM billing_meta WHERE key=$1', [key]);
   return res.rows[0]?.value || null;
 }
 
-async function setMeta(key, value) {
+async function setMeta(key: string, value: string): Promise<void> {
   await query(
     `
     INSERT INTO billing_meta(key, value, updated_at)
@@ -82,7 +83,7 @@ async function setMeta(key, value) {
 }
 
 module.exports = {
-  get pool() { return getPool(); },
+  get pool(): PoolType | null { return getPool(); },
   query,
   ensureBillingSchema,
   getMeta,

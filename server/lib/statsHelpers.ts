@@ -2,14 +2,42 @@
 
 const { RANKS } = require('../config/constants');
 
+interface StatEntry {
+  answerCount: number;
+  totalPoints: number;
+}
+
+interface StudentStats {
+  daily: Record<string, StatEntry>;
+  weekly: Record<string, StatEntry>;
+  monthly: Record<string, StatEntry>;
+  yearly: Record<string, StatEntry>;
+}
+
+interface StudentWithStats {
+  stats?: StudentStats;
+  [key: string]: any; // TODO: tighten when Student interface is shared
+}
+
+interface RankInfo {
+  rank: string;
+  rankIndex: number;
+  currentScore: number;
+  minScore: number;
+  maxScore: number;
+  progress: number;
+  nextRank: string | null;
+  scoreToNext: number;
+}
+
 // Statistics Helper Functions
-function getDateKey(date = new Date()) {
+function getDateKey(date: Date | string | number = new Date()): string {
   // Returns YYYY-MM-DD format
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function getWeekKey(date = new Date()) {
+function getWeekKey(date: Date | string | number = new Date()): string {
   // Returns YYYY-Www format (Monday as start of week)
   // Simple approach: calculate week number based on days since year start
   const d = new Date(date);
@@ -31,7 +59,7 @@ function getWeekKey(date = new Date()) {
   const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
   
   // Calculate week number
-  const daysDiff = Math.floor((mondayDate - firstMonday) / (24 * 60 * 60 * 1000));
+  const daysDiff = Math.floor((mondayDate.getTime() - firstMonday.getTime()) / (24 * 60 * 60 * 1000));
   let weekNumber = Math.floor(daysDiff / 7) + 1;
   
   // Ensure week number is valid
@@ -45,19 +73,19 @@ function getWeekKey(date = new Date()) {
   return `${year}-W${String(weekNumber).padStart(2, '0')}`;
 }
 
-function getMonthKey(date = new Date()) {
+function getMonthKey(date: Date | string | number = new Date()): string {
   // Returns YYYY-MM format
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function getYearKey(date = new Date()) {
+function getYearKey(date: Date | string | number = new Date()): string {
   // Returns YYYY format
   const d = new Date(date);
   return d.getFullYear().toString();
 }
 
-function updateStudentStats(student, points) {
+function updateStudentStats(student: StudentWithStats, points: number): void {
   // Initialize stats if not exists
   if (!student.stats) {
     student.stats = {
@@ -104,7 +132,7 @@ function updateStudentStats(student, points) {
   student.stats.yearly[yearKey].totalPoints += points;
 }
 
-function addRewardPointsToStats(student, points) {
+function addRewardPointsToStats(student: StudentWithStats, points: number): void {
   if (!student.stats) {
     student.stats = {
       daily: {},
@@ -143,7 +171,7 @@ function addRewardPointsToStats(student, points) {
 }
 
 // Get rank information based on score
-function getRankInfo(score) {
+function getRankInfo(score: number): RankInfo {
   for (let i = 0; i < RANKS.length; i++) {
     if (score <= RANKS[i].maxScore) {
       const currentRank = RANKS[i];
@@ -161,8 +189,6 @@ function getRankInfo(score) {
         maxScore: currentRank.maxScore,
         progress: Math.min(100, Math.max(0, progress)),
         nextRank: nextRank ? nextRank.name : null,
-        // Points needed to reach the next rank threshold (end of current rank range).
-        // Example: Silver maxScore=200 → if score=150, need 50 more points.
         scoreToNext: nextRank && Number.isFinite(currentRank.maxScore) ? Math.max(0, currentRank.maxScore - score) : 0
       };
     }

@@ -8,16 +8,21 @@
  *   await store.write(data);           // writes JSON with pretty-print
  */
 
-function createJsonStore(filePath, defaultValue = {}) {
+interface JsonStore<T> {
+  read(): Promise<T>;
+  write(data: T): Promise<boolean>;
+}
+
+function createJsonStore<T>(filePath: string, defaultValue: T = {} as T): JsonStore<T> {
   return {
-    async read() {
+    async read(): Promise<T> {
       try {
         return JSON.parse(await require('fs').promises.readFile(filePath, 'utf8'));
       } catch {
-        return typeof defaultValue === 'function' ? defaultValue() : JSON.parse(JSON.stringify(defaultValue));
+        return typeof defaultValue === 'function' ? (defaultValue as Function)() : JSON.parse(JSON.stringify(defaultValue));
       }
     },
-    async write(data) {
+    async write(data: T): Promise<boolean> {
       await require('fs').promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
       return true;
     }

@@ -1,9 +1,46 @@
 // Auto-renew logic extracted from server.js.
 // Checks for students with autoRenewEnabled and creates renewal orders/enrollments.
+export {};
 
 const { addDays, addMonths, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } = require('../lib/dateUtils');
 
-function createAutoRenew(deps) {
+interface AutoRenewDeps {
+  todayHkKey(): string;
+  hkTodayDateStr(): string;
+  readOrganizations(): Promise<any[]>;
+  readData(): Promise<any>;
+  readOrders(): Promise<any[]>;
+  writeOrders(orders: any[]): Promise<void>;
+  readEnrollments(): Promise<any[]>;
+  writeEnrollments(enrollments: any[]): Promise<void>;
+  readTimetable(): Promise<any>;
+  readPackages(): Promise<any[]>;
+  readCourses(): Promise<any[]>;
+  nowIso(): string;
+  AUTO_RENEW_LEAD_DAYS: number;
+}
+
+interface AutoRenewMeta {
+  lastRunAt: string | null;
+  lastRunHkDay: string | null;
+  lastRunOk: number;
+  lastRunErr: number;
+}
+
+interface AutoRenewResult {
+  ok: boolean;
+  skipped?: boolean | number;
+  createdOrders?: number;
+  createdEnrollments?: number;
+  error?: string;
+}
+
+interface AutoRenewReturn {
+  maybeRunAutoRenewAllOrgs(): Promise<AutoRenewResult>;
+  autoRenewMeta: AutoRenewMeta;
+}
+
+function createAutoRenew(deps: AutoRenewDeps): AutoRenewReturn {
   const {
     todayHkKey,
     hkTodayDateStr,
@@ -20,9 +57,9 @@ function createAutoRenew(deps) {
     AUTO_RENEW_LEAD_DAYS
   } = deps;
 
-  const autoRenewMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
+  const autoRenewMeta: AutoRenewMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
 
-  async function maybeRunAutoRenewAllOrgs() {
+  async function maybeRunAutoRenewAllOrgs(): Promise<AutoRenewResult> {
     try {
       const hkDay = todayHkKey();
       if (autoRenewMeta.lastRunHkDay && autoRenewMeta.lastRunHkDay === hkDay) return { ok: true, skipped: true };
@@ -38,11 +75,11 @@ function createAutoRenew(deps) {
         readCourses()
       ]);
 
-      const orgById = new Map(organizations.map(o => [String(o.id), o]));
-      const ordersById = new Map(orders.map(o => [String(o.id), o]));
-      const coursesById = new Map(courses.map(c => [String(c.id), c]));
-      const packagesById = new Map(packages.map(p => [String(p.id), p]));
-      const entryById = new Map((timetable?.entries || []).map(e => [String(e.id), e]));
+      const orgById = new Map(organizations.map((o: any) => [String(o.id), o]));
+      const ordersById = new Map(orders.map((o: any) => [String(o.id), o]));
+      const coursesById = new Map(courses.map((c: any) => [String(c.id), c]));
+      const packagesById = new Map(packages.map((p: any) => [String(p.id), p]));
+      const entryById: Map<string, any> = new Map((timetable?.entries || []).map((e: any) => [String(e.id), e]));
 
       let createdOrders = 0;
       let createdEnrollments = 0;
@@ -57,11 +94,11 @@ function createAutoRenew(deps) {
         if (!orgId || !timetableEntryId || !packageId) { skipped++; continue; }
 
         const org = orgById.get(orgId);
-        const entry = entryById.get(timetableEntryId);
-        const pkg = packagesById.get(packageId);
+        const entry: any = entryById.get(timetableEntryId);
+        const pkg: any = packagesById.get(packageId);
         if (!org || !entry || !pkg) { skipped++; continue; }
 
-        const paidEnrolls = enrollments.filter(e =>
+        const paidEnrolls = enrollments.filter((e: any) =>
           String(e.organizationId) === orgId &&
           String(e.studentId) === String(stu.id) &&
           String(e.timetableEntryId) === timetableEntryId &&
@@ -71,14 +108,14 @@ function createAutoRenew(deps) {
         );
         if (paidEnrolls.length === 0) { skipped++; continue; }
 
-        const paidEnrollsWithPkg = paidEnrolls.filter(e => {
+        const paidEnrollsWithPkg = paidEnrolls.filter((e: any) => {
           const o = ordersById.get(String(e.orderId));
           const items = Array.isArray(o?.items) ? o.items : [];
-          return items.some(it => String(it?.productData?.id || '') === packageId);
+          return items.some((it: any) => String(it?.productData?.id || '') === packageId);
         });
         if (paidEnrollsWithPkg.length === 0) { skipped++; continue; }
 
-        let last = null;
+        let last: any = null;
         for (const e of paidEnrollsWithPkg) {
           if (!e.date) continue;
           if (!/^\d{4}-\d{2}-\d{2}$/.test(String(e.date))) continue;
@@ -90,7 +127,7 @@ function createAutoRenew(deps) {
         const sourceOrder = ordersById.get(sourceOrderId);
         if (!sourceOrder) { skipped++; continue; }
 
-        const sourceEnrolls = enrollments.filter(e =>
+        const sourceEnrolls = enrollments.filter((e: any) =>
           String(e.organizationId) === orgId &&
           String(e.studentId) === String(stu.id) &&
           String(e.timetableEntryId) === timetableEntryId &&
@@ -99,11 +136,11 @@ function createAutoRenew(deps) {
           /^\d{4}-\d{2}-\d{2}$/.test(e.date)
         );
         if (sourceEnrolls.length === 0) { skipped++; continue; }
-        const lastClassDate = sourceEnrolls.reduce((mx, e) => (!mx || e.date > mx ? e.date : mx), null);
+        const lastClassDate = sourceEnrolls.reduce((mx: string | null, e: any) => (!mx || e.date > mx ? e.date : mx), null);
         const generateOn = addDays(lastClassDate, -AUTO_RENEW_LEAD_DAYS);
         if (generateOn !== today) continue;
 
-        const already = orders.some(o =>
+        const already = orders.some((o: any) =>
           String(o.organizationId) === orgId &&
           String(o.studentId) === String(stu.id) &&
           o?.meta?.autoRenew &&
@@ -111,7 +148,7 @@ function createAutoRenew(deps) {
         );
         if (already) { skipped++; continue; }
 
-        let nextDates = [];
+        let nextDates: string[] = [];
         if (String(pkg.priceStrategy) === 'monthly') {
           const periodMonths = Number(pkg.monthlyPeriod) || 1;
           const end = addMonths(lastClassDate, periodMonths);
@@ -134,14 +171,14 @@ function createAutoRenew(deps) {
         if (!Array.isArray(nextDates) || nextDates.length === 0) { skipped++; continue; }
 
         const existingDateSet = new Set(enrollments
-          .filter(e =>
+          .filter((e: any) =>
             String(e.organizationId) === orgId &&
             String(e.studentId) === String(stu.id) &&
             String(e.timetableEntryId) === timetableEntryId &&
             typeof e.date === 'string')
-          .map(e => e.date)
+          .map((e: any) => e.date)
         );
-        nextDates = nextDates.filter(d => !existingDateSet.has(d));
+        nextDates = nextDates.filter((d: string) => !existingDateSet.has(d));
         if (nextDates.length === 0) { skipped++; continue; }
 
         const classCount = nextDates.length;
@@ -150,7 +187,7 @@ function createAutoRenew(deps) {
           id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
           productType: 'package',
           productData: pkg,
-          enrolledClasses: nextDates.map(ds => ({
+          enrolledClasses: nextDates.map((ds: string) => ({
             id: `${entry.id}_${Date.parse(`${ds}T00:00:00Z`)}`,
             dateString: ds,
             date: `${ds}T00:00:00.000Z`,
@@ -212,7 +249,7 @@ function createAutoRenew(deps) {
       autoRenewMeta.lastRunOk = createdOrders;
       autoRenewMeta.lastRunErr = 0;
       return { ok: true, createdOrders, createdEnrollments, skipped };
-    } catch (e) {
+    } catch (e: any) {
       autoRenewMeta.lastRunAt = nowIso();
       autoRenewMeta.lastRunErr = 1;
       console.error('Auto-renew tick error:', e);

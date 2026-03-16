@@ -4,13 +4,79 @@
 
 const { LEVELS } = require('../config/constants');
 
-function createDataStore({ fs, DATA_FILE }) {
+interface Student {
+  id?: string;
+  name?: string;
+  localName?: string;
+  contactPhoneCountry?: string;
+  contactPhoneCountryCode?: string;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  chessComId?: string;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactRelation?: string | null;
+  emergencyContactNumber?: string | null;
+  remark?: string | null;
+  membership?: string | null;
+  membershipStartDate?: string | null;
+  membershipEndDate?: string | null;
+  organizationId?: string;
+  autoRenewEnabled?: boolean;
+  autoRenewTimetableEntryId?: string;
+  autoRenewPackageId?: string;
+  stats?: {
+    daily: Record<string, any>;
+    weekly: Record<string, any>;
+    monthly: Record<string, any>;
+    yearly?: Record<string, any>;
+  };
+  studentId?: string; // legacy field for migration
+  [key: string]: any; // TODO: tighten as migration completes
+}
+
+interface Challenge {
+  currentLevel: number;
+  currentHP: number;
+  completedLevels: number[];
+  totalDamage: number;
+}
+
+interface DataFile {
+  students: Student[];
+  battles: any[]; // TODO: define Battle interface
+  challenge?: Challenge;
+  lastUpdate?: string;
+}
+
+interface FileSystem {
+  readFile(path: string, encoding: string): Promise<string>;
+  writeFile(path: string, data: string, encoding: string): Promise<void>;
+  rename(oldPath: string, newPath: string): Promise<void>;
+  unlink(path: string): Promise<void>;
+  access(path: string): Promise<void>;
+}
+
+interface DataStoreDeps {
+  fs: FileSystem;
+  DATA_FILE: string;
+}
+
+interface DataStoreReturn {
+  readData(): Promise<DataFile>;
+  writeData(data: DataFile): Promise<boolean>;
+  initializeDataFile(): Promise<void>;
+  initializeStudentFields(student: Student): Student;
+}
+
+function createDataStore({ fs, DATA_FILE }: DataStoreDeps): DataStoreReturn {
   // File operation queue to prevent concurrent read/write conflicts
-  let dataFileQueue = Promise.resolve();
+  let dataFileQueue: Promise<any> = Promise.resolve();
   let isWriting = false;
 
   // Initialize student fields (add new fields if missing)
-  function initializeStudentFields(student) {
+  function initializeStudentFields(student: Student): Student {
     // ===== One-time schema migration: studentId -> chessComId =====
     if (student && typeof student === 'object') {
       const hasChess = Object.prototype.hasOwnProperty.call(student, 'chessComId');
@@ -24,7 +90,7 @@ function createDataStore({ fs, DATA_FILE }) {
       }
     }
 
-    const newFields = {
+    const newFields: Record<string, any> = {
       localName: '',
       contactPhoneCountry: 'HK',
       contactPhoneCountryCode: '+852',
@@ -44,7 +110,7 @@ function createDataStore({ fs, DATA_FILE }) {
 
     Object.keys(newFields).forEach(key => {
       if (!(key in student)) {
-        student[key] = newFields[key];
+        (student as any)[key] = newFields[key];
       }
     });
 
@@ -52,7 +118,7 @@ function createDataStore({ fs, DATA_FILE }) {
   }
 
   // Write data to txt file with queue protection
-  async function writeData(data) {
+  async function writeData(data: DataFile): Promise<boolean> {
     dataFileQueue = dataFileQueue.then(async () => {
       isWriting = true;
       try {
@@ -86,7 +152,7 @@ function createDataStore({ fs, DATA_FILE }) {
   }
 
   // Read data from txt file with queue protection
-  async function readData() {
+  async function readData(): Promise<DataFile> {
     await dataFileQueue;
 
     try {
@@ -97,10 +163,10 @@ function createDataStore({ fs, DATA_FILE }) {
         return { students: [], battles: [], lastUpdate: new Date().toISOString() };
       }
 
-      let data;
+      let data: DataFile;
       try {
         data = JSON.parse(content);
-      } catch (parseError) {
+      } catch (parseError: any) {
         console.error('JSON parse error - file may be corrupted or incomplete:', parseError.message);
         console.error('File content length:', content.length);
         console.error('File content preview:', content.substring(0, 200));
@@ -115,7 +181,7 @@ function createDataStore({ fs, DATA_FILE }) {
       const needsStudentIdMigration = !!(
         data.students &&
         Array.isArray(data.students) &&
-        data.students.some(s => s && typeof s === 'object' && Object.prototype.hasOwnProperty.call(s, 'studentId'))
+        data.students.some((s: Student) => s && typeof s === 'object' && Object.prototype.hasOwnProperty.call(s, 'studentId'))
       );
 
       if (data.students && Array.isArray(data.students)) {
@@ -127,7 +193,7 @@ function createDataStore({ fs, DATA_FILE }) {
       if (needsStudentIdMigration) {
         try {
           await writeData(data);
-        } catch (e) {
+        } catch (e: any) {
           console.warn('Unable to persist studentId->chessComId migration:', e?.message || e);
         }
       }
@@ -140,7 +206,7 @@ function createDataStore({ fs, DATA_FILE }) {
   }
 
   // Initialize data file if it doesn't exist
-  async function initializeDataFile() {
+  async function initializeDataFile(): Promise<void> {
     try {
       await fs.access(DATA_FILE);
       const data = await readData();
@@ -161,7 +227,7 @@ function createDataStore({ fs, DATA_FILE }) {
         }
 
         let needsMigration = false;
-        data.students.forEach(student => {
+        data.students.forEach((student: Student) => {
           if (!student.stats) {
             student.stats = {
               daily: {},
@@ -179,7 +245,7 @@ function createDataStore({ fs, DATA_FILE }) {
         }
       }
     } catch {
-      const initialData = {
+      const initialData: DataFile = {
         students: [],
         battles: [],
         challenge: {

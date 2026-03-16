@@ -1,6 +1,20 @@
 // Challenge Level System Configuration
 // HP calculation: Level 1=50, Level 2=100, Level 3=150, then each level = previous + previous-1
-const LEVELS = [
+
+interface Level {
+  level: number;
+  name: string;
+  maxHP: number;
+  reward: number;
+  emoji: string;
+}
+
+interface Rank {
+  name: string;
+  maxScore: number;
+}
+
+const LEVELS: Level[] = [
   { level: 1, name: 'Slime', maxHP: 50, reward: 10, emoji: '🟢' },
   { level: 2, name: 'Goblin', maxHP: 100, reward: 20, emoji: '👺' },
   { level: 3, name: 'Orc', maxHP: 150, reward: 30, emoji: '👹' },
@@ -15,7 +29,7 @@ const LEVELS = [
 
 // Rank system configuration
 // Wood starts at 50, then each rank multiplies by 2 times the previous rank's max score
-const RANKS = [
+const RANKS: Rank[] = [
   { name: 'Wood', maxScore: 50 },                                    // 0-50
   { name: 'Bronze', maxScore: 50 * 2 },                              // 50-100
   { name: 'Silver', maxScore: 50 * Math.pow(2, 2) },                // 100-200
@@ -29,3 +43,4 @@ const RANKS = [
 ];
 
 module.exports = { LEVELS, RANKS };
+export type { Level, Rank };

@@ -1,6 +1,66 @@
 // Date/schedule helper functions extracted from server.js.
+export {};
 
-function parseUciMove(uci) {
+interface UciMove {
+  from: string;
+  to: string;
+  promotion: string | undefined;
+  uci: string;
+}
+
+interface TimetableEntry {
+  id?: string;
+  isRecurring?: boolean;
+  dayOfWeek?: string[];
+  startDate?: string;
+  endDate?: string;
+  exceptions?: string[];
+  className?: string;
+  startTime?: string;
+  endTime?: string;
+  classroom?: string | null;
+}
+
+interface OrgSettings {
+  scheduleSettings?: {
+    holidays?: string[];
+  };
+}
+
+interface NextOccurrencesParams {
+  entry: TimetableEntry;
+  startAfterDateStr: string;
+  count?: number;
+  endDateStrInclusive?: string;
+  orgSettings?: OrgSettings;
+}
+
+interface PackageCourse {
+  courseId?: string;
+  quantity?: number;
+}
+
+interface Package {
+  priceStrategy?: string;
+  fixedPrice?: number;
+  customPrice?: number;
+  monthlyLessonPrice?: number;
+  discountPercentage?: number;
+  courses?: PackageCourse[];
+  monthlyPeriod?: number;
+}
+
+interface Course {
+  price?: number;
+}
+
+interface ComputePackagePriceParams {
+  pkg: Package;
+  coursesById: Map<string, Course>;
+  classCount: number;
+}
+
+function parseUciMove(uci: string | null | undefined): UciMove | null {
   const s = String(uci || '').trim().toLowerCase();
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(s)) return null;
   const from = s.slice(0, 2);
@@ -9,27 +69,27 @@ function parseUciMove(uci) {
   return { from, to, promotion, uci: s };
 }
 
-function dateStrFromYmd(y, m, d) {
+function dateStrFromYmd(y: number, m: number, d: number): string {
   const mm = String(m).padStart(2, '0');
   const dd = String(d).padStart(2, '0');
   return `${y}-${mm}-${dd}`;
 }
 
-function parseDateStrToUtcMidnightMs(dateStr) {
+function parseDateStrToUtcMidnightMs(dateStr: string | null | undefined): number | null {
   const s = String(dateStr || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   const ms = Date.parse(`${s}T00:00:00.000Z`);
   return Number.isFinite(ms) ? ms : null;
 }
 
-function addDays(dateStr, days) {
+function addDays(dateStr: string, days: number): string | null {
   const ms = parseDateStrToUtcMidnightMs(dateStr);
   if (ms == null) return null;
   const next = new Date(ms + (Number(days) || 0) * 86400000);
   return dateStrFromYmd(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
 }
 
-function addMonths(dateStr, months) {
+function addMonths(dateStr: string, months: number): string | null {
   const ms = parseDateStrToUtcMidnightMs(dateStr);
   if (ms == null) return null;
   const d = new Date(ms);
@@ -43,13 +103,13 @@ function addMonths(dateStr, months) {
   return dateStrFromYmd(target.getUTCFullYear(), target.getUTCMonth() + 1, target.getUTCDate());
 }
 
-const DOW_NAME_TO_NUM = {
+const DOW_NAME_TO_NUM: Record<string, number> = {
   Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6
 };
 
-function buildSkipDateSet(entry, orgSettings) {
-  const s = new Set();
-  const ex = Array.isArray(entry?.exceptions) ? entry.exceptions : [];
+function buildSkipDateSet(entry: TimetableEntry | null | undefined, orgSettings: OrgSettings | null | undefined): Set<string> {
+  const s = new Set<string>();
+  const ex = Array.isArray(entry?.exceptions) ? entry!.exceptions : [];
   for (const d of ex) if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) s.add(d);
   const hol = orgSettings?.scheduleSettings?.holidays;
   if (Array.isArray(hol)) {
@@ -58,9 +118,9 @@ function buildSkipDateSet(entry, orgSettings) {
   return s;
 }
 
-function nextOccurrencesForEntry({ entry, startAfterDateStr, count, endDateStrInclusive, orgSettings }) {
+function nextOccurrencesForEntry({ entry, startAfterDateStr, count, endDateStrInclusive, orgSettings }: NextOccurrencesParams): string[] {
   const skip = buildSkipDateSet(entry, orgSettings);
-  const days = Array.isArray(entry?.dayOfWeek) ? entry.dayOfWeek : [];
+  const days = Array.isArray(entry?.dayOfWeek) ? entry!.dayOfWeek : [];
   const dowSet = new Set(days.map(d => DOW_NAME_TO_NUM[d]).filter(v => v !== undefined));
   if (!entry?.isRecurring) return [];
   if (dowSet.size <= 0) return [];
@@ -74,7 +134,7 @@ function nextOccurrencesForEntry({ entry, startAfterDateStr, count, endDateStrIn
   const endMs = endDateStrInclusive ? parseDateStrToUtcMidnightMs(endDateStrInclusive) : null;
   const limitMs = endMs != null ? Math.min(endMs, hardStopMs) : hardStopMs;
 
-  const out = [];
+  const out: string[] = [];
   // start checking from the next day
   let curMs = startMs + 86400000;
   while (curMs <= limitMs) {
@@ -91,19 +151,19 @@ function nextOccurrencesForEntry({ entry, startAfterDateStr, count, endDateStrIn
   return out;
 }
 
-function packageLessonCount(pkg) {
+function packageLessonCount(pkg: Package): number {
   const courses = Array.isArray(pkg?.courses) ? pkg.courses : [];
-  return courses.reduce((sum, c) => sum + (Number(c?.quantity) || 0), 0);
+  return courses.reduce((sum: number, c: PackageCourse) => sum + (Number(c?.quantity) || 0), 0);
 }
 
-function computePackagePrice({ pkg, coursesById, classCount }) {
+function computePackagePrice({ pkg, coursesById, classCount }: ComputePackagePriceParams): number {
   const strategy = String(pkg?.priceStrategy || '');
   if (strategy === 'fixed') return Number(pkg?.fixedPrice) || 0;
   if (strategy === 'custom') return Number(pkg?.customPrice) || 0;
   if (strategy === 'monthly') return (Number(pkg?.monthlyLessonPrice) || 0) * (Number(classCount) || 0);
   if (strategy === 'discount') {
     const disc = Number(pkg?.discountPercentage) || 0;
-    const base = (Array.isArray(pkg?.courses) ? pkg.courses : []).reduce((sum, c) => {
+    const base = (Array.isArray(pkg?.courses) ? pkg.courses : []).reduce((sum: number, c: PackageCourse) => {
       const course = coursesById.get(String(c.courseId || ''));
       const qty = Number(c?.quantity) || 0;
       const p = Number(course?.price) || 0;

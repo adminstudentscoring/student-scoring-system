@@ -1,26 +1,70 @@
 // Subscription helper functions extracted from server.js.
 
-function resolveOrgIdFromUser(user) {
+interface User {
+  organizationId?: string;
+  orgId?: string;
+  id?: string;
+  email?: string;
+  role?: string;
+  userId?: string;
+}
+
+interface AuditRecord {
+  [key: string]: any; // TODO: tighten once audit schema is defined
+}
+
+interface RequestWithUser {
+  user?: User;
+  [key: string]: any;
+}
+
+interface AppendSubscriptionAuditDeps {
+  fs: { appendFile(path: string, data: string, encoding: string): Promise<void> };
+  SUBSCRIPTION_AUDIT_FILE: string;
+}
+
+interface PackageItem {
+  status?: string;
+  endDate?: string;
+  updatedAt?: string;
+  courses?: Array<{ courseId?: string }>;
+}
+
+interface CheckExpiredPackagesDeps {
+  readPackages(): Promise<PackageItem[]>;
+  writePackages(packages: PackageItem[]): Promise<void>;
+}
+
+interface UpdatePackagesForDeletedCourseDeps {
+  readPackages(): Promise<PackageItem[]>;
+  writePackages(packages: PackageItem[]): Promise<void>;
+}
+
+type SubscriptionStatus = 'active' | 'inactive' | 'archived';
+type PublishState = 'draft' | 'live';
+type Currency = 'HKD' | 'USD';
+
+function resolveOrgIdFromUser(user: User | null | undefined): string | null {
   if (!user) return null;
   return user.organizationId || user.orgId || user.id || null;
 }
 
-function normalizeSubscriptionStatus(v) {
+function normalizeSubscriptionStatus(v: string | null | undefined): SubscriptionStatus {
   const s = String(v || 'inactive').toLowerCase();
-  return ['active', 'inactive', 'archived'].includes(s) ? s : 'inactive';
+  return (['active', 'inactive', 'archived'] as const).includes(s as SubscriptionStatus) ? s as SubscriptionStatus : 'inactive';
 }
 
-function normalizePublishState(v) {
+function normalizePublishState(v: string | null | undefined): PublishState {
   const s = String(v || 'draft').toLowerCase();
-  return ['draft', 'live'].includes(s) ? s : 'draft';
+  return (['draft', 'live'] as const).includes(s as PublishState) ? s as PublishState : 'draft';
 }
 
-function normalizeCurrency(v) {
+function normalizeCurrency(v: string | null | undefined): Currency {
   const c = String(v || 'HKD').toUpperCase();
-  return ['HKD', 'USD'].includes(c) ? c : 'HKD';
+  return (['HKD', 'USD'] as const).includes(c as Currency) ? c as Currency : 'HKD';
 }
 
-function dateOnlyTodayString() {
+function dateOnlyTodayString(): string {
   // YYYY-MM-DD in server local time
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -29,8 +73,8 @@ function dateOnlyTodayString() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function createAppendSubscriptionAudit({ fs, SUBSCRIPTION_AUDIT_FILE }) {
-  return async function appendSubscriptionAudit(req, record) {
+function createAppendSubscriptionAudit({ fs, SUBSCRIPTION_AUDIT_FILE }: AppendSubscriptionAuditDeps): (req: RequestWithUser, record: AuditRecord) => Promise<void> {
+  return async function appendSubscriptionAudit(req: RequestWithUser, record: AuditRecord): Promise<void> {
     try {
       const actor = req?.user
         ? {
@@ -51,8 +95,8 @@ function createAppendSubscriptionAudit({ fs, SUBSCRIPTION_AUDIT_FILE }) {
   };
 }
 
-function createCheckExpiredPackages({ readPackages, writePackages }) {
-  return async function checkExpiredPackages() {
+function createCheckExpiredPackages({ readPackages, writePackages }: CheckExpiredPackagesDeps): () => Promise<PackageItem[]> {
+  return async function checkExpiredPackages(): Promise<PackageItem[]> {
     try {
       const packages = await readPackages();
       const now = new Date();
@@ -81,8 +125,8 @@ function createCheckExpiredPackages({ readPackages, writePackages }) {
   };
 }
 
-function createUpdatePackagesForDeletedCourse({ readPackages, writePackages }) {
-  return async function updatePackagesForDeletedCourse(courseId) {
+function createUpdatePackagesForDeletedCourse({ readPackages, writePackages }: UpdatePackagesForDeletedCourseDeps): (courseId: string) => Promise<boolean> {
+  return async function updatePackagesForDeletedCourse(courseId: string): Promise<boolean> {
     try {
       const packages = await readPackages();
       let updated = false;
