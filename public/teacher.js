@@ -1185,33 +1185,6 @@ function openApplicationStudentPicker(gameKey) {
 
 window.openApplicationStudentPicker = openApplicationStudentPicker;
 
-function openChessPalAsMe() {
-    if (!currentUser || !currentUser.id) {
-        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
-        return;
-    }
-    const player = {
-        id: String(currentUser.id),
-        name: String(currentUser.name || currentUser.email || 'Teacher'),
-        studentId: String(currentUser.teacherId || currentUser.id)
-    };
-    try {
-        localStorage.setItem('chessPalPlayers', JSON.stringify([player]));
-    } catch (error) {
-        console.warn('Unable to persist chess pal players to localStorage:', error);
-    }
-
-    const gameUrl = '/game/chess-pal/index.html';
-    const gameWindow = window.open(gameUrl, 'ChessPal', 'width=1200,height=800,resizable=yes,scrollbars=yes');
-    if (!gameWindow) {
-        showNotification('Popup blocked. Opening in current window...', 'warning');
-        window.location.href = gameUrl;
-        return;
-    }
-    showNotification('Chess Pal opened in new window', 'success');
-}
-
-window.openChessPalAsMe = openChessPalAsMe;
 
 function openTacticsFighterAsMe() {
     if (!currentUser || !currentUser.id) {
@@ -1524,15 +1497,6 @@ function showGameSelection() {
                 <div class="game-info">
                     <h4>Royal Exchange</h4>
                     <p>Swap chess pieces without breaking safety</p>
-                </div>
-            </div>
-            <div class="game-item" onclick="startChessPal()">
-                <div class="game-icon">
-                    <img src="/game/chess-pal/images/Logo/Logo_1.png" alt="Chess Pal" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
-                </div>
-                <div class="game-info">
-                    <h4>Chess Pal</h4>
-                    <p>Knight-based jewel puzzle with elemental monsters</p>
                 </div>
             </div>
             <div class="game-item" onclick="startNoBlunder()">
@@ -2032,50 +1996,6 @@ async function startVChessPlatform() {
 
 window.startVChessPlatform = startVChessPlatform;
 
-async function startChessPal() {
-    if (selectedGameStudents.length === 0) {
-        showNotification('Please select at least one student', 'error');
-        return;
-    }
-
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        return {
-            id,
-            name: student.name || 'Unknown',
-            studentId: student.chessComId || ''
-        };
-    });
-
-    // 儲存玩家資料到 localStorage（供獨立遊戲使用）
-    try {
-        localStorage.setItem('chessPalPlayers', JSON.stringify(playerDetails));
-    } catch (error) {
-        console.warn('Unable to persist chess pal players to localStorage:', error);
-    }
-
-    // 打開獨立專案的頁面
-    // 使用伺服器提供的路徑訪問獨立專案
-    const gameUrl = '/game/chess-pal/index.html';
-    
-    // 嘗試在新視窗中打開
-    const gameWindow = window.open(
-        gameUrl,
-        'ChessPal',
-        'width=1200,height=800,resizable=yes,scrollbars=yes'
-    );
-    
-    if (!gameWindow) {
-        // 如果彈出視窗被阻止，顯示通知並嘗試在當前視窗打開
-        showNotification('Popup blocked. Opening in current window...', 'warning');
-        window.location.href = gameUrl;
-    } else {
-        showNotification('Chess Pal opened in new window', 'success');
-    }
-}
-
-window.startChessPal = startChessPal;
-
 function showGameArea() {
     document.getElementById('gameSelectionSection').style.display = 'none';
     document.getElementById('studentSelectionSection').style.display = 'none';
@@ -2535,7 +2455,6 @@ const SHARE_APP_DEST_ORDER = [
     'game_runningQueen',
     'game_royalExchange',
     'game_hopeMate',
-    'game_chessPal',
     'game_tacticsFighter',
     'game_mazeRunner',
     'game_chessLight',
@@ -2549,7 +2468,6 @@ const SHARE_APP_DEST_MAP = {
     game_runningQueen: { label: 'Running Queen', openGame: 'runningQueen' },
     game_royalExchange: { label: 'Royal Exchange', openGame: 'royalExchange' },
     game_hopeMate: { label: 'Hope Mate', openGame: 'hopeMate' },
-    game_chessPal: { label: 'Chess Pal', openGame: 'chessPal' },
     game_tacticsFighter: { label: 'Tactics Fighter', openGame: 'tacticsFighter' },
     game_mazeRunner: { label: 'Maze Runner', openGame: 'mazeRunner' },
     game_chessLight: { label: 'Chess Light', openGame: 'chessLight' },

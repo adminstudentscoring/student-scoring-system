@@ -133,7 +133,33 @@
       "students": [
         "1764824560014"
       ]
+    },
+    {
+      "id": "1773637959107",
+      "name": "Test Chess School",
+      "email": "test@school.com",
+      "phone": "12345678",
+      "createdAt": "2026-03-16T05:12:39.107Z",
+      "teachers": [
+        "1773637971903"
+      ],
+      "students": [
+        "1773637971918"
+      ]
+    },
+    {
+      "id": "1773638129236",
+      "name": "Demo Chess Academy",
+      "email": "demo@chess.com",
+      "phone": "99887766",
+      "createdAt": "2026-03-16T05:15:29.236Z",
+      "teachers": [
+        "1773638275543"
+      ],
+      "students": [
+        "1773638374893"
+      ]
     }
   ],
-  "lastUpdate": "2025-12-04T05:02:40.017Z"
+  "lastUpdate": "2026-03-16T05:19:34.894Z"
 }

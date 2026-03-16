@@ -22,7 +22,63 @@
       "createdAt": "2025-12-04T05:02:30.708Z",
       "classViewStudents": [],
       "assignedStudents": []
+    },
+    {
+      "id": "1773637950145",
+      "email": "admin@studentscoring.com",
+      "password": "$2b$10$IzNv.I2ZxO5Hb0ySPIe4WuM4XrE7ev76R8zMH./27wMLoV3gmze/K",
+      "name": "System Admin",
+      "role": "admin",
+      "createdAt": "2026-03-16T05:12:30.145Z"
+    },
+    {
+      "id": "1773637959108",
+      "email": "test@school.com",
+      "password": "$2b$10$1rRJrKtirfZRfzXgGJ1QvO/AGhkuP.1ncpqeY7FtjbLTRbARk9GcC",
+      "name": "Test Chess School",
+      "role": "organization",
+      "organizationId": "1773637959107",
+      "createdAt": "2026-03-16T05:12:39.108Z"
+    },
+    {
+      "id": "1773637971903",
+      "email": "teacher001",
+      "username": "teacher001",
+      "password": "$2b$10$zuvRQKzWD0MONJhQLrjPG.HIks5Qmd5s8wjS31v3qSBDpB4d3FklO",
+      "name": "Teacher Zhang",
+      "teacherId": "T001",
+      "gender": "male",
+      "role": "teacher",
+      "organizationId": "1773637959107",
+      "createdAt": "2026-03-16T05:12:51.903Z",
+      "classViewStudents": [
+        "1773637971918"
+      ],
+      "assignedStudents": []
+    },
+    {
+      "id": "1773638129237",
+      "email": "demo@chess.com",
+      "password": "$2b$10$BhPO99kpqMpTfEf85qLXSuB9MomHsoiXjU4wivf.jJDA3Nt4K4Chy",
+      "name": "Demo Chess Academy",
+      "role": "organization",
+      "organizationId": "1773638129236",
+      "createdAt": "2026-03-16T05:15:29.237Z"
+    },
+    {
+      "id": "1773638275543",
+      "email": "coach_lee",
+      "username": "coach_lee",
+      "password": "$2b$10$Dny7tv3WPLUTwwyX1/qspODMj.5P9XKKL/r8NWmoKOrHumerJ0pJ.",
+      "name": "Coach Lee",
+      "teacherId": "T002",
+      "gender": "male",
+      "role": "teacher",
+      "organizationId": "1773638129236",
+      "createdAt": "2026-03-16T05:17:55.543Z",
+      "classViewStudents": [],
+      "assignedStudents": []
     }
   ],
-  "lastUpdate": "2025-12-04T05:02:30.708Z"
+  "lastUpdate": "2026-03-16T06:05:26.467Z"
 }

@@ -3,7 +3,6 @@
     {
       "id": "1762335062252",
       "name": "Anthony  Tse",
-      "studentId": "vcanthonyt",
       "answerCount": 24,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -52,12 +51,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcanthonyt",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762335089721",
       "name": "PiggyBella",
-      "studentId": "vcirinac",
       "answerCount": 12,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -98,12 +100,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcirinac",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762335141391",
       "name": "Hayden Tang",
-      "studentId": "vchaydentang",
       "answerCount": 19,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -144,12 +149,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vchaydentang",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762340532241",
       "name": "Ashton Fu",
-      "studentId": "vcashtonf",
       "answerCount": 21,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -190,12 +198,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcashtonf",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762340544227",
       "name": "Hin Yi",
-      "studentId": "Tempotse",
       "answerCount": 47,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -260,12 +271,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "Tempotse",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762340568129",
       "name": "Zachary Ng",
-      "studentId": "vczachary",
       "answerCount": 6,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -306,12 +320,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vczachary",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762340582439",
       "name": "Jasper Cheung",
-      "studentId": "vcjasperc2",
       "answerCount": 34,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -364,12 +381,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcjasperc2",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762342034165",
       "name": "Brooklyn",
-      "studentId": "Mrfunnychess",
       "answerCount": 19,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -422,12 +442,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "Mrfunnychess",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762418050470",
       "name": "Ryan Chan",
-      "studentId": "vcryanchan",
       "answerCount": 13,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -484,12 +507,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcryanchan",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762427046040",
       "name": "Aiden Chan",
-      "studentId": "vcaidenclb",
       "answerCount": 23,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -538,12 +564,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcaidenclb",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762427059451",
       "name": "Henry Yip",
-      "studentId": "vchenryy",
       "answerCount": 22,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -592,12 +621,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vchenryy",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762427081817",
       "name": "Dominic Wong",
-      "studentId": "vcdominicw",
       "answerCount": 16,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -654,12 +686,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcdominicw",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762427094710",
       "name": "Henry Lin",
-      "studentId": "vchenryl",
       "answerCount": 25,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -720,12 +755,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vchenryl",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762430606457",
       "name": "Rex Hung",
-      "studentId": "RexHung",
       "answerCount": 7,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -766,12 +804,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "RexHung",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762430626350",
       "name": "Sunny Shih",
-      "studentId": "vcsunnys",
       "answerCount": 9,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -812,12 +853,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcsunnys",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762508249516",
       "name": "Harris Chan",
-      "studentId": "vcharrisc",
       "answerCount": 36,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -878,12 +922,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcharrisc",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762511551092",
       "name": "Hinson Lee",
-      "studentId": "vchinsonl",
       "answerCount": 31,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -940,12 +987,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vchinsonl",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762511583282",
       "name": "Darren Chan",
-      "studentId": "Sdarren012295",
       "answerCount": 13,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -994,12 +1044,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "Sdarren012295",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762511639427",
       "name": "Joseph Lam",
-      "studentId": "vcjosephl",
       "answerCount": 22,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1056,12 +1109,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcjosephl",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762567502462",
       "name": "Isaac Chu",
-      "studentId": "vcisaacc",
       "answerCount": 21,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1110,12 +1166,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcisaacc",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762567545227",
       "name": "Savis Tau",
-      "studentId": "vcsavist",
       "answerCount": 16,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1164,12 +1223,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcsavist",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762568020447",
       "name": "Cardiff Chiu",
-      "studentId": "vccardiffc",
       "answerCount": 12,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1218,12 +1280,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vccardiffc",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762570994759",
       "name": "Nathan Yuen",
-      "studentId": "vcnathany",
       "answerCount": 6,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1272,12 +1337,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcnathany",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762571028803",
       "name": "Braydon Chik",
-      "studentId": "Braydongong2",
       "answerCount": 15,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1326,12 +1394,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "Braydongong2",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762571134281",
       "name": "Trevor Cheuk",
-      "studentId": "vctrevorcheuk",
       "answerCount": 6,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1380,12 +1451,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vctrevorcheuk",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762571158549",
       "name": "Jaden Kwok",
-      "studentId": "vcjadenk",
       "answerCount": 0,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1411,12 +1485,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcjadenk",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762585256751",
       "name": "Kai Liu",
-      "studentId": "vckaiz",
       "answerCount": 6,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1465,12 +1542,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vckaiz",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762585321077",
       "name": "Noah Mok",
-      "studentId": "vcnoahmok",
       "answerCount": 7,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1519,12 +1599,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcnoahmok",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762650267649",
       "name": "Celeste Yang",
-      "studentId": "vccelestey",
       "answerCount": 12,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1565,12 +1648,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vccelestey",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762655991202",
       "name": "Quinton Wong",
-      "studentId": "lovemessi1",
       "answerCount": 17,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1619,12 +1705,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "lovemessi1",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762768035276",
       "name": "Malcolm Wong",
-      "studentId": "vcmalcolmw",
       "answerCount": 9,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1681,12 +1770,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcmalcolmw",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762768076718",
       "name": "Thaddeus Cheuk",
-      "studentId": "vcthaddeusc",
       "answerCount": 2,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1735,12 +1827,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcthaddeusc",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762768090697",
       "name": "Charis Chong",
-      "studentId": "vccharisc",
       "answerCount": 3,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1781,12 +1876,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vccharisc",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762768106494",
       "name": "Kingsway Chong",
-      "studentId": "vckingsway",
       "answerCount": 11,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1835,12 +1933,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vckingsway",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762776606669",
       "name": "Nathan Chan",
-      "studentId": "vcnathanczh",
       "answerCount": 5,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1881,12 +1982,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcnathanczh",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762776615890",
       "name": "Kate Wong",
-      "studentId": "vckatew",
       "answerCount": 2,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1935,12 +2039,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vckatew",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762776631073",
       "name": "Hayden Tsang",
-      "studentId": "vchaydent",
       "answerCount": 3,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -1997,12 +2104,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vchaydent",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762855338054",
       "name": "Wong Sir",
-      "studentId": "vcstudent001",
       "answerCount": 1,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2043,12 +2153,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcstudent001",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762858872541",
       "name": "Karson Ng",
-      "studentId": "Beansir1029",
       "answerCount": 0,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2074,12 +2187,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "Beansir1029",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762859015707",
       "name": "Milo Lau",
-      "studentId": "vcmilol",
       "answerCount": 3,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2120,12 +2236,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcmilol",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1762859102237",
       "name": "Julian Lim",
-      "studentId": "vcjulianl",
       "answerCount": 4,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2166,12 +2285,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcjulianl",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1763377351141",
       "name": "Jason Leong",
-      "studentId": "Ki3000",
       "answerCount": 16,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2216,12 +2338,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "Ki3000",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1763460094099",
       "name": "George Fung",
-      "studentId": "vcgeorgef",
       "answerCount": 9,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2262,12 +2387,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcgeorgef",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1763717499879",
       "name": "Damian Lam",
-      "studentId": "vcdamianl",
       "answerCount": 7,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2308,12 +2436,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcdamianl",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1763860452665",
       "name": "Grace Tong",
-      "studentId": "vcgracet",
       "answerCount": 2,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2354,12 +2485,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcgracet",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1763863366741",
       "name": "Harvey Wong",
-      "studentId": "vcharveyw",
       "answerCount": 3,
       "totalAnswers": 0,
       "correctAnswers": 0,
@@ -2400,12 +2534,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcharveyw",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1763980770553",
       "name": "Anthony",
-      "studentId": "ddanthony",
       "organizationId": "1763980617324",
       "answerCount": 0,
       "totalAnswers": 0,
@@ -2413,8 +2550,8 @@
       "level": 1,
       "rank": "Wood",
       "rankIndex": 0,
-      "experience": 1,
-      "score": 1,
+      "experience": 11,
+      "score": 11,
       "createdAt": "2025-11-24T10:39:30.553Z",
       "stats": {
         "daily": {},
@@ -2431,12 +2568,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "ddanthony",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1764064956144",
       "name": "Fergus Tsang",
-      "studentId": "vcfergustsang",
       "organizationId": "1764056647211",
       "answerCount": 10,
       "totalAnswers": 0,
@@ -2477,12 +2617,15 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
-      "membershipEndDate": null
+      "membershipEndDate": null,
+      "chessComId": "vcfergustsang",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
     },
     {
       "id": "1764824560014",
       "name": "Wong Sir",
-      "studentId": "12345",
       "organizationId": "1764824535502",
       "answerCount": 0,
       "totalAnswers": 0,
@@ -2508,18 +2651,114 @@
       "remark": null,
       "membership": null,
       "membershipStartDate": null,
+      "membershipEndDate": null,
+      "chessComId": "12345",
+      "localName": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852"
+    },
+    {
+      "id": "1773637971918",
+      "name": "Student Ming",
+      "localName": "",
+      "chessComId": "S001",
+      "gender": "",
+      "dateOfBirth": "",
+      "contactPhone": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852",
+      "contactEmail": "",
+      "emergencyContactName": "",
+      "emergencyContactRelation": "",
+      "emergencyContactNumber": "",
+      "organizationId": "1773637959107",
+      "answerCount": 10,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 3,
+      "rank": "Silver",
+      "rankIndex": 2,
+      "experience": 111,
+      "score": 111,
+      "createdAt": "2026-03-16T05:12:51.918Z",
+      "stats": {
+        "daily": {
+          "2026-03-16": {
+            "answerCount": 10,
+            "totalPoints": 101
+          }
+        },
+        "weekly": {
+          "2026-W11": {
+            "answerCount": 10,
+            "totalPoints": 101
+          }
+        },
+        "monthly": {
+          "2026-03": {
+            "answerCount": 10,
+            "totalPoints": 101
+          }
+        },
+        "yearly": {
+          "2026": {
+            "answerCount": 10,
+            "totalPoints": 101
+          }
+        }
+      },
+      "remark": null,
+      "membership": null,
+      "membershipStartDate": null,
+      "membershipEndDate": null
+    },
+    {
+      "id": "1773638374893",
+      "name": "Alice",
+      "localName": "",
+      "chessComId": "S002",
+      "gender": "",
+      "dateOfBirth": "",
+      "contactPhone": "",
+      "contactPhoneCountry": "HK",
+      "contactPhoneCountryCode": "+852",
+      "contactEmail": "",
+      "emergencyContactName": "",
+      "emergencyContactRelation": "",
+      "emergencyContactNumber": "",
+      "organizationId": "1773638129236",
+      "answerCount": 0,
+      "totalAnswers": 0,
+      "correctAnswers": 0,
+      "level": 1,
+      "rank": "Wood",
+      "rankIndex": 0,
+      "experience": 0,
+      "score": 0,
+      "createdAt": "2026-03-16T05:19:34.893Z",
+      "stats": {
+        "daily": {},
+        "weekly": {},
+        "monthly": {},
+        "yearly": {}
+      },
+      "remark": null,
+      "membership": null,
+      "membershipStartDate": null,
       "membershipEndDate": null
     }
   ],
   "battles": [],
-  "lastUpdate": "2025-12-04T05:02:40.014Z",
+  "lastUpdate": "2026-03-16T06:39:35.203Z",
   "challenge": {
-    "currentLevel": 1,
-    "currentHP": 50,
-    "completedLevels": [],
-    "totalDamage": 0,
+    "currentLevel": 2,
+    "currentHP": 99,
+    "completedLevels": [
+      1
+    ],
+    "totalDamage": 51,
     "selectedStudentIds": [
-      "1763980770553"
+      "1773637971918"
     ]
   },
   "gameState": {
