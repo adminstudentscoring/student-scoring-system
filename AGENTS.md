@@ -4,7 +4,7 @@
 
 ### Overview
 
-This is **StudentScoring** — a chess education and student management platform built as a monolithic **Node.js 20.x / Express** server (`server.js`) with WebSocket support. It is **not** a monorepo; everything is a single `package.json`.
+This is **StudentScoring** — a chess education and student management platform built as a monolithic **Node.js 20.x / Express** server (`server.js`) with WebSocket support. It is **not** a monorepo; everything is a single `package.json`. The project is undergoing a gradual JS-to-TS migration; leaf modules have been converted to `.ts` while `server.js` and route files remain `.js`.
 
 ### Prerequisites
 
@@ -19,18 +19,20 @@ This is **StudentScoring** — a chess education and student management platform
 ### Running the application
 
 ```bash
-npm run dev          # same as npm start — runs node server.js on port 3000
+npm run dev          # runs tsx watch server.ts on port 3000
+# or: npx tsx server.js   (tsx resolves .ts files from require() paths automatically)
 ```
 
 Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, login at `/login.html`, admin at `/admin.html`, organization management at `/organization.html`.
 
 ### Gotchas
 
-- **ESLint** is configured via flat config (`eslint.config.js`, ESLint 10+). Run `npm run lint`. All rules are set to warn, so the linter exits 0 even with warnings.
+- **ESLint** is configured via flat config (`eslint.config.js`, ESLint 10+) for `.js` files only. Run `npm run lint`. All rules are set to warn, so the linter exits 0 even with warnings. For `.ts` files, run `npm run typecheck` (`tsc --noEmit`).
 - **Integration tests** use Node.js built-in test runner + supertest. Run `npm test`. Tests hit a running server on `http://localhost:3000`, so start the server first or the test helper will spawn one automatically.
 - `GET /api/students` uses `optionalAuth` and returns 200 without a token — use `POST /api/students` to test auth-required student routes.
 - The server uses **file-based storage** (`data/` directory) for most entities (students, users, organizations, leaderboards). PostgreSQL is used for billing, blunders, tactics fighter, and migrations.
 - `billing/paypal.js` requires `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `PAYPAL_WEBHOOK_ID` as environment variables at module load time. The server will crash without them.
+- **TypeScript migration**: `tsx` handles `.ts` require resolution automatically. When converting a `.js` file to `.ts`, rename the file and add type annotations — no require-path changes needed in consuming `.js` files. Run `npm run typecheck` to validate.
 - To create the initial admin user: `node scripts/init-admin.js <email> <password> <name>`.
 - The `data/` directory is auto-created by the server on startup via `ensureDataDir()`.
 
@@ -42,5 +44,6 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 | `npm run init-admin` | Create the first admin user |
 | `npm run db:migrate` | Run Postgres migrations manually |
 | `npm run db:ping` | Test Postgres connectivity |
-| `npm run lint` | Run ESLint (flat config, warnings only) |
+| `npm run lint` | Run ESLint on `.js` files (flat config, warnings only) |
+| `npm run typecheck` | Run `tsc --noEmit` on `.ts` files |
 | `npm test` | Run integration tests (server must be running) |
