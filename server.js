@@ -239,180 +239,43 @@ app.use('/game/monster-fight', express.static(path.join(__dirname, 'game/monster
 
 // Ensure data directory exists
 async function ensureDataDir() {
-  const dataDir = path.dirname(DATA_FILE);
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-  
-  // Ensure saves directory exists
-  try {
-    await fs.access(SAVES_DIR);
-  } catch {
-    await fs.mkdir(SAVES_DIR, { recursive: true });
-  }
-  
-  // Ensure game saves directory exists
-  try {
-    await fs.access(GAME_SAVES_DIR);
-  } catch {
-    await fs.mkdir(GAME_SAVES_DIR, { recursive: true });
+  const dirs = [
+    path.dirname(DATA_FILE),
+    SAVES_DIR,
+    GAME_SAVES_DIR,
+  ];
+
+  const files = [
+    { path: RUNNING_QUEEN_LEADERBOARD_FILE,    default: () => JSON.stringify([], null, 2) },
+    { path: ROYAL_EXCHANGE_LEADERBOARD_FILE,    default: () => JSON.stringify([], null, 2) },
+    { path: HOPE_MATE_LEADERBOARD_FILE,         default: () => JSON.stringify([], null, 2) },
+    { path: HOPE_MATE_CHALLENGE_LEADERBOARD_FILE, default: () => JSON.stringify([], null, 2) },
+    { path: HOPE_MATE_STAGE_PUZZLES_FILE,       default: () => JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: VCP_CHESS_GAMES_FILE,               default: () => '' },
+    { path: CHESSCOM_SETTINGS_FILE,             default: () => JSON.stringify({ orgs: {} }, null, 2) },
+    { path: BLUNDERS_PUZZLES_FILE,              default: () => JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: BLUNDERS_STATS_FILE,                default: () => JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: BLUNDERS_SETTINGS_FILE,             default: () => JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: BLUNDERS_MASTER_PROGRESS_FILE,      default: () => JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: BLUNDERS_CHALLENGE_SESSIONS_FILE,   default: () => JSON.stringify({ sessions: {}, lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: BLUNDERS_CHALLENGE_LEADERBOARD_FILE, default: () => JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: BLUNDERS_TEACHER_JOBS_FILE,         default: () => JSON.stringify({ jobs: {}, lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: CHESSCOM_RATINGS_FILE,              default: () => JSON.stringify({ orgs: {}, meta: { lastRunHkDay: null, lastRunAt: null } }, null, 2) },
+    { path: USERS_FILE,                         default: () => JSON.stringify({ users: [] }, null, 2) },
+    { path: ORGANIZATIONS_FILE,                 default: () => JSON.stringify({ organizations: [] }, null, 2) },
+    { path: COURSES_FILE,                       default: () => JSON.stringify({ courses: [], lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: TIMETABLE_FILE,                     default: () => JSON.stringify({ entries: [], metadata: { classNames: [], classrooms: [], lastUpdate: new Date().toISOString() } }, null, 2) },
+    { path: SUBSCRIPTION_PRICES_FILE,           default: () => JSON.stringify({ prices: [], lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: SUBSCRIPTION_PACKAGES_FILE,         default: () => JSON.stringify({ packages: [], lastUpdate: new Date().toISOString() }, null, 2) },
+    { path: SUBSCRIPTION_AUDIT_FILE,            default: () => '' },
+  ];
+
+  for (const dir of dirs) {
+    try { await fs.access(dir); } catch { await fs.mkdir(dir, { recursive: true }); }
   }
 
-  try {
-    await fs.access(RUNNING_QUEEN_LEADERBOARD_FILE);
-  } catch {
-    await fs.writeFile(RUNNING_QUEEN_LEADERBOARD_FILE, JSON.stringify([], null, 2), 'utf8');
-  }
-  try {
-    await fs.access(ROYAL_EXCHANGE_LEADERBOARD_FILE);
-  } catch {
-    await fs.writeFile(ROYAL_EXCHANGE_LEADERBOARD_FILE, JSON.stringify([], null, 2), 'utf8');
-  }
-  try {
-    await fs.access(HOPE_MATE_LEADERBOARD_FILE);
-  } catch {
-    await fs.writeFile(HOPE_MATE_LEADERBOARD_FILE, JSON.stringify([], null, 2), 'utf8');
-  }
-
-  try {
-    await fs.access(HOPE_MATE_CHALLENGE_LEADERBOARD_FILE);
-  } catch {
-    await fs.writeFile(HOPE_MATE_CHALLENGE_LEADERBOARD_FILE, JSON.stringify([], null, 2), 'utf8');
-  }
-
-  // Ensure Hope Mate stage puzzle file exists (admin-managed)
-  try {
-    await fs.access(HOPE_MATE_STAGE_PUZZLES_FILE);
-  } catch {
-    await fs.writeFile(HOPE_MATE_STAGE_PUZZLES_FILE, JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure VCP chess games history file exists (append-only JSONL)
-  try {
-    await fs.access(VCP_CHESS_GAMES_FILE);
-  } catch {
-    await fs.writeFile(VCP_CHESS_GAMES_FILE, '', 'utf8');
-  }
-
-  // Ensure Chess.com settings file exists (org-scoped)
-  try {
-    await fs.access(CHESSCOM_SETTINGS_FILE);
-  } catch {
-    await fs.writeFile(CHESSCOM_SETTINGS_FILE, JSON.stringify({ orgs: {} }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders puzzles file exists
-  try {
-    await fs.access(BLUNDERS_PUZZLES_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders stats file exists (cumulative analyzed games)
-  try {
-    await fs.access(BLUNDERS_STATS_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_STATS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders settings file exists (per-student config + masters list)
-  try {
-    await fs.access(BLUNDERS_SETTINGS_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_SETTINGS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders master progress file exists (per-student completion for master puzzles)
-  try {
-    await fs.access(BLUNDERS_MASTER_PROGRESS_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_MASTER_PROGRESS_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders Challenge sessions file exists
-  try {
-    await fs.access(BLUNDERS_CHALLENGE_SESSIONS_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_CHALLENGE_SESSIONS_FILE, JSON.stringify({ sessions: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders Challenge leaderboard file exists
-  try {
-    await fs.access(BLUNDERS_CHALLENGE_LEADERBOARD_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_CHALLENGE_LEADERBOARD_FILE, JSON.stringify({ orgs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Blunders Teacher jobs file exists (async history scan, etc.)
-  try {
-    await fs.access(BLUNDERS_TEACHER_JOBS_FILE);
-  } catch {
-    await fs.writeFile(BLUNDERS_TEACHER_JOBS_FILE, JSON.stringify({ jobs: {}, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure Chess.com ratings cache exists (daily refresh)
-  try {
-    await fs.access(CHESSCOM_RATINGS_FILE);
-  } catch {
-    await fs.writeFile(CHESSCOM_RATINGS_FILE, JSON.stringify({ orgs: {}, meta: { lastRunHkDay: null, lastRunAt: null } }, null, 2), 'utf8');
-  }
-  
-  // Ensure users file exists
-  try {
-    await fs.access(USERS_FILE);
-  } catch {
-    await fs.writeFile(USERS_FILE, JSON.stringify({ users: [] }, null, 2), 'utf8');
-  }
-  
-  // Ensure organizations file exists
-  try {
-    await fs.access(ORGANIZATIONS_FILE);
-  } catch {
-    await fs.writeFile(ORGANIZATIONS_FILE, JSON.stringify({ organizations: [] }, null, 2), 'utf8');
-  }
-  
-  // Ensure courses file exists
-  try {
-    await fs.access(COURSES_FILE);
-  } catch {
-    await fs.writeFile(COURSES_FILE, JSON.stringify({ courses: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-  
-  // Ensure timetable file exists
-  try {
-    await fs.access(TIMETABLE_FILE);
-  } catch {
-    await fs.writeFile(TIMETABLE_FILE, JSON.stringify({ 
-      entries: [], 
-      metadata: { 
-        classNames: [], 
-        classrooms: [], 
-        lastUpdate: new Date().toISOString() 
-      } 
-    }, null, 2), 'utf8');
-  }
-
-  // Ensure subscription prices file exists
-  try {
-    await fs.access(SUBSCRIPTION_PRICES_FILE);
-  } catch {
-    await fs.writeFile(SUBSCRIPTION_PRICES_FILE, JSON.stringify({ prices: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure subscription packages file exists
-  try {
-    await fs.access(SUBSCRIPTION_PACKAGES_FILE);
-  } catch {
-    await fs.writeFile(SUBSCRIPTION_PACKAGES_FILE, JSON.stringify({ packages: [], lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
-  }
-
-  // Ensure subscription audit log file exists
-  try {
-    await fs.access(SUBSCRIPTION_AUDIT_FILE);
-  } catch {
-    await fs.writeFile(SUBSCRIPTION_AUDIT_FILE, '', 'utf8');
+  for (const entry of files) {
+    try { await fs.access(entry.path); } catch { await fs.writeFile(entry.path, entry.default(), 'utf8'); }
   }
 }
 
@@ -1926,184 +1789,18 @@ function getRankInfo(score) {
 
 // ==================== Authentication API ====================
 
-// Organization Registration (only organizations can self-register)
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { organizationName, email, phone, password } = req.body;
-    
-    // Validation
-    if (!organizationName || !email || !phone || !password) {
-      return res.status(400).json({ error: 'Organization name, email, phone, and password are required' });
-    }
-    
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
-    }
-    
-    // Password validation (minimum 6 characters)
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
-    
-    // Check if organization email already exists
-    const users = await readUsers();
-    const existingUser = users.find(u => u.email === email.toLowerCase());
-    if (existingUser) {
-      return res.status(400).json({ error: 'Organization with this email already exists' });
-    }
-    
-    // Check if organization name already exists
-    const organizations = await readOrganizations();
-    const existingOrg = organizations.find(o => o.name === organizationName);
-    if (existingOrg) {
-      return res.status(400).json({ error: 'Organization with this name already exists' });
-    }
-    
-    // Hash password
-    const hashedPassword = await hashPassword(password);
-    
-    // Create organization
-    const organizationId = Date.now().toString();
-    const newOrganization = {
-      id: organizationId,
-      name: organizationName,
-      email: email.toLowerCase(),
-      phone,
-      createdAt: new Date().toISOString(),
-      teachers: [],
-      students: []
-    };
-    
-    organizations.push(newOrganization);
-    await writeOrganizations(organizations);
-    
-    // Create organization user account
-    const newUser = {
-      id: Date.now().toString(),
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      name: organizationName,
-      role: 'organization',
-      organizationId: organizationId,
-      createdAt: new Date().toISOString()
-    };
-    
-    users.push(newUser);
-    await writeUsers(users);
-
-    // Provision 14-day trial for newly registered organization
-    try {
-      await billingAccess.ensureTrialForOrg(organizationId, 14);
-    } catch (e) {
-      // Trial provisioning should not block registration
-      console.warn('Trial provisioning failed:', e.message || e);
-    }
-    
-    // Generate token
-    const token = generateToken(newUser);
-    
-    // Return user info (without password)
-    const { password: _, ...userWithoutPassword } = newUser;
-    res.status(201).json({
-      user: userWithoutPassword,
-      organization: newOrganization,
-      token
-    });
-  } catch (error) {
-    console.error('Error registering organization:', error);
-    res.status(500).json({ error: 'Failed to register organization' });
-  }
-});
-
-// User Login
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password, username } = req.body;
-    
-    // Validation - support both email and username login
-    const loginIdentifier = email || username;
-    if (!loginIdentifier || !password) {
-      return res.status(400).json({ error: 'Email/username and password are required' });
-    }
-    
-    // Find user by email or username
-    const users = await readUsers();
-    console.log(`[LOGIN] Attempting login with: ${loginIdentifier}`);
-    console.log(`[LOGIN] Total users: ${users.length}`);
-    
-    const user = users.find(u => 
-      u.email === loginIdentifier.toLowerCase() || 
-      u.username === loginIdentifier
-    );
-    
-    if (!user) {
-      console.log(`[LOGIN] User not found: ${loginIdentifier}`);
-      console.log(`[LOGIN] Available emails: ${users.map(u => u.email).join(', ')}`);
-      return res.status(401).json({ error: 'Invalid email/username or password' });
-    }
-    
-    console.log(`[LOGIN] User found: ${user.email} (${user.role})`);
-    
-    // Verify password
-    const isValidPassword = await comparePassword(password, user.password);
-    console.log(`[LOGIN] Password valid: ${isValidPassword}`);
-    
-    if (!isValidPassword) {
-      console.log(`[LOGIN] Password verification failed for: ${user.email}`);
-      return res.status(401).json({ error: 'Invalid email/username or password' });
-    }
-    
-    // Generate token
-    const token = generateToken(user);
-    
-    // Return user info (without password)
-    const { password: _, ...userWithoutPassword } = user;
-    
-    // Include organization info if user is organization or teacher
-    if ((user.role === 'organization' || user.role === 'teacher') && user.organizationId) {
-      const organizations = await readOrganizations();
-      const organization = organizations.find(o => o.id === user.organizationId);
-      if (organization) {
-        userWithoutPassword.organization = organization;
-      }
-    }
-    
-    res.json({
-      user: userWithoutPassword,
-      token
-    });
-  } catch (error) {
-    console.error('Error logging in:', error);
-    res.status(500).json({ error: 'Failed to login' });
-  }
-});
-
-// Get current user info (requires authentication)
-app.get('/api/auth/me', authenticateUser, async (req, res) => {
-  try {
-    const users = await readUsers();
-    const user = users.find(u => u.id === req.user.id);
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    // If organization, include organization details
-    if (user.role === 'organization' && user.organizationId) {
-      const organizations = await readOrganizations();
-      const organization = organizations.find(o => o.id === user.organizationId);
-      const { password: _, ...userWithoutPassword } = user;
-      return res.json({ ...userWithoutPassword, organization });
-    }
-    
-    const { password: _, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
-  } catch (error) {
-    console.error('Error getting user info:', error);
-    res.status(500).json({ error: 'Failed to get user info' });
-  }
+// ===== Auth routes (moved to server/routes/authRoutes.js) =====
+const { registerAuthRoutes } = require('./server/routes/authRoutes');
+registerAuthRoutes(app, {
+  authenticateUser,
+  readUsers,
+  writeUsers,
+  readOrganizations,
+  writeOrganizations,
+  hashPassword,
+  comparePassword,
+  generateToken,
+  billingAccess,
 });
 
 // ==================== Organization Management API ====================
