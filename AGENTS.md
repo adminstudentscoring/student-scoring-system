@@ -7,8 +7,13 @@
 This is **StudentScoring** — a chess education and student management platform built as a **pnpm monorepo** with **Node.js 20.x / Express** server (`server.ts`) and WebSocket support. The project uses pnpm workspaces.
 
 **Workspace packages:**
-- **Root** (`student-scoring-system`): Express server, routes, billing, game modules.
+- **Root** (`student-scoring-system`): Express server, billing, non-game routes.
 - **`@student-scoring/core`** (`packages/core`): Shared types, auth, middleware, storage, config, database, and lib utilities. The barrel export is `packages/core/src/index.ts`.
+- **`@student-scoring/games-simple`** (`packages/games-simple`): Running Queen, Royal Exchange, Hope Mate routes.
+- **`@student-scoring/games-chess`** (`packages/games-chess`): Chess Light, Chess Solitaire, Chess Works, Maze Runner routes.
+- **`@student-scoring/games-monster-fight`** (`packages/games-monster-fight`): Monster Fight game logic, routes, and leaderboard.
+- **`@student-scoring/games-blunders`** (`packages/games-blunders`): Blunders analysis, Chess.com sync, Stockfish integration, teacher/public routes, and DB helpers.
+- **`@student-scoring/games-tactics-fighter`** (`packages/games-tactics-fighter`): Tactics Fighter builder, puzzles, attempts, and admin routes.
 
 ### Prerequisites
 
@@ -33,16 +38,26 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 ### Monorepo structure
 
 ```
-pnpm-workspace.yaml   # declares packages/* and apps/*
-packages/core/        # @student-scoring/core — shared auth, types, middleware, storage, config, db, lib
-server.ts             # main Express server (root workspace)
-server/routes/        # route handlers
-billing/              # PayPal billing module
+pnpm-workspace.yaml        # declares packages/* and apps/*
+packages/core/             # @student-scoring/core — shared auth, types, middleware, storage, config, db, lib
+packages/games-simple/     # @student-scoring/games-simple — Running Queen, Royal Exchange, Hope Mate
+packages/games-chess/      # @student-scoring/games-chess — Chess Light, Chess Solitaire, Chess Works, Maze Runner
+packages/games-monster-fight/ # @student-scoring/games-monster-fight — Monster Fight game
+packages/games-blunders/   # @student-scoring/games-blunders — Blunders analysis, Chess.com integration
+packages/games-tactics-fighter/ # @student-scoring/games-tactics-fighter — Tactics Fighter
+server.ts                  # main Express server (root workspace)
+server/routes/             # non-game route handlers (auth, students, organizations, billing, etc.)
+billing/                   # PayPal billing module
 ```
 
-Import from core in root files:
+Import from packages in `server.ts`:
 ```typescript
 const { authenticateUser, LEVELS, getRankInfo } = require('@student-scoring/core');
+const { registerRunningQueenRoutes } = require('@student-scoring/games-simple');
+const { registerChessLightRoutes } = require('@student-scoring/games-chess');
+const { registerMonsterFightRoutes } = require('@student-scoring/games-monster-fight');
+const { registerBlundersTeacherRoutes, createBlundersStorage } = require('@student-scoring/games-blunders');
+const { registerTacticsFighterRoutes } = require('@student-scoring/games-tactics-fighter');
 ```
 
 For submodules not re-exported by the barrel (e.g. direct db access):
