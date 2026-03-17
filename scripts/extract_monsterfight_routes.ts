@@ -12,22 +12,29 @@
 const fs = require('fs');
 const path = require('path');
 
-function sliceLines(lines, startLine, endLineInclusive) {
+interface Removal {
+  start: number;
+  end: number;
+  replacement?: string[];
+}
+
+interface Range {
+  start: number;
+  end: number;
+}
+
+function sliceLines(lines: string[], startLine: number, endLineInclusive: number): string {
   return lines.slice(startLine - 1, endLineInclusive).join('\n');
 }
 
-function applyRewriteServerJs(lines) {
-  // Remove ranges (1-based, inclusive) from bottom to top so indices remain valid.
-  const removals = [
-    // /api/game save/load/settings/config routes
+function applyRewriteServerJs(lines: string[]): string[] {
+  const removals: Removal[] = [
     { start: 6976, end: 7173, replacement: [
       '// (moved to server/routes/monsterFightGameRoutes.js)'
     ] },
-    // Admin - Hope Mate Stage Puzzles
     { start: 6849, end: 6921, replacement: [
       '// (moved to server/routes/monsterFightGameRoutes.js)'
     ] },
-    // Monster Fight Game APIs (core battle + multiple game endpoints)
     { start: 4262, end: 6823, replacement: [
       '// ==================== Monster Fight / Game APIs (moved) ====================',
       "const { registerMonsterFightGameRoutes } = require('./server/routes/monsterFightGameRoutes');",
@@ -50,11 +57,9 @@ function applyRewriteServerJs(lines) {
       '  HOPE_MATE_STAGE_PUZZLES_FILE',
       '});'
     ] },
-    // Running Queen + Royal Exchange + Hope Mate helpers
     { start: 1767, end: 2265, replacement: [
       '// (moved to server/routes/monsterFightGameRoutes.js)'
     ] },
-    // Monster Fight config/constants
     { start: 1282, end: 1575, replacement: [
       '// (moved to server/routes/monsterFightGameRoutes.js)'
     ] }
@@ -67,27 +72,20 @@ function applyRewriteServerJs(lines) {
   return out;
 }
 
-function main() {
+function main(): void {
   const srcPath = path.join(process.cwd(), 'server.js');
-  const src = fs.readFileSync(srcPath, 'utf8');
-  const lines = src.split(/\r?\n/);
+  const src: string = fs.readFileSync(srcPath, 'utf8');
+  const lines: string[] = src.split(/\r?\n/);
 
-  // These ranges are based on the current server.js structure in this repo.
-  // If server.js changes, update the ranges (they correspond to the existing headers).
-  const ranges = [
-    // Monster Fight config/constants
+  const ranges: Range[] = [
     { start: 1282, end: 1575 },
-    // Running Queen + Royal Exchange + Hope Mate helpers
     { start: 1767, end: 2265 },
-    // Monster Fight Game APIs (core battle + multiple game endpoints)
     { start: 4262, end: 6823 },
-    // Admin - Hope Mate Stage Puzzles
     { start: 6849, end: 6921 },
-    // /api/game save/load/settings/config routes
     { start: 6976, end: 7173 }
   ];
 
-  const out = [];
+  const out: string[] = [];
   out.push('// Extracted from server.js to reduce file size and isolate game APIs.');
   out.push('"use strict";');
   out.push('');
@@ -142,5 +140,4 @@ function main() {
 }
 
 main();
-
 

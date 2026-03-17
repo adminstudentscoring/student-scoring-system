@@ -10,24 +10,35 @@ const fs = require('fs').promises;
 const path = require('path');
 const { hashPassword } = require('../auth');
 
-const USERS_FILE = path.join(__dirname, '..', process.env.USERS_FILE || 'data/users.txt');
+const USERS_FILE: string = path.join(__dirname, '..', process.env.USERS_FILE || 'data/users.txt');
 
-async function initAdmin() {
+interface UserRecord {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  role: string;
+  createdAt: string;
+}
+
+interface UsersData {
+  users: UserRecord[];
+  lastUpdate?: string;
+}
+
+async function initAdmin(): Promise<void> {
   try {
     console.log('🔧 Initializing admin user...\n');
     
-    // Read existing users
-    let users = [];
+    let users: UserRecord[] = [];
     try {
-      const content = await fs.readFile(USERS_FILE, 'utf8');
-      const data = JSON.parse(content);
+      const content: string = await fs.readFile(USERS_FILE, 'utf8');
+      const data: UsersData = JSON.parse(content);
       users = data.users || [];
     } catch (error) {
-      // File doesn't exist, start with empty array
       console.log('📝 Creating new users file...');
     }
     
-    // Check if admin already exists
     const existingAdmin = users.find(u => u.role === 'admin');
     if (existingAdmin) {
       console.log('⚠️  Admin user already exists!');
@@ -37,11 +48,10 @@ async function initAdmin() {
       return;
     }
     
-    // Get admin details from command line arguments or use defaults
     const args = process.argv.slice(2);
-    const email = args[0] || 'admin@example.com';
-    const password = args[1] || 'admin123456';
-    const name = args[2] || 'System Administrator';
+    const email: string = args[0] || 'admin@example.com';
+    const password: string = args[1] || 'admin123456';
+    const name: string = args[2] || 'System Administrator';
     
     console.log('📋 Admin Details:');
     console.log(`   Email: ${email}`);
@@ -49,11 +59,9 @@ async function initAdmin() {
     console.log(`   Password: ${password}`);
     console.log('\n⚠️  Please change the default password after first login!\n');
     
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword: string = await hashPassword(password);
     
-    // Create admin user
-    const adminUser = {
+    const adminUser: UserRecord = {
       id: Date.now().toString(),
       email: email.toLowerCase(),
       password: hashedPassword,
@@ -64,7 +72,6 @@ async function initAdmin() {
     
     users.push(adminUser);
     
-    // Save users
     await fs.writeFile(USERS_FILE, JSON.stringify({ users, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
     
     console.log('✅ Admin user created successfully!');
@@ -79,6 +86,5 @@ async function initAdmin() {
   }
 }
 
-// Run the script
 initAdmin();
 

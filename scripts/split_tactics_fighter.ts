@@ -9,11 +9,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const FILE = path.join(__dirname, "..", "game", "tactics-fighter", "tactics-fighter.js");
-const OUT_CORE = path.join(__dirname, "..", "game", "tactics-fighter", "core.js");
+const FILE: string = path.join(__dirname, "..", "game", "tactics-fighter", "tactics-fighter.js");
+const OUT_CORE: string = path.join(__dirname, "..", "game", "tactics-fighter", "core.js");
 
-function main() {
-  const src = fs.readFileSync(FILE, "utf8");
+function main(): void {
+  const src: string = fs.readFileSync(FILE, "utf8");
   const needle = "window.initTacticsFighter";
   const idx = src.indexOf(needle);
   if (idx < 0) {
@@ -33,5 +33,4 @@ function main() {
 }
 
 if (require.main === module) main();
-
 

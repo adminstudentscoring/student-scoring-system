@@ -17,31 +17,31 @@ const fs = require('fs');
 const path = require('path');
 const { getPool } = require('../db/postgres');
 
-function argValue(flag) {
+function argValue(flag: string): string | null {
   const idx = process.argv.indexOf(flag);
   if (idx < 0) return null;
   return process.argv[idx + 1] || null;
 }
 
-function hasFlag(flag) {
+function hasFlag(flag: string): boolean {
   return process.argv.includes(flag);
 }
 
-function chunk(arr, size) {
-  const out = [];
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
   const s = Math.max(1, Number(size || 0) || 200);
   for (let i = 0; i < arr.length; i += s) out.push(arr.slice(i, i + s));
   return out;
 }
 
-function parseIsoToPgTs(iso) {
+function parseIsoToPgTs(iso: string | undefined | null): string | null {
   const s = String(iso || '').trim();
   if (!s) return null;
   const t = Date.parse(s);
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
-function puzzleSortKeyMs(p) {
+function puzzleSortKeyMs(p: any): number {
   const done = Date.parse(String(p?.completedAt || ''));
   if (Number.isFinite(done) && done > 0) return done;
   const end = Number(p?.endTime || 0);
@@ -50,7 +50,7 @@ function puzzleSortKeyMs(p) {
   return Number.isFinite(created) ? created : 0;
 }
 
-function readJsonFile(filePath, fallback) {
+function readJsonFile(filePath: string, fallback: any): any {
   try {
     if (!fs.existsSync(filePath)) return fallback;
     const txt = fs.readFileSync(filePath, 'utf8');
@@ -60,21 +60,21 @@ function readJsonFile(filePath, fallback) {
   }
 }
 
-function resolveDataPath(p) {
+function resolveDataPath(p: string | undefined | null): string {
   const raw = String(p || '').trim();
   if (!raw) return '';
   if (path.isAbsolute(raw)) return raw;
   return path.join(process.cwd(), raw);
 }
 
-function detectPaths() {
+function detectPaths(): { puzzlesFile: string; statsFile: string } {
   const dataDir = String(process.env.DATA_DIR || 'data').trim() || 'data';
   const puzzlesFile = resolveDataPath(process.env.BLUNDERS_PUZZLES_FILE || path.join(dataDir, 'blunders-puzzles.json'));
   const statsFile = resolveDataPath(process.env.BLUNDERS_STATS_FILE || path.join(dataDir, 'blunders-stats.json'));
   return { puzzlesFile, statsFile };
 }
 
-async function upsertPuzzles(client, rows) {
+async function upsertPuzzles(client: any, rows: any[]): Promise<number> {
   if (!rows.length) return 0;
   const cols = [
     'key',
@@ -103,8 +103,8 @@ async function upsertPuzzles(client, rows) {
     'raw'
   ];
 
-  const values = [];
-  const placeholders = [];
+  const values: any[] = [];
+  const placeholders: string[] = [];
   let p = 1;
   for (const r of rows) {
     const rowVals = cols.map((c) => (r[c] === undefined ? null : r[c]));
@@ -144,11 +144,11 @@ async function upsertPuzzles(client, rows) {
   return rows.length;
 }
 
-async function upsertProgress(client, rows) {
+async function upsertProgress(client: any, rows: any[]): Promise<number> {
   if (!rows.length) return 0;
   const cols = ['org_id', 'student_id', 'puzzle_key', 'status', 'completed_at', 'attempts', 'updated_at'];
-  const values = [];
-  const placeholders = [];
+  const values: any[] = [];
+  const placeholders: string[] = [];
   let p = 1;
   for (const r of rows) {
     const rowVals = cols.map((c) => (r[c] === undefined ? null : r[c]));
@@ -168,11 +168,11 @@ async function upsertProgress(client, rows) {
   return rows.length;
 }
 
-async function upsertAnalyzedGames(client, rows) {
+async function upsertAnalyzedGames(client: any, rows: any[]): Promise<number> {
   if (!rows.length) return 0;
   const cols = ['org_id', 'student_id', 'game_key', 'url', 'uuid', 'end_time_sec', 'time_class', 'ply_count', 'opponent_rating', 'updated_at'];
-  const values = [];
-  const placeholders = [];
+  const values: any[] = [];
+  const placeholders: string[] = [];
   let p = 1;
   for (const r of rows) {
     const rowVals = cols.map((c) => (r[c] === undefined ? null : r[c]));
@@ -195,7 +195,7 @@ async function upsertAnalyzedGames(client, rows) {
   return rows.length;
 }
 
-async function main() {
+async function main(): Promise<void> {
   const pool = getPool();
   if (!pool) throw new Error('Postgres not configured (missing DATABASE_URL / DATABASE_PUBLIC_URL / PG* vars)');
 
@@ -204,21 +204,21 @@ async function main() {
   const { puzzlesFile, statsFile } = detectPaths();
 
   const puzzlesJson = readJsonFile(puzzlesFile, {});
-  const puzzlesAll = Array.isArray(puzzlesJson?.puzzles) ? puzzlesJson.puzzles : [];
+  const puzzlesAll: any[] = Array.isArray(puzzlesJson?.puzzles) ? puzzlesJson.puzzles : [];
   const puzzles = puzzlesAll
-    .filter((p) => String(p?.scope || '') !== 'master')
-    .filter((p) => !onlyOrg || String(p?.orgId || '') === onlyOrg);
+    .filter((p: any) => String(p?.scope || '') !== 'master')
+    .filter((p: any) => !onlyOrg || String(p?.orgId || '') === onlyOrg);
 
   const statsJson = readJsonFile(statsFile, {});
-  const analyzedRows = [];
+  const analyzedRows: any[] = [];
   try {
     for (const [orgId, orgObj] of Object.entries(statsJson || {})) {
       if (!orgObj || typeof orgObj !== 'object') continue;
       if (onlyOrg && String(orgId) !== onlyOrg) continue;
-      for (const [studentId, st] of Object.entries(orgObj || {})) {
+      for (const [studentId, st] of Object.entries(orgObj as Record<string, any>)) {
         if (!st || typeof st !== 'object') continue;
         const analyzed = (st.analyzed && typeof st.analyzed === 'object') ? st.analyzed : {};
-        for (const [gameKey, v] of Object.entries(analyzed)) {
+        for (const [gameKey, v] of Object.entries(analyzed as Record<string, any>)) {
           const gk = String(gameKey || '').trim();
           if (!gk) continue;
           analyzedRows.push({
@@ -238,8 +238,8 @@ async function main() {
     }
   } catch {}
 
-  const puzzleRows = [];
-  const progressRows = [];
+  const puzzleRows: any[] = [];
+  const progressRows: any[] = [];
 
   for (const pz of puzzles) {
     const orgId = String(pz?.orgId || '').trim();
@@ -248,7 +248,7 @@ async function main() {
     if (!orgId || !studentId || !key) continue;
 
     const createdAt = parseIsoToPgTs(pz?.createdAt || '');
-    const tagsArr = Array.isArray(pz?.tags) ? pz.tags.map(String).filter(Boolean) : [];
+    const tagsArr: string[] = Array.isArray(pz?.tags) ? pz.tags.map(String).filter(Boolean) : [];
     const taggedAt = parseIsoToPgTs(pz?.taggedAt || '');
     puzzleRows.push({
       key,
@@ -280,7 +280,7 @@ async function main() {
     const status = String(pz?.status || 'pending') === 'completed' ? 'completed' : 'pending';
     // IMPORTANT: node-postgres treats JS arrays as SQL array literals.
     // Our column type is JSONB, so we must pass a JSON string (or object) explicitly.
-    const attemptsArr = Array.isArray(pz?.attempts) ? pz.attempts : [];
+    const attemptsArr: any[] = Array.isArray(pz?.attempts) ? pz.attempts : [];
     const attempts = JSON.stringify(attemptsArr);
     progressRows.push({
       org_id: orgId,
@@ -324,5 +324,4 @@ main()
     console.error('Import failed:', e);
     process.exit(1);
   });
-
 

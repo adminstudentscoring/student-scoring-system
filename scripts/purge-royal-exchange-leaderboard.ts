@@ -13,9 +13,14 @@ require('dotenv').config();
 const fs = require('fs').promises;
 const path = require('path');
 
-async function main() {
-  const DATA_DIR = process.env.DATA_DIR || 'data';
-  const leaderboardFile = path.join(
+interface LeaderboardEntry {
+  success?: boolean;
+  [key: string]: any;
+}
+
+async function main(): Promise<void> {
+  const DATA_DIR: string = process.env.DATA_DIR || 'data';
+  const leaderboardFile: string = path.join(
     __dirname,
     '..',
     process.env.ROYAL_EXCHANGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'royal-exchange-leaderboard.txt')
@@ -31,7 +36,7 @@ async function main() {
     return;
   }
 
-  let parsed;
+  let parsed: any;
   try {
     parsed = JSON.parse(raw || '[]');
   } catch (error) {
@@ -41,7 +46,7 @@ async function main() {
     return;
   }
 
-  const entries = Array.isArray(parsed) ? parsed : [];
+  const entries: LeaderboardEntry[] = Array.isArray(parsed) ? parsed : [];
   const before = entries.length;
   const kept = entries.filter(entry => entry && entry.success === true);
   const after = kept.length;
@@ -60,5 +65,4 @@ async function main() {
 }
 
 main();
-
 

@@ -12,23 +12,19 @@ const fs = require('fs').promises;
 const path = require('path');
 const readline = require('readline');
 
-// Configuration
-const STUDENTS_FILE = path.join(__dirname, '..', 'data/students.txt');
-const API_BASE = process.env.API_BASE || 'https://www.studentscoring.com/api';
+const STUDENTS_FILE: string = path.join(__dirname, '..', 'data/students.txt');
+const API_BASE: string = process.env.API_BASE || 'https://www.studentscoring.com/api';
 const LOCAL_API_BASE = 'http://localhost:3000/api';
 
-// Use local API if running locally, otherwise use production
-let USE_LOCAL = process.env.USE_LOCAL === 'true' || process.argv.includes('--local');
-let BASE_URL = USE_LOCAL ? LOCAL_API_BASE : API_BASE;
+let USE_LOCAL: boolean = process.env.USE_LOCAL === 'true' || process.argv.includes('--local');
+let BASE_URL: string = USE_LOCAL ? LOCAL_API_BASE : API_BASE;
 
-// Function to update BASE_URL (called after reading config)
-function updateBaseUrl(useLocal) {
+function updateBaseUrl(useLocal: boolean): void {
   USE_LOCAL = useLocal;
   BASE_URL = USE_LOCAL ? LOCAL_API_BASE : API_BASE;
 }
 
-// Colors for console output
-const colors = {
+const colors: Record<string, string> = {
   reset: '\x1b[0m',
   green: '\x1b[32m',
   red: '\x1b[31m',
@@ -37,27 +33,25 @@ const colors = {
   cyan: '\x1b[36m'
 };
 
-function log(message, color = 'reset') {
+function log(message: string, color: string = 'reset'): void {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-// Read local students data
-async function readLocalStudents() {
+async function readLocalStudents(): Promise<any[]> {
   try {
     log('📖 Reading local students data...', 'cyan');
-    const content = await fs.readFile(STUDENTS_FILE, 'utf8');
+    const content: string = await fs.readFile(STUDENTS_FILE, 'utf8');
     const data = JSON.parse(content);
-    const students = data.students || [];
+    const students: any[] = data.students || [];
     log(`✅ Found ${students.length} students in local data`, 'green');
     return students;
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Error reading local students: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Login and get authentication token
-async function login(email, password) {
+async function login(email: string, password: string): Promise<string> {
   try {
     log(`🔐 Logging in as ${email}...`, 'cyan');
     const response = await fetch(`${BASE_URL}/auth/login`, {
@@ -76,14 +70,13 @@ async function login(email, password) {
     const data = await response.json();
     log('✅ Login successful!', 'green');
     return data.token;
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Login error: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Create a student
-async function createStudent(token, studentData) {
+async function createStudent(token: string, studentData: any): Promise<any> {
   try {
     const response = await fetch(`${BASE_URL}/organizations/students`, {
       method: 'POST',
@@ -108,8 +101,7 @@ async function createStudent(token, studentData) {
   }
 }
 
-// Update student data (score, level, rank, stats, etc.)
-async function updateStudent(token, studentId, updates) {
+async function updateStudent(token: string, studentId: string, updates: any): Promise<any> {
   try {
     const response = await fetch(`${BASE_URL}/students/${studentId}`, {
       method: 'PUT',
@@ -131,8 +123,7 @@ async function updateStudent(token, studentId, updates) {
   }
 }
 
-// Check if student already exists
-async function checkStudentExists(token, studentId) {
+async function checkStudentExists(token: string, studentId: string): Promise<any | null> {
   try {
     const response = await fetch(`${BASE_URL}/students`, {
       method: 'GET',
@@ -146,21 +137,19 @@ async function checkStudentExists(token, studentId) {
     }
 
     const students = await response.json();
-    const studentArray = Array.isArray(students) ? students : (students.students || []);
-    return studentArray.find(s => (s.chessComId || s.studentId) === studentId);
+    const studentArray: any[] = Array.isArray(students) ? students : (students.students || []);
+    return studentArray.find((s: any) => (s.chessComId || s.studentId) === studentId);
   } catch (error) {
     return null;
   }
 }
 
-// Main migration function
-async function migrateStudents(orgEmail, password) {
+async function migrateStudents(orgEmail: string, password: string): Promise<void> {
   try {
     log('\n🚀 Starting student data migration...\n', 'blue');
     log(`📡 Using API: ${BASE_URL}`, 'cyan');
     log(`📧 Organization: ${orgEmail}\n`, 'cyan');
 
-    // Read local students
     const localStudents = await readLocalStudents();
     
     if (localStudents.length === 0) {
@@ -168,10 +157,8 @@ async function migrateStudents(orgEmail, password) {
       return;
     }
 
-    // Login
     const token = await login(orgEmail, password);
     
-    // Check existing students
     log('\n📋 Checking existing students...', 'cyan');
     const existingResponse = await fetch(`${BASE_URL}/students`, {
       headers: {
@@ -179,22 +166,20 @@ async function migrateStudents(orgEmail, password) {
       }
     });
     
-    let existingStudents = [];
+    let existingStudents: any[] = [];
     if (existingResponse.ok) {
       const existingData = await existingResponse.json();
       existingStudents = Array.isArray(existingData) ? existingData : (existingData.students || []);
       log(`✅ Found ${existingStudents.length} existing students`, 'green');
     }
 
-    const existingStudentIds = new Set(existingStudents.map(s => (s.chessComId || s.studentId)));
+    const existingStudentIds = new Set(existingStudents.map((s: any) => (s.chessComId || s.studentId)));
     
-    // Statistics
     let created = 0;
     let updated = 0;
     let skipped = 0;
-    let errors = [];
+    let errors: Array<{ student: string; chessComId: string; error: string }> = [];
 
-    // Process each student
     log(`\n📝 Processing ${localStudents.length} students...\n`, 'blue');
     
     for (let i = 0; i < localStudents.length; i++) {
@@ -202,19 +187,16 @@ async function migrateStudents(orgEmail, password) {
       const progress = `[${i + 1}/${localStudents.length}]`;
       
       try {
-        // Check if student already exists
         const localChess = localStudent.chessComId ?? localStudent.studentId ?? '';
-        const existingStudent = existingStudents.find(s => (s.chessComId || s.studentId) === localChess);
+        const existingStudent = existingStudents.find((s: any) => (s.chessComId || s.studentId) === localChess);
         
-        let studentId;
+        let studentId: string;
         let isNew = false;
 
         if (existingStudent) {
-          // Student exists, use existing ID
           studentId = existingStudent.id;
           log(`${progress} ⚠️  Student "${localStudent.name}" (${localChess}) already exists, updating...`, 'yellow');
         } else {
-          // Create new student
           log(`${progress} ➕ Creating student "${localStudent.name}" (${localChess})...`, 'cyan');
           const newStudent = await createStudent(token, localStudent);
           studentId = newStudent.id;
@@ -222,7 +204,6 @@ async function migrateStudents(orgEmail, password) {
           created++;
         }
 
-        // Prepare update data
         const updates = {
           score: localStudent.score || 0,
           level: localStudent.level || 1,
@@ -239,7 +220,6 @@ async function migrateStudents(orgEmail, password) {
           }
         };
 
-        // Update student data
         await updateStudent(token, studentId, updates);
         
         if (isNew) {
@@ -249,10 +229,9 @@ async function migrateStudents(orgEmail, password) {
           updated++;
         }
 
-        // Small delay to avoid overwhelming the server
         await new Promise(resolve => setTimeout(resolve, 100));
 
-      } catch (error) {
+      } catch (error: any) {
         log(`${progress} ❌ Error processing "${localStudent.name}": ${error.message}`, 'red');
         errors.push({
           student: localStudent.name,
@@ -262,7 +241,6 @@ async function migrateStudents(orgEmail, password) {
       }
     }
 
-    // Summary
     log('\n' + '='.repeat(60), 'blue');
     log('📊 Migration Summary', 'blue');
     log('='.repeat(60), 'blue');
@@ -280,25 +258,22 @@ async function migrateStudents(orgEmail, password) {
     
     log('\n✅ Migration completed!', 'green');
     
-  } catch (error) {
+  } catch (error: any) {
     log(`\n❌ Migration failed: ${error.message}`, 'red');
     process.exit(1);
   }
 }
 
-// Get credentials from config file, command line, or prompt
-async function getCredentials() {
+async function getCredentials(): Promise<{ email: string; password: string }> {
   const CONFIG_FILE = path.join(__dirname, 'migration-config.json');
   
-  // Try to read from config file first
-  let email, password;
+  let email: string | undefined, password: string | undefined;
   try {
-    const configContent = await fs.readFile(CONFIG_FILE, 'utf8');
+    const configContent: string = await fs.readFile(CONFIG_FILE, 'utf8');
     const config = JSON.parse(configContent);
     email = config.email;
     password = config.password;
     if (config.useLocal !== undefined) {
-      // Override USE_LOCAL if specified in config
       updateBaseUrl(config.useLocal);
     }
     log(`📋 Using credentials from config file`, 'cyan');
@@ -306,15 +281,13 @@ async function getCredentials() {
     // Config file doesn't exist or invalid, continue to command line/prompt
   }
 
-  const args = process.argv.slice(2);
+  const args: string[] = process.argv.slice(2);
   
-  // Check for --local flag
   const localIndex = args.indexOf('--local');
   if (localIndex !== -1) {
     args.splice(localIndex, 1);
   }
 
-  // Override with command line arguments if provided
   if (args[0]) email = args[0];
   if (args[1]) password = args[1];
 
@@ -324,7 +297,7 @@ async function getCredentials() {
       output: process.stdout
     });
 
-    const question = (query) => new Promise(resolve => rl.question(query, resolve));
+    const question = (query: string): Promise<string> => new Promise(resolve => rl.question(query, resolve));
 
     if (!email) {
       email = await question('Enter organization email: ');
@@ -332,7 +305,6 @@ async function getCredentials() {
     
     if (!password) {
       password = await question('Enter password: ');
-      // Hide password input
       rl.output.write('\n');
     }
 
@@ -349,12 +321,11 @@ async function getCredentials() {
   return { email, password };
 }
 
-// Main execution
 (async () => {
   try {
     const { email, password } = await getCredentials();
     await migrateStudents(email, password);
-  } catch (error) {
+  } catch (error: any) {
     log(`\n❌ Fatal error: ${error.message}`, 'red');
     process.exit(1);
   }

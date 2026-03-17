@@ -2,7 +2,7 @@
 require('dotenv').config();
 const { migrate } = require('../db/migrate');
 
-function isConnectionishError(e) {
+function isConnectionishError(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase();
   const code = String(e?.code || '').toUpperCase();
   if (code === 'ETIMEDOUT' || code === 'ECONNREFUSED' || code === 'ENOTFOUND') return true;
@@ -12,11 +12,11 @@ function isConnectionishError(e) {
   return false;
 }
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function run() {
+async function run(): Promise<void> {
   const strict = String(process.env.DB_MIGRATE_STRICT || '') === '1';
   const maxRetries = Math.max(0, parseInt(String(process.env.DB_MIGRATE_RETRIES || '4'), 10) || 4);
   let attempt = 0;
@@ -32,7 +32,6 @@ async function run() {
       const connish = isConnectionishError(e);
       console.error('Migration failed:', e);
       if (!connish) {
-        // Real SQL/migration error - always fail
         process.exit(1);
         return;
       }
@@ -54,5 +53,4 @@ async function run() {
 }
 
 run();
-
 

@@ -11,17 +11,15 @@ require('dotenv').config();
 const fs = require('fs').promises;
 const path = require('path');
 
-// Configuration
-const API_BASE = process.env.API_BASE || 'https://www.studentscoring.com/api';
+const API_BASE: string = process.env.API_BASE || 'https://www.studentscoring.com/api';
 const ADMIN_EMAIL = 'admin@studentscoring.com';
 const ADMIN_PASSWORD = 'C25da1212';
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const ORGANIZATIONS_FILE = path.join(DATA_DIR, 'organizations.txt');
-const STUDENTS_FILE = path.join(DATA_DIR, 'students.txt');
+const DATA_DIR: string = path.join(__dirname, '..', 'data');
+const ORGANIZATIONS_FILE: string = path.join(DATA_DIR, 'organizations.txt');
+const STUDENTS_FILE: string = path.join(DATA_DIR, 'students.txt');
 
-// Colors for console output
-const colors = {
+const colors: Record<string, string> = {
   reset: '\x1b[0m',
   green: '\x1b[32m',
   red: '\x1b[31m',
@@ -30,12 +28,11 @@ const colors = {
   cyan: '\x1b[36m'
 };
 
-function log(message, color = 'reset') {
+function log(message: string, color: string = 'reset'): void {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-// Login and get authentication token
-async function login(email, password) {
+async function login(email: string, password: string): Promise<string> {
   try {
     log(`🔐 Logging in as ${email}...`, 'cyan');
     const response = await fetch(`${API_BASE}/auth/login`, {
@@ -54,14 +51,13 @@ async function login(email, password) {
     const data = await response.json();
     log('✅ Login successful!', 'green');
     return data.token;
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Login error: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Fetch organizations from server
-async function fetchOrganizations(token) {
+async function fetchOrganizations(token: string): Promise<any[]> {
   try {
     log('📡 Fetching organizations from server...', 'cyan');
     const response = await fetch(`${API_BASE}/admin/organizations`, {
@@ -75,17 +71,16 @@ async function fetchOrganizations(token) {
       throw new Error(error.error || 'Failed to fetch organizations');
     }
 
-    const organizations = await response.json();
+    const organizations: any[] = await response.json();
     log(`✅ Fetched ${organizations.length} organization(s) from server`, 'green');
     return organizations;
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Error fetching organizations: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Fetch students from server
-async function fetchStudents(token) {
+async function fetchStudents(token: string): Promise<any[]> {
   try {
     log('📡 Fetching students from server...', 'cyan');
     const response = await fetch(`${API_BASE}/students`, {
@@ -102,32 +97,29 @@ async function fetchStudents(token) {
     const students = await response.json();
     log(`✅ Fetched ${students.length} student(s) from server`, 'green');
     return Array.isArray(students) ? students : [];
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Error fetching students: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Read local students data
-async function readLocalStudents() {
+async function readLocalStudents(): Promise<{ students: any[]; otherData: any }> {
   try {
     log('📖 Reading local students data...', 'cyan');
-    const content = await fs.readFile(STUDENTS_FILE, 'utf8');
+    const content: string = await fs.readFile(STUDENTS_FILE, 'utf8');
     const data = JSON.parse(content);
-    const students = data.students || [];
+    const students: any[] = data.students || [];
     log(`✅ Found ${students.length} student(s) in local data`, 'green');
     return { students, otherData: { ...data, students: undefined } };
-  } catch (error) {
+  } catch (error: any) {
     log(`⚠️  Error reading local students: ${error.message}, using empty array`, 'yellow');
     return { students: [], otherData: { battles: [], challenge: {}, lastUpdate: new Date().toISOString() } };
   }
 }
 
-// Write organizations to local file
-async function writeOrganizations(organizations) {
+async function writeOrganizations(organizations: any[]): Promise<void> {
   try {
-    // Remove enriched fields (teacherCount, studentCount, userCount) before saving
-    const cleanOrganizations = organizations.map(org => {
+    const cleanOrganizations = organizations.map((org: any) => {
       const { teacherCount, studentCount, userCount, ...cleanOrg } = org;
       return cleanOrg;
     });
@@ -139,36 +131,31 @@ async function writeOrganizations(organizations) {
 
     await fs.writeFile(ORGANIZATIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
     log(`✅ Wrote ${cleanOrganizations.length} organization(s) to local file`, 'green');
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Error writing organizations: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Merge students: keep local students' full data, add server students as supplement
-async function mergeStudents(localData, serverStudents) {
+async function mergeStudents(localData: { students: any[]; otherData: any }, serverStudents: any[]): Promise<any[]> {
   try {
     log('🔄 Merging students data...', 'cyan');
     
-    const localStudents = localData.students || [];
-    const serverStudentsMap = new Map();
+    const localStudents: any[] = localData.students || [];
+    const serverStudentsMap = new Map<string, any>();
     
-    // Create a map of server students by chessComId for quick lookup
-    serverStudents.forEach(s => {
+    serverStudents.forEach((s: any) => {
       const chessComId = (s.chessComId || s.studentId || '').toString();
       if (chessComId) serverStudentsMap.set(chessComId, s);
     });
 
-    // Merge strategy:
-    // 1. Keep all local students with their full data
-    // 2. Add server students that don't exist locally (by chessComId)
     const mergedStudents = [...localStudents];
-    const addedFromServer = [];
+    const addedFromServer: string[] = [];
 
-    serverStudents.forEach(serverStudent => {
+    serverStudents.forEach((serverStudent: any) => {
       const chessComId = (serverStudent.chessComId || serverStudent.studentId || '').toString();
       if (chessComId) {
-        const exists = localStudents.some(local => (local.chessComId || local.studentId || '').toString() === chessComId);
+        const exists = localStudents.some((local: any) => (local.chessComId || local.studentId || '').toString() === chessComId);
         if (!exists) {
           mergedStudents.push(serverStudent);
           addedFromServer.push(chessComId);
@@ -182,15 +169,14 @@ async function mergeStudents(localData, serverStudents) {
     log(`   - Total merged: ${mergedStudents.length}`, 'green');
 
     return mergedStudents;
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Error merging students: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Find V.Chess Academy organization
-function findVChessAcademy(organizations) {
-  const vchess = organizations.find(org => 
+function findVChessAcademy(organizations: any[]): any | undefined {
+  const vchess = organizations.find((org: any) => 
     org.name && (
       org.name.toLowerCase().includes('v.chess') || 
       org.name.toLowerCase().includes('vchess') ||
@@ -204,7 +190,7 @@ function findVChessAcademy(organizations) {
   } else {
     log(`⚠️  V.Chess Academy not found in organizations`, 'yellow');
     log(`   Available organizations:`, 'yellow');
-    organizations.forEach(org => {
+    organizations.forEach((org: any) => {
       log(`   - ${org.name} (ID: ${org.id})`, 'yellow');
     });
   }
@@ -212,8 +198,7 @@ function findVChessAcademy(organizations) {
   return vchess;
 }
 
-// Associate old students to V.Chess Academy
-async function associateStudentsToVChess(students, vchessOrg) {
+async function associateStudentsToVChess(students: any[], vchessOrg: any): Promise<{ students: any[]; updatedCount: number }> {
   if (!vchessOrg) {
     log('⚠️  Cannot associate students: V.Chess Academy not found', 'yellow');
     return { students, updatedCount: 0 };
@@ -222,8 +207,7 @@ async function associateStudentsToVChess(students, vchessOrg) {
   log(`🔗 Associating students to V.Chess Academy...`, 'cyan');
   
   let updatedCount = 0;
-  const updatedStudents = students.map(student => {
-    // Only update students without organizationId
+  const updatedStudents = students.map((student: any) => {
     if (!student.organizationId) {
       updatedCount++;
       return {
@@ -238,25 +222,21 @@ async function associateStudentsToVChess(students, vchessOrg) {
   return { students: updatedStudents, updatedCount };
 }
 
-// Update organization's students array
-async function updateOrganizationStudents(organizations, students, vchessOrg) {
+async function updateOrganizationStudents(organizations: any[], students: any[], vchessOrg: any): Promise<any[]> {
   if (!vchessOrg) {
     return organizations;
   }
 
   log(`📝 Updating V.Chess Academy students array...`, 'cyan');
   
-  // Get all student IDs that belong to V.Chess Academy
-  const vchessStudentIds = students
-    .filter(s => s.organizationId === vchessOrg.id)
-    .map(s => s.id);
+  const vchessStudentIds: string[] = students
+    .filter((s: any) => s.organizationId === vchessOrg.id)
+    .map((s: any) => s.id);
 
-  // Update the organization
-  const updatedOrganizations = organizations.map(org => {
+  const updatedOrganizations = organizations.map((org: any) => {
     if (org.id === vchessOrg.id) {
-      // Merge with existing students array (avoid duplicates)
-      const existingIds = new Set(org.students || []);
-      vchessStudentIds.forEach(id => existingIds.add(id));
+      const existingIds = new Set<string>(org.students || []);
+      vchessStudentIds.forEach((id: string) => existingIds.add(id));
       return {
         ...org,
         students: Array.from(existingIds)
@@ -265,14 +245,13 @@ async function updateOrganizationStudents(organizations, students, vchessOrg) {
     return org;
   });
 
-  const vchessOrgUpdated = updatedOrganizations.find(o => o.id === vchessOrg.id);
+  const vchessOrgUpdated = updatedOrganizations.find((o: any) => o.id === vchessOrg.id);
   log(`✅ V.Chess Academy now has ${vchessOrgUpdated.students.length} student(s)`, 'green');
   
   return updatedOrganizations;
 }
 
-// Write students to local file
-async function writeStudents(students, otherData) {
+async function writeStudents(students: any[], otherData: any): Promise<void> {
   try {
     const data = {
       ...otherData,
@@ -282,28 +261,23 @@ async function writeStudents(students, otherData) {
 
     await fs.writeFile(STUDENTS_FILE, JSON.stringify(data, null, 2), 'utf8');
     log(`✅ Wrote ${students.length} student(s) to local file`, 'green');
-  } catch (error) {
+  } catch (error: any) {
     log(`❌ Error writing students: ${error.message}`, 'red');
     throw error;
   }
 }
 
-// Main sync function
-async function syncFromServer() {
+async function syncFromServer(): Promise<void> {
   try {
     log('\n🚀 Starting data sync from server...\n', 'blue');
     log(`📡 API Base: ${API_BASE}\n`, 'cyan');
 
-    // Step 1: Login
     const token = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    // Step 2: Fetch organizations from server
     const serverOrganizations = await fetchOrganizations(token);
     
-    // Step 3: Write organizations to local (overwrite)
     await writeOrganizations(serverOrganizations);
 
-    // Step 4: Find V.Chess Academy
     const vchessOrg = findVChessAcademy(serverOrganizations);
     
     if (!vchessOrg) {
@@ -311,28 +285,20 @@ async function syncFromServer() {
       process.exit(1);
     }
 
-    // Step 5: Fetch students from server
     const serverStudents = await fetchStudents(token);
 
-    // Step 6: Read local students
     const localData = await readLocalStudents();
 
-    // Step 7: Merge students
     const mergedStudents = await mergeStudents(localData, serverStudents);
 
-    // Step 8: Associate old students to V.Chess Academy
     const { students: associatedStudents, updatedCount } = await associateStudentsToVChess(mergedStudents, vchessOrg);
 
-    // Step 9: Update organization's students array
     const updatedOrganizations = await updateOrganizationStudents(serverOrganizations, associatedStudents, vchessOrg);
 
-    // Step 10: Write updated organizations
     await writeOrganizations(updatedOrganizations);
 
-    // Step 11: Write students
     await writeStudents(associatedStudents, localData.otherData);
 
-    // Summary
     log('\n✅ Sync completed successfully!', 'green');
     log(`   - Organizations: ${updatedOrganizations.length}`, 'green');
     log(`   - Students: ${associatedStudents.length}`, 'green');
@@ -340,13 +306,12 @@ async function syncFromServer() {
     log(`   - V.Chess Academy student count: ${vchessOrg.students ? vchessOrg.students.length : 0}`, 'green');
     log('\n', 'reset');
 
-  } catch (error) {
+  } catch (error: any) {
     log(`\n❌ Sync failed: ${error.message}`, 'red');
     console.error(error);
     process.exit(1);
   }
 }
 
-// Run the sync
 syncFromServer();
 

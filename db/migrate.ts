@@ -1,17 +1,28 @@
+import type { Pool as PoolType } from 'pg';
 const fs = require('fs');
 const path = require('path');
 const { getPool, dbQuery } = require('./postgres');
 
-function listSqlMigrations() {
+interface SqlMigration {
+  name: string;
+  fullPath: string;
+}
+
+interface MigrateResult {
+  applied: number;
+  total: number;
+}
+
+function listSqlMigrations(): SqlMigration[] {
   const dir = path.join(__dirname, 'migrations');
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
-    .filter((f) => f.toLowerCase().endsWith('.sql'))
+    .filter((f: string) => f.toLowerCase().endsWith('.sql'))
     .sort()
-    .map((f) => ({ name: f, fullPath: path.join(dir, f) }));
+    .map((f: string) => ({ name: f, fullPath: path.join(dir, f) }));
 }
 
-async function ensureMigrationsTable() {
+async function ensureMigrationsTable(): Promise<void> {
   await dbQuery(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       name TEXT PRIMARY KEY,
@@ -20,14 +31,14 @@ async function ensureMigrationsTable() {
   `);
 }
 
-async function getAppliedMigrations() {
+async function getAppliedMigrations(): Promise<Set<string>> {
   await ensureMigrationsTable();
   const res = await dbQuery('SELECT name FROM schema_migrations', []);
-  return new Set((res.rows || []).map((r) => String(r.name || '')).filter(Boolean));
+  return new Set((res.rows || []).map((r: { name?: string }) => String(r.name || '')).filter(Boolean));
 }
 
-async function applyMigration(name, sql) {
-  const pool = getPool();
+async function applyMigration(name: string, sql: string): Promise<void> {
+  const pool: PoolType | null = getPool();
   if (!pool) throw new Error('Postgres not configured (missing DATABASE_URL / DATABASE_PUBLIC_URL / PG* vars)');
   const client = await pool.connect();
   try {
@@ -43,7 +54,7 @@ async function applyMigration(name, sql) {
   }
 }
 
-async function migrate() {
+async function migrate(): Promise<MigrateResult> {
   const migrations = listSqlMigrations();
   if (!migrations.length) return { applied: 0, total: 0 };
   const appliedSet = await getAppliedMigrations();
@@ -59,5 +70,4 @@ async function migrate() {
 }
 
 module.exports = { migrate };
-
 
