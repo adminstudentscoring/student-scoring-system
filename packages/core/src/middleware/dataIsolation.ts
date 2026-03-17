@@ -3,7 +3,7 @@
  * Ensures users can only access data from their organization
  */
 
-const billingAccess = require('../../../../billing/access');
+const billingAccess = require('@student-scoring/billing/src/access');
 
 /**
  * Middleware factory to filter data by organization

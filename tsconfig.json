@@ -27,24 +27,28 @@
       "@student-scoring/games-monster-fight": ["packages/games-monster-fight/src/index.ts"],
       "@student-scoring/games-blunders": ["packages/games-blunders/src/index.ts"],
       "@student-scoring/games-tactics-fighter": ["packages/games-tactics-fighter/src/index.ts"],
+      "@student-scoring/vcp": ["packages/vcp/src/index.ts"],
+      "@student-scoring/billing": ["packages/billing/src/index.ts"],
+      "@student-scoring/billing/*": ["packages/billing/*"],
+      "@student-scoring/class-view": ["packages/class-view/src/index.ts"],
+      "@student-scoring/platform": ["packages/platform/src/index.ts"],
       "@config/*": ["packages/core/src/config/*"],
       "@lib/*": ["packages/core/src/lib/*"],
-      "@storage/*": ["packages/core/src/storage/*"],
-      "@routes/*": ["server/routes/*"],
-      "@services/*": ["server/services/*"]
+      "@storage/*": ["packages/core/src/storage/*"]
     }
   },
   "include": [
     "server.ts",
-    "server/**/*.ts",
-    "billing/**/*.ts",
     "packages/core/src/**/*.ts",
     "packages/games-simple/src/**/*.ts",
     "packages/games-chess/src/**/*.ts",
     "packages/games-monster-fight/src/**/*.ts",
     "packages/games-blunders/src/**/*.ts",
     "packages/games-tactics-fighter/src/**/*.ts",
-    "ai/**/*.ts",
+    "packages/vcp/src/**/*.ts",
+    "packages/billing/src/**/*.ts",
+    "packages/class-view/src/**/*.ts",
+    "packages/platform/src/**/*.ts",
     "test/**/*.ts"
   ],
   "exclude": [

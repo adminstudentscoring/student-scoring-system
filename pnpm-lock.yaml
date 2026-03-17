@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@student-scoring/billing':
+        specifier: workspace:*
+        version: link:packages/billing
+      '@student-scoring/class-view':
+        specifier: workspace:*
+        version: link:packages/class-view
       '@student-scoring/core':
         specifier: workspace:*
         version: link:packages/core
@@ -26,6 +32,12 @@ importers:
       '@student-scoring/games-tactics-fighter':
         specifier: workspace:*
         version: link:packages/games-tactics-fighter
+      '@student-scoring/platform':
+        specifier: workspace:*
+        version: link:packages/platform
+      '@student-scoring/vcp':
+        specifier: workspace:*
+        version: link:packages/vcp
       bcrypt:
         specifier: ^5.1.1
         version: 5.1.1
@@ -121,6 +133,18 @@ importers:
         specifier: ^8.57.1
         version: 8.57.1(eslint@10.0.3)(typescript@5.9.3)
 
+  packages/billing:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/class-view:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/core: {}
 
   packages/games-blunders:
@@ -148,6 +172,18 @@ importers:
         version: link:../core
 
   packages/games-tactics-fighter:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/platform:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/vcp:
     dependencies:
       '@student-scoring/core':
         specifier: workspace:*

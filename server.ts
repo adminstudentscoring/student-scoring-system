@@ -11,7 +11,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
 const { Chess } = require('chess.js');
-const { openAiEnabled, openAiJson } = require('./ai/openai');
+const { openAiEnabled, openAiJson } = require('@student-scoring/platform');
 
 const app: Express = express();
 
@@ -126,13 +126,13 @@ const subscriptionPackagesStore = createJsonStore(SUBSCRIPTION_PACKAGES_FILE, { 
 const { hashPassword, comparePassword, generateToken, verifyToken } = require('@student-scoring/core');
 const { authenticateUser, authorizeRole, optionalAuth } = require('@student-scoring/core');
 const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUsersByOrganization } = require('@student-scoring/core');
-const { setupVcpChess } = require('./server/vcp/vcpChess');
+const { setupVcpChess } = require('@student-scoring/vcp');
 
 // Billing (PayPal + Postgres)
-const billingDb = require('./billing/db');
-const paypal = require('./billing/paypal');
-const billingAccess = require('./billing/access');
-const { createPayPalBillingHelpers } = require('./billing/paypalBillingService');
+const billingDb = require('@student-scoring/billing/src/db');
+const paypal = require('@student-scoring/billing/src/paypal');
+const billingAccess = require('@student-scoring/billing/src/access');
+const { createPayPalBillingHelpers } = require('@student-scoring/billing');
 
 // App Postgres (optional, for future migrations/features)
 const appDb = require('@student-scoring/core/src/db/postgres');
@@ -503,7 +503,7 @@ let computeNextBlundersDailyRunIso = () => new Date().toISOString();
 let maybeRunBlundersDailySyncAllStudents = async () => ({ ok: true, skipped: true });
 
 // ===== Course Management: Auto-renew (moved to server/services/autoRenew.js) =====
-const { createAutoRenew } = require('./server/services/autoRenew');
+const { createAutoRenew } = require('@student-scoring/platform');
 let AUTO_RENEW_LEAD_DAYS = Number(process.env.AUTO_RENEW_LEAD_DAYS || 30);
 // autoRenewMeta + maybeRunAutoRenewAllOrgs are initialized after readOrders/writeOrders are defined (see below)
 let autoRenewMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
@@ -919,7 +919,7 @@ const { getDateKey, getWeekKey, getMonthKey, getYearKey, updateStudentStats, add
 // ==================== Authentication API ====================
 
 // ===== Auth routes (moved to server/routes/authRoutes.js) =====
-const { registerAuthRoutes } = require('./server/routes/authRoutes');
+const { registerAuthRoutes } = require('@student-scoring/platform');
 registerAuthRoutes(app, {
   authenticateUser,
   readUsers,
@@ -939,7 +939,7 @@ registerAuthRoutes(app, {
 // ==================== Admin Management API ====================
 
 // ===== Admin organization routes (moved to server/routes/adminOrganizationsRoutes.js) =====
-const { registerAdminOrganizationsRoutes } = require('./server/routes/adminOrganizationsRoutes');
+const { registerAdminOrganizationsRoutes } = require('@student-scoring/platform');
 registerAdminOrganizationsRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -956,7 +956,7 @@ registerAdminOrganizationsRoutes(app, {
 });
 
 // ===== Admin subscription routes (moved to server/routes/adminSubscriptionRoutes.js) =====
-const { registerAdminSubscriptionRoutes } = require('./server/routes/adminSubscriptionRoutes');
+const { registerAdminSubscriptionRoutes } = require('@student-scoring/billing');
 registerAdminSubscriptionRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -978,7 +978,7 @@ registerAdminSubscriptionRoutes(app, {
 // ==================== Teacher Management API ====================
 
 // ===== Chess.com teacher routes (moved to server/routes/chesscomTeacherRoutes.js) =====
-const { registerChessComTeacherRoutes } = require('./server/routes/chesscomTeacherRoutes');
+const { registerChessComTeacherRoutes } = require('@student-scoring/platform');
 registerChessComTeacherRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -1039,7 +1039,7 @@ registerBlundersTeacherRoutes(app, {
 });
 
 // ===== Teacher Class View routes (moved to server/routes/teacherClassViewRoutes.js) =====
-const { registerTeacherClassViewRoutes } = require('./server/routes/teacherClassViewRoutes');
+const { registerTeacherClassViewRoutes } = require('@student-scoring/class-view');
 registerTeacherClassViewRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -1049,7 +1049,7 @@ registerTeacherClassViewRoutes(app, {
 });
 
 // ===== Organizations routes (moved to server/routes/organizationsRoutes.js) =====
-const { registerOrganizationsRoutes } = require('./server/routes/organizationsRoutes');
+const { registerOrganizationsRoutes } = require('@student-scoring/platform');
 registerOrganizationsRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -1079,7 +1079,7 @@ registerOrganizationsRoutes(app, {
 // ==================== Student API (existing) ====================
 
 // ===== Students routes (moved to server/routes/studentsRoutes.js) =====
-const { registerStudentsRoutes } = require('./server/routes/studentsRoutes');
+const { registerStudentsRoutes } = require('@student-scoring/platform');
 registerStudentsRoutes(app, {
   optionalAuth,
   authenticateUser,
@@ -1240,7 +1240,7 @@ registerBlundersPublicRoutes(app, {
 // (moved to server/routes/studentsRoutes.js)
 
 // ===== Challenge routes (moved to server/routes/challengeRoutes.js) =====
-const { registerChallengeRoutes } = require('./server/routes/challengeRoutes');
+const { registerChallengeRoutes } = require('@student-scoring/class-view');
 registerChallengeRoutes(app, {
   authenticateUser,
   readData,
@@ -1254,7 +1254,7 @@ registerChallengeRoutes(app, {
 });
 
 // ===== Statistics routes (moved to server/routes/statisticsRoutes.js) =====
-const { registerStatisticsRoutes } = require('./server/routes/statisticsRoutes');
+const { registerStatisticsRoutes } = require('@student-scoring/class-view');
 registerStatisticsRoutes(app, {
   readData,
   getDateKey,
@@ -1373,7 +1373,7 @@ registerChessWorksRoutes(app, {
 // ============================
 
 // ===== PayPal routes (webhook + admin tools) (moved to server/routes/paypalRoutes.js) =====
-const { registerPayPalRoutes } = require('./server/routes/paypalRoutes');
+const { registerPayPalRoutes } = require('@student-scoring/billing');
 registerPayPalRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -1456,7 +1456,7 @@ async function readAttendance(): Promise<any> { return attendanceStore.read(); }
 async function writeAttendance(data: any): Promise<boolean> { return attendanceStore.write(data); }
 
 // ===== Attendance routes (moved to server/routes/attendanceRoutes.js) =====
-const { registerAttendanceRoutes } = require('./server/routes/attendanceRoutes');
+const { registerAttendanceRoutes } = require('@student-scoring/platform');
 registerAttendanceRoutes(app, {
   authenticateUser,
   requireOrganizationAccess,
@@ -1470,7 +1470,7 @@ async function readTransactions(): Promise<any> { return transactionsStore.read(
 async function writeTransactions(data: any): Promise<boolean> { return transactionsStore.write(data); }
 
 // ===== Organizations billing + finance routes (moved to server/routes/organizationsBillingRoutes.js) =====
-const { registerOrganizationsBillingRoutes } = require('./server/routes/organizationsBillingRoutes');
+const { registerOrganizationsBillingRoutes } = require('@student-scoring/billing');
 registerOrganizationsBillingRoutes(app, {
   // middleware
   authenticateUser,
@@ -1504,7 +1504,7 @@ registerOrganizationsBillingRoutes(app, {
 });
 
 // ===== My Own App routes (Admin utilities) =====
-const { registerMyOwnAppRoutes } = require('./server/routes/myOwnAppRoutes');
+const { registerMyOwnAppRoutes } = require('@student-scoring/platform');
 registerMyOwnAppRoutes(app, {
   appDb,
   authenticateUser,
