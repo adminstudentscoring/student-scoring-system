@@ -3,7 +3,14 @@ import type { JwtPayload } from 'jsonwebtoken';
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
-const JWT_SECRET: string = process.env.JWT_SECRET || 'change-this-to-a-random-secret-key-in-production';
+const JWT_SECRET: string = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable must be set in production');
+  }
+  return 'change-this-to-a-random-secret-key-in-production';
+})();
 const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 interface TokenUser {

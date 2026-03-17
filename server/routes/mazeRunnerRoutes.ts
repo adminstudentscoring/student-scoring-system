@@ -86,8 +86,8 @@ function registerMazeRunnerRoutes(app: any, deps: any): void {
     }
     const studentId = String(req?.params?.id || "").trim();
     const password =
-      (req?.query && Object.prototype.hasOwnProperty.call(req.query, "password")) ? String(req.query.password || "") :
       (req?.body && Object.prototype.hasOwnProperty.call(req.body, "password")) ? String(req.body.password || "") :
+      (req?.headers && req.headers["x-student-password"]) ? String(req.headers["x-student-password"]) :
       "";
 
     const data = await readData().catch(() => null);

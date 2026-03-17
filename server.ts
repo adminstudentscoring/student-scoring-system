@@ -1375,7 +1375,7 @@ registerPayPalRoutes(app, {
 // (moved to server/routes/challengeRoutes.js)
 
 // Reset all scores
-app.post('/api/reset', async (req, res) => {
+app.post('/api/reset', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
     const data = await readData();
     data.students.forEach(student => {
