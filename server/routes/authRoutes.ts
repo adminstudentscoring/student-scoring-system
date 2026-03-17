@@ -1,7 +1,7 @@
 // Auth routes extracted from server.js.
 // Includes /api/auth/register, /api/auth/login, /api/auth/me.
 import { Request, Response, NextFunction } from 'express';
-import type { AuthRouteDeps } from '../types';
+import type { AuthRouteDeps } from '@student-scoring/core';
 
 function registerAuthRoutes(app: any, deps: AuthRouteDeps): void {
   const authenticateUser = deps?.authenticateUser;

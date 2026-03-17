@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyToken, extractTokenFromHeader } from '../auth';
-const billingAccess = require('../billing/access');
+const billingAccess = require('../../../../billing/access');
 
 interface AuthenticatedRequest extends Request {
   user?: any;

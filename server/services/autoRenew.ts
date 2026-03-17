@@ -1,7 +1,7 @@
 // Auto-renew logic extracted from server.js.
 // Checks for students with autoRenewEnabled and creates renewal orders/enrollments.
 
-import { addDays, addMonths, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } from '../lib/dateUtils';
+import { addDays, addMonths, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } from '@student-scoring/core';
 
 interface AutoRenewDeps {
   todayHkKey(): string;

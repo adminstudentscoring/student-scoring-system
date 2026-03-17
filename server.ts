@@ -105,7 +105,7 @@ const EXPENSES_FILE = path.join(__dirname, process.env.EXPENSES_FILE || path.joi
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Generic JSON store factory
-const { createJsonStore } = require('./server/storage/jsonStore');
+const { createJsonStore } = require('@student-scoring/core');
 
 // --- JSON stores for simple read/write pairs ---
 const ordersStore = createJsonStore(ORDERS_FILE, []);
@@ -123,9 +123,9 @@ const subscriptionPricesStore = createJsonStore(SUBSCRIPTION_PRICES_FILE, { pric
 const subscriptionPackagesStore = createJsonStore(SUBSCRIPTION_PACKAGES_FILE, { packages: [], lastUpdate: null });
 
 // Import authentication utilities
-const { hashPassword, comparePassword, generateToken, verifyToken } = require('./auth');
-const { authenticateUser, authorizeRole, optionalAuth } = require('./middleware/auth');
-const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUsersByOrganization } = require('./middleware/dataIsolation');
+const { hashPassword, comparePassword, generateToken, verifyToken } = require('@student-scoring/core');
+const { authenticateUser, authorizeRole, optionalAuth } = require('@student-scoring/core');
+const { createRequireOrganizationAccess, filterStudentsByOrganization, filterUsersByOrganization } = require('@student-scoring/core');
 const { setupVcpChess } = require('./server/vcp/vcpChess');
 
 // Billing (PayPal + Postgres)
@@ -135,8 +135,8 @@ const billingAccess = require('./billing/access');
 const { createPayPalBillingHelpers } = require('./billing/paypalBillingService');
 
 // App Postgres (optional, for future migrations/features)
-const appDb = require('./db/postgres');
-const appDbMigrate = require('./db/migrate');
+const appDb = require('@student-scoring/core/src/db/postgres');
+const appDbMigrate = require('@student-scoring/core/src/db/migrate');
 
 // Note: requireOrganizationAccess will be created after readUsers function is defined
 
@@ -335,7 +335,7 @@ let getOrgChessComSettings: (...args: any[]) => Promise<any> = async () => null;
 let upsertOrgChessComSettings: (...args: any[]) => Promise<any> = async () => ({ ok: false, reason: 'not_initialized' });
 let getStudentChessComCredentials: (...args: any[]) => Promise<any> = async () => null;
 {
-  const { createChessComSettingsStore } = require('./server/storage/chesscomSettings');
+  const { createChessComSettingsStore } = require('@student-scoring/core');
   const fileStore = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
 
   const { createChessComSettingsDb } = require('./server/chesscom/settingsDb');
@@ -514,8 +514,8 @@ let chessComGetTodayGames = async () => [];
 let chessComGetRecentGames = async () => [];
 let getChessComUsernameForStudent = async () => '';
 
-// ===== Date/schedule helpers (moved to server/lib/dateUtils.js) =====
-const { parseUciMove, dateStrFromYmd, parseDateStrToUtcMidnightMs, addDays, addMonths, DOW_NAME_TO_NUM, buildSkipDateSet, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } = require('./server/lib/dateUtils');
+// ===== Date/schedule helpers (moved to @student-scoring/core) =====
+const { parseUciMove, dateStrFromYmd, parseDateStrToUtcMidnightMs, addDays, addMonths, DOW_NAME_TO_NUM, buildSkipDateSet, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } = require('@student-scoring/core');
 
 function hkTodayDateStr(): string {
   const t = hkNow();
@@ -830,7 +830,7 @@ const {
   createAppendSubscriptionAudit,
   createCheckExpiredPackages,
   createUpdatePackagesForDeletedCourse
-} = require('./server/lib/subscriptionHelpers');
+} = require('@student-scoring/core');
 
 // PayPal subscription helpers (extracted)
 const paypalBilling = createPayPalBillingHelpers({
@@ -884,11 +884,11 @@ const requireOrganizationAccess = createRequireOrganizationAccess(readUsers);
 
 // (moved to server/routes/monsterFightGameRoutes.js)
 
-// ===== Constants (moved to server/config/constants.js) =====
-const { LEVELS, RANKS } = require('./server/config/constants');
+// ===== Constants (moved to @student-scoring/core) =====
+const { LEVELS, RANKS } = require('@student-scoring/core');
 
-// ===== Data store (moved to server/storage/dataStore.js) =====
-const { createDataStore } = require('./server/storage/dataStore');
+// ===== Data store (moved to @student-scoring/core) =====
+const { createDataStore } = require('@student-scoring/core');
 const _dataStore = createDataStore({ fs, DATA_FILE });
 const initializeDataFile = _dataStore.initializeDataFile;
 const initializeStudentFields = _dataStore.initializeStudentFields;
@@ -911,8 +911,8 @@ function broadcast(data: any): void {
 
 // (RANKS moved to server/config/constants.js)
 
-// ===== Stats helpers (moved to server/lib/statsHelpers.js) =====
-const { getDateKey, getWeekKey, getMonthKey, getYearKey, updateStudentStats, addRewardPointsToStats, getRankInfo } = require('./server/lib/statsHelpers');
+// ===== Stats helpers (moved to @student-scoring/core) =====
+const { getDateKey, getWeekKey, getMonthKey, getYearKey, updateStudentStats, addRewardPointsToStats, getRankInfo } = require('@student-scoring/core');
 
 // API Routes
 

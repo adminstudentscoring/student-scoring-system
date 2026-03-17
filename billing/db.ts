@@ -1,5 +1,5 @@
 import type { Pool as PoolType, QueryResult } from 'pg';
-import { dbQuery, getPool } from '../db/postgres';
+import { dbQuery, getPool } from '@student-scoring/core';
 
 async function query(text: string, params?: any[]): Promise<QueryResult> {
   return dbQuery(text, params);

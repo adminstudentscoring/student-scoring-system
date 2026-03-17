@@ -20,20 +20,20 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@config/*": ["server/config/*"],
-      "@lib/*": ["server/lib/*"],
-      "@storage/*": ["server/storage/*"],
+      "@student-scoring/core": ["packages/core/src/index.ts"],
+      "@student-scoring/core/*": ["packages/core/src/*"],
+      "@config/*": ["packages/core/src/config/*"],
+      "@lib/*": ["packages/core/src/lib/*"],
+      "@storage/*": ["packages/core/src/storage/*"],
       "@routes/*": ["server/routes/*"],
       "@services/*": ["server/services/*"]
     }
   },
   "include": [
     "server.ts",
-    "auth.ts",
     "server/**/*.ts",
     "billing/**/*.ts",
-    "db/**/*.ts",
-    "middleware/**/*.ts",
+    "packages/core/src/**/*.ts",
     "ai/**/*.ts",
     "test/**/*.ts"
   ],

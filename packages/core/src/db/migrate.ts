@@ -69,5 +69,5 @@ async function migrate(): Promise<MigrateResult> {
   return { applied, total: migrations.length };
 }
 
-module.exports = { migrate };
+export { migrate };
 

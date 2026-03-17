@@ -1,7 +1,7 @@
 // Admin Organization routes extracted from server.js.
 // Includes /api/admin/organizations/* routes (CRUD, teachers, students, settings, statistics, audit, batch).
 import { Request, Response, NextFunction } from 'express';
-import type { AdminOrganizationsRouteDeps } from '../types';
+import type { AdminOrganizationsRouteDeps } from '@student-scoring/core';
 
 function registerAdminOrganizationsRoutes(app: any, deps: AdminOrganizationsRouteDeps): void {
   const authenticateUser = deps?.authenticateUser;

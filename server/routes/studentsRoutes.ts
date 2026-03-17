@@ -2,7 +2,7 @@
 // Includes /api/students* and /api/public/students*.
 
 import { Request, Response, NextFunction } from 'express';
-import type { StudentsRouteDeps } from '../types';
+import type { StudentsRouteDeps } from '@student-scoring/core';
 
 function registerStudentsRoutes(app: any, deps: StudentsRouteDeps): void {
   const optionalAuth = deps?.optionalAuth;

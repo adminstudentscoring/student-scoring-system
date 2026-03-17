@@ -1,6 +1,7 @@
 {
   "name": "student-scoring-system",
   "version": "1.0.0",
+  "private": true,
   "description": "Student scoring system for Zoom classes with gamification features",
   "main": "main.js",
   "scripts": {
@@ -15,7 +16,7 @@
     "init-admin": "tsx scripts/init-admin.ts",
     "migrate-students": "tsx scripts/migrate-students.ts",
     "db:migrate": "tsx scripts/db-migrate.ts",
-    "db:ping": "tsx -e \"require('dotenv').config(); require('./db/postgres').dbPing().then(()=>console.log('OK')).catch((e)=>{console.error(e); process.exit(1);});\"",
+    "db:ping": "tsx -e \"require('dotenv').config(); require('@student-scoring/core').dbPing().then(()=>console.log('OK')).catch((e)=>{console.error(e); process.exit(1);});\"",
     "blunders:import-db": "tsx scripts/blunders-import-to-db.ts",
     "lint": "eslint .",
     "test": "node --import tsx --test test/*.test.ts"
@@ -32,6 +33,7 @@
     "node": "20.x"
   },
   "dependencies": {
+    "@student-scoring/core": "workspace:*",
     "bcrypt": "^5.1.1",
     "chess.js": "^1.4.0",
     "cors": "^2.8.5",
@@ -44,6 +46,14 @@
     "sharp": "^0.33.5",
     "stockfish": "^17.1.0",
     "ws": "^8.14.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bcrypt",
+      "sharp",
+      "esbuild",
+      "electron"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

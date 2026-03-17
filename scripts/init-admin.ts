@@ -8,7 +8,7 @@
 require('dotenv').config();
 const fs = require('fs').promises;
 const path = require('path');
-const { hashPassword } = require('../auth');
+const { hashPassword } = require('@student-scoring/core');
 
 const USERS_FILE: string = path.join(__dirname, '..', process.env.USERS_FILE || 'data/users.txt');
 

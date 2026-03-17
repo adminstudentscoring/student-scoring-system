@@ -1,7 +1,7 @@
 // Challenge/Level routes extracted from server.js.
 // Includes /api/challenge* routes.
 import { Request, Response, NextFunction } from 'express';
-import type { ChallengeRouteDeps } from '../types';
+import type { ChallengeRouteDeps } from '@student-scoring/core';
 
 function registerChallengeRoutes(app: any, deps: ChallengeRouteDeps): void {
   const authenticateUser = deps?.authenticateUser;

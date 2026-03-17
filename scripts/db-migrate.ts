@@ -1,6 +1,6 @@
 // CLI runner: applies db/migrations/*.sql
 require('dotenv').config();
-const { migrate } = require('../db/migrate');
+const { migrate } = require('@student-scoring/core');
 
 function isConnectionishError(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase();

@@ -33,6 +33,6 @@ function createChessComSettingsStore(deps: any): any {
   return { readChessComSettings, writeChessComSettings };
 }
 
-module.exports = { createChessComSettingsStore };
+export { createChessComSettingsStore };
 
 

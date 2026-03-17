@@ -15,7 +15,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { getPool } = require('../db/postgres');
+const { getPool } = require('@student-scoring/core');
 
 function argValue(flag: string): string | null {
   const idx = process.argv.indexOf(flag);

@@ -1,6 +1,6 @@
 "use strict";
 
-const { generateTokenWithExpiry } = require("../../auth");
+const { generateTokenWithExpiry } = require("@student-scoring/core");
 
 import { Request, Response, NextFunction } from 'express';
 
