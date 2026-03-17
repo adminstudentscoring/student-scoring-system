@@ -99,7 +99,7 @@ function registerRoyalExchangeRoutes(app: any, deps: any): void {
       }
       if (Number(a.steps) !== Number(b.steps)) return Number(a.steps) - Number(b.steps);
       if (Number(a.duration) !== Number(b.duration)) return Number(a.duration) - Number(b.duration);
-      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
     });
     await writeRoyalExchangeLeaderboard(deduped);
     return deduped;
@@ -120,7 +120,7 @@ function registerRoyalExchangeRoutes(app: any, deps: any): void {
         }
         if (Number(a.steps) !== Number(b.steps)) return Number(a.steps) - Number(b.steps);
         if (Number(a.duration) !== Number(b.duration)) return Number(a.duration) - Number(b.duration);
-        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
       });
       res.json({ entries: deduped });
     } catch (error) {

@@ -80,7 +80,7 @@ function registerMonsterFightAdminRoutes(app: any, deps: any): void {
         }
       }
 
-      saves.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      saves.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
       res.json(saves);
     } catch (error) {
       console.error('Error getting game saves:', error);

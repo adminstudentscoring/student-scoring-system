@@ -603,7 +603,7 @@ function registerAdminOrganizationsRoutes(app: any, deps: any): void {
       }
       
       // Sort by timestamp descending (newest first)
-      auditLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      auditLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       
       res.json(auditLogs);
     } catch (error) {

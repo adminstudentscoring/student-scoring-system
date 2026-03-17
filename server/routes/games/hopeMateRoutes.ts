@@ -137,7 +137,7 @@ function registerHopeMateRoutes(app: any, deps: any): void {
     const final = dedupeHopeMateLeaderboard(next);
     final.sort((a, b) => {
       if ((b.totalScore || 0) !== (a.totalScore || 0)) return (b.totalScore || 0) - (a.totalScore || 0);
-      return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+      return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
     });
     await writeHopeMateLeaderboard(final);
     return final;
@@ -239,7 +239,7 @@ function registerHopeMateRoutes(app: any, deps: any): void {
         .filter(e => String(e.orgId) === String(orgId) && String(e.teacherId) === teacherId);
       filtered.sort((a, b) => {
         if ((b.totalScore || 0) !== (a.totalScore || 0)) return (b.totalScore || 0) - (a.totalScore || 0);
-        return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
       });
       res.json({ entries: filtered });
     } catch (error) {
@@ -282,7 +282,7 @@ function registerHopeMateRoutes(app: any, deps: any): void {
         .filter(e => String(e.orgId) === String(orgId) && String(e.teacherId) === teacherId);
       scoped.sort((a, b) => {
         if ((b.totalScore || 0) !== (a.totalScore || 0)) return (b.totalScore || 0) - (a.totalScore || 0);
-        return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
       });
 
       res.json({ ok: true, entries: scoped });
@@ -312,7 +312,7 @@ function registerHopeMateRoutes(app: any, deps: any): void {
         if ((b.totalSolved || 0) !== (a.totalSolved || 0)) return (b.totalSolved || 0) - (a.totalSolved || 0);
         if ((b.bestLevel || 0) !== (a.bestLevel || 0)) return (b.bestLevel || 0) - (a.bestLevel || 0);
         if ((b.bestTimeLeftSec || 0) !== (a.bestTimeLeftSec || 0)) return (b.bestTimeLeftSec || 0) - (a.bestTimeLeftSec || 0);
-        return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
       });
       return res.json({ entries: scoped });
     } catch (error) {
@@ -364,7 +364,7 @@ function registerHopeMateRoutes(app: any, deps: any): void {
         if ((b.totalSolved || 0) !== (a.totalSolved || 0)) return (b.totalSolved || 0) - (a.totalSolved || 0);
         if ((b.bestLevel || 0) !== (a.bestLevel || 0)) return (b.bestLevel || 0) - (a.bestLevel || 0);
         if ((b.bestTimeLeftSec || 0) !== (a.bestTimeLeftSec || 0)) return (b.bestTimeLeftSec || 0) - (a.bestTimeLeftSec || 0);
-        return new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
       });
       return res.json({ ok: true, entries: scoped });
     } catch (error) {

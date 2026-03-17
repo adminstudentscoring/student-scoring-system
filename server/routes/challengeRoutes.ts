@@ -245,7 +245,7 @@ function registerChallengeRoutes(app: any, deps: any): void {
       }
       
       // Sort by modified time (newest first)
-      saves.sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
+      saves.sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
       
       res.json(saves);
     } catch (error) {

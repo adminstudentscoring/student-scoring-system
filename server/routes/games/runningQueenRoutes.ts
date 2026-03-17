@@ -97,7 +97,7 @@ function registerRunningQueenRoutes(app: any, deps: any): void {
       if ((a.mode === 'timed' || b.mode === 'timed') && a.mode === b.mode) {
         return (a.duration || 0) - (b.duration || 0);
       }
-      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
     });
     return deduped;
   }
@@ -147,7 +147,7 @@ function registerRunningQueenRoutes(app: any, deps: any): void {
       if ((a.mode === 'timed' || b.mode === 'timed') && a.mode === b.mode) {
         return (a.duration || 0) - (b.duration || 0);
       }
-      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
     });
     await writeRunningQueenLeaderboard(updated);
     return updated;

@@ -13,7 +13,6 @@ const TEST_PHONE = '12345678';
 const TEST_PASSWORD = 'testpassword123';
 
 let authToken = '';
-let adminToken = '';
 
 describe('API integration tests', () => {
   before(async () => {
