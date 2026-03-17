@@ -2749,14 +2749,12 @@
     }
   ],
   "battles": [],
-  "lastUpdate": "2026-03-17T00:56:52.377Z",
+  "lastUpdate": "2026-03-17T00:58:21.562Z",
   "challenge": {
-    "currentLevel": 2,
-    "currentHP": 98,
-    "completedLevels": [
-      1
-    ],
-    "totalDamage": 52,
+    "currentLevel": 1,
+    "currentHP": 50,
+    "completedLevels": [],
+    "totalDamage": 0,
     "selectedStudentIds": [
       "1773637971918"
     ]

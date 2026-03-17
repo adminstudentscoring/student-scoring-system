@@ -78,7 +78,16 @@
       "createdAt": "2026-03-16T05:17:55.543Z",
       "classViewStudents": [],
       "assignedStudents": []
+    },
+    {
+      "id": "1773709101455",
+      "email": "testorg_1773709101368@example.com",
+      "password": "$2b$10$u0FM/hYfpTQE2JAuVRRLCOhT8SdD/OB83PswXPUGs12eDTUir/rIq",
+      "name": "TestOrg_1773709101368",
+      "role": "organization",
+      "organizationId": "1773709101452",
+      "createdAt": "2026-03-17T00:58:21.455Z"
     }
   ],
-  "lastUpdate": "2026-03-16T06:05:26.467Z"
+  "lastUpdate": "2026-03-17T00:58:21.455Z"
 }
