@@ -34,6 +34,11 @@
   },
   "dependencies": {
     "@student-scoring/core": "workspace:*",
+    "@student-scoring/games-simple": "workspace:*",
+    "@student-scoring/games-chess": "workspace:*",
+    "@student-scoring/games-monster-fight": "workspace:*",
+    "@student-scoring/games-blunders": "workspace:*",
+    "@student-scoring/games-tactics-fighter": "workspace:*",
     "bcrypt": "^5.1.1",
     "chess.js": "^1.4.0",
     "cors": "^2.8.5",

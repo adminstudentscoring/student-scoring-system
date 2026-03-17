@@ -11,6 +11,21 @@ importers:
       '@student-scoring/core':
         specifier: workspace:*
         version: link:packages/core
+      '@student-scoring/games-blunders':
+        specifier: workspace:*
+        version: link:packages/games-blunders
+      '@student-scoring/games-chess':
+        specifier: workspace:*
+        version: link:packages/games-chess
+      '@student-scoring/games-monster-fight':
+        specifier: workspace:*
+        version: link:packages/games-monster-fight
+      '@student-scoring/games-simple':
+        specifier: workspace:*
+        version: link:packages/games-simple
+      '@student-scoring/games-tactics-fighter':
+        specifier: workspace:*
+        version: link:packages/games-tactics-fighter
       bcrypt:
         specifier: ^5.1.1
         version: 5.1.1
@@ -107,6 +122,36 @@ importers:
         version: 8.57.1(eslint@10.0.3)(typescript@5.9.3)
 
   packages/core: {}
+
+  packages/games-blunders:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/games-chess:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/games-monster-fight:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/games-simple:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/games-tactics-fighter:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

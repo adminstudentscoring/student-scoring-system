@@ -3,6 +3,6 @@
 "use strict";
 import type { Request, Response } from 'express';
 
-const { registerMonsterFightGameRoutes } = require("./gameRoutes");
+const { registerMonsterFightGameRoutes } = require('./gameRoutes');
 
 module.exports = { registerMonsterFightGameRoutes };

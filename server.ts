@@ -338,7 +338,7 @@ let getStudentChessComCredentials: (...args: any[]) => Promise<any> = async () =
   const { createChessComSettingsStore } = require('@student-scoring/core');
   const fileStore = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
 
-  const { createChessComSettingsDb } = require('./server/chesscom/settingsDb');
+  const { createChessComSettingsDb } = require('@student-scoring/games-blunders');
   const dbStore = createChessComSettingsDb({ appDb });
 
   writeChessComSettings = fileStore.writeChessComSettings;
@@ -398,7 +398,7 @@ let getStudentChessComCredentials: (...args: any[]) => Promise<any> = async () =
 }
 
 // ===== Blunders: storage/settings (moved to server/blunders/storage.js) =====
-const { createBlundersStorage } = require('./server/blunders/storage');
+const { createBlundersStorage } = require('@student-scoring/games-blunders');
 const {
   // constants
   BLUNDERS_DEFAULTS,
@@ -532,7 +532,7 @@ let BLUNDERS_MATE_OR_HUGE_CP: any;
 let BLUNDERS_GOOD_IF_STILL_AHEAD_CP: any;
 
 {
-  const { createBlundersEval } = require('./server/blunders/eval');
+  const { createBlundersEval } = require('@student-scoring/games-blunders');
   const ev = createBlundersEval({ Chess, parseUciMove });
   scoreToCp = ev.scoreToCp;
   blundersVerdictFromScores = ev.blundersVerdictFromScores;
@@ -556,7 +556,7 @@ const blundersSyncState = new Map(); // studentId -> { running, startedAt, updat
 
 // ===== Chess.com helpers init (moved to server/blunders/chesscom.js) =====
 {
-  const { createBlundersChessCom } = require('./server/blunders/chesscom');
+  const { createBlundersChessCom } = require('@student-scoring/games-blunders');
   const cc = createBlundersChessCom({
     fs,
     CHESSCOM_RATINGS_FILE,
@@ -609,7 +609,7 @@ let BLUNDERS_TAGS: any;
 let tagBlunderPuzzle: any;
 
 {
-  const { createBlundersTagger } = require('./server/blunders/tagger');
+  const { createBlundersTagger } = require('@student-scoring/games-blunders');
   const t = createBlundersTagger({ Chess, parseUciMove, puzzleDropPoints, isMissMatePuzzle });
   BLUNDERS_TAGGER_VERSION = t.BLUNDERS_TAGGER_VERSION;
   BLUNDERS_TAGS = t.BLUNDERS_TAGS;
@@ -621,7 +621,7 @@ let dbUpsertPuzzleTags: any;
 let dbUpsertPuzzlesFromObjects: any;
 
 {
-  const { createBlundersDb } = require('./server/blunders/db');
+  const { createBlundersDb } = require('@student-scoring/games-blunders');
   const db = createBlundersDb({
     nowIso,
     // Use a wrapper so the DB helpers always call the latest enqueue function (initialized later).
@@ -635,7 +635,7 @@ let dbUpsertPuzzlesFromObjects: any;
 
 // Now that appDb + dbUpsert* helpers exist, we can initialize the retry queue.
 {
-  const { createBlundersDbRetry } = require('./server/blunders/dbRetry');
+  const { createBlundersDbRetry } = require('@student-scoring/games-blunders');
   const r = createBlundersDbRetry({
     fs,
     appDb,
@@ -657,7 +657,7 @@ let appendBlundersPuzzlesPreserveProgress: any;
 
 // Init remaining Blunders helpers (puzzles + stats) before tagger/sync/routes use them.
 {
-  const { createBlundersPuzzles } = require('./server/blunders/puzzles');
+  const { createBlundersPuzzles } = require('@student-scoring/games-blunders');
   const pz = createBlundersPuzzles({
     readBlundersPuzzles,
     writeBlundersPuzzles,
@@ -677,7 +677,7 @@ let appendBlundersPuzzlesPreserveProgress: any;
   pruneStudentBlundersInPlace = pz.pruneStudentBlundersInPlace;
   appendBlundersPuzzlesPreserveProgress = pz.appendBlundersPuzzlesPreserveProgress;
 
-  const { createBlundersStats } = require('./server/blunders/stats');
+  const { createBlundersStats } = require('@student-scoring/games-blunders');
   const st = createBlundersStats({
     threeMonthsAgoMs,
     puzzleSortKeyMs,
@@ -692,7 +692,7 @@ let appendBlundersPuzzlesPreserveProgress: any;
 
 // ===== Blunders: AI coach comment init (moved to server/blunders/ai.js) =====
 {
-  const { createBlundersAi } = require('./server/blunders/ai');
+  const { createBlundersAi } = require('@student-scoring/games-blunders');
   const ai = createBlundersAi({
     fs,
     BLUNDERS_AI_COMMENTS_FILE,
@@ -713,7 +713,7 @@ let appendBlundersPuzzlesPreserveProgress: any;
 // (moved to server/blunders/chesscom.js)
 
 // ===== Blunders: Stockfish runner (moved to server/blunders/stockfish.js) =====
-const { createStockfishRunner } = require('./server/blunders/stockfish');
+const { createStockfishRunner } = require('@student-scoring/games-blunders');
 const { sfEvalFen, sfAnalyzeFen } = createStockfishRunner({ fs, path, spawn, processExecPath: process.execPath, baseDir: __dirname });
 
 // ===== Blunders: sync (student/master) (moved to server/blunders/sync.js) =====
@@ -722,7 +722,7 @@ let syncBlundersForMaster: any;
 
 // Init Blunders sync functions before wiring up teacher jobs (jobs depend on sync).
 {
-  const { createBlundersSync } = require('./server/blunders/sync');
+  const { createBlundersSync } = require('@student-scoring/games-blunders');
   const sync = createBlundersSync({
     // shared helpers + state
     Chess,
@@ -760,7 +760,7 @@ let syncBlundersForMaster: any;
 
 // ===== Blunders Teacher Jobs (async background processing) (moved to server/blunders/jobs.js) =====
 {
-  const { createBlundersTeacherJobs } = require('./server/blunders/jobs');
+  const { createBlundersTeacherJobs } = require('@student-scoring/games-blunders');
   const jobs = createBlundersTeacherJobs({
     readBlundersTeacherJobs,
     writeBlundersTeacherJobs,
@@ -990,7 +990,7 @@ registerChessComTeacherRoutes(app, {
 });
 
 // ===== Blunders: teacher routes (moved to server/routes/blundersTeacherRoutes.js) =====
-const { registerBlundersTeacherRoutes } = require('./server/routes/blundersTeacherRoutes');
+const { registerBlundersTeacherRoutes } = require('@student-scoring/games-blunders');
 registerBlundersTeacherRoutes(app, {
   authenticateUser,
   authorizeRole,
@@ -1162,7 +1162,7 @@ function compareDates(date1: string, date2: string): number {
 // (moved to server/routes/studentsRoutes.js)
 
 // ===== Blunders: public routes (moved to server/routes/blundersPublicRoutes.js) =====
-const { registerBlundersPublicRoutes } = require('./server/routes/blundersPublicRoutes');
+const { registerBlundersPublicRoutes } = require('@student-scoring/games-blunders');
 registerBlundersPublicRoutes(app, {
   // Middleware (used by some teacher-side helper endpoints that live near public routes)
   authenticateUser,
@@ -1262,9 +1262,9 @@ registerStatisticsRoutes(app, {
   getMonthKey
 });
 
-// ==================== Monster Fight / Game APIs (moved) ====================
-const { registerGameRoutes } = require('./server/routes/gameRoutes');
-registerGameRoutes(app, {
+// ==================== Monster Fight / Game APIs (moved to packages) ====================
+const { registerMonsterFightRoutes } = require('@student-scoring/games-monster-fight');
+registerMonsterFightRoutes(app, {
   fs,
   path,
   authenticateUser,
@@ -1285,8 +1285,30 @@ registerGameRoutes(app, {
   HOPE_MATE_STAGE_PUZZLES_FILE
 });
 
+// ==================== Simple Games (moved to @student-scoring/games-simple) ====================
+const { registerRunningQueenRoutes, registerRoyalExchangeRoutes, registerHopeMateRoutes, registerHopeMateAdminRoutes } = require('@student-scoring/games-simple');
+registerRunningQueenRoutes(app, { fs, RUNNING_QUEEN_LEADERBOARD_FILE });
+registerRoyalExchangeRoutes(app, { fs, ROYAL_EXCHANGE_LEADERBOARD_FILE });
+registerHopeMateRoutes(app, {
+  fs,
+  authenticateUser,
+  authorizeRole,
+  requireOrganizationAccess,
+  readData,
+  filterStudentsByOrganization,
+  resolveOrgIdFromUser,
+  HOPE_MATE_LEADERBOARD_FILE,
+  HOPE_MATE_CHALLENGE_LEADERBOARD_FILE
+});
+registerHopeMateAdminRoutes(app, {
+  fs,
+  authenticateUser,
+  authorizeRole,
+  HOPE_MATE_STAGE_PUZZLES_FILE
+});
+
 // ==================== Tactics Fighter APIs (scaffold) ====================
-const { registerTacticsFighterRoutes } = require('./server/routes/tacticsFighterRoutes');
+const { registerTacticsFighterRoutes } = require('@student-scoring/games-tactics-fighter');
 registerTacticsFighterRoutes(app, {
   fs,
   path,
@@ -1303,7 +1325,7 @@ registerTacticsFighterRoutes(app, {
 });
 
 // ==================== Maze Runner APIs (scaffold) ====================
-const { registerMazeRunnerRoutes } = require('./server/routes/mazeRunnerRoutes');
+const { registerMazeRunnerRoutes } = require('@student-scoring/games-chess');
 registerMazeRunnerRoutes(app, {
   appDb,
   readData,
@@ -1314,7 +1336,7 @@ registerMazeRunnerRoutes(app, {
 });
 
 // ==================== Chess Light APIs (scaffold) ====================
-const { registerChessLightRoutes } = require('./server/routes/chessLightRoutes');
+const { registerChessLightRoutes } = require('@student-scoring/games-chess');
 registerChessLightRoutes(app, {
   appDb,
   readData,
@@ -1325,7 +1347,7 @@ registerChessLightRoutes(app, {
 });
 
 // ==================== Chess Solitaire APIs (scaffold) ====================
-const { registerChessSolitaireRoutes } = require('./server/routes/chessSolitaireRoutes');
+const { registerChessSolitaireRoutes } = require('@student-scoring/games-chess');
 registerChessSolitaireRoutes(app, {
   appDb,
   readData,
@@ -1336,7 +1358,7 @@ registerChessSolitaireRoutes(app, {
 });
 
 // ==================== Chess Works APIs (scaffold) ====================
-const { registerChessWorksRoutes } = require('./server/routes/chessWorksRoutes');
+const { registerChessWorksRoutes } = require('@student-scoring/games-chess');
 registerChessWorksRoutes(app, {
   appDb,
   readData,

@@ -22,6 +22,11 @@
     "paths": {
       "@student-scoring/core": ["packages/core/src/index.ts"],
       "@student-scoring/core/*": ["packages/core/src/*"],
+      "@student-scoring/games-simple": ["packages/games-simple/src/index.ts"],
+      "@student-scoring/games-chess": ["packages/games-chess/src/index.ts"],
+      "@student-scoring/games-monster-fight": ["packages/games-monster-fight/src/index.ts"],
+      "@student-scoring/games-blunders": ["packages/games-blunders/src/index.ts"],
+      "@student-scoring/games-tactics-fighter": ["packages/games-tactics-fighter/src/index.ts"],
       "@config/*": ["packages/core/src/config/*"],
       "@lib/*": ["packages/core/src/lib/*"],
       "@storage/*": ["packages/core/src/storage/*"],
@@ -34,6 +39,11 @@
     "server/**/*.ts",
     "billing/**/*.ts",
     "packages/core/src/**/*.ts",
+    "packages/games-simple/src/**/*.ts",
+    "packages/games-chess/src/**/*.ts",
+    "packages/games-monster-fight/src/**/*.ts",
+    "packages/games-blunders/src/**/*.ts",
+    "packages/games-tactics-fighter/src/**/*.ts",
     "ai/**/*.ts",
     "test/**/*.ts"
   ],
