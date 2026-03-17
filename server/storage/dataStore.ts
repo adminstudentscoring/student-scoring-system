@@ -2,7 +2,7 @@
 // extracted from server.js. Handles file-based storage for students.txt with
 // queue protection and schema migration logic.
 
-const { LEVELS } = require('../config/constants');
+import { LEVELS } from '../config/constants';
 
 interface Student {
   id?: string;
@@ -263,4 +263,4 @@ function createDataStore({ fs, DATA_FILE }: DataStoreDeps): DataStoreReturn {
   return { readData, writeData, initializeDataFile, initializeStudentFields };
 }
 
-module.exports = { createDataStore };
+export { createDataStore };

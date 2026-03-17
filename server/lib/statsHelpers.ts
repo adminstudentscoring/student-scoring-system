@@ -1,6 +1,6 @@
 // Statistics helper functions extracted from server.js.
 
-const { RANKS } = require('../config/constants');
+import { RANKS } from '../config/constants';
 
 interface StatEntry {
   answerCount: number;
@@ -205,7 +205,7 @@ function getRankInfo(score: number): RankInfo {
   };
 }
 
-module.exports = {
+export {
   getDateKey,
   getWeekKey,
   getMonthKey,

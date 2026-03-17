@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import type { JwtPayload } from 'jsonwebtoken';
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 
 const JWT_SECRET: string = (() => {
   const secret = process.env.JWT_SECRET;
@@ -46,7 +46,7 @@ function generateToken(user: TokenUser): string {
     name: user.name,
     organizationId: user.organizationId || null
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
 }
 
 function generateTokenWithExpiry(user: TokenUser, expiresIn: string): string {
@@ -58,7 +58,7 @@ function generateTokenWithExpiry(user: TokenUser, expiresIn: string): string {
     organizationId: user.organizationId || null
   };
   const exp = String(expiresIn || '').trim() || JWT_EXPIRES_IN;
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: exp });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: exp as any });
 }
 
 function verifyToken(token: string): TokenPayload | null {
@@ -77,7 +77,7 @@ function extractTokenFromHeader(req: Request): string | null {
   return null;
 }
 
-module.exports = {
+export {
   hashPassword,
   comparePassword,
   generateToken,

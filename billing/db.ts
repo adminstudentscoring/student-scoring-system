@@ -1,5 +1,5 @@
 import type { Pool as PoolType, QueryResult } from 'pg';
-const { dbQuery, getPool } = require('../db/postgres');
+import { dbQuery, getPool } from '../db/postgres';
 
 async function query(text: string, params?: any[]): Promise<QueryResult> {
   return dbQuery(text, params);
@@ -82,8 +82,7 @@ async function setMeta(key: string, value: string): Promise<void> {
   );
 }
 
-module.exports = {
-  get pool(): PoolType | null { return getPool(); },
+export {
   query,
   ensureBillingSchema,
   getMeta,

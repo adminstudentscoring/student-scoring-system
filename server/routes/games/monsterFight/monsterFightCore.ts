@@ -1,331 +1,44 @@
 // Core game logic routes extracted from monsterFightRoutes.js
 // Handles: game init, state, character selection, puzzle input, player actions,
-// monster turns, revive. Also contains all constants and helper functions.
+// monster turns, revive.
+// Constants and helpers have been split into monsterFightConstants.ts and monsterFightHelpers.ts.
 "use strict";
 import type { Request, Response } from 'express';
 
-// Monster Fight Game Configuration
-  // Monster Fight Game Configuration
-const GAME_CONFIG = {
-  // Default damage multiplier
-  damageMultiplier: 0.2,
-  
-  // Default crit settings
-  critRate: 0.10, // 10%
-  critDamage: 2.0, // 2x damage
-  
-  // Default revive settings
-  baseReviveRate: 0.01, // 1%
-  reviveRateDecay: 0.95, // 0.95 multiplier per point
-  maxReviveRate: 0.66, // 66% max
+import {
+  GAME_CONFIG,
+  DEFAULT_LEVEL_CONFIG_EASY,
+  PLAYER_CLASSES,
+  MONSTER_TYPES,
+  HOPE_MATE_STAGE_KEYS
+} from './monsterFightConstants';
 
-  // Presets
-  backgroundTheme: 'image', // use Background/Background.jpg
-  battleMap: 'Battle/Map.jpg',
-  
-  // Difficulty curve
-  difficultyCurve: {
-    1: { monstersPerStudent: 1, strengthMultiplier: 1.0 },
-    2: { monstersPerStudent: 1.5, strengthMultiplier: 1.2 },
-    3: { monstersPerStudent: 2.0, strengthMultiplier: 1.5 }
-  }
-};
-
-// Default Level Config preset: Easy
-const DEFAULT_LEVEL_CONFIG_EASY = [
-  { level: 1, monsters: [
-    { type: 'slime', count: 1 },
-    { type: 'goblin', count: 1 },
-    { type: 'brute', count: 1 },
-    { type: 'shaman', count: 1 }
-  ]},
-  { level: 2, monsters: [
-    { type: 'goblin', count: 2 },
-    { type: 'dark_mage', count: 1 },
-    { type: 'brute', count: 2 },
-    { type: 'shaman', count: 2 }
-  ]},
-  { level: 3, monsters: [
-    { type: 'goblin', count: 4 },
-    { type: 'dark_mage', count: 2 },
-    { type: 'brute', count: 2 },
-    { type: 'shaman', count: 2 },
-    { type: 'tiger', count: 1 }
-  ]}
-];
-
-// Player Character Classes
-const PLAYER_CLASSES = [
-  {
-    id: 'archer',
-    name: 'Archer',
-    emoji: '🏹',
-    baseAttack: 10,
-    baseHP: 80,
-    skills: [
-      { id: 'passive_1', name: 'Precision Shot', type: 'passive', description: 'Damage increased by 1.2-1.5x', effect: { damageMultiplier: { min: 1.2, max: 1.5 } } },
-      { id: 'active_1', name: 'Multi Shot', type: 'active', cooldown: 4, description: 'Attack multiple enemies', emoji: '🎯', effect: { targetCount: 3 } },
-      { id: 'active_2', name: 'Critical Strike', type: 'active', cooldown: 4, description: 'Guaranteed critical hit', emoji: '💢', effect: { guaranteedCrit: true } }
-    ]
-  },
-  {
-    id: 'warrior',
-    name: 'Warrior',
-    emoji: '⚔️',
-    baseAttack: 12,
-    baseHP: 100,
-    skills: [
-      { id: 'passive_1', name: 'Berserker', type: 'passive', description: 'Attack increases when HP is low', effect: { lowHPBonus: true } },
-      { id: 'active_1', name: 'Power Strike', type: 'active', cooldown: 2, description: 'Deal 1.5x damage', emoji: '⚡', effect: { damageMultiplier: 1.5 } },
-      { id: 'active_2', name: 'Charge', type: 'active', cooldown: 3, description: 'Attack and stun enemy for 2 turns', emoji: '🐎', effect: { stunTurns: 2, damageMultiplier: 1.5 } }
-    ]
-  },
-  {
-    id: 'wizard',
-    name: 'Wizard',
-    emoji: '🔮',
-    baseAttack: 15,
-    baseHP: 60,
-    skills: [
-      {
-        id: 'passive_1',
-        name: 'Arcane Surge',
-        type: 'passive',
-        description: 'Attacks deal 1.0-3.0x damage (higher multipliers are rarer; 3.0x ≈1%)',
-        effect: {
-          randomMultiplier: {
-            ranges: [
-              { chance: 0.01, min: 3.0, max: 3.0 },
-              { chance: 0.04, min: 2.5, max: 2.99 },
-              { chance: 0.10, min: 2.0, max: 2.49 },
-              { chance: 0.25, min: 1.5, max: 1.99 },
-              { chance: 0.60, min: 1.0, max: 1.49 }
-            ]
-          }
-        }
-      },
-      { id: 'active_1', name: 'Fireball', type: 'active', cooldown: 3, description: 'Area damage to all enemies (ignores taunt)', emoji: '🔥', effect: { areaDamage: true, ignoreTaunt: true, damageMultiplier: 0.35 } },
-      { id: 'active_2', name: 'Freeze', type: 'active', cooldown: 4, description: 'Single-target damage with 40% chance to freeze for 1 turn (ignores taunt)', emoji: '❄️', effect: { freezeChance: 0.4, freezeDuration: 1, damageMultiplier: 1.2, ignoreTaunt: true } }
-    ]
-  },
-  {
-    id: 'priest',
-    name: 'Priest',
-    emoji: '✨',
-    baseAttack: 8,
-    baseHP: 90,
-    skills: [
-      { id: 'passive_1', name: 'Divine Blessing', type: 'passive', description: 'Regenerate HP each turn', effect: { regenPerTurn: 5 } },
-      { id: 'active_1', name: 'Heal', type: 'active', cooldown: 2, description: 'Restore HP to ally', effect: { heal: 30 } },
-      { id: 'active_2', name: 'Revive', type: 'active', cooldown: 5, description: 'Revive fallen ally', effect: { revive: true } }
-    ]
-  },
-  {
-    id: 'assassin',
-    name: 'Assassin',
-    emoji: '🗡️',
-    baseAttack: 14,
-    baseHP: 70,
-    skills: [
-      { id: 'passive_1', name: 'Shadow Step', type: 'passive', description: 'Critical rate increased by 30%', effect: { critRateBonus: 0.30 } },
-      { id: 'active_1', name: 'Backstab', type: 'active', cooldown: 3, description: 'High damage from behind', emoji: '🗡️', effect: { damageMultiplier: 2.0 } },
-      { id: 'active_2', name: 'Poison', type: 'active', cooldown: 4, description: 'Apply poison damage over time', emoji: '☠️', effect: { dotMultiplier: 0.2, dotTurns: 3 } }
-    ]
-  },
-  {
-    id: 'shield_warrior',
-    name: 'Shield Warrior',
-    emoji: '🛡️',
-    baseAttack: 9,
-    baseHP: 120,
-    skills: [
-      { id: 'passive_1', name: 'Shield Block', type: 'passive', description: 'Reduce damage by 30% and taunt monsters (redirect attacks to you)', effect: { damageReduction: 0.3, tauntMonsters: true } },
-      { id: 'active_1', name: 'Shield Bash', type: 'active', cooldown: 3, description: 'Attack and reduce enemy attack', emoji: '🔰', effect: { debuff: 'attack', damageMultiplier: 1.1 } },
-      { id: 'active_2', name: 'Shield Smash', type: 'active', cooldown: 4, description: 'Attack with 30% chance to stun', emoji: '🥊', effect: { damageMultiplier: 1.2, stunChance: 0.3, stunTurns: 1 } }
-    ]
-  }
-];
-
-// Monster Types
-const MONSTER_TYPES = [
-  {
-    id: 'shaman',
-    name: 'Shaman',
-    emoji: '🧙',
-    baseAttack: 12,
-    baseHP: 80,
-    skills: [
-      {
-        id: 'passive_1',
-        name: 'Vital Infusion',
-        type: 'passive',
-        description: 'Each turn heal the lowest HP ally (including self) for 10% max HP with a chance to critically amplify heals',
-        effect: { healLowestAllyFraction: 0.1, critHealChance: 0.4, critHealMultiplier: 2.5 }
-      },
-      {
-        id: 'active_1',
-        name: 'Vital Storm',
-        type: 'active',
-        cooldown: 3,
-        description: 'Heal all allies for 40% of their missing HP',
-        effect: { areaHeal: true, missingHpFraction: 0.4 }
-      }
-    ]
-  },
-  {
-    id: 'slime',
-    name: 'Slime',
-    emoji: '🟢',
-    baseAttack: 8,
-    baseHP: 60,
-    skills: [
-      { id: 'passive_1', name: 'Split', type: 'passive', description: 'On first death split into mini slimes', effect: { splitOnDeath: true, splitMin: 2, splitMax: 4 } },
-      { id: 'active_1', name: 'Acid Spit', type: 'active', cooldown: 2, description: 'Deal damage over time', effect: { dot: true } }
-    ]
-  },
-  {
-    id: 'mini_slime',
-    name: 'Mini Slime',
-    emoji: '🟢',
-    baseAttack: 8,
-    baseHP: 20,
-    skills: []
-  },
-  {
-    id: 'goblin',
-    name: 'Goblin',
-    emoji: '👺',
-    baseAttack: 10,
-    baseHP: 70,
-    skills: [
-      {
-        id: 'passive_1',
-        name: 'Cunning Momentum',
-        type: 'passive',
-        description: 'Gains +1 attack permanently each time it lands a successful strike',
-        effect: { attackIncreaseOnHit: 1 }
-      },
-      {
-        id: 'active_1',
-        name: 'Shadow Stab',
-        type: 'active',
-        cooldown: 2,
-        description: 'Strike a non-shield foe, ignoring taunt',
-        effect: { damageMultiplier: 1, ignoreTaunt: true, preferNonShield: true }
-      }
-    ]
-  },
-  {
-    id: 'brute',
-    name: 'Brute',
-    emoji: '👹',
-    baseAttack: 15,
-    baseHP: 120,
-    skills: [
-      { id: 'passive_1', name: 'Tough', type: 'passive', description: 'Reduce damage by 20% and taunt player attacks', effect: { damageReduction: 0.2, tauntPlayers: true } },
-      {
-        id: 'active_1',
-        name: 'Bone Slam',
-        type: 'active',
-        cooldown: 2,
-        description: 'Devastating 2.5× single-target smash (taunt applies)',
-        effect: { damageMultiplier: 2.5 }
-      }
-    ]
-  },
-  {
-    id: 'dark_mage',
-    name: 'Dark Mage',
-    emoji: '🧛',
-    baseAttack: 18,
-    baseHP: 90,
-    skills: [
-      { id: 'passive_1', name: 'Dark Aura', type: 'passive', description: 'Inflict 3-turn bleed on attack', effect: { applyBleed: { turns: 3, damageFraction: 0.01 } } },
-      {
-        id: 'active_1',
-        name: 'Dark Bolt',
-        type: 'active',
-        cooldown: 3,
-        description: 'Force a player to strike an ally with their last attack power',
-        effect: { forcePlayerAttack: true }
-      }
-    ]
-  },
-  {
-    id: 'tiger',
-    name: 'Evil Tiger',
-    emoji: '🐅',
-    baseAttack: 14,
-    baseHP: 100,
-    skills: [
-      {
-        id: 'passive_1',
-        name: 'Bleeding Claw',
-        type: 'passive',
-        description: 'Attack ×1.5 when HP ≤ 50% and normal attacks inflict a stacking bleed over time',
-        effect: {
-          lowHPBonus: { threshold: 0.5, multiplier: 1.5 },
-          bleedingClaw: { damageFraction: 0.2, turns: 2 }
-        }
-      },
-      {
-        id: 'active_1',
-        name: 'Savage Roar',
-        type: 'active',
-        cooldown: 3,
-        description: 'Deal 2× damage and silence the target for 1 turn (40% chance)',
-        effect: { damageMultiplier: 2, silenceChance: 0.4, silenceDuration: 1 }
-      }
-    ]
-  },
-  {
-    id: 'dragon',
-    name: 'Evil Dragon',
-    emoji: '🐉',
-    isBoss: true,
-    baseAttack: 25,
-    baseHP: 300,
-    skills: [
-      {
-        id: 'passive_1',
-        name: 'Firestorm Aura',
-        type: 'passive',
-        description: '20% chance to dodge normal attacks and scorch foes before they act',
-        effect: {
-          dodgeChance: 0.2,
-          firestormAura: { baseFraction: 0.02, enragedFraction: 0.05, threshold: 0.5 }
-        }
-      },
-      {
-        id: 'active_1',
-        name: 'Fire Breath',
-        type: 'active',
-        cooldown: 2,
-        description: 'Unleash 2× attack damage to all players, ignoring taunt',
-        effect: { areaDamage: true, damageMultiplier: 2, ignoreTaunt: true }
-      }
-    ]
-  },
-  {
-    id: 'three_headed_wolf',
-    name: 'Three-Headed Wolf',
-    emoji: '🐺',
-    isBoss: true,
-    baseAttack: 22,
-    baseHP: 250,
-    skills: [
-      { id: 'passive_1', name: 'Triple Attack', type: 'passive', description: 'Attack 3 times per turn (0.8x damage)', effect: { attackCount: 3, attackMultiplier: 0.8 } },
-      {
-        id: 'active_1',
-        name: 'Fatal Bite',
-        type: 'active',
-        cooldown: 2,
-        description: 'Ignore taunt and rip away 80% of the target’s remaining HP',
-        effect: { reduceRemainingHpFraction: 0.8, ignoreTaunt: true }
-      }
-    ]
-  }
-];
+import {
+  calculateReviveProbability,
+  calculateDamage,
+  getPassiveDamageInfo,
+  ensurePlayerStats,
+  getDamageReduction,
+  applyPriestPassiveHealing,
+  getMonsterPassiveEffect,
+  getPlayerPassiveEffect,
+  getMonsterDamageReduction,
+  isPlayerSilenced,
+  applyFirestormAuraBeforePlayerAction,
+  addBleedStatusToPlayer,
+  addBleedingClawStatusToPlayer,
+  addSilenceStatusToPlayer,
+  selectPlayerTargetForMonster,
+  attemptMonsterActiveSkill,
+  applyPlayerStatusEffects,
+  addStatusToMonster,
+  processMonsterControlStatuses,
+  advanceMonsterStatuses,
+  applyMonsterStatusDamage,
+  createMonsterInstanceFromType,
+  handleMonsterDeath,
+  applyShamanPassiveHealing
+} from './monsterFightHelpers';
 
 function registerMonsterFightCoreRoutes(app: any, deps: any): void {
   const fs = deps && deps.fs;
@@ -367,812 +80,8 @@ function registerMonsterFightCoreRoutes(app: any, deps: any): void {
 // Keep Monster Fight routes below.
 // ==================== Monster Fight Game APIs ====================
 
-// Helper function to calculate revive probability
-function calculateReviveProbability(puzzlePoints, baseRate, decay, maxRate, accumulatedRate = 0) {
-  // Formula: baseRate + baseRate*decay + baseRate*decay^2 + ... + baseRate*decay^(n-1)
-  // Simplified: baseRate * (1 - decay^n) / (1 - decay)
-  // With accumulated rate from previous failed attempts
-  let totalRate = accumulatedRate;
-  if (puzzlePoints > 0) {
-    const geometricSum = baseRate * (1 - Math.pow(decay, puzzlePoints)) / (1 - decay);
-    totalRate += geometricSum;
-  }
-  return Math.min(totalRate, maxRate);
-}
-
-// Helper function to calculate damage
-function calculateDamage(attack, puzzlePoints, multiplier, isCrit = false, critDamage = 2.0) {
-  let baseDamage = attack * puzzlePoints * multiplier;
-  // Add randomness ±10%
-  const randomFactor = 0.9 + Math.random() * 0.2; // 0.9 to 1.1
-  baseDamage *= randomFactor;
-  
-  if (isCrit) {
-    baseDamage *= critDamage;
-  }
-  
-  return Math.max(1, Math.round(baseDamage));
-}
-
-function pickRandomMultiplierFromRanges(ranges, defaultValue = 1) {
-  if (!Array.isArray(ranges) || ranges.length === 0) {
-    return defaultValue;
-  }
-
-  let r = Math.random();
-  let selectedRange = null;
-
-  for (const range of ranges) {
-    const chance = typeof range.chance === 'number' ? range.chance : 0;
-    if (chance > 0) {
-      if (r <= chance) {
-        selectedRange = range;
-        break;
-      }
-      r -= chance;
-    }
-  }
-
-  if (!selectedRange) {
-    selectedRange = ranges[ranges.length - 1];
-  }
-
-  const min = typeof selectedRange.min === 'number' ? selectedRange.min : defaultValue;
-  const max = typeof selectedRange.max === 'number' ? selectedRange.max : min;
-  if (max <= min) {
-    return min;
-  }
-  return min + Math.random() * (max - min);
-}
-
-function getPassiveDamageInfo(player) {
-  const result = {
-    multiplier: 1,
-    sources: []
-  };
-
-  if (!player || !Array.isArray(player.skills)) {
-    return result;
-  }
-
-  const passiveSkill = player.skills.find(skill => skill.type === 'passive');
-  if (!passiveSkill || !passiveSkill.effect) {
-    return result;
-  }
-
-  const effect = passiveSkill.effect;
-
-  if (effect.damageMultiplier && typeof effect.damageMultiplier === 'object') {
-    const min = typeof effect.damageMultiplier.min === 'number' ? effect.damageMultiplier.min : 1;
-    const max = typeof effect.damageMultiplier.max === 'number' ? effect.damageMultiplier.max : min;
-    if (max > 0) {
-      const value = max > min ? min + Math.random() * (max - min) : max;
-      result.multiplier *= value;
-      result.sources.push({ type: 'precision_boost', value: Number(value.toFixed(2)) });
-    }
-  }
-
-  if (effect.randomMultiplier && Array.isArray(effect.randomMultiplier.ranges)) {
-    const value = pickRandomMultiplierFromRanges(effect.randomMultiplier.ranges, 1);
-    result.multiplier *= value;
-    result.sources.push({ type: 'arcane_surge', value: Number(value.toFixed(2)) });
-  }
-
-  return result;
-}
-
-function ensurePlayerStats(player) {
-  if (!player.stats) {
-    player.stats = { totalDamage: 0, kills: 0, healing: 0 };
-  }
-  if (typeof player.stats.totalDamage !== 'number') player.stats.totalDamage = 0;
-  if (typeof player.stats.kills !== 'number') player.stats.kills = 0;
-  if (typeof player.stats.healing !== 'number') player.stats.healing = 0;
-  return player.stats;
-}
-
-function getDamageReduction(player) {
-  if (!player || !Array.isArray(player.skills)) {
-    return 0;
-  }
-  const passiveSkill = player.skills.find(skill => skill.type === 'passive');
-  const reduction = passiveSkill?.effect?.damageReduction;
-  if (typeof reduction === 'number' && reduction > 0) {
-    return Math.min(0.9, Math.max(0, reduction));
-  }
-  return 0;
-}
-
-function applyPriestPassiveHealing(gameState) {
-  if (!gameState || !Array.isArray(gameState.players)) {
-    return [];
-  }
-  const alivePlayers = gameState.players.filter(p => p.isAlive);
-  if (alivePlayers.length === 0) {
-    return [];
-  }
-  const healEvents = [];
-  gameState.players.forEach(player => {
-    if (!player.isAlive || player.characterClass !== 'priest') {
-      return;
-    }
-    const healBase = Number(player.puzzlePoints) || 0;
-    if (healBase <= 0) {
-      return;
-    }
-    const healPerPlayer = Math.floor(healBase / alivePlayers.length);
-    if (healPerPlayer <= 0) {
-      return;
-    }
-    const healedTargets = [];
-    alivePlayers.forEach(target => {
-      if (!target.maxHP || target.currentHP >= target.maxHP) {
-        return;
-      }
-      const before = target.currentHP;
-      target.currentHP = Math.min(target.maxHP, target.currentHP + healPerPlayer);
-      const healed = target.currentHP - before;
-      if (healed > 0) {
-        ensurePlayerStats(player).healing += healed;
-        healedTargets.push({ name: target.studentName, amount: healed, before, after: target.currentHP });
-      }
-    });
-    if (healedTargets.length > 0) {
-      healEvents.push({ priestName: player.studentName, healAmount: healPerPlayer, targets: healedTargets });
-    }
-  });
-  return healEvents;
-}
-
-function getMonsterPassiveEffect(monster) {
-  if (!monster || !Array.isArray(monster.skills)) {
-    return null;
-  }
-  const passiveSkill = monster.skills.find(skill => skill.type === 'passive');
-  return passiveSkill?.effect || null;
-}
-
-function getPlayerPassiveEffect(player) {
-  if (!player || !Array.isArray(player.skills)) {
-    return null;
-  }
-  const passiveSkill = player.skills.find(skill => skill.type === 'passive');
-  return passiveSkill?.effect || null;
-}
-
-function getMonsterDamageReduction(monster) {
-  const effect = getMonsterPassiveEffect(monster);
-  const reduction = effect?.damageReduction;
-  if (typeof reduction === 'number' && reduction > 0) {
-    return Math.min(0.9, Math.max(0, reduction));
-  }
-  return 0;
-}
-
-function getAvailableMonsterTypes(data) {
-  return (data?.gameSettings?.monsterTypes && data.gameSettings.monsterTypes.length > 0)
-    ? data.gameSettings.monsterTypes
-    : MONSTER_TYPES;
-}
-
-function getMonsterTypeById(typeId, data) {
-  if (!typeId) return null;
-  const types = getAvailableMonsterTypes(data);
-  return types.find(t => t.id === typeId) || MONSTER_TYPES.find(t => t.id === typeId) || null;
-}
-
-function maybeApplyShamanCriticalHeal(monster, baseAmount) {
-  const effect = getMonsterPassiveEffect(monster);
-  if (!effect) {
-    return { amount: baseAmount, isCritical: false };
-  }
-  const chance = effect.critHealChance;
-  const multiplier = effect.critHealMultiplier;
-  if (typeof chance === 'number' && chance > 0 && typeof multiplier === 'number' && multiplier > 1) {
-    if (Math.random() < chance) {
-      const boosted = Math.max(1, Math.round(baseAmount * multiplier));
-      return { amount: boosted, isCritical: true };
-    }
-  }
-  return { amount: baseAmount, isCritical: false };
-}
-
-function applyShamanPassiveHealing(gameState, data) {
-  if (!gameState || !Array.isArray(gameState.monsters)) {
-    return [];
-  }
-  const aliveMonsters = gameState.monsters.filter(m => m.isAlive);
-  if (aliveMonsters.length === 0) {
-    return [];
-  }
-  const healLogs = [];
-  aliveMonsters.forEach(monster => {
-    const effect = getMonsterPassiveEffect(monster);
-    if (!effect?.healLowestAllyFraction) {
-      return;
-    }
-    const target = aliveMonsters.reduce((lowest, ally) => 
-      ally.currentHP < lowest.currentHP ? ally : lowest
-    , aliveMonsters[0]);
-    if (!target || target.currentHP >= target.maxHP) {
-      return;
-    }
-    const baseHealAmount = Math.max(1, Math.floor(target.maxHP * effect.healLowestAllyFraction));
-    const { amount: healAmount, isCritical } = maybeApplyShamanCriticalHeal(monster, baseHealAmount);
-    const before = target.currentHP;
-    target.currentHP = Math.min(target.maxHP, target.currentHP + healAmount);
-    const actualHeal = target.currentHP - before;
-    if (actualHeal > 0) {
-      const critNote = isCritical ? ' (Critical Heal!)' : '';
-      healLogs.push(`${monster.name} heals ${target.name} for ${actualHeal} HP${critNote} (HP ${before} -> ${target.currentHP}).`);
-    }
-  });
-  return healLogs;
-}
-
-function applyFirestormAuraBeforePlayerAction(player, gameState) {
-  if (!player || !player.isAlive) {
-    return null;
-  }
-  if (!gameState || !Array.isArray(gameState.monsters)) {
-    return null;
-  }
-  const auraMonsters = gameState.monsters.filter(monster => {
-    if (!monster || !monster.isAlive) {
-      return false;
-    }
-    const effect = getMonsterPassiveEffect(monster);
-    return !!(effect && effect.firestormAura);
-  });
-  if (auraMonsters.length === 0) {
-    return null;
-  }
-
-  const result = {
-    triggered: false,
-    totalDamage: 0,
-    defeated: false,
-    messages: []
-  };
-
-  auraMonsters.forEach(monster => {
-    const effect = getMonsterPassiveEffect(monster);
-    const aura = effect?.firestormAura;
-    if (!aura) {
-      return;
-    }
-    const maxHP = monster.maxHP || 0;
-    if (maxHP <= 0) {
-      return;
-    }
-    const threshold = typeof aura.threshold === 'number' ? aura.threshold : 0.5;
-    const enraged = (monster.currentHP / maxHP) <= threshold;
-    const fraction = enraged
-      ? (typeof aura.enragedFraction === 'number' ? aura.enragedFraction : aura.baseFraction)
-      : aura.baseFraction;
-    if (typeof fraction !== 'number' || fraction <= 0) {
-      return;
-    }
-    const beforeHP = player.currentHP;
-    const damage = Math.max(1, Math.floor(maxHP * fraction));
-    player.currentHP = Math.max(0, player.currentHP - damage);
-    result.triggered = true;
-    result.totalDamage += damage;
-    const afterHP = player.currentHP;
-    const note = enraged ? ' (enraged aura)' : '';
-    result.messages.push(`${monster.name}'s Firestorm Aura scorches ${player.studentName} for ${damage} damage${note}. (HP ${beforeHP} -> ${afterHP})`);
-  });
-
-  if (!result.triggered) {
-    return null;
-  }
-
-  if (player.currentHP <= 0) {
-    player.currentHP = 0;
-    player.isAlive = false;
-    result.defeated = true;
-  }
-
-  return result;
-}
-
-function addBleedStatusToPlayer(player, effect, monsterName) {
-  if (!player || !effect) {
-    return;
-  }
-  if (!Array.isArray(player.statuses)) {
-    player.statuses = [];
-  }
-  player.statuses.push({
-    type: 'bleed',
-    remainingTurns: effect.turns || 3,
-    damageFraction: effect.damageFraction || 0.01,
-    source: monsterName,
-    appliedThisTurn: true
-  });
-}
-
-function addBleedingClawStatusToPlayer(player, monster, effect) {
-  if (!player || !monster || !effect) {
-    return null;
-  }
-  if (!Array.isArray(player.statuses)) {
-    player.statuses = [];
-  }
-  const baseAttack = typeof monster.attack === 'number' ? monster.attack : (monster.baseAttack || 0);
-  const damagePerTurn = Math.max(1, Math.round(baseAttack * (effect.damageFraction || 0.2)));
-  const remainingTurns = Math.max(1, effect.turns || 2);
-  player.statuses.push({
-    type: 'bleeding_claw',
-    remainingTurns,
-    damagePerTurn,
-    source: monster.name,
-    appliedThisTurn: true
-  });
-  return `${monster.name}'s Bleeding Claw wounds ${player.studentName}, dealing ${damagePerTurn} damage per turn for ${remainingTurns} turns.`;
-}
-
-function addSilenceStatusToPlayer(player, duration, source) {
-  if (!player || duration <= 0) {
-    return;
-  }
-  if (!Array.isArray(player.statuses)) {
-    player.statuses = [];
-  }
-  player.statuses.push({
-    type: 'silence',
-    remainingTurns: duration,
-    source: source || null,
-    appliedThisTurn: true
-  });
-}
-
-function isPlayerSilenced(player) {
-  if (!player || !Array.isArray(player.statuses)) {
-    return false;
-  }
-  return player.statuses.some(status => status.type === 'silence');
-}
-
-function getLastAttackDamage(player, gameState) {
-  if (player && typeof player.lastAttackDamage === 'number' && player.lastAttackDamage > 0) {
-    return player.lastAttackDamage;
-  }
-  const baseMultiplier = gameState?.gameConfig?.damageMultiplier || 0.2;
-  return Math.max(1, Math.round((player?.attack || 1) * baseMultiplier));
-}
-
-function forcePlayerToAttackAlly(player, monster, gameState) {
-  const aliveAllies = gameState.players.filter(p => p.isAlive && p.studentId !== player.studentId);
-  if (aliveAllies.length === 0) {
-    return {
-      used: false,
-      log: `${monster.name} tries to compel ${player.studentName}, but there are no other allies to strike.`
-    };
-  }
-  const victim = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
-  const baseDamage = getLastAttackDamage(player, gameState);
-  const beforeHP = victim.currentHP;
-  const newHP = Math.max(1, victim.currentHP - baseDamage);
-  const actualDamage = beforeHP - newHP;
-  victim.currentHP = newHP;
-  const stats = ensurePlayerStats(player);
-  stats.totalDamage += actualDamage;
-  const log = `${monster.name}'s dark magic forces ${player.studentName} to strike ${victim.studentName} for ${actualDamage} damage! (HP ${beforeHP} -> ${victim.currentHP})`;
-  player.lastAttackDamage = actualDamage > 0 ? actualDamage : baseDamage;
-  if (victim.currentHP <= 0) {
-    victim.isAlive = false;
-  }
-  return { used: true, log };
-}
-
-function selectPlayerTargetForMonster(alivePlayers: any, options: any = {}) {
-  if (!alivePlayers || alivePlayers.length === 0) {
-    return null;
-  }
-  const ignoreTaunt = !!options.ignoreTaunt;
-  const preferNonShield = !!options.preferNonShield;
-
-  // Taunt should override "preferNonShield" unless ignoreTaunt is set.
-  if (!ignoreTaunt) {
-    const taunter = alivePlayers.find(p => p.isAlive && getPlayerPassiveEffect(p)?.tauntMonsters);
-    if (taunter) return taunter;
-  }
-
-  let candidates = alivePlayers;
-  if (preferNonShield) {
-    const nonShield = alivePlayers.filter(p => p.characterClass !== 'shield_warrior');
-    if (nonShield.length > 0) {
-      candidates = nonShield;
-    }
-  }
-
-  return candidates.reduce((lowest, player) => (
-    player.currentHP < lowest.currentHP ? player : lowest
-  ), candidates[0]);
-}
-
-function executeMonsterActiveSkill(monster, skill, gameState) {
-  const effect = skill.effect || {};
-  const skillName = skill.name || 'Skill';
-  const alivePlayers = gameState.players.filter(p => p.isAlive);
-
-  if (effect.areaHeal) {
-    const healFraction = Math.max(0, effect.missingHpFraction || 0);
-    const aliveMonsters = gameState.monsters.filter(m => m.isAlive);
-    if (aliveMonsters.length === 0) {
-      return { used: false };
-    }
-    const summaryDetails = [];
-    aliveMonsters.forEach(target => {
-      const missing = Math.max(0, (target.maxHP || 0) - (target.currentHP || 0));
-      if (missing <= 0) {
-        return;
-      }
-      const healAmount = Math.max(1, Math.floor(missing * healFraction));
-      const before = target.currentHP;
-      target.currentHP = Math.min(target.maxHP, target.currentHP + healAmount);
-      const actualHeal = target.currentHP - before;
-      if (actualHeal > 0) {
-        summaryDetails.push(`${target.name}: +${actualHeal} HP (HP ${before} -> ${target.currentHP})`);
-      }
-    });
-    if (summaryDetails.length === 0) {
-      return { used: false };
-    }
-    const entry = {
-      turn: gameState.currentTurn,
-      phase: 'monster_turn',
-      message: `${monster.name} casts ${skillName}, bathing allies in restorative energy.`,
-      summaryDetails
-    };
-    return { used: true, entry };
-  }
-
-  if (effect.areaDamage) {
-    if (alivePlayers.length === 0) {
-      return { used: false };
-    }
-    const damageMultiplier = gameState.gameConfig.damageMultiplier * (effect.damageMultiplier || 1);
-    const baseDamage = calculateDamage(
-      monster.attack,
-      1,
-      damageMultiplier,
-      false,
-      gameState.gameConfig.critDamage
-    );
-    const summaryDetails = [];
-    alivePlayers.forEach(player => {
-      const damageReduction = getDamageReduction(player);
-      const finalDamage = damageReduction > 0
-        ? Math.max(1, Math.round(baseDamage * (1 - damageReduction)))
-        : baseDamage;
-      const beforeHP = player.currentHP;
-      player.currentHP = Math.max(0, player.currentHP - finalDamage);
-      if (player.currentHP <= 0) {
-        player.isAlive = false;
-      }
-      summaryDetails.push(`${player.studentName}: -${finalDamage} HP (HP ${beforeHP} -> ${player.currentHP}${damageReduction > 0 ? ', reduced' : ''})`);
-    });
-    const entry = {
-      turn: gameState.currentTurn,
-      phase: 'monster_turn',
-      message: `${monster.name} engulfs the party with ${skillName}!`,
-      summaryDetails
-    };
-    return { used: true, entry };
-  }
-
-  if (effect.forcePlayerAttack) {
-    if (alivePlayers.length === 0) {
-      return { used: false };
-    }
-    const target = selectPlayerTargetForMonster(alivePlayers, { ignoreTaunt: effect.ignoreTaunt });
-    if (!target) {
-      return { used: false };
-    }
-    const result = forcePlayerToAttackAlly(target, monster, gameState);
-    const entry = {
-      turn: gameState.currentTurn,
-      phase: 'monster_turn',
-      message: result.log
-    };
-    return { used: result.used, entry: result.used ? entry : null };
-  }
-
-  if (effect.reduceRemainingHpFraction) {
-    if (alivePlayers.length === 0) {
-      return { used: false };
-    }
-    const target = selectPlayerTargetForMonster(alivePlayers, { ignoreTaunt: effect.ignoreTaunt });
-    if (!target) {
-      return { used: false };
-    }
-    const fraction = Math.min(0.99, Math.max(0, effect.reduceRemainingHpFraction));
-    const before = target.currentHP;
-    const remainingFraction = 1 - fraction;
-    const newHP = Math.max(1, Math.ceil(before * remainingFraction));
-    const damage = before - newHP;
-    target.currentHP = newHP;
-    const entry = {
-      turn: gameState.currentTurn,
-      phase: 'monster_turn',
-      message: `${monster.name}'s ${skillName} rends ${target.studentName}, ripping away ${damage} HP! (HP ${before} -> ${target.currentHP})`
-    };
-    return { used: true, entry };
-  }
-
-  if (effect.damageMultiplier) {
-    if (alivePlayers.length === 0) {
-      return { used: false };
-    }
-    const target = selectPlayerTargetForMonster(alivePlayers, {
-      ignoreTaunt: effect.ignoreTaunt,
-      preferNonShield: effect.preferNonShield
-    });
-    if (!target) {
-      return { used: false };
-    }
-    const damageMultiplier = gameState.gameConfig.damageMultiplier * (effect.damageMultiplier || 1);
-    const damageReduction = getDamageReduction(target);
-    const baseDamage = calculateDamage(
-      monster.attack,
-      1,
-      damageMultiplier,
-      false,
-      gameState.gameConfig.critDamage
-    );
-    const finalDamage = damageReduction > 0
-      ? Math.max(1, Math.round(baseDamage * (1 - damageReduction)))
-      : baseDamage;
-    const beforeHP = target.currentHP;
-    target.currentHP = Math.max(0, target.currentHP - finalDamage);
-    if (target.currentHP <= 0) {
-      target.isAlive = false;
-    }
-    let message = `${monster.name} uses ${skillName} on ${target.studentName} for ${finalDamage} damage${damageReduction > 0 ? ' (reduced)' : ''}! (HP ${beforeHP} -> ${target.currentHP})`;
-
-    if (effect.silenceChance && Math.random() < effect.silenceChance && target.isAlive) {
-      addSilenceStatusToPlayer(target, effect.silenceDuration || 1, monster.name);
-      message += ` ${target.studentName} is silenced!`;
-    }
-
-    const entry = {
-      turn: gameState.currentTurn,
-      phase: 'monster_turn',
-      message
-    };
-    return { used: true, entry };
-  }
-
-  return { used: false };
-}
-
-function attemptMonsterActiveSkill(monster, gameState) {
-  if (!monster || !monster.isAlive || !Array.isArray(monster.skills)) {
-    return { used: false };
-  }
-  const activeSkills = monster.skills.filter(skill => skill.type === 'active');
-  if (activeSkills.length === 0) {
-    return { used: false };
-  }
-
-  monster.skillCooldowns = monster.skillCooldowns || {};
-
-  for (const skill of activeSkills) {
-    const cooldown = monster.skillCooldowns[skill.id] || 0;
-    if (cooldown <= 0) {
-      const result = executeMonsterActiveSkill(monster, skill, gameState);
-      if (result.used) {
-        monster.skillCooldowns[skill.id] = skill.cooldown || 0;
-        return { used: true, entry: result.entry || null };
-      }
-    }
-  }
-
-  return { used: false };
-}
-
-function applyPlayerStatusEffects(gameState) {
-  if (!gameState || !Array.isArray(gameState.players)) {
-    return [];
-  }
-  const logs = [];
-  gameState.players.forEach(player => {
-    if (!player.isAlive || !Array.isArray(player.statuses) || player.statuses.length === 0) {
-      return;
-    }
-    const remainingStatuses = [];
-    player.statuses.forEach(status => {
-      if (status.appliedThisTurn) {
-        status.appliedThisTurn = false;
-        remainingStatuses.push(status);
-        return;
-      }
-      if (status.type === 'bleed') {
-        const damage = Math.max(1, Math.round((player.maxHP || 0) * (status.damageFraction || 0.01)));
-        const before = player.currentHP;
-        player.currentHP = Math.max(0, player.currentHP - damage);
-        logs.push(`${player.studentName} suffers ${damage} bleed damage${status.source ? ` from ${status.source}` : ''}. (HP ${before} -> ${player.currentHP})`);
-        if (player.currentHP <= 0) {
-          player.isAlive = false;
-        }
-      } else if (status.type === 'bleeding_claw') {
-        const damage = Math.max(1, Math.round(status.damagePerTurn || 0));
-        if (damage > 0) {
-          const before = player.currentHP;
-          player.currentHP = Math.max(0, player.currentHP - damage);
-          logs.push(`${player.studentName} suffers ${damage} Bleeding Claw damage${status.source ? ` from ${status.source}` : ''}. (HP ${before} -> ${player.currentHP})`);
-          if (player.currentHP <= 0) {
-            player.isAlive = false;
-          }
-        }
-      } else if (status.type === 'silence') {
-        logs.push(`${player.studentName} is silenced${status.source ? ` by ${status.source}` : ''} and cannot use skills.`);
-      }
-      status.remainingTurns = (status.remainingTurns || 1) - 1;
-      if (player.isAlive && status.remainingTurns > 0) {
-        remainingStatuses.push(status);
-      }
-    });
-    player.statuses = remainingStatuses;
-  });
-  return logs;
-}
-
-function ensureMonsterStatuses(monster) {
-  if (!monster) {
-    return [];
-  }
-  if (!Array.isArray(monster.statuses)) {
-    monster.statuses = [];
-  }
-  return monster.statuses;
-}
-
-function addStatusToMonster(monster, status) {
-  if (!monster || !status) {
-    return;
-  }
-  const statuses = ensureMonsterStatuses(monster);
-  const normalized = {
-    type: status.type,
-    remainingTurns: typeof status.remainingTurns === 'number' ? status.remainingTurns : 1,
-    skipActionsRemaining: typeof status.skipActionsRemaining === 'number' ? status.skipActionsRemaining : 1,
-    source: status.source || null,
-    note: status.note || null
-  };
-  statuses.push(normalized);
-}
-
-function processMonsterControlStatuses(monster) {
-  if (!monster || !Array.isArray(monster.statuses) || monster.statuses.length === 0) {
-    return { skipTurn: false, logs: [] };
-  }
-  let skipTurn = false;
-  const logs = [];
-  monster.statuses.forEach(status => {
-    if ((status.type === 'stun' || status.type === 'freeze') && !skipTurn) {
-      const remainingSkips = typeof status.skipActionsRemaining === 'number' ? status.skipActionsRemaining : 1;
-      if (remainingSkips > 0) {
-        skipTurn = true;
-        status.skipActionsRemaining = Math.max(0, remainingSkips - 1);
-        if (status.type === 'stun') {
-          logs.push(`${monster.name} is stunned and cannot act this turn!`);
-        } else if (status.type === 'freeze') {
-          logs.push(`${monster.name} is frozen solid and skips this turn!`);
-        } else {
-          logs.push(`${monster.name} is incapacitated and cannot act this turn!`);
-        }
-      }
-    }
-  });
-  return { skipTurn, logs };
-}
-
-function advanceMonsterStatuses(monster) {
-  if (!monster || !Array.isArray(monster.statuses) || monster.statuses.length === 0) {
-    return;
-  }
-  monster.statuses = monster.statuses.filter(status => {
-    if (typeof status.remainingTurns === 'number') {
-      status.remainingTurns -= 1;
-      return status.remainingTurns > 0;
-    }
-    return false;
-  });
-}
-
-function applyMonsterStatusDamage(monster, gameState, data) {
-  const result = { logs: [], deathLogs: [] };
-  if (!monster || !monster.isAlive || !Array.isArray(monster.statuses) || monster.statuses.length === 0) {
-    return result;
-  }
-
-  let monsterKilled = false;
-  monster.statuses.forEach(status => {
-    if (!monster.isAlive) {
-      return;
-    }
-    if (status.type === 'poison' && (status.remainingTurns === undefined || status.remainingTurns > 0)) {
-      const damage = Math.max(1, status.damagePerTurn || 0);
-      if (damage <= 0) {
-        return;
-      }
-      const beforeHP = monster.currentHP;
-      monster.currentHP = Math.max(0, monster.currentHP - damage);
-      result.logs.push(`${monster.name} suffers ${damage} poison damage${status.source ? ` from ${status.source}` : ''}. (HP ${beforeHP} -> ${monster.currentHP})`);
-      if (monster.currentHP <= 0 && monster.isAlive) {
-        monster.isAlive = false;
-        monsterKilled = true;
-      }
-    }
-  });
-
-  if (monsterKilled) {
-    const deathLogs = handleMonsterDeath(monster, gameState, data);
-    result.deathLogs.push(...deathLogs);
-  }
-
-  return result;
-}
-
-function ensureMonsterSequence(gameState) {
-  if (typeof gameState.monsterSequence !== 'number') {
-    gameState.monsterSequence = 0;
-  }
-}
-
-function createMonsterInstanceFromType(monsterType: any, gameState: any, overrides: any = {}) {
-  ensureMonsterSequence(gameState);
-  gameState.monsterSequence += 1;
-  const inst: any = {
-    id: `monster_${gameState.currentLevel}_${gameState.monsterSequence}`,
-    type: monsterType.id,
-    name: overrides.name || `${monsterType.name} ${gameState.monsterSequence}`,
-    emoji: monsterType.emoji,
-    baseAttack: overrides.attack ?? monsterType.baseAttack,
-    attack: overrides.attack ?? monsterType.baseAttack,
-    maxHP: overrides.maxHP ?? monsterType.baseHP,
-    currentHP: overrides.currentHP ?? monsterType.baseHP,
-    isAlive: true,
-    skills: (monsterType.skills || []).map((skill: any) => ({ ...skill })),
-    skillCooldowns: {}
-  };
-  return inst;
-}
-
-function handleMonsterDeath(monster, gameState, data) {
-  const logs = [];
-  const effect = getMonsterPassiveEffect(monster);
-  if (effect?.splitOnDeath && !monster.splitPerformed) {
-    monster.splitPerformed = true;
-    const splitMin = effect.splitMin || 2;
-    const splitMax = effect.splitMax || splitMin;
-    const splitCount = splitMin === splitMax
-      ? splitMin
-      : splitMin + Math.floor(Math.random() * (splitMax - splitMin + 1));
-    const miniType = getMonsterTypeById('mini_slime', data);
-    if (miniType) {
-      for (let i = 0; i < splitCount; i++) {
-        const mini = createMonsterInstanceFromType(miniType, gameState, {
-          attack: monster.attack,
-          maxHP: Math.max(1, Math.floor((monster.maxHP || miniType.baseHP) / 3)),
-          currentHP: Math.max(1, Math.floor((monster.maxHP || miniType.baseHP) / 3))
-        });
-        mini.parentId = monster.id;
-        mini.originalType = miniType.id;
-        mini.spawnTurn = gameState.currentTurn;
-        gameState.monsters.push(mini);
-      }
-      logs.push(`${monster.name} splits into ${splitCount} Mini Slimes!`);
-    }
-  }
-  return logs;
-}
-
 // Get game configuration
-app.get('/api/game/config', (req, res) => {
+app.get('/api/game/config', (req: Request, res: Response) => {
   res.json({
     config: GAME_CONFIG,
     playerClasses: PLAYER_CLASSES,
@@ -1181,7 +90,7 @@ app.get('/api/game/config', (req, res) => {
 });
 
 // Initialize game state
-app.post('/api/game/init', async (req, res) => {
+app.post('/api/game/init', async (req: Request, res: Response) => {
   try {
     const { studentIds, levelConfig } = req.body;
     
@@ -1189,7 +98,6 @@ app.post('/api/game/init', async (req, res) => {
       return res.status(400).json({ error: 'Student IDs are required' });
     }
     
-    // Get student data
     const data = await readData();
     const students = data.students.filter(s => studentIds.includes(s.id));
     
@@ -1197,19 +105,16 @@ app.post('/api/game/init', async (req, res) => {
       return res.status(400).json({ error: 'Some students not found' });
     }
     
-    // Get settings from data file
     const settingsConfig = data.gameSettings?.config || GAME_CONFIG;
     
-    // Default difficulty preset: Easy (if not provided)
     const resolvedLevelConfig = (Array.isArray(levelConfig) && levelConfig.length)
       ? levelConfig
       : DEFAULT_LEVEL_CONFIG_EASY;
 
-    // Initialize game state
     const gameState = {
       currentLevel: 1,
       currentTurn: 1,
-      phase: 'character_selection', // character_selection, puzzle_input, player_turn, monster_turn, game_over
+      phase: 'character_selection',
       players: students.map((student, index) => ({
         studentId: student.id,
         studentName: student.name,
@@ -1219,24 +124,23 @@ app.post('/api/game/init', async (req, res) => {
         attack: 0,
         puzzlePoints: 0,
         isAlive: true,
-        skills: [],
-        skillCooldowns: {},
+        skills: [] as any[],
+        skillCooldowns: {} as Record<string, number>,
         accumulatedReviveRate: 0,
         stats: {
           totalDamage: 0,
           kills: 0,
           healing: 0
         },
-        statuses: []
+        statuses: [] as any[]
       })),
-      monsters: [],
-      actionLog: [],
+      monsters: [] as any[],
+      actionLog: [] as any[],
       levelConfig: resolvedLevelConfig,
       gameConfig: { ...settingsConfig },
       monsterSequence: 0
     };
     
-    // Store game state in data
     if (!data.gameState) {
       data.gameState = {};
     }
@@ -1253,7 +157,7 @@ app.post('/api/game/init', async (req, res) => {
 });
 
 // Get current game state
-app.get('/api/game/state', async (req, res) => {
+app.get('/api/game/state', async (req: Request, res: Response) => {
   try {
     const data = await readData();
     if (!data.gameState || !data.gameState.current) {
@@ -1267,7 +171,7 @@ app.get('/api/game/state', async (req, res) => {
 });
 
 // Update player character selection
-app.post('/api/game/select-character', async (req, res) => {
+app.post('/api/game/select-character', async (req: Request, res: Response) => {
   try {
     const { studentId, characterClassId } = req.body;
     
@@ -1286,7 +190,6 @@ app.post('/api/game/select-character', async (req, res) => {
       return res.status(404).json({ error: 'Player not found' });
     }
     
-    // Get player classes from settings or defaults
     const availablePlayerClasses = data.gameSettings?.playerClasses || PLAYER_CLASSES;
     
     const characterClass = availablePlayerClasses.find(c => c.id === characterClassId);
@@ -1294,7 +197,6 @@ app.post('/api/game/select-character', async (req, res) => {
       return res.status(404).json({ error: 'Character class not found' });
     }
     
-    // Set character
     player.characterClass = characterClassId;
     player.attack = characterClass.baseAttack;
     player.maxHP = characterClass.baseHP;
@@ -1302,9 +204,6 @@ app.post('/api/game/select-character', async (req, res) => {
     player.skills = characterClass.skills.map(skill => ({ ...skill }));
     player.skillCooldowns = {};
     ensurePlayerStats(player);
-    
-    // Keep phase as 'character_selection' until user clicks "Start Battle"
-    // The battle will be initialized when user clicks the button
     
     data.lastUpdate = new Date().toISOString();
     await writeData(data);
@@ -1318,9 +217,9 @@ app.post('/api/game/select-character', async (req, res) => {
 });
 
 // Input puzzle points for players
-app.post('/api/game/input-puzzle-points', async (req, res) => {
+app.post('/api/game/input-puzzle-points', async (req: Request, res: Response) => {
   try {
-    const { puzzlePoints } = req.body; // { studentId: points }
+    const { puzzlePoints } = req.body;
     
     if (!puzzlePoints || typeof puzzlePoints !== 'object') {
       return res.status(400).json({ error: 'Puzzle points object is required' });
@@ -1333,7 +232,6 @@ app.post('/api/game/input-puzzle-points', async (req, res) => {
     
     const gameState = data.gameState.current;
     
-    // Update puzzle points for each player
     Object.keys(puzzlePoints).forEach(studentId => {
       const player = gameState.players.find(p => p.studentId === studentId);
       if (player) {
@@ -1341,27 +239,20 @@ app.post('/api/game/input-puzzle-points', async (req, res) => {
       }
     });
     
-    // Check if we need to initialize monsters
-    // Initialize ONLY if: monsters don't exist, OR if we're explicitly transitioning from level_complete phase (new level)
-    // DO NOT reinitialize if monsters are dead during battle - that's normal gameplay
     const monstersExisted = gameState.monsters && gameState.monsters.length > 0;
     const isLevelTransition = gameState.phase === 'level_complete';
     
-    // Only initialize monsters if they don't exist, or if we're explicitly transitioning levels
     if (!monstersExisted || isLevelTransition) {
-      // Clear existing monsters if transitioning to new level
       if (isLevelTransition && monstersExisted) {
         gameState.monsters = [];
       }
-      // First time: initialize monsters
       const levelInfo = gameState.levelConfig[gameState.currentLevel - 1];
       if (levelInfo) {
         gameState.monsters = [];
         
-        // Get monster types from settings or defaults
         const availableMonsterTypes = data.gameSettings?.monsterTypes || MONSTER_TYPES;
         
-        let monsterIndex = 1; // Global index for unique naming
+        let monsterIndex = 1;
         levelInfo.monsters.forEach(monsterConfig => {
           const monsterType = availableMonsterTypes.find(m => m.id === monsterConfig.type);
           if (monsterType) {
@@ -1378,17 +269,15 @@ app.post('/api/game/input-puzzle-points', async (req, res) => {
               monsterInstance.originalType = monsterConfig.type;
               monsterInstance.spawnTurn = gameState.currentTurn;
               gameState.monsters.push(monsterInstance);
-              monsterIndex++; // Increment global index
+              monsterIndex++;
             }
           }
         });
       }
       
-      // Set phase to player_turn and add action log
       if (!gameState.phase || gameState.phase === 'character_selection' || gameState.phase === 'puzzle_input' || gameState.phase === 'level_complete') {
         gameState.phase = 'player_turn';
 
-        // When starting a new level, reset player action flags and increment turn
         if (isLevelTransition) {
           gameState.currentTurn += 1;
           gameState.players.forEach(player => {
@@ -1425,7 +314,7 @@ app.post('/api/game/input-puzzle-points', async (req, res) => {
 });
 
 // Player action (attack, skill, heal)
-app.post('/api/game/player-action', async (req, res) => {
+app.post('/api/game/player-action', async (req: Request, res: Response) => {
   try {
     const { studentId, action, targetId, skillId, puzzlePoints } = req.body;
     
@@ -1444,17 +333,15 @@ app.post('/api/game/player-action', async (req, res) => {
       return res.status(400).json({ error: 'Player not found or not alive' });
     }
     
-    // Use Puzzle Points from request if provided (most up-to-date), otherwise use gameState
     const effectivePuzzlePoints = (puzzlePoints !== undefined && puzzlePoints !== null) 
       ? Math.max(0, parseInt(puzzlePoints) || 0)
       : player.puzzlePoints;
     
-    // Update player's puzzle points in gameState to keep it in sync
     if (puzzlePoints !== undefined && puzzlePoints !== null) {
       player.puzzlePoints = effectivePuzzlePoints;
     }
     
-    let actionResult = null;
+    let actionResult: any = null;
 
     const auraResult = applyFirestormAuraBeforePlayerAction(player, gameState);
     if (auraResult && auraResult.triggered) {
@@ -1510,7 +397,6 @@ app.post('/api/game/player-action', async (req, res) => {
           message: `${monster.name} dodges ${player.studentName}'s attack!`
         });
       } else {
-        // Check for crit
         const critRate = gameState.gameConfig.critRate + (player.skills.find(s => s.effect?.critRateBonus)?.effect?.critRateBonus || 0);
         const isCrit = Math.random() < critRate;
         
@@ -1640,7 +526,7 @@ app.post('/api/game/player-action', async (req, res) => {
         }
 
         const targetCount = Math.max(1, skill.effect?.targetCount || 2);
-        const selectedTargets = [];
+        const selectedTargets: any[] = [];
         if (targetId) {
           const primary = aliveMonsters.find(m => m.id === targetId);
           if (primary) {
@@ -1660,7 +546,7 @@ app.post('/api/game/player-action', async (req, res) => {
         const passiveDamageInfo = getPassiveDamageInfo(player);
         const totalMultiplier = gameState.gameConfig.damageMultiplier * passiveDamageInfo.multiplier;
         const tauntingMonster = gameState.monsters.find(m => m.isAlive && getMonsterPassiveEffect(m)?.tauntPlayers);
-        const actionDetails = [];
+        const actionDetails: string[] = [];
         const defeatedMonsters = new Set();
 
         selectedTargets.forEach(originalTarget => {
@@ -2016,9 +902,9 @@ app.post('/api/game/player-action', async (req, res) => {
           false,
           gameState.gameConfig.critDamage
         );
-        const damageSummary = [];
+        const damageSummary: string[] = [];
         let totalDamageDealt = 0;
-        const defeatedMonsters = [];
+        const defeatedMonsters: any[] = [];
 
         aliveMonsters.forEach(monster => {
           const monsterReduction = getMonsterDamageReduction(monster);
@@ -2220,13 +1106,10 @@ app.post('/api/game/player-action', async (req, res) => {
       }
     }
     
-    // Check if all monsters are dead
     const allMonstersDead = gameState.monsters.every(m => !m.isAlive);
     if (allMonstersDead) {
-      // Level complete
       gameState.currentLevel++;
       if (gameState.currentLevel > gameState.levelConfig.length) {
-        // Game complete
         gameState.phase = 'game_over';
 
         if (!gameState.rewardsDistributed) {
@@ -2234,16 +1117,14 @@ app.post('/api/game/player-action', async (req, res) => {
           const mvpBonus = 0;
           const participants = Array.isArray(gameState.players) ? gameState.players : [];
 
-          // Prepare reward map
-          const rewards = {};
+          const rewards: Record<string, number> = {};
           participants.forEach(player => {
             rewards[player.studentId] = baseReward;
             player.rewardPoints = baseReward;
             player.isMVP = false;
           });
 
-          // Calculate MVP based on defined scoring formula
-          let mvp = null;
+          let mvp: any = null;
           let maxScore = -1;
           participants.forEach(player => {
             const stats = player.stats || {};
@@ -2260,7 +1141,6 @@ app.post('/api/game/player-action', async (req, res) => {
             mvp.isMVP = true;
           }
 
-          // Update player stats for UI
           participants.forEach(player => {
             if (!player.stats) {
               player.stats = { totalDamage: 0, kills: 0, healing: 0, totalPoints: 0 };
@@ -2268,7 +1148,6 @@ app.post('/api/game/player-action', async (req, res) => {
             player.stats.totalPoints = rewards[player.studentId] || baseReward;
           });
 
-          // Apply rewards to students data
           participants.forEach(player => {
             const reward = rewards[player.studentId] || 0;
             const student = data.students.find(s => s.id === player.studentId);
@@ -2315,7 +1194,6 @@ app.post('/api/game/player-action', async (req, res) => {
           });
         }
       } else {
-        // Next level - set phase to level_complete so user can click button to proceed
         gameState.phase = 'level_complete';
         gameState.actionLog.push({
           turn: gameState.currentTurn,
@@ -2324,8 +1202,6 @@ app.post('/api/game/player-action', async (req, res) => {
         });
       }
     } else {
-      // Mark player as acted, but don't auto-switch to monster turn
-      // Let the user click "Process Monster Turn" button manually
       player.hasActed = true;
     }
     
@@ -2341,7 +1217,7 @@ app.post('/api/game/player-action', async (req, res) => {
 });
 
 // Monster turn (AI)
-app.post('/api/game/monster-turn', async (req, res) => {
+app.post('/api/game/monster-turn', async (req: Request, res: Response) => {
   try {
     const data = await readData();
     if (!data.gameState || !data.gameState.current) {
@@ -2349,7 +1225,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
     }
     
     const gameState = data.gameState.current;
-    const turnEvents = [];
+    const turnEvents: any[] = [];
     const snapshotState = () => {
       try {
         return JSON.parse(JSON.stringify({
@@ -2374,15 +1250,12 @@ app.post('/api/game/monster-turn', async (req, res) => {
       turnEvents.push({ log: entry, snapshot: snapshotState() });
     };
     
-    // Check if all players have acted (if in player_turn phase)
     if (gameState.phase === 'player_turn') {
       const allPlayersActed = gameState.players.every(p => !p.isAlive || p.hasActed);
       if (!allPlayersActed) {
         return res.status(400).json({ error: 'Not all players have acted yet' });
       }
 
-      // Cooldowns tick down once after the FULL player turn finishes.
-      // (So a skill used this turn shows its full cooldown during the next player turn.)
       gameState.players.forEach(player => {
         if (player && player.skillCooldowns) {
           Object.keys(player.skillCooldowns).forEach(skillId => {
@@ -2404,18 +1277,14 @@ app.post('/api/game/monster-turn', async (req, res) => {
         }
       });
 
-      // Switch to monster turn
       gameState.phase = 'monster_turn';
-      // Reset player action flags for next turn
       gameState.players.forEach(p => p.hasActed = false);
     } else if (gameState.phase !== 'monster_turn') {
       return res.status(400).json({ error: 'Not monster turn' });
     }
     
-    // Simple AI: Attack player with lowest HP
     let alivePlayers = gameState.players.filter(p => p.isAlive);
     if (alivePlayers.length === 0) {
-      // Game over
       gameState.phase = 'game_over';
       pushLog({
         turn: gameState.currentTurn,
@@ -2533,7 +1402,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
           return;
         }
 
-        const passive = getMonsterPassiveEffect(monster) || {};
+        const passive = getMonsterPassiveEffect(monster) || {} as any;
         const attackCount = passive.attackCount || 1;
         for (let attackIndex = 0; attackIndex < attackCount; attackIndex++) {
           alivePlayers = gameState.players.filter(p => p.isAlive);
@@ -2681,7 +1550,7 @@ app.post('/api/game/monster-turn', async (req, res) => {
 });
 
 // Revive attempt
-app.post('/api/game/revive', async (req, res) => {
+app.post('/api/game/revive', async (req: Request, res: Response) => {
   try {
     const { studentId, puzzlePoints } = req.body;
     
@@ -2700,7 +1569,6 @@ app.post('/api/game/revive', async (req, res) => {
       return res.status(400).json({ error: 'Player is already alive' });
     }
     
-    // Calculate revive probability
     const reviveRate = calculateReviveProbability(
       puzzlePoints,
       gameState.gameConfig.baseReviveRate,
@@ -2713,7 +1581,7 @@ app.post('/api/game/revive', async (req, res) => {
     
     if (success) {
       player.isAlive = true;
-      player.currentHP = Math.floor(player.maxHP * 0.5); // Revive with 50% HP
+      player.currentHP = Math.floor(player.maxHP * 0.5);
       player.accumulatedReviveRate = 0;
       player.puzzlePoints -= puzzlePoints;
       player.statuses = [];
@@ -2724,7 +1592,7 @@ app.post('/api/game/revive', async (req, res) => {
         message: `${player.studentName} successfully revived with ${puzzlePoints} puzzle points!`
       });
     } else {
-      player.accumulatedReviveRate = reviveRate; // Accumulate for next attempt
+      player.accumulatedReviveRate = reviveRate;
       player.puzzlePoints -= puzzlePoints;
       
       gameState.actionLog.push({
@@ -2754,22 +1622,6 @@ app.post('/api/game/revive', async (req, res) => {
 
 // Hope Mate Challenge leaderboard (teacher scoped, per durationSec)
 // Hope Mate challenge routes extracted.
-
-// =========================
-// Admin - Hope Mate Stage Puzzles (manual FEN library)
-// =========================
-const HOPE_MATE_STAGE_KEYS = new Set([
-  'rook',
-  'queen',
-  'minor',
-  'pawns',
-  'twoRooks',
-  'rookKnight',
-  'queenBishop',
-  'queenKnight',
-  'queenRook',
-  'threePieces'
-]);
 
 // Hope Mate admin stage puzzles extracted.
 }

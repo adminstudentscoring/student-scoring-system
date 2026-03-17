@@ -152,7 +152,7 @@ function createUpdatePackagesForDeletedCourse({ readPackages, writePackages }: U
   };
 }
 
-module.exports = {
+export {
   resolveOrgIdFromUser,
   normalizeSubscriptionStatus,
   normalizePublishState,

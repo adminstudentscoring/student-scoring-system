@@ -42,5 +42,5 @@ const RANKS: Rank[] = [
   { name: 'Grand Master', maxScore: Infinity }                       // 12800+
 ];
 
-module.exports = { LEVELS, RANKS };
+export { LEVELS, RANKS };
 export type { Level, Rank };

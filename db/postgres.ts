@@ -1,5 +1,5 @@
 import type { Pool as PoolType, QueryResult } from 'pg';
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
 function buildConnectionStringFromParts(): string {
   const host = String(process.env.PGHOST || '').trim();
@@ -91,7 +91,7 @@ async function dbPing(): Promise<boolean> {
   return !!res?.rows?.[0]?.ok;
 }
 
-module.exports = {
+export {
   getPool,
   dbQuery,
   dbPing

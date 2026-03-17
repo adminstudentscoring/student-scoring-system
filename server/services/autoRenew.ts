@@ -1,8 +1,7 @@
 // Auto-renew logic extracted from server.js.
 // Checks for students with autoRenewEnabled and creates renewal orders/enrollments.
-export {};
 
-const { addDays, addMonths, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } = require('../lib/dateUtils');
+import { addDays, addMonths, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } from '../lib/dateUtils';
 
 interface AutoRenewDeps {
   todayHkKey(): string;
@@ -260,4 +259,4 @@ function createAutoRenew(deps: AutoRenewDeps): AutoRenewReturn {
   return { maybeRunAutoRenewAllOrgs, autoRenewMeta };
 }
 
-module.exports = { createAutoRenew };
+export { createAutoRenew };

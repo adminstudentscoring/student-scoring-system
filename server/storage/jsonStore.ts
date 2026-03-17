@@ -29,4 +29,4 @@ function createJsonStore<T>(filePath: string, defaultValue: T = {} as T): JsonSt
   };
 }
 
-module.exports = { createJsonStore };
+export { createJsonStore };

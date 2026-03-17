@@ -1,5 +1,4 @@
 // Date/schedule helper functions extracted from server.js.
-export {};
 
 interface UciMove {
   from: string;
@@ -175,7 +174,7 @@ function computePackagePrice({ pkg, coursesById, classCount }: ComputePackagePri
   return 0;
 }
 
-module.exports = {
+export {
   parseUciMove,
   dateStrFromYmd,
   parseDateStrToUtcMidnightMs,

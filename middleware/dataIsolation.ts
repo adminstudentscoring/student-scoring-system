@@ -101,7 +101,7 @@ function filterUsersByOrganization(users: any[], organizationId: string | null):
   );
 }
 
-module.exports = {
+export {
   createRequireOrganizationAccess,
   filterStudentsByOrganization,
   filterUsersByOrganization

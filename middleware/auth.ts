@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-const { verifyToken, extractTokenFromHeader } = require('../auth');
+import { verifyToken, extractTokenFromHeader } from '../auth';
 const billingAccess = require('../billing/access');
 
 interface AuthenticatedRequest extends Request {
@@ -74,7 +74,7 @@ function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFuncti
   next();
 }
 
-module.exports = {
+export {
   authenticateUser,
   authorizeRole,
   optionalAuth
