@@ -4,7 +4,7 @@
 
 ### Overview
 
-This is **StudentScoring** — a chess education and student management platform built as a monolithic **Node.js 20.x / Express** server (`server.js`) with WebSocket support. It is **not** a monorepo; everything is a single `package.json`. The project is undergoing a gradual JS-to-TS migration; leaf modules have been converted to `.ts` while `server.js` and route files remain `.js`.
+This is **StudentScoring** — a chess education and student management platform built as a monolithic **Node.js 20.x / Express** server (`server.ts`) with WebSocket support. It is **not** a monorepo; everything is a single `package.json`. The project has been migrated from JS to TS; `server.ts` and all route/module files are `.ts`. `tsc --noEmit` should pass cleanly.
 
 ### Prerequisites
 
@@ -27,7 +27,7 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 
 ### Gotchas
 
-- **ESLint** is configured via flat config (`eslint.config.js`, ESLint 10+) for `.js` files only. Run `npm run lint`. All rules are set to warn, so the linter exits 0 even with warnings. For `.ts` files, run `npm run typecheck` (`tsc --noEmit`).
+- **ESLint** is configured via flat config (`eslint.config.js`, ESLint 10+) for both `.js` and `.ts` files. `@typescript-eslint` is used for TypeScript-specific rules. Run `npm run lint`. Most rules are set to warn. For type checking `.ts` files, also run `npm run typecheck` (`tsc --noEmit`).
 - **Integration tests** use Node.js built-in test runner + supertest. Run `npm test`. Tests hit a running server on `http://localhost:3000`, so start the server first or the test helper will spawn one automatically.
 - `GET /api/students` uses `optionalAuth` and returns 200 without a token — use `POST /api/students` to test auth-required student routes.
 - The server uses **file-based storage** (`data/` directory) for most entities (students, users, organizations, leaderboards). PostgreSQL is used for billing, blunders, tactics fighter, and migrations.
@@ -44,6 +44,6 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 | `npm run init-admin` | Create the first admin user |
 | `npm run db:migrate` | Run Postgres migrations manually |
 | `npm run db:ping` | Test Postgres connectivity |
-| `npm run lint` | Run ESLint on `.js` files (flat config, warnings only) |
+| `npm run lint` | Run ESLint on `.js` and `.ts` files (flat config, warnings + TS rules) |
 | `npm run typecheck` | Run `tsc --noEmit` on `.ts` files |
 | `npm test` | Run integration tests (server must be running) |
