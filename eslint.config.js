@@ -1,5 +1,6 @@
 const js = require('@eslint/js');
 const globals = require('globals');
+const tseslint = require('typescript-eslint');
 
 module.exports = [
   js.configs.recommended,
@@ -44,6 +45,48 @@ module.exports = [
       globals: {
         ...globals.browser,
       },
+    },
+  },
+
+  // TypeScript files
+  ...tseslint.configs.recommended.map(config => ({
+    ...config,
+    files: ['**/*.ts'],
+  })),
+  {
+    files: ['**/*.ts'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+        ...globals.commonjs,
+      },
+      parser: tseslint.parser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-require-imports': 'warn',
+      '@typescript-eslint/no-empty-object-type': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
+      semi: ['warn', 'always'],
+      'no-empty': 'warn',
+      'no-constant-condition': 'warn',
+      'no-prototype-builtins': 'warn',
+      'no-useless-catch': 'warn',
+      'no-useless-escape': 'warn',
+      'no-case-declarations': 'warn',
+      'no-self-assign': 'warn',
+      'no-unsafe-finally': 'warn',
     },
   },
 
