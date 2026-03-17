@@ -2,8 +2,9 @@
 // Includes /api/students* and /api/public/students*.
 
 import { Request, Response, NextFunction } from 'express';
+import type { StudentsRouteDeps } from '../types';
 
-function registerStudentsRoutes(app: any, deps: any): void {
+function registerStudentsRoutes(app: any, deps: StudentsRouteDeps): void {
   const optionalAuth = deps?.optionalAuth;
   const authenticateUser = deps?.authenticateUser;
   const authorizeRole = deps?.authorizeRole;

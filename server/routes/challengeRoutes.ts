@@ -1,8 +1,9 @@
 // Challenge/Level routes extracted from server.js.
 // Includes /api/challenge* routes.
 import { Request, Response, NextFunction } from 'express';
+import type { ChallengeRouteDeps } from '../types';
 
-function registerChallengeRoutes(app: any, deps: any): void {
+function registerChallengeRoutes(app: any, deps: ChallengeRouteDeps): void {
   const authenticateUser = deps?.authenticateUser;
   const readData = deps?.readData;
   const writeData = deps?.writeData;
