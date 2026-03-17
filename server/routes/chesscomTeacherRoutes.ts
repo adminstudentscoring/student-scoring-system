@@ -49,8 +49,9 @@ function registerChessComTeacherRoutes(app: any, deps: any): void {
       if (!settings) return res.status(400).json({ error: 'settings is required' });
 
       // Validate + normalize
-      const clean = {};
-      for (const [studentId, entry] of Object.entries(settings)) {
+      const clean: any = {};
+      for (const [studentId, _entry] of Object.entries(settings)) {
+        const entry = _entry as any;
         const sid = String(studentId || '').trim();
         if (!sid) continue;
         const chessId = String(entry?.chessId ?? '').trim();
@@ -68,8 +69,9 @@ function registerChessComTeacherRoutes(app: any, deps: any): void {
         const prev = (await getOrgChessComSettings(orgId)) || {};
         // Merge updates so partial pushes won't wipe existing mappings.
         // IMPORTANT: if payload omits "password", we preserve existing password in DB.
-        const merged = { ...(prev || {}) };
-        for (const [sid, ent] of Object.entries(clean)) {
+        const merged: any = { ...(prev || {}) };
+        for (const [sid, _ent] of Object.entries(clean)) {
+          const ent = _ent as any;
           if (!merged[sid] || typeof merged[sid] !== 'object') merged[sid] = {};
           merged[sid].chessId = String(ent.chessId || '').trim();
           if (Object.prototype.hasOwnProperty.call(ent, 'password')) {

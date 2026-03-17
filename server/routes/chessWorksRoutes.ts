@@ -405,7 +405,7 @@ function registerChessWorksRoutes(app: any, deps: any): void {
               // Unfiled: folder_id IS NULL
               where += ` AND folder_id IS NULL`;
             } else {
-              params.push(folderId);
+              params.push(String(folderId));
               where += ` AND folder_id = $2`;
             }
           }

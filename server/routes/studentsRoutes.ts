@@ -539,7 +539,7 @@ function registerStudentsRoutes(app: any, deps: any): void {
         'autoRenewEnabled', 'autoRenewTimetableEntryId', 'autoRenewPackageId'
       ];
 
-      const cleanUpdates = {};
+      const cleanUpdates: any = {};
       allowedFields.forEach(field => {
         if (updates[field] !== undefined) {
           cleanUpdates[field] = updates[field] === '' ? null : updates[field];
@@ -703,11 +703,10 @@ function registerStudentsRoutes(app: any, deps: any): void {
         console.warn('Unable to compute teacher ranking for public student view:', err);
       }
 
-      const publicData = {
+      const publicData: any = {
         id: student.id,
         name: student.name,
         chessComId: student.chessComId,
-        // Backward compatibility
         studentId: student.chessComId,
         score: student.score,
         level: rankInfo.rankIndex + 1,

@@ -9,6 +9,7 @@ function createBlundersSync(deps: any): any {
   const blundersLastMasterHistoryScan = new Map(); // key -> ms
 
   // eslint-disable-next-line no-with
+  // @ts-expect-error - with statement used for dependency injection (intentional, see file header)
   with (deps) {
     async function syncBlundersForStudent(student, opts = {}) {
       const sid = String(student?.id || '');

@@ -38,8 +38,8 @@ async function setupVcpChess({ wss, WebSocket, fs, VCP_CHESS_GAMES_FILE, verifyT
     return vcp.teachersByOrg.get(key);
   }
 
-  function vcpSnapshotForOrg(orgId) {
-    const students = Array.from(vcpOrgStudentsMap(orgId).values()).map((p) => ({
+  function vcpSnapshotForOrg(orgId: any) {
+    const students = Array.from(vcpOrgStudentsMap(orgId).values()).map((p: any) => ({
       id: p.id,
       name: p.name,
       studentId: p.studentId || '',

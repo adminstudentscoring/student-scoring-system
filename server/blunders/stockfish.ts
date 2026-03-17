@@ -15,7 +15,7 @@ function createStockfishRunner(deps: any): any {
   let sfEngineJsPath = null;
   let sfProc = null;
   let sfInitPromise = null;
-  let sfQueue = Promise.resolve();
+  let sfQueue: Promise<any> = Promise.resolve();
 
   async function findStockfishEngineJs() {
     if (sfEngineJsPath) return sfEngineJsPath;
@@ -54,9 +54,9 @@ function createStockfishRunner(deps: any): any {
       });
 
       // Basic UCI init
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         let buf = '';
-        const onData = (chunk) => {
+        const onData = (chunk: any) => {
           buf += String(chunk || '');
           const lines = buf.split(/\r?\n/);
           buf = lines.pop() || '';
@@ -99,9 +99,9 @@ function createStockfishRunner(deps: any): any {
       } catch {}
 
       // Wait for readyok
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         let buf = '';
-        const onData = (chunk) => {
+        const onData = (chunk: any) => {
           buf += String(chunk || '');
           const lines = buf.split(/\r?\n/);
           buf = lines.pop() || '';
@@ -124,7 +124,7 @@ function createStockfishRunner(deps: any): any {
     return sfInitPromise;
   }
 
-  async function sfAnalyzeFen(fen, options = {}) {
+  async function sfAnalyzeFen(fen: any, options: any = {}) {
     const depth = Number(options?.depth || 16) || 16;
     const multiPv = Math.max(1, Math.min(10, Number(options?.multiPv || 1) || 1));
     const pvPlies = Math.max(1, Math.min(32, Number(options?.pvPlies || 8) || 8));
@@ -136,11 +136,11 @@ function createStockfishRunner(deps: any): any {
       const p = sfProc;
       if (!p) throw new Error('Stockfish process not available');
 
-      return await new Promise((resolve, reject) => {
+      return await new Promise<any>((resolve, reject) => {
         let buf = '';
         const linesByMulti = new Map(); // multipv -> { score, pv: [uci], bestMove }
 
-        const onData = (chunk) => {
+        const onData = (chunk: any) => {
           buf += String(chunk || '');
           const lines = buf.split(/\r?\n/);
           buf = lines.pop() || '';
@@ -224,9 +224,9 @@ function createStockfishRunner(deps: any): any {
             // Per-request MultiPV
             try { p.stdin.write(`setoption name MultiPV value ${multiPv}\n`); } catch {}
             // Best-effort wait for readyok so option applies.
-            await new Promise((resolveReady) => {
+            await new Promise<void>((resolveReady) => {
               let b = '';
-              const onReady = (chunk) => {
+              const onReady = (chunk: any) => {
                 b += String(chunk || '');
                 const ls = b.split(/\r?\n/);
                 b = ls.pop() || '';
@@ -259,7 +259,7 @@ function createStockfishRunner(deps: any): any {
     return sfQueue;
   }
 
-  async function sfEvalFen(fen, depth = 16) {
+  async function sfEvalFen(fen: any, depth = 16) {
     const r = await sfAnalyzeFen(fen, { depth, multiPv: 1, pvPlies: 8 });
     const first = (r && Array.isArray(r.lines) && r.lines[0]) ? r.lines[0] : null;
     return { bestMove: r?.bestMove || first?.bestMove || null, score: first?.score || { cp: 0 } };

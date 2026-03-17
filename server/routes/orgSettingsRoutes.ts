@@ -348,7 +348,7 @@ function registerOrgSettingsRoutes(app: any, deps: any): void {
             if (String(enr.organizationId) !== String(orgUser.organizationId)) continue;
             if (!holidaySet.has(enr.date)) continue;
 
-            const entry = entryById.get(String(enr.timetableEntryId));
+            const entry = entryById.get(String(enr.timetableEntryId)) as any;
             if (!entry || !entry.isRecurring) {
               skipped++;
               continue;

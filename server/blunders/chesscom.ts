@@ -64,14 +64,14 @@ function createBlundersChessCom(deps: any): any {
     return `${pad2(hh)}:${pad2(mm)} HK`;
   }
 
-  async function fetchJsonWithTimeout(url, timeoutMs = 15000) {
+  async function fetchJsonWithTimeout(url: any, timeoutMs = 15000) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), timeoutMs);
     try {
       const resp = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'student-scoring-system/1.0' } });
-      const data = await resp.json().catch(() => ({}));
+      const data = await resp.json().catch(() => ({})) as any;
       return { ok: resp.ok, status: resp.status, data };
-    } catch (e) {
+    } catch (e: any) {
       return { ok: false, status: 0, data: { error: String(e?.message || e) } };
     } finally {
       clearTimeout(t);
@@ -261,7 +261,7 @@ function createBlundersChessCom(deps: any): any {
   }
 
   // ===== Blunders: Chess.com games fetch (rapid/blitz) =====
-  async function chessComGetGamesForHkDay(username, opts = {}) {
+  async function chessComGetGamesForHkDay(username: any, opts: any = {}) {
     const u = String(username || '').trim();
     if (!u) return [];
     const sid = String(opts.studentId || '');
@@ -326,7 +326,7 @@ function createBlundersChessCom(deps: any): any {
 
   // Fetch most recent N games across Chess.com month archives (rapid+blitz by default).
   // This is used by teacher "History scan" to build a larger puzzle bank.
-  async function chessComGetRecentGames(username, opts = {}) {
+  async function chessComGetRecentGames(username: any, opts: any = {}) {
     const u = String(username || '').trim();
     if (!u) return [];
     const sid = String(opts.studentId || '');

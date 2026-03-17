@@ -32,10 +32,9 @@ function createBlundersStorage(deps: any): any {
     }
   }
 
-  async function writeBlundersPuzzles(puzzles) {
+  async function writeBlundersPuzzles(puzzles: any) {
     const arr = Array.isArray(puzzles) ? puzzles : [];
-    // Serialize writes to prevent concurrent truncation/read issues.
-    const run = async () => {
+    const run = async (): Promise<any> => {
       try {
         await fs.writeFile(BLUNDERS_PUZZLES_FILE, JSON.stringify({ puzzles: arr, lastUpdate: new Date().toISOString() }, null, 2), 'utf8');
         return true;
@@ -282,10 +281,9 @@ function createBlundersStorage(deps: any): any {
     }
   }
 
-  async function writeBlundersTeacherJobs(jobs) {
+  async function writeBlundersTeacherJobs(jobs: any) {
     const clean = jobs && typeof jobs === 'object' ? jobs : {};
-    // Serialize writes to prevent concurrent truncation/read issues.
-    const run = async () => {
+    const run = async (): Promise<any> => {
       try {
         // Ensure parent directory exists (some deployments may start without data dir prepared).
         await fs.mkdir(path.dirname(BLUNDERS_TEACHER_JOBS_FILE), { recursive: true }).catch(() => {});

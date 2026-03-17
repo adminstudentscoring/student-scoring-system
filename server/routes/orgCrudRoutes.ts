@@ -101,7 +101,7 @@ function registerOrgCrudRoutes(app: any, deps: any): void {
       }
 
       // Sort by createdAt (newest first) by default
-      filteredCourses.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      filteredCourses.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       res.json(filteredCourses);
     } catch (error) {
@@ -341,7 +341,7 @@ function registerOrgCrudRoutes(app: any, deps: any): void {
       }
 
       // Sort by createdAt (newest first) by default
-      packages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      packages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       res.json(packages);
     } catch (error) {

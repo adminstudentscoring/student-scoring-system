@@ -9,6 +9,7 @@ function createBlundersTeacherJobs(deps: any): any {
 
   async function blundersTeacherRunNextJob() {
     // eslint-disable-next-line no-with
+    // @ts-expect-error - with statement used for dependency injection (intentional, see file header)
     with (deps) {
       if (blundersTeacherJobRunnerRunning) return;
       blundersTeacherJobRunnerRunning = true;

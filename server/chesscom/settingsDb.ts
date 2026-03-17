@@ -82,12 +82,12 @@ function createChessComSettingsDb(deps: any): any {
     await ensureSchema();
 
     const payload = [];
-    for (const [studentId, entry] of Object.entries(settings)) {
+    for (const [studentId, _entry] of Object.entries(settings)) {
+      const entry = _entry as any;
       const sid = String(studentId || '').trim();
       if (!sid) continue;
       const chessId = String(entry?.chessId ?? '').trim();
       if (!chessId) continue;
-      // Password may be empty string if teacher cleared it; store NULL for empty.
       const password = (entry && Object.prototype.hasOwnProperty.call(entry, 'password'))
         ? String(entry.password ?? '')
         : '';

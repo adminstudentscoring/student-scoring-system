@@ -23,7 +23,7 @@ function createBlundersStats(deps: any): any {
     let oppSum = 0;
     let oppN = 0;
     let gamesN = 0;
-    for (const v of Object.values(analyzed)) {
+    for (const v of Object.values(analyzed) as any[]) {
       const endSec = Number(v?.endTime || 0);
       if (!(Number.isFinite(endSec) && endSec > 0)) continue;
       const endMs = endSec * 1000;
@@ -46,7 +46,7 @@ function createBlundersStats(deps: any): any {
       if (dp > 3.0) cGt3++;
     }
 
-    const movesPer = (count) => (count > 0 && totalPlies > 0) ? (totalPlies / count) : null;
+    const movesPer = (count: number) => (count > 0 && totalPlies > 0) ? (totalPlies / count) : null;
     const avgOpp = (oppN > 0) ? (oppSum / oppN) : null;
     return {
       cutoffIso: new Date(cutoffMs).toISOString(),
@@ -58,7 +58,7 @@ function createBlundersStats(deps: any): any {
     };
   }
 
-  function computeRollingWindowStats({ analyzedMap, puzzles, cutoffMs }) {
+  function computeRollingWindowStats({ analyzedMap, puzzles, cutoffMs }: any) {
     const analyzed = (analyzedMap && typeof analyzedMap === 'object') ? analyzedMap : {};
     const list = Array.isArray(puzzles) ? puzzles : [];
 
@@ -66,7 +66,7 @@ function createBlundersStats(deps: any): any {
     let oppSum = 0;
     let oppN = 0;
     let gamesN = 0;
-    for (const v of Object.values(analyzed)) {
+    for (const v of Object.values(analyzed) as any[]) {
       const endSec = Number(v?.endTime || 0);
       if (!(Number.isFinite(endSec) && endSec > 0)) continue;
       const endMs = endSec * 1000;
@@ -101,7 +101,7 @@ function createBlundersStats(deps: any): any {
     };
   }
 
-  function computeStudentMonthStats({ orgId, studentId, puzzles, analyzedMap }) {
+  function computeStudentMonthStats({ orgId, studentId, puzzles, analyzedMap }: any) {
     const now = Date.now();
     const cutoffMs = now - 30 * 24 * 60 * 60 * 1000;
     const prevCutoffMs = now - 60 * 24 * 60 * 60 * 1000;
@@ -121,15 +121,16 @@ function createBlundersStats(deps: any): any {
     const cur = mine.filter(inWindow);
     const prev = mine.filter(inPrevWindow);
 
-    const countPack = (arr) => {
-      const out = {
+    const countPack = (arr: any[]) => {
+      const out: any = {
         total: arr.length,
         pending: arr.filter(p => String(p.status || 'pending') !== 'completed').length,
         completed: arr.filter(p => String(p.status || '') === 'completed').length,
         missMate: 0,
-        buckets: { d1: 0, d2: 0, d3: 0, d4: 0 },
-        avgDrop: null,
-        topTags: {}
+        buckets: { d1: 0, d2: 0, d3: 0, d4: 0 } as any,
+        avgDrop: null as any,
+        topTags: {} as any,
+        completionRate: null as any
       };
       let dropSum = 0;
       let dropN = 0;

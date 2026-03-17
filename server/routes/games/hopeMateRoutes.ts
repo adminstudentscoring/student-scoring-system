@@ -129,7 +129,7 @@ function registerHopeMateRoutes(app: any, deps: any): void {
       } else {
         // reject suspicious jump (client bug or tampering)
         const err = new Error('Invalid score update (jump too large)');
-        err.code = 'SCORE_JUMP';
+        (err as any).code = 'SCORE_JUMP';
         throw err;
       }
     }

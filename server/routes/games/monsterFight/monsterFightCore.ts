@@ -766,7 +766,7 @@ function forcePlayerToAttackAlly(player, monster, gameState) {
   return { used: true, log };
 }
 
-function selectPlayerTargetForMonster(alivePlayers, options = {}) {
+function selectPlayerTargetForMonster(alivePlayers: any, options: any = {}) {
   if (!alivePlayers || alivePlayers.length === 0) {
     return null;
   }
@@ -1123,10 +1123,10 @@ function ensureMonsterSequence(gameState) {
   }
 }
 
-function createMonsterInstanceFromType(monsterType, gameState, overrides = {}) {
+function createMonsterInstanceFromType(monsterType: any, gameState: any, overrides: any = {}) {
   ensureMonsterSequence(gameState);
   gameState.monsterSequence += 1;
-  return {
+  const inst: any = {
     id: `monster_${gameState.currentLevel}_${gameState.monsterSequence}`,
     type: monsterType.id,
     name: overrides.name || `${monsterType.name} ${gameState.monsterSequence}`,
@@ -1136,9 +1136,10 @@ function createMonsterInstanceFromType(monsterType, gameState, overrides = {}) {
     maxHP: overrides.maxHP ?? monsterType.baseHP,
     currentHP: overrides.currentHP ?? monsterType.baseHP,
     isAlive: true,
-    skills: (monsterType.skills || []).map(skill => ({ ...skill })),
+    skills: (monsterType.skills || []).map((skill: any) => ({ ...skill })),
     skillCooldowns: {}
   };
+  return inst;
 }
 
 function handleMonsterDeath(monster, gameState, data) {

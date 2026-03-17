@@ -4,6 +4,7 @@
 
 function registerBlundersPublicRoutes(app: any, deps: any): void {
   // eslint-disable-next-line no-with
+  // @ts-expect-error - with statement used for dependency injection (intentional, see file header)
   with (deps) {
     // Public Student Access: Blunders puzzles (No Auth required, Password protected)
     app.get('/api/public/students/:id/blunders', async (req, res) => {

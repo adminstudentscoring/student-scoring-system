@@ -4,6 +4,7 @@
 
 function registerBlundersTeacherRoutes(app: any, deps: any): void {
   // eslint-disable-next-line no-with
+  // @ts-expect-error - with statement used for dependency injection (intentional, see file header)
   with (deps) {
     // Teacher: trigger Blunders sync (today, rapid/blitz, max 10 games per student)
     app.post('/api/teachers/blunders/sync-today', authenticateUser, authorizeRole('teacher'), requireOrganizationAccess, async (req, res) => {

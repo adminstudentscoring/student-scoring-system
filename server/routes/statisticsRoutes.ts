@@ -163,8 +163,8 @@ function registerStatisticsRoutes(app: any, deps: any): void {
         }
       });
       
-      const averageAnswerCount = studentCount > 0 ? (totalAnswerCount / studentCount).toFixed(2) : 0;
-      const averagePoints = studentCount > 0 ? (totalPoints / studentCount).toFixed(2) : 0;
+      const averageAnswerCount = studentCount > 0 ? (totalAnswerCount / studentCount).toFixed(2) : '0';
+      const averagePoints = studentCount > 0 ? (totalPoints / studentCount).toFixed(2) : '0';
       
       res.json({
         period,
