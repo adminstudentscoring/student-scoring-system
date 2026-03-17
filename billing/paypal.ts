@@ -36,7 +36,7 @@ async function getAccessToken(): Promise<string | null> {
     const txt = await resp.text().catch(() => '');
     throw new Error(`PayPal token error HTTP ${resp.status}: ${txt}`);
   }
-  const data = await resp.json();
+  const data = await resp.json() as any;
   cachedToken = data.access_token;
   cachedTokenExpMs = now + (Number(data.expires_in) || 0) * 1000;
   return cachedToken;
@@ -70,7 +70,7 @@ async function createProductIfNeeded(productName: string): Promise<string> {
     const txt = await resp.text().catch(() => '');
     throw new Error(`PayPal create product failed HTTP ${resp.status}: ${txt}`);
   }
-  const data = await resp.json();
+  const data = await resp.json() as any;
   return data.id;
 }
 
@@ -113,7 +113,7 @@ async function createPlan(planSpec: any): Promise<string> {
     const txt = await resp.text().catch(() => '');
     throw new Error(`PayPal create plan failed HTTP ${resp.status}: ${txt}`);
   }
-  const data = await resp.json();
+  const data = await resp.json() as any;
   return data.id;
 }
 
@@ -159,8 +159,8 @@ async function createSubscription({ planId, orgId, returnPath = '/organization.h
     const txt = await resp.text().catch(() => '');
     throw new Error(`PayPal create subscription failed HTTP ${resp.status}: ${txt}`);
   }
-  const data = await resp.json();
-  const approval = Array.isArray(data.links) ? data.links.find(l => l.rel === 'approve') : null;
+  const data = await resp.json() as any;
+  const approval = Array.isArray(data.links) ? data.links.find((l: any) => l.rel === 'approve') : null;
   return { id: data.id, status: data.status, approvalUrl: approval?.href || null, raw: data };
 }
 
@@ -227,7 +227,7 @@ async function verifyWebhookSignature({ req, eventBody }: any): Promise<any> {
     const txt = await resp.text().catch(() => '');
     return { ok: false, reason: `Verify call failed HTTP ${resp.status}: ${txt}` };
   }
-  const data = await resp.json();
+  const data = await resp.json() as any;
   return { ok: data.verification_status === 'SUCCESS', reason: data.verification_status };
 }
 

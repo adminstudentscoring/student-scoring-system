@@ -35,7 +35,7 @@ function logProcessContext(tag: string, extra?: Record<string, any>): void {
 }
 
 process.on('unhandledRejection', (reason) => {
-  logProcessContext('unhandledRejection', { reason: String(reason?.stack || reason?.message || reason) });
+  logProcessContext('unhandledRejection', { reason: String((reason as any)?.stack || (reason as any)?.message || reason) });
 });
 
 process.on('uncaughtException', (err) => {
@@ -66,18 +66,18 @@ const BLUNDERS_AI_COMMENTS_FILE = path.join(__dirname, process.env.BLUNDERS_AI_C
 const BLUNDERS_DB_RETRY_FILE = path.join(__dirname, process.env.BLUNDERS_DB_RETRY_FILE || path.join(DATA_DIR, 'blunders-db-retry.json'));
 
 // ===== Blunders: AI coach comment (moved to server/blunders/ai.js) =====
-let readBlundersAiComments = async () => ({});
-let writeBlundersAiComments = async () => true;
-let aiCommentCacheKey = () => '';
-let aiCommentIsFresh = () => false;
-let generateStudentAiCommentMonth = async () => ({ ok: false, error: 'ai not initialized' });
+let readBlundersAiComments: any;
+let writeBlundersAiComments: any;
+let aiCommentCacheKey: any;
+let aiCommentIsFresh: any;
+let generateStudentAiCommentMonth: any;
 
 // ===== Blunders: DB retry queue (moved to server/blunders/dbRetry.js) =====
-let readBlundersDbRetry = async () => ({ updatedAt: nowIso(), items: [] });
-let writeBlundersDbRetry = async () => true;
-let enqueueBlundersDbRetry = async () => false;
-let blundersDbRetryTick = async () => {};
-let dbRetryBackoffMs = () => 10_000;
+let readBlundersDbRetry: any;
+let writeBlundersDbRetry: any;
+let enqueueBlundersDbRetry: any;
+let blundersDbRetryTick: any;
+let dbRetryBackoffMs: any;
 
 // (initialized after Blunders storage + stats helpers are available)
 const BLUNDERS_PUZZLES_FILE = path.join(__dirname, process.env.BLUNDERS_PUZZLES_FILE || path.join(DATA_DIR, 'blunders-puzzles.json'));
@@ -329,11 +329,11 @@ async function writeUsers(users: any[]): Promise<boolean> {
 // Default behavior:
 // - If Postgres is configured: store + read from Postgres
 // - Else: fallback to JSON file at CHESSCOM_SETTINGS_FILE
-let readChessComSettings = async () => ({});
-let writeChessComSettings = async () => false; // file-store only fallback
-let getOrgChessComSettings = async () => null;
-let upsertOrgChessComSettings = async () => ({ ok: false, reason: 'not_initialized' });
-let getStudentChessComCredentials = async () => null;
+let readChessComSettings: (...args: any[]) => Promise<any> = async () => ({});
+let writeChessComSettings: (...args: any[]) => Promise<any> = async () => false;
+let getOrgChessComSettings: (...args: any[]) => Promise<any> = async () => null;
+let upsertOrgChessComSettings: (...args: any[]) => Promise<any> = async () => ({ ok: false, reason: 'not_initialized' });
+let getStudentChessComCredentials: (...args: any[]) => Promise<any> = async () => null;
 {
   const { createChessComSettingsStore } = require('./server/storage/chesscomSettings');
   const fileStore = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
@@ -462,18 +462,20 @@ function blundersChallengeDifficultyConfig(difficulty: any): any {
 }
 
 // ===== Blunders: puzzle/stats helpers (moved to server/blunders/puzzles.js + stats.js) =====
-let puzzleSortKeyMs = () => 0;
-let threeMonthsAgoMs = () => Date.now();
-let puzzleDropPoints = () => 0;
-let isMissMatePuzzle = () => false;
-let isInvalidSameBestMovePuzzle = () => false;
-let blundersBucketKeyOfPuzzle = () => 'd1';
-let blundersRatingBucket = () => 'below400';
-let pickStudentRatingFromCache = () => ({ rating: null, source: null });
-let pickChallengePuzzlesFromAllBlunders = () => [];
-let computeRolling3mStats = () => ({ cutoffIso: null, analyzedGames: 0, totalPlies: 0, avgOpponentRating: null, counts: {}, movesPer: {} });
-let computeRollingWindowStats = () => ({ cutoffIso: null, analyzedGames: 0, totalPlies: 0, avgOpponentRating: null, counts: {}, movesPer: {} });
-let computeStudentMonthStats = () => ({ range: 'month', cutoffIso: null, nowIso: null, current: {}, previous: {}, delta: {}, rolling30d: {} });
+// Stubs for puzzleSortKeyMs/puzzleDropPoints/isMissMatePuzzle are required because
+// createBlundersTagger and createBlundersDb validate them before the puzzles init block runs.
+let puzzleSortKeyMs: any = () => 0;
+let threeMonthsAgoMs: any;
+let puzzleDropPoints: any = () => 0;
+let isMissMatePuzzle: any = () => false;
+let isInvalidSameBestMovePuzzle: any;
+let blundersBucketKeyOfPuzzle: any;
+let blundersRatingBucket: any;
+let pickStudentRatingFromCache: any;
+let pickChallengePuzzlesFromAllBlunders: any;
+let computeRolling3mStats: any;
+let computeRollingWindowStats: any;
+let computeStudentMonthStats: any;
 
 // ===== Chess.com helpers (moved to server/blunders/chesscom.js) =====
 let HK_OFFSET_SEC = 8 * 3600;
@@ -521,13 +523,13 @@ function hkTodayDateStr(): string {
 }
 
 // ===== Blunders: eval/verdict helpers (moved to server/blunders/eval.js) =====
-let scoreToCp = () => 0;
-let blundersVerdictFromScores = () => ({ verdict: 'good', ok: true, dropCp: 0, dropPoints: 0, tolCp: 0, bestLike: false });
-let uciToSanAtFen = () => '';
-let BLUNDERS_BEST_TOL_RATIO = 0.20;
-let BLUNDERS_BEST_TOL_MIN_CP = 10;
-let BLUNDERS_MATE_OR_HUGE_CP = 800;
-let BLUNDERS_GOOD_IF_STILL_AHEAD_CP = 500;
+let scoreToCp: any;
+let blundersVerdictFromScores: any;
+let uciToSanAtFen: any;
+let BLUNDERS_BEST_TOL_RATIO: any;
+let BLUNDERS_BEST_TOL_MIN_CP: any;
+let BLUNDERS_MATE_OR_HUGE_CP: any;
+let BLUNDERS_GOOD_IF_STILL_AHEAD_CP: any;
 
 {
   const { createBlundersEval } = require('./server/blunders/eval');
@@ -602,9 +604,9 @@ const blundersSyncState = new Map(); // studentId -> { running, startedAt, updat
 // (moved to server/blunders/puzzles.js)
 
 // ===== Blunders: tagging (A) (moved to server/blunders/tagger.js) =====
-let BLUNDERS_TAGGER_VERSION = 'v2';
-let BLUNDERS_TAGS = {};
-let tagBlunderPuzzle = () => [];
+let BLUNDERS_TAGGER_VERSION: any;
+let BLUNDERS_TAGS: any;
+let tagBlunderPuzzle: any;
 
 {
   const { createBlundersTagger } = require('./server/blunders/tagger');
@@ -615,15 +617,15 @@ let tagBlunderPuzzle = () => [];
 }
 
 // ===== Blunders: DB helpers (moved to server/blunders/db.js) =====
-let dbUpsertPuzzleTags = async () => ({ ok: false, error: 'db helpers not initialized' });
-let dbUpsertPuzzlesFromObjects = async () => ({ ok: false, error: 'db helpers not initialized' });
+let dbUpsertPuzzleTags: any;
+let dbUpsertPuzzlesFromObjects: any;
 
 {
   const { createBlundersDb } = require('./server/blunders/db');
   const db = createBlundersDb({
     nowIso,
     // Use a wrapper so the DB helpers always call the latest enqueue function (initialized later).
-    enqueueBlundersDbRetry: (...args) => enqueueBlundersDbRetry(...args),
+    enqueueBlundersDbRetry: (...args: any[]) => enqueueBlundersDbRetry(...args),
     puzzleSortKeyMs,
     BLUNDERS_TAGGER_VERSION
   });
@@ -650,8 +652,8 @@ let dbUpsertPuzzlesFromObjects = async () => ({ ok: false, error: 'db helpers no
 }
 
 // (moved to server/blunders/puzzles.js + stats.js)
-let pruneStudentBlundersInPlace = () => ({ changed: false, removed: 0 });
-let appendBlundersPuzzlesPreserveProgress = async () => ({ ok: false, error: 'blunders puzzles not initialized' });
+let pruneStudentBlundersInPlace: any;
+let appendBlundersPuzzlesPreserveProgress: any;
 
 // Init remaining Blunders helpers (puzzles + stats) before tagger/sync/routes use them.
 {
@@ -715,8 +717,8 @@ const { createStockfishRunner } = require('./server/blunders/stockfish');
 const { sfEvalFen, sfAnalyzeFen } = createStockfishRunner({ fs, path, spawn, processExecPath: process.execPath, baseDir: __dirname });
 
 // ===== Blunders: sync (student/master) (moved to server/blunders/sync.js) =====
-let syncBlundersForStudent = async () => ({ ok: false, error: 'sync not initialized' });
-let syncBlundersForMaster = async () => ({ ok: false, error: 'sync not initialized' });
+let syncBlundersForStudent: any;
+let syncBlundersForMaster: any;
 
 // Init Blunders sync functions before wiring up teacher jobs (jobs depend on sync).
 {
@@ -1154,7 +1156,7 @@ function compareDates(date1: string, date2: string): number {
   const d1 = new Date(parseInt(parts1[2]), parseInt(parts1[1]) - 1, parseInt(parts1[0]));
   const d2 = new Date(parseInt(parts2[2]), parseInt(parts2[1]) - 1, parseInt(parts2[0]));
   
-  return d1 - d2;
+  return d1.getTime() - d2.getTime();
 }
 
 // (moved to server/routes/studentsRoutes.js)

@@ -44,7 +44,7 @@ async function openAiJson({ system, user, maxOutputTokens = 250 }: { system: str
     })
   });
 
-  const data = await resp.json().catch(() => ({}));
+  const data = await resp.json().catch(() => ({})) as any;
   if (!resp.ok) {
     const msg = data?.error?.message || `OpenAI HTTP ${resp.status}`;
     throw new Error(msg);

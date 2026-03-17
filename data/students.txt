@@ -2749,7 +2749,7 @@
     }
   ],
   "battles": [],
-  "lastUpdate": "2026-03-17T00:58:21.562Z",
+  "lastUpdate": "2026-03-17T01:02:48.663Z",
   "challenge": {
     "currentLevel": 1,
     "currentHP": 50,
