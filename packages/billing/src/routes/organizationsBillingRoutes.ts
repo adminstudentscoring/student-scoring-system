@@ -40,6 +40,13 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
     return res.status(503).json({ error: 'PayPal billing is not configured on this server' });
   }
 
+  function isBillingDbUnavailable(error: any): boolean {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('postgres not configured') ||
+      message.includes('missing database_url') ||
+      message.includes('database_public_url');
+  }
+
   // ==================== Organization Billing (PayPal subscriptions) ====================
 
   // Organization: create PayPal subscription for a selected priceId (active+live only)
@@ -217,6 +224,17 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
         subscription
       });
     } catch (error) {
+      if (isBillingDbUnavailable(error)) {
+        return res.json({
+          orgId: resolveOrgIdFromUser(req.user),
+          status: 'inactive',
+          graceDaysLeft: null,
+          trial: null,
+          entitlement: null,
+          subscription: null,
+          billingDisabled: true
+        });
+      }
       console.error('Get billing status error:', error);
       res.status(500).json({ error: error.message || 'Failed to load billing status' });
     }
@@ -225,6 +243,10 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   // Organization: list available subscription plans (Active + Live prices only)
   app.get('/api/organizations/billing/plans', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!paypal.PAYPAL_CONFIGURED) {
+        return res.json({ plans: [], billingDisabled: true });
+      }
+
       const prices = await readSubscriptionPrices();
       const activeLive = prices
         .filter(p => String(p.status) === 'active' && String(p.publishState) === 'live')
@@ -253,6 +275,9 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
 
       res.json({ plans: activeLive });
     } catch (error) {
+      if (isBillingDbUnavailable(error)) {
+        return res.json({ plans: [], billingDisabled: true });
+      }
       console.error('Get org billing plans error:', error);
       res.status(500).json({ error: error.message || 'Failed to load plans' });
     }

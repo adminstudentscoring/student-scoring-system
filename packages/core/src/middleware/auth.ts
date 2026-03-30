@@ -19,7 +19,10 @@ function isRecoverableBillingError(error: any): boolean {
     'connection terminated unexpectedly',
     'timeout expired',
     'getaddrinfo',
-    'the database system is starting up'
+    'the database system is starting up',
+    'postgres not configured',
+    'missing database_url',
+    'database_public_url'
   ].some(fragment => message.includes(fragment));
 }
 
