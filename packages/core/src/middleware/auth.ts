@@ -2,6 +2,27 @@ import type { Request, Response, NextFunction } from 'express';
 import { verifyToken, extractTokenFromHeader } from '../auth';
 const billingAccess = require('@student-scoring/billing/src/access');
 
+function formatError(error: any): string {
+  return String(error?.stack || error?.message || error || 'Unknown error');
+}
+
+function isRecoverableBillingError(error: any): boolean {
+  const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+  if (['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN'].includes(code)) {
+    return true;
+  }
+
+  const message = formatError(error).toLowerCase();
+  return [
+    'econnrefused',
+    'connect etimedout',
+    'connection terminated unexpectedly',
+    'timeout expired',
+    'getaddrinfo',
+    'the database system is starting up'
+  ].some(fragment => message.includes(fragment));
+}
+
 interface AuthenticatedRequest extends Request {
   user?: any;
 }
@@ -51,6 +72,10 @@ function authorizeRole(...allowedRoles: string[]): (req: AuthenticatedRequest, r
           return res.status(402).json({ error: 'Trial ended. Please subscribe to continue.' });
         })
         .catch((e: any) => {
+          if (isRecoverableBillingError(e)) {
+            console.warn('Org access gate degraded: billing lookup unavailable, allowing request:', formatError(e));
+            return next();
+          }
           console.error('Org access gate error:', e);
           return res.status(500).json({ error: 'Failed to verify subscription status' });
         });

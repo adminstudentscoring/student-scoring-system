@@ -5,6 +5,19 @@
 
 const billingAccess = require('@student-scoring/billing/src/access');
 
+function isRecoverableBillingAccessError(error: any): boolean {
+  const message = String(error?.stack || error?.message || error || '').toLowerCase();
+  return [
+    'econnrefused',
+    'connect etimedout',
+    'connection terminated unexpectedly',
+    'timeout expired',
+    'getaddrinfo',
+    'the database system is starting up',
+    'postgres'
+  ].some(fragment => message.includes(fragment));
+}
+
 /**
  * Middleware factory to filter data by organization
  * Requires readUsers function to be passed in
@@ -45,6 +58,11 @@ function createRequireOrganizationAccess(readUsersFn: () => Promise<any[]>): any
         }
       } catch (e) {
         console.error('Org access gate error:', e);
+        if (isRecoverableBillingAccessError(e)) {
+          console.warn('Org access gate degraded; allowing request while billing storage is unavailable.');
+          req.organizationFilter = organizationId;
+          return next();
+        }
         return res.status(500).json({ error: 'Failed to verify subscription status' });
       }
       req.organizationFilter = organizationId;
@@ -60,6 +78,11 @@ function createRequireOrganizationAccess(readUsersFn: () => Promise<any[]>): any
         }
       } catch (e) {
         console.error('Org access gate error:', e);
+        if (isRecoverableBillingAccessError(e)) {
+          console.warn('Teacher access gate degraded; allowing request while billing storage is unavailable.');
+          req.organizationFilter = organizationId;
+          return next();
+        }
         return res.status(500).json({ error: 'Failed to verify subscription status' });
       }
       req.organizationFilter = organizationId;

@@ -34,12 +34,33 @@ function logProcessContext(tag: string, extra?: Record<string, any>): void {
   } catch {}
 }
 
+function formatError(error: any): string {
+  return String(error?.stack || error?.message || error || 'Unknown error');
+}
+
+function isRecoverableDbStartupError(error: any): boolean {
+  const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+  if (['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN'].includes(code)) {
+    return true;
+  }
+
+  const message = formatError(error).toLowerCase();
+  return [
+    'econnrefused',
+    'connect etimedout',
+    'connection terminated unexpectedly',
+    'timeout expired',
+    'getaddrinfo',
+    'the database system is starting up'
+  ].some(fragment => message.includes(fragment));
+}
+
 process.on('unhandledRejection', (reason) => {
-  logProcessContext('unhandledRejection', { reason: String((reason as any)?.stack || (reason as any)?.message || reason) });
+  logProcessContext('unhandledRejection', { reason: formatError(reason) });
 });
 
 process.on('uncaughtException', (err) => {
-  logProcessContext('uncaughtException', { error: String(err?.stack || err?.message || err) });
+  logProcessContext('uncaughtException', { error: formatError(err) });
   // In production, exit so Railway can restart a clean process.
   if ((process.env.NODE_ENV || 'development') === 'production') {
     try { setTimeout(() => process.exit(1), 500).unref?.(); } catch {}
@@ -1525,7 +1546,17 @@ async function writeExpenses(data: any): Promise<boolean> { return expensesStore
 async function startServer(): Promise<void> {
   await ensureDataDir();
   await initializeDataFile();
-  await billingDb.ensureBillingSchema();
+  let billingSchemaReady = true;
+  try {
+    await billingDb.ensureBillingSchema();
+  } catch (e) {
+    if (appDb.getPool() && isRecoverableDbStartupError(e)) {
+      billingSchemaReady = false;
+      console.warn('Billing schema unavailable at startup; continuing with billing features degraded:', formatError(e));
+    } else {
+      throw e;
+    }
+  }
   // Optional: run app migrations (disabled by default; enable explicitly when ready).
   try {
     if (String(process.env.DB_AUTO_MIGRATE || '') === '1') {
@@ -1546,6 +1577,9 @@ async function startServer(): Promise<void> {
   } catch (e) {
     console.warn('Postgres: ping failed:', String(e?.message || e));
   }
+  if (!billingSchemaReady) {
+    console.warn('Billing: degraded mode (startup skipped billing schema because Postgres is unreachable).');
+  }
   
   const server = http.createServer(app);
   wss = new WebSocket.Server({ server });
@@ -1565,11 +1599,23 @@ async function startServer(): Promise<void> {
   // IMPORTANT for containers/PaaS (Railway, Render, Fly, etc.):
   // - bind to 0.0.0.0 so the platform can route traffic into the container
   // - still respect PORT provided by the platform
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-    console.log(`Environment: ${NODE_ENV}`);
-    console.log(`FORCE_HTTPS: ${String(process.env.FORCE_HTTPS || '') || '(unset)'}`);
-    console.log(`Data file: ${DATA_FILE}`);
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: any) => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+      console.log(`Environment: ${NODE_ENV}`);
+      console.log(`FORCE_HTTPS: ${String(process.env.FORCE_HTTPS || '') || '(unset)'}`);
+      console.log(`Data file: ${DATA_FILE}`);
+      resolve();
+    };
+
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(PORT, '0.0.0.0');
   });
 
   // Daily Chess.com ratings refresh (HK time). Safe + lightweight (cached).
@@ -1596,4 +1642,11 @@ async function startServer(): Promise<void> {
   (global as any).wss = wss;
 }
 
-startServer();
+startServer().catch((error) => {
+  logProcessContext('startupFailure', { error: formatError(error) });
+  try {
+    setTimeout(() => process.exit(1), 50).unref?.();
+  } catch {
+    process.exit(1);
+  }
+});
