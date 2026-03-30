@@ -24,6 +24,10 @@ function registerAuthRoutes(app: any, deps: AuthRouteDeps): void {
   if (typeof comparePassword !== 'function') throw new Error('registerAuthRoutes: missing comparePassword');
   if (typeof generateToken !== 'function') throw new Error('registerAuthRoutes: missing generateToken');
 
+  function authNotConfigured(res: Response) {
+    return res.status(503).json({ error: 'Authentication is not configured on this server' });
+  }
+
   // Organization Registration (only organizations can self-register)
   app.post('/api/auth/register', async (req, res) => {
     try {
@@ -100,6 +104,9 @@ function registerAuthRoutes(app: any, deps: AuthRouteDeps): void {
       }
 
       // Generate token
+      if (!(generateToken as any).isConfigured?.()) {
+        return authNotConfigured(res);
+      }
       const token = generateToken(newUser);
 
       // Return user info (without password)
@@ -154,6 +161,9 @@ function registerAuthRoutes(app: any, deps: AuthRouteDeps): void {
       }
 
       // Generate token
+      if (!(generateToken as any).isConfigured?.()) {
+        return authNotConfigured(res);
+      }
       const token = generateToken(user);
 
       // Return user info (without password)

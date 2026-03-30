@@ -237,8 +237,13 @@ function registerAdminOrganizationsRoutes(app: any, deps: AdminOrganizationsRout
       }
       
       console.log(`[DEBUG] Found Org User: ${targetUser.name} (ID: ${targetUser.id})`);
-      
-      const token = generateToken(targetUser);
+
+      let token: string;
+      try {
+        token = generateToken(targetUser);
+      } catch (error) {
+        return res.status(503).json({ error: error?.message || 'Authentication is not configured on this server' });
+      }
       console.log(`[DEBUG] Generated Token Payload ID: ${targetUser.id}`);
       
       const { password: _, ...userWithoutPassword } = targetUser;

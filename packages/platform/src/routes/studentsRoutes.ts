@@ -761,6 +761,10 @@ function registerStudentsRoutes(app: any, deps: StudentsRouteDeps): void {
         }
       }
 
+      if (typeof generateToken?.isConfigured === 'function' && !generateToken.isConfigured()) {
+        return res.status(503).json({ error: 'Authentication is not configured on this server' });
+      }
+
       // Mint token with role=student and org context
       const token = generateToken({
         id: String(student.id),

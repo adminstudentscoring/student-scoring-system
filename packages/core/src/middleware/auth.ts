@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { verifyToken, extractTokenFromHeader } from '../auth';
+import { verifyToken, extractTokenFromHeader, isAuthConfigured } from '../auth';
 const billingAccess = require('@student-scoring/billing/src/access');
 
 function formatError(error: any): string {
@@ -28,6 +28,11 @@ interface AuthenticatedRequest extends Request {
 }
 
 function authenticateUser(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (!isAuthConfigured()) {
+    res.status(503).json({ error: 'Authentication is not configured on this server' });
+    return;
+  }
+
   const token = extractTokenFromHeader(req) || req.cookies?.token || (req.query as any)?.token;
   
   if (!token) {
@@ -87,6 +92,11 @@ function authorizeRole(...allowedRoles: string[]): (req: AuthenticatedRequest, r
 }
 
 function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (!isAuthConfigured()) {
+    next();
+    return;
+  }
+
   const token = extractTokenFromHeader(req) || req.cookies?.token || (req.query as any)?.token;
   
   if (token) {

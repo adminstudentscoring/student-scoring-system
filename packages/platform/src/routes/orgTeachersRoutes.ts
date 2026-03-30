@@ -243,6 +243,9 @@ function registerOrgTeachersRoutes(app: any, deps: any): void {
         }
       }
 
+      if (typeof generateToken?.isConfigured === 'function' && !generateToken.isConfigured()) {
+        return res.status(503).json({ error: 'Authentication is not configured on this server' });
+      }
       const token = generateToken(teacher);
 
       const { password: _, ...teacherWithoutPassword } = teacher;

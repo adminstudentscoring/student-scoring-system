@@ -1,6 +1,6 @@
 "use strict";
 
-const { generateTokenWithExpiry } = require("@student-scoring/core");
+const { generateTokenWithExpiry, isAuthConfigured } = require("@student-scoring/core");
 
 import { Request, Response, NextFunction } from 'express';
 
@@ -101,6 +101,9 @@ function registerMyOwnAppRoutes(app: any, deps: any): void {
   app.post("/api/admin/my-own-app/eatwhat/share-link", authenticateUser, authorizeRole("admin"), async (req, res) => {
     const expiresIn = String(req?.body?.expiresIn || "30d").trim() || "30d";
     try {
+      if (!isAuthConfigured()) {
+        return res.status(503).json({ ok: false, error: "Authentication is not configured on this server" });
+      }
       const token = generateTokenWithExpiry(req.user, expiresIn);
       return res.json({ ok: true, token, expiresIn });
     } catch (e) {
