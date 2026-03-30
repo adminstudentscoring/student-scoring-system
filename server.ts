@@ -55,6 +55,23 @@ function isRecoverableDbStartupError(error: any): boolean {
   ].some(fragment => message.includes(fragment));
 }
 
+function isRecoverableFsStartupError(error: any): boolean {
+  const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+  if (['EACCES', 'EPERM', 'EROFS'].includes(code)) {
+    return true;
+  }
+
+  const message = formatError(error).toLowerCase();
+  return [
+    'permission denied',
+    'read-only file system',
+    'operation not permitted',
+    'eacces',
+    'eperm',
+    'erofs'
+  ].some(fragment => message.includes(fragment));
+}
+
 process.on('unhandledRejection', (reason) => {
   logProcessContext('unhandledRejection', { reason: formatError(reason) });
 });
@@ -1544,8 +1561,18 @@ async function writeExpenses(data: any): Promise<boolean> { return expensesStore
 
 // Initialize server
 async function startServer(): Promise<void> {
-  await ensureDataDir();
-  await initializeDataFile();
+  let fileStorageReady = true;
+  try {
+    await ensureDataDir();
+    await initializeDataFile();
+  } catch (e) {
+    if (isRecoverableFsStartupError(e)) {
+      fileStorageReady = false;
+      console.warn('File storage unavailable at startup; continuing with file-backed features degraded:', formatError(e));
+    } else {
+      throw e;
+    }
+  }
   let billingSchemaReady = true;
   try {
     await billingDb.ensureBillingSchema();
@@ -1579,6 +1606,9 @@ async function startServer(): Promise<void> {
   }
   if (!billingSchemaReady) {
     console.warn('Billing: degraded mode (startup skipped billing schema because Postgres is unreachable).');
+  }
+  if (!fileStorageReady) {
+    console.warn('File storage: degraded mode (startup skipped writable data initialization due to filesystem permissions).');
   }
   
   const server = http.createServer(app);
