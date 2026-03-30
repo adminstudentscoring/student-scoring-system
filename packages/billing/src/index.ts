@@ -7,7 +7,7 @@ export { query, ensureBillingSchema, getMeta, setMeta } from './db';
 export { ensureTrialForOrg, getTrial, getOrgAccessSnapshot, isBillingAllowedPath } from './access';
 
 // PayPal
-export { PAYPAL_ENV, PAYPAL_BASE, APP_BASE_URL, WEBHOOK_ID, getAccessToken, paypalRequest, createProductIfNeeded, toPayPalPlanSpec, createPlan, getPlan, planMatches, createSubscription, getSubscription, cancelSubscription, verifyWebhookSignature } from './paypal';
+export { PAYPAL_ENV, PAYPAL_BASE, APP_BASE_URL, WEBHOOK_ID, PAYPAL_CONFIGURED, getAccessToken, paypalRequest, createProductIfNeeded, toPayPalPlanSpec, createPlan, getPlan, planMatches, createSubscription, getSubscription, cancelSubscription, verifyWebhookSignature } from './paypal';
 
 // PayPal billing helpers
 export { createPayPalBillingHelpers } from './paypalBillingService';

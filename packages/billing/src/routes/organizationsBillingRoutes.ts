@@ -36,11 +36,17 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
     writeTimetable
   } = deps;
 
+  function billingPayPalUnavailable(res: Response) {
+    return res.status(503).json({ error: 'PayPal billing is not configured on this server' });
+  }
+
   // ==================== Organization Billing (PayPal subscriptions) ====================
 
   // Organization: create PayPal subscription for a selected priceId (active+live only)
   app.post('/api/organizations/billing/subscriptions', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!paypal.PAYPAL_CONFIGURED) return billingPayPalUnavailable(res);
+
       const orgId = resolveOrgIdFromUser(req.user);
       if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
 
@@ -89,6 +95,8 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   // Organization: after PayPal approve redirect, force-refresh subscription state from PayPal (fallback when webhook is delayed)
   app.post('/api/organizations/billing/subscriptions/refresh', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!paypal.PAYPAL_CONFIGURED) return billingPayPalUnavailable(res);
+
       const orgId = resolveOrgIdFromUser(req.user);
       if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
 
@@ -112,6 +120,8 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   // Organization: cancel PayPal subscription (stop auto-renew; PayPal decides whether it remains active until period end)
   app.post('/api/organizations/billing/subscriptions/cancel', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!paypal.PAYPAL_CONFIGURED) return billingPayPalUnavailable(res);
+
       const orgId = resolveOrgIdFromUser(req.user);
       if (!orgId) return res.status(400).json({ error: 'Missing organization id' });
 

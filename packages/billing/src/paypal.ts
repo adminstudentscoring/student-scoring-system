@@ -4,20 +4,33 @@ const PAYPAL_BASE =
 
 const APP_BASE_URL = String(process.env.APP_BASE_URL || 'https://www.studentscoring.com').replace(/\/+$/, '');
 
-function requireEnv(name: string): string {
+/** Non-empty trimmed env, or empty string if missing (do not throw at module load). */
+function optionalEnv(name: string): string {
   const v = process.env[name];
-  if (!v) throw new Error(`${name} is required`);
-  return v;
+  if (v == null) return '';
+  return String(v).trim();
 }
 
-const CLIENT_ID = requireEnv('PAYPAL_CLIENT_ID');
-const CLIENT_SECRET = requireEnv('PAYPAL_CLIENT_SECRET');
-const WEBHOOK_ID = requireEnv('PAYPAL_WEBHOOK_ID');
+const CLIENT_ID = optionalEnv('PAYPAL_CLIENT_ID');
+const CLIENT_SECRET = optionalEnv('PAYPAL_CLIENT_SECRET');
+const WEBHOOK_ID = optionalEnv('PAYPAL_WEBHOOK_ID');
+
+/** True when all three PayPal credentials are set; subscription API routes stay disabled until then. */
+const PAYPAL_CONFIGURED = !!(CLIENT_ID && CLIENT_SECRET && WEBHOOK_ID);
+
+if (!PAYPAL_CONFIGURED) {
+  console.warn(
+    '[billing] PayPal is not configured (set PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID). ' +
+      'The app will boot; PayPal subscription and webhook routes will return errors until configured.'
+  );
+}
 
 let cachedToken: string | null = null;
 let cachedTokenExpMs: number = 0;
 
 async function getAccessToken(): Promise<string | null> {
+  if (!PAYPAL_CONFIGURED) return null;
+
   const now = Date.now();
   if (cachedToken && now + 60_000 < cachedTokenExpMs) {
     return cachedToken;
@@ -43,7 +56,15 @@ async function getAccessToken(): Promise<string | null> {
 }
 
 async function paypalRequest(path: string, options: any = {}): Promise<Response> {
+  if (!PAYPAL_CONFIGURED) {
+    throw new Error(
+      'PayPal is not configured (missing PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and/or PAYPAL_WEBHOOK_ID)'
+    );
+  }
   const token = await getAccessToken();
+  if (!token) {
+    throw new Error('PayPal access token unavailable');
+  }
   const resp = await fetch(`${PAYPAL_BASE}${path}`, {
     ...options,
     headers: {
@@ -206,6 +227,10 @@ function getWebhookHeaders(req: any): any {
 }
 
 async function verifyWebhookSignature({ req, eventBody }: any): Promise<any> {
+  if (!PAYPAL_CONFIGURED) {
+    return { ok: false, reason: 'PayPal not configured on server' };
+  }
+
   const h = getWebhookHeaders(req);
   if (!h.transmissionId || !h.transmissionTime || !h.certUrl || !h.authAlgo || !h.transmissionSig) {
     return { ok: false, reason: 'Missing PayPal transmission headers' };
@@ -236,6 +261,7 @@ module.exports = {
   PAYPAL_BASE,
   APP_BASE_URL,
   WEBHOOK_ID,
+  PAYPAL_CONFIGURED,
   getAccessToken,
   paypalRequest,
   createProductIfNeeded,

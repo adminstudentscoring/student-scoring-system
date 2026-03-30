@@ -30,6 +30,9 @@ function registerPayPalRoutes(app: any, deps: any): void {
   // Admin: sync active+live prices to PayPal (auto-create Product/Plans, store paypalPlanId back into price records)
   app.post('/api/admin/billing/paypal/sync-prices', authenticateUser, authorizeRole('admin'), async (req, res) => {
     try {
+      if (!paypal.PAYPAL_CONFIGURED) {
+        return res.status(503).json({ error: 'PayPal billing is not configured on this server' });
+      }
       const prices = await readSubscriptionPrices();
       const activeLive = prices.filter(p => String(p.status) === 'active' && String(p.publishState) === 'live');
       const updates = [];
@@ -50,6 +53,10 @@ function registerPayPalRoutes(app: any, deps: any): void {
   // PayPal webhook (Sandbox/Live) - signature verification + store event + refresh subscription + update entitlement
   app.post('/api/webhooks/paypal', async (req, res) => {
     try {
+      if (!paypal.PAYPAL_CONFIGURED) {
+        // 200 avoids PayPal retry storms when billing env was never provisioned for this deployment.
+        return res.status(200).json({ ok: false, error: 'paypal_not_configured' });
+      }
       const eventBody = req.body;
       const verify = await paypal.verifyWebhookSignature({ req, eventBody });
       if (!verify.ok) {
