@@ -1,4 +1,7 @@
 // @student-scoring/games-monster-fight barrel exports
+const monsterFightRoutes = require('./monsterFightRoutes');
+const gameRoutes = require('./gameRoutes');
 
-export { registerMonsterFightRoutes } from './monsterFightRoutes';
-export { registerGameRoutes, registerMonsterFightGameRoutes } from './gameRoutes';
+export const registerMonsterFightRoutes = monsterFightRoutes.registerMonsterFightRoutes;
+export const registerGameRoutes = gameRoutes.registerGameRoutes;
+export const registerMonsterFightGameRoutes = gameRoutes.registerMonsterFightGameRoutes;

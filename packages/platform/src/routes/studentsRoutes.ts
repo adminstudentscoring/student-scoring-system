@@ -761,7 +761,8 @@ function registerStudentsRoutes(app: any, deps: StudentsRouteDeps): void {
         }
       }
 
-      if (typeof generateToken?.isConfigured === 'function' && !generateToken.isConfigured()) {
+      const tokenConfigCheck = (generateToken as any)?.isConfigured;
+      if (typeof tokenConfigCheck === 'function' && !tokenConfigCheck()) {
         return res.status(503).json({ error: 'Authentication is not configured on this server' });
       }
 

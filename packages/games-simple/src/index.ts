@@ -1,6 +1,10 @@
 // @student-scoring/games-simple barrel exports
+const runningQueenRoutes = require('./routes/runningQueenRoutes');
+const royalExchangeRoutes = require('./routes/royalExchangeRoutes');
+const hopeMateRoutes = require('./routes/hopeMateRoutes');
+const hopeMateAdminRoutes = require('./routes/hopeMateAdminRoutes');
 
-export { registerRunningQueenRoutes } from './routes/runningQueenRoutes';
-export { registerRoyalExchangeRoutes } from './routes/royalExchangeRoutes';
-export { registerHopeMateRoutes } from './routes/hopeMateRoutes';
-export { registerHopeMateAdminRoutes } from './routes/hopeMateAdminRoutes';
+export const registerRunningQueenRoutes = runningQueenRoutes.registerRunningQueenRoutes;
+export const registerRoyalExchangeRoutes = royalExchangeRoutes.registerRoyalExchangeRoutes;
+export const registerHopeMateRoutes = hopeMateRoutes.registerHopeMateRoutes;
+export const registerHopeMateAdminRoutes = hopeMateAdminRoutes.registerHopeMateAdminRoutes;
