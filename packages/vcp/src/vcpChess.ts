@@ -1078,9 +1078,9 @@ async function setupVcpChess({ wss, WebSocket, fs, VCP_CHESS_GAMES_FILE, verifyT
     ws.vcp = null; // { kind, orgId, userId, name }
 
     ws.on('message', async (raw) => {
-      let msg = null;
+      let msg: Record<string, unknown>;
       try {
-        msg = JSON.parse(String(raw || ''));
+        msg = JSON.parse(String(raw || '')) as Record<string, unknown>;
       } catch {
         return;
       }
@@ -1291,7 +1291,11 @@ async function setupVcpChess({ wss, WebSocket, fs, VCP_CHESS_GAMES_FILE, verifyT
         if (kind !== 'teacher') return;
         const mode = String(msg?.mode || '');
         const studentIds = Array.isArray(msg?.studentIds) ? msg.studentIds.map(x => String(x)) : [];
-        const config = msg?.config || {};
+        const configRaw = msg?.config;
+        const config: Record<string, unknown> =
+          configRaw && typeof configRaw === 'object' && !Array.isArray(configRaw)
+            ? (configRaw as Record<string, unknown>)
+            : {};
 
         if (mode !== 'chess') {
           wsSend(ws, { type: 'vcp_error', error: 'Only Normal Chess is supported for now' });
@@ -1353,7 +1357,11 @@ async function setupVcpChess({ wss, WebSocket, fs, VCP_CHESS_GAMES_FILE, verifyT
         if (kind !== 'teacher') return;
         const mode = String(msg?.mode || '');
         const studentId = String(msg?.studentId || '');
-        const config = msg?.config || {};
+        const configRawTm = msg?.config;
+        const config: Record<string, unknown> =
+          configRawTm && typeof configRawTm === 'object' && !Array.isArray(configRawTm)
+            ? (configRawTm as Record<string, unknown>)
+            : {};
 
         if (mode !== 'chess') {
           wsSend(ws, { type: 'vcp_error', error: 'Only Normal Chess is supported for now' });

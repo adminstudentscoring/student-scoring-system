@@ -113,8 +113,8 @@ async function loadStudents() {
         window.students = students; // Make available globally for timetable
         renderStudents();
         renderClassStudentsList();
-        // Update game zone student list if modal is open
-        if (document.getElementById('gameZoneModal')?.classList.contains('show')) {
+        // Refresh application modal student list when it is open
+        if (document.getElementById('applicationModal')?.classList.contains('show')) {
             loadGameStudents();
         }
         

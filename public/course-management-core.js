@@ -171,7 +171,7 @@ function renderCourseManagement() {
               </div>
               
               <div id="emptyStudentState" class="empty-student-state">
-                <button type="button" class="btn-sales-new-student" onclick="openSalesCreateStudentModal()" title="Same form as Add student in Organization">
+                <button type="button" class="btn-sales-new-student" onclick="openSalesCreateStudentModal()" title="Add a new student">
                   <span class="btn-sales-new-student-icon" aria-hidden="true">+</span>
                   <span class="btn-sales-new-student-label">Create new student</span>
                 </button>
@@ -1060,45 +1060,58 @@ style.textContent = `
   .btn-sales-new-student {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin: 0;
-    padding: 6px 12px 6px 8px;
-    border: 1px solid #0f766e;
-    background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%);
-    color: #fff;
+    padding: 4px 8px 4px 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #64748b;
     font-size: 0.8125rem;
     font-weight: 600;
     line-height: 1.2;
     cursor: pointer;
-    border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(15, 118, 110, 0.35);
-    transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    border-radius: 6px;
+    box-shadow: none;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
   }
   
   .btn-sales-new-student:hover {
-    filter: brightness(1.05);
-    box-shadow: 0 2px 8px rgba(15, 118, 110, 0.35);
+    background: rgba(15, 23, 42, 0.04);
+    border-color: var(--ui-border, #d0d4dc);
+    color: #475569;
   }
   
   .btn-sales-new-student:active {
-    transform: translateY(1px);
+    background: rgba(15, 23, 42, 0.06);
   }
   
   .btn-sales-new-student-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.375rem;
-    height: 1.375rem;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.22);
-    font-size: 1.05rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    font-size: 1rem;
     line-height: 1;
     font-weight: 700;
+    color: #94a3b8;
+  }
+  
+  .btn-sales-new-student:hover .btn-sales-new-student-icon {
+    color: #64748b;
+    border-color: var(--ui-border, #d0d4dc);
   }
   
   .btn-sales-new-student-label {
     letter-spacing: 0.01em;
+  }
+  
+  .btn-sales-new-student:focus-visible {
+    outline: 2px solid var(--ui-accent, #2563eb);
+    outline-offset: 2px;
   }
   
   .btn-outline {
@@ -1412,6 +1425,23 @@ style.textContent = `
     border-radius: 6px;
     padding: 12px;
     margin-bottom: 10px;
+  }
+  
+  .cart-item-body {
+    cursor: pointer;
+    border-radius: 4px;
+    margin: -4px -4px 6px -4px;
+    padding: 4px;
+    transition: background 0.12s ease;
+  }
+  
+  .cart-item-body:hover {
+    background: rgba(15, 23, 42, 0.04);
+  }
+  
+  .cart-item-hint {
+    color: #94a3b8;
+    font-weight: 500;
   }
   
   .cart-item-header {

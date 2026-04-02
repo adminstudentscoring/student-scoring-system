@@ -52,8 +52,12 @@ function createBlundersEval(deps: any): any {
     if (!startFen || !u) return '';
     const parsed = parseUciMove(u);
     if (!parsed) return '';
-    let chess = null;
-    try { chess = new Chess(startFen); } catch { chess = null; }
+    let chess;
+    try {
+      chess = new Chess(startFen);
+    } catch {
+      return '';
+    }
     if (!chess) return '';
     const mv = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
     if (!mv) return '';

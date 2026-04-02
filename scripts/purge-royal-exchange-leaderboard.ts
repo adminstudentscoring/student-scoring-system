@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     process.env.ROYAL_EXCHANGE_LEADERBOARD_FILE || path.join(DATA_DIR, 'royal-exchange-leaderboard.txt')
   );
 
-  let raw = '[]';
+  let raw: string;
   try {
     raw = await fs.readFile(leaderboardFile, 'utf8');
   } catch (error) {

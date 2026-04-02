@@ -431,7 +431,7 @@ async function initMonsterFight() {
             container.innerHTML = `
                 <div style="padding: 20px; text-align: center;">
                     <h3>No Active Game</h3>
-                    <p>No active game found. Please start a new game from the Game Zone.</p>
+                    <p>No active game found. Start a new game from Teacher → App (Monster Fight).</p>
                     <button class="btn btn-primary" onclick="window.location.reload()">Refresh</button>
                 </div>
             `;

@@ -466,7 +466,7 @@ function registerOrgSettingsRoutes(app: any, deps: any): void {
   // Get Game Config
   app.get('/api/organizations/game-config', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
     try {
-      let orgId = req.user.organizationId;
+      const orgId = req.user.organizationId;
 
       const organizations = await readOrganizations();
       const org = organizations.find(o => o.id === orgId);
@@ -503,7 +503,7 @@ function registerOrgSettingsRoutes(app: any, deps: any): void {
   app.put('/api/organizations/game-config', authenticateUser, authorizeRole('organization', 'admin'), async (req, res) => {
     try {
       const { mode, classicLevels } = req.body;
-      let orgId = req.user.organizationId;
+      const orgId = req.user.organizationId;
 
       const organizations = await readOrganizations();
       const orgIndex = organizations.findIndex(o => o.id === orgId);

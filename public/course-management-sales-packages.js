@@ -97,6 +97,29 @@ function renderClassSelectionUI() {
       </div>
     </div>
   `;
+
+  bindSalesCalendarWheelNavigation();
+}
+
+function bindSalesCalendarWheelNavigation() {
+  const sidebar = document.querySelector('.calendar-layout .calendar-sidebar');
+  if (!sidebar) return;
+  if (sidebar.dataset.salesWheelNav === '1') return;
+  sidebar.dataset.salesWheelNav = '1';
+  let lastWheelTs = 0;
+  sidebar.addEventListener(
+    'wheel',
+    (e) => {
+      if (!salesState.classSelection) return;
+      e.preventDefault();
+      const now = Date.now();
+      if (now - lastWheelTs < 100) return;
+      lastWheelTs = now;
+      const dir = e.deltaY > 0 ? 1 : -1;
+      window.changeCalendarMonth(dir);
+    },
+    { passive: false }
+  );
 }
 
 window.backToProductList = function() {
@@ -299,6 +322,7 @@ function formatDateForCompare(date) {
 // --- Calendar UI Logic ---
 
 window.changeCalendarMonth = function(delta) {
+  if (!salesState.classSelection) return;
   const currentDate = salesState.classSelection.viewDate;
   currentDate.setMonth(currentDate.getMonth() + delta);
   renderMiniCalendar();
@@ -576,6 +600,10 @@ window.dropSalesLesson = async function(enrollmentId) {
         selectSalesStudent(salesState.selectedStudent.id); 
       }
       
+      if (salesState.selectedStudent?.id && typeof window.loadStudentOrders === 'function') {
+        await window.loadStudentOrders(salesState.selectedStudent.id);
+      }
+      
       if (salesState.classSelection.courseId) {
           loadAvailableClasses(salesState.classSelection.courseId);
       } else {
@@ -593,8 +621,15 @@ window.dropSalesLesson = async function(enrollmentId) {
 };
 
 window.dropSalesAllFuture = async function(timetableEntryId) {
-   if (!confirm('Are you sure you want to drop ALL future lessons for this class series? This action cannot be undone.')) return;
-   
+  const fromStr = formatDateForCompare(salesState.classSelection.selectedDate);
+  if (
+    !confirm(
+      `Drop this class from ${fromStr} onward (including this date)? Earlier dates in this series stay enrolled. This cannot be undone.`
+    )
+  ) {
+    return;
+  }
+
    try {
     const response = await window.authUtils.authenticatedFetch('/organizations/enrollments/drop', {
       method: 'POST',
@@ -602,7 +637,8 @@ window.dropSalesAllFuture = async function(timetableEntryId) {
       body: JSON.stringify({
         studentId: salesState.selectedStudent.id,
         mode: 'all',
-        timetableEntryId: timetableEntryId
+        timetableEntryId: timetableEntryId,
+        date: fromStr
       })
     });
     
@@ -617,6 +653,10 @@ window.dropSalesAllFuture = async function(timetableEntryId) {
         const s = (window.students || []).find(stu => stu.id === salesState.selectedStudent.id);
         if (s) s.balance = result.newBalance;
         selectSalesStudent(salesState.selectedStudent.id); 
+      }
+      
+      if (salesState.selectedStudent?.id && typeof window.loadStudentOrders === 'function') {
+        await window.loadStudentOrders(salesState.selectedStudent.id);
       }
       
       if (salesState.classSelection.courseId) {

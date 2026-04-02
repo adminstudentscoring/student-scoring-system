@@ -367,11 +367,11 @@ async function writeUsers(users: any[]): Promise<boolean> {
 // Default behavior:
 // - If Postgres is configured: store + read from Postgres
 // - Else: fallback to JSON file at CHESSCOM_SETTINGS_FILE
-let readChessComSettings: (...args: any[]) => Promise<any> = async () => ({});
-let writeChessComSettings: (...args: any[]) => Promise<any> = async () => false;
-let getOrgChessComSettings: (...args: any[]) => Promise<any> = async () => null;
-let upsertOrgChessComSettings: (...args: any[]) => Promise<any> = async () => ({ ok: false, reason: 'not_initialized' });
-let getStudentChessComCredentials: (...args: any[]) => Promise<any> = async () => null;
+let readChessComSettings: (...args: any[]) => Promise<any>;
+let writeChessComSettings: (...args: any[]) => Promise<any>;
+let getOrgChessComSettings: (...args: any[]) => Promise<any>;
+let upsertOrgChessComSettings: (...args: any[]) => Promise<any>;
+let getStudentChessComCredentials: (...args: any[]) => Promise<any>;
 {
   const { createChessComSettingsStore } = require('@student-scoring/core');
   const fileStore = createChessComSettingsStore({ fs, CHESSCOM_SETTINGS_FILE });
@@ -481,9 +481,9 @@ const {
 
 // (AI init moved further down so it can depend on Blunders stats helpers)
 
-let blundersTeacherJobQueue = [];
-let blundersTeacherJobCancel = new Set(); // jobId
-let blundersTeacherRunNextJob = async () => {};
+let blundersTeacherJobQueue: any;
+let blundersTeacherJobCancel: any;
+let blundersTeacherRunNextJob: any;
 
 function nowIso(): string { return new Date().toISOString(); }
 
@@ -516,41 +516,46 @@ let computeRollingWindowStats: any;
 let computeStudentMonthStats: any;
 
 // ===== Chess.com helpers (moved to server/blunders/chesscom.js) =====
-let HK_OFFSET_SEC = 8 * 3600;
-let hkDayKeyFromEpochSec = () => '';
-let todayHkKey = () => '';
-let hkNow = () => ({ y: 1970, m: 1, d: 1, hh: 0, mm: 0, ss: 0 });
-let formatHkTime = () => '';
-let fetchJsonWithTimeout = async () => ({ ok: false, status: 0, data: { error: 'chesscom not initialized' } });
+let HK_OFFSET_SEC: number;
+let hkDayKeyFromEpochSec: () => string;
+let todayHkKey: () => string;
+let hkNow: () => { y: number; m: number; d: number; hh: number; mm: number; ss: number };
+let formatHkTime: () => string;
+let fetchJsonWithTimeout: () => Promise<{ ok: boolean; status: number; data: { error?: string } }>;
 
-let CHESSCOM_RATINGS_REFRESH_HK_HOUR = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_HOUR || 5);
-let CHESSCOM_RATINGS_REFRESH_HK_MIN = Number(process.env.CHESSCOM_RATINGS_REFRESH_HK_MIN || 0);
-let readChessComRatings = async () => ({ orgs: {}, meta: {} });
-let writeChessComRatings = async () => false;
-let pickChessComRating = () => ({ rating: null, source: null });
-let fetchChessComStats = async () => ({ ok: false, status: 0, data: { error: 'chesscom not initialized' } });
-let getCachedChessComRating = async () => ({ rating: null, source: null, updatedAt: null });
-let refreshChessComRatingsForOrg = async () => ({ ok: false, updated: 0 });
-let computeNextRatingsRunIso = () => new Date().toISOString();
-let maybeRunChessComRatingsRefreshAllOrgs = async () => ({ ok: true, skipped: true });
+let CHESSCOM_RATINGS_REFRESH_HK_HOUR: number;
+let CHESSCOM_RATINGS_REFRESH_HK_MIN: number;
+let readChessComRatings: () => Promise<{ orgs: Record<string, unknown>; meta: Record<string, unknown> }>;
+let writeChessComRatings: () => Promise<boolean>;
+let pickChessComRating: () => { rating: unknown; source: unknown };
+let fetchChessComStats: () => Promise<{ ok: boolean; status: number; data: { error?: string } }>;
+let getCachedChessComRating: () => Promise<{ rating: unknown; source: unknown; updatedAt: unknown }>;
+let refreshChessComRatingsForOrg: () => Promise<{ ok: boolean; updated: number }>;
+let computeNextRatingsRunIso: () => string;
+let maybeRunChessComRatingsRefreshAllOrgs: () => Promise<{ ok: boolean; skipped: boolean }>;
 
-let BLUNDERS_DAILY_SYNC_HK_HOUR = Number(process.env.BLUNDERS_DAILY_SYNC_HK_HOUR || 4);
-let BLUNDERS_DAILY_SYNC_HK_MIN = Number(process.env.BLUNDERS_DAILY_SYNC_HK_MIN || 0);
-let blundersDailySyncMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
-let computeNextBlundersDailyRunIso = () => new Date().toISOString();
-let maybeRunBlundersDailySyncAllStudents = async () => ({ ok: true, skipped: true });
+let BLUNDERS_DAILY_SYNC_HK_HOUR: number;
+let BLUNDERS_DAILY_SYNC_HK_MIN: number;
+let blundersDailySyncMeta: {
+  lastRunAt: unknown;
+  lastRunHkDay: unknown;
+  lastRunOk: number;
+  lastRunErr: number;
+};
+let computeNextBlundersDailyRunIso: () => string;
+let maybeRunBlundersDailySyncAllStudents: () => Promise<{ ok: boolean; skipped: boolean }>;
 
 // ===== Course Management: Auto-renew (moved to server/services/autoRenew.js) =====
 const { createAutoRenew } = require('@student-scoring/platform');
-let AUTO_RENEW_LEAD_DAYS = Number(process.env.AUTO_RENEW_LEAD_DAYS || 30);
+const AUTO_RENEW_LEAD_DAYS = Number(process.env.AUTO_RENEW_LEAD_DAYS || 30);
 // autoRenewMeta + maybeRunAutoRenewAllOrgs are initialized after readOrders/writeOrders are defined (see below)
 let autoRenewMeta = { lastRunAt: null, lastRunHkDay: null, lastRunOk: 0, lastRunErr: 0 };
 let maybeRunAutoRenewAllOrgs = async () => ({ ok: true, skipped: true });
 
-let chessComGetGamesForHkDay = async () => [];
-let chessComGetTodayGames = async () => [];
-let chessComGetRecentGames = async () => [];
-let getChessComUsernameForStudent = async () => '';
+let chessComGetGamesForHkDay: () => Promise<unknown[]>;
+let chessComGetTodayGames: () => Promise<unknown[]>;
+let chessComGetRecentGames: () => Promise<unknown[]>;
+let getChessComUsernameForStudent: () => Promise<string>;
 
 // ===== Date/schedule helpers (moved to @student-scoring/core) =====
 const { parseUciMove, dateStrFromYmd, parseDateStrToUtcMidnightMs, addDays, addMonths, DOW_NAME_TO_NUM, buildSkipDateSet, nextOccurrencesForEntry, packageLessonCount, computePackagePrice } = require('@student-scoring/core');

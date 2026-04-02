@@ -315,6 +315,7 @@ salesStyles.textContent = `
     padding: 20px;
     display: flex;
     flex-direction: column;
+    overscroll-behavior: contain;
   }
   
   .schedule-main {

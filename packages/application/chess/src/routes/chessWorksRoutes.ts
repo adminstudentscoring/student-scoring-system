@@ -811,7 +811,7 @@ function registerChessWorksRoutes(app: any, deps: any): void {
             if (t === "student") direct.add(id);
             if (t === "group") groupIds.add(id);
           }
-          let members = new Set();
+          const members = new Set();
           if (groupIds.size) {
             const gids = Array.from(groupIds).map((x) => Number(x)).filter(Number.isFinite);
             if (gids.length) {

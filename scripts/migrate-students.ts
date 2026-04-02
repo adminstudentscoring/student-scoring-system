@@ -177,8 +177,8 @@ async function migrateStudents(orgEmail: string, password: string): Promise<void
     
     let created = 0;
     let updated = 0;
-    let skipped = 0;
-    let errors: Array<{ student: string; chessComId: string; error: string }> = [];
+    const skipped = 0;
+    const errors: Array<{ student: string; chessComId: string; error: string }> = [];
 
     log(`\n📝 Processing ${localStudents.length} students...\n`, 'blue');
     

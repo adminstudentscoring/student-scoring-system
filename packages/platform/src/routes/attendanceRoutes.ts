@@ -53,7 +53,7 @@ function registerAttendanceRoutes(app: any, deps: any): void {
         return res.status(400).json({ error: 'Invalid data' });
       }
 
-      let allRecords = await readAttendance();
+      const allRecords = await readAttendance();
       let organizationId;
 
       if (req.user.role === 'admin') {

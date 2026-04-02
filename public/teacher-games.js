@@ -1,5 +1,5 @@
-// Game Zone Modal Functions
-let gameZoneModalSize = 'normal'; // 'normal', 'large', 'fullscreen'
+// Application modal (embedded apps + Monster Fight student picker)
+let applicationModalSize = 'normal'; // 'normal', 'large', 'fullscreen'
 let selectedGameStudents = [];
 let applicationPickGameKey = null; // only 'monsterFight' uses the student picker modal
 
@@ -15,7 +15,7 @@ function getTeacherAsPlayerDetails() {
     }];
 }
 
-/** If the teacher picked students in the Game Zone list, use them; otherwise use the teacher as the only player. */
+/** If the teacher picked students in the modal list, use them; otherwise use the teacher as the only player. */
 function buildPlayersForApplication() {
     if (selectedGameStudents.length > 0) {
         return selectedGameStudents.map(id => {
@@ -30,12 +30,12 @@ function buildPlayersForApplication() {
     return getTeacherAsPlayerDetails();
 }
 
-function openGameZoneModal() {
-    const modal = document.getElementById('gameZoneModal');
+function openApplicationModal() {
+    const modal = document.getElementById('applicationModal');
     if (modal) {
         modal.classList.add('show');
         loadGameStudents();
-        showGameSelection();
+        showApplicationCatalog();
     }
 }
 
@@ -81,16 +81,16 @@ function openApplicationStudentPicker(gameKey) {
     }
     applicationPickGameKey = key;
     selectedGameStudents = [];
-    const modal = document.getElementById('gameZoneModal');
+    const modal = document.getElementById('applicationModal');
     if (!modal) return;
 
-    const titleEl = document.getElementById('gameZoneModalTitle');
+    const titleEl = document.getElementById('applicationModalTitle');
     if (titleEl) titleEl.textContent = '🎮 Application · Monster Fight';
 
     // Hide game selection + game area; show student selection only
-    const gs = document.getElementById('gameSelectionSection');
-    const ss = document.getElementById('studentSelectionSection');
-    const ga = document.getElementById('gameAreaSection');
+    const gs = document.getElementById('applicationCatalogSection');
+    const ss = document.getElementById('applicationStudentPickSection');
+    const ga = document.getElementById('applicationEmbedSection');
     if (gs) gs.style.display = 'none';
     if (ga) ga.style.display = 'none';
     if (ss) ss.style.display = 'block';
@@ -368,71 +368,71 @@ async function confirmApplicationStudentPicker() {
 
     await startMonsterFight();
 
-    closeGameZoneModal();
+    closeApplicationModal();
     applicationPickGameKey = null;
 }
 
 window.confirmApplicationStudentPicker = confirmApplicationStudentPicker;
 
-function closeGameZoneModal() {
-    const modal = document.getElementById('gameZoneModal');
+function closeApplicationModal() {
+    const modal = document.getElementById('applicationModal');
     if (modal) {
         modal.classList.remove('show');
         // Restore default title & sections for legacy modal usage
-        const titleEl = document.getElementById('gameZoneModalTitle');
+        const titleEl = document.getElementById('applicationModalTitle');
         if (titleEl) titleEl.textContent = '🎮 Application';
-        const gs = document.getElementById('gameSelectionSection');
-        const ss = document.getElementById('studentSelectionSection');
-        const ga = document.getElementById('gameAreaSection');
+        const gs = document.getElementById('applicationCatalogSection');
+        const ss = document.getElementById('applicationStudentPickSection');
+        const ga = document.getElementById('applicationEmbedSection');
         if (gs) gs.style.display = 'block';
         if (ss) ss.style.display = 'block';
         if (ga) ga.style.display = 'none';
         applicationPickGameKey = null;
-        showGameSelection();
+        showApplicationCatalog();
     }
 }
 
-function toggleGameZoneSize() {
-    const modalContent = document.getElementById('gameZoneModalContent');
+function toggleApplicationModalSize() {
+    const modalContent = document.getElementById('applicationModalContent');
     if (!modalContent) return;
     
     // Cycle through: normal -> large -> fullscreen -> normal
-    if (gameZoneModalSize === 'normal') {
-        gameZoneModalSize = 'large';
-        modalContent.classList.remove('game-zone-fullscreen');
-        modalContent.classList.add('game-zone-large');
-    } else if (gameZoneModalSize === 'large') {
-        gameZoneModalSize = 'fullscreen';
-        modalContent.classList.remove('game-zone-large');
-        modalContent.classList.add('game-zone-fullscreen');
+    if (applicationModalSize === 'normal') {
+        applicationModalSize = 'large';
+        modalContent.classList.remove('application-modal-fullscreen');
+        modalContent.classList.add('application-modal-large');
+    } else if (applicationModalSize === 'large') {
+        applicationModalSize = 'fullscreen';
+        modalContent.classList.remove('application-modal-large');
+        modalContent.classList.add('application-modal-fullscreen');
     } else {
-        gameZoneModalSize = 'normal';
-        modalContent.classList.remove('game-zone-fullscreen', 'game-zone-large');
+        applicationModalSize = 'normal';
+        modalContent.classList.remove('application-modal-fullscreen', 'application-modal-large');
     }
 }
 
-function toggleGameZoneFullscreen() {
-    const modalContent = document.getElementById('gameZoneModalContent');
+function toggleApplicationModalFullscreen() {
+    const modalContent = document.getElementById('applicationModalContent');
     if (!modalContent) return;
     
-    modalContent.classList.toggle('game-zone-fullscreen');
-    if (modalContent.classList.contains('game-zone-fullscreen')) {
-        gameZoneModalSize = 'fullscreen';
+    modalContent.classList.toggle('application-modal-fullscreen');
+    if (modalContent.classList.contains('application-modal-fullscreen')) {
+        applicationModalSize = 'fullscreen';
     } else {
-        gameZoneModalSize = 'normal';
-        modalContent.classList.remove('game-zone-large');
+        applicationModalSize = 'normal';
+        modalContent.classList.remove('application-modal-large');
     }
 }
 
-function showGameSelection() {
-    document.getElementById('gameSelectionSection').style.display = 'block';
-    document.getElementById('studentSelectionSection').style.display = 'block';
-    document.getElementById('gameAreaSection').style.display = 'none';
+function showApplicationCatalog() {
+    document.getElementById('applicationCatalogSection').style.display = 'block';
+    document.getElementById('applicationStudentPickSection').style.display = 'block';
+    document.getElementById('applicationEmbedSection').style.display = 'none';
     
-    // Load game list
-    const gameList = document.getElementById('gameList');
-    if (gameList) {
-        gameList.innerHTML = `
+    // Load application catalog
+    const catalogList = document.getElementById('applicationCatalogList');
+    if (catalogList) {
+        catalogList.innerHTML = `
             <div class="game-item" onclick="startVChessPlatform()">
                 <div class="game-icon">🌐</div>
                 <div class="game-info">
@@ -567,9 +567,9 @@ async function startRunningQueen() {
         console.warn('Unable to persist running queen players to localStorage:', error);
     }
 
-    showGameArea();
+    showApplicationEmbed();
 
-    const gameAreaContent = document.getElementById('gameAreaContent');
+    const gameAreaContent = document.getElementById('applicationEmbedContent');
     if (gameAreaContent) {
         gameAreaContent.innerHTML = `
             <div id="runningQueenGame" class="running-queen-root">
@@ -618,9 +618,9 @@ async function startRoyalExchange() {
         console.warn('Unable to persist royal exchange players to localStorage:', error);
     }
 
-    showGameArea();
+    showApplicationEmbed();
 
-    const gameAreaContent = document.getElementById('gameAreaContent');
+    const gameAreaContent = document.getElementById('applicationEmbedContent');
     if (gameAreaContent) {
         gameAreaContent.innerHTML = `
             <div id="royalExchangeGame" class="royal-exchange-root">
@@ -669,9 +669,9 @@ async function startNoBlunder() {
         console.warn('Unable to persist no blunder players to localStorage:', error);
     }
 
-    showGameArea();
+    showApplicationEmbed();
 
-    const gameAreaContent = document.getElementById('gameAreaContent');
+    const gameAreaContent = document.getElementById('applicationEmbedContent');
     if (gameAreaContent) {
         gameAreaContent.innerHTML = `
             <div id="noBlunderRoot" class="no-blunder-root">
@@ -729,9 +729,9 @@ async function startBlunders() {
         console.warn('Unable to persist blunders players to localStorage:', error);
     }
 
-    showGameArea();
+    showApplicationEmbed();
 
-    const gameAreaContent = document.getElementById('gameAreaContent');
+    const gameAreaContent = document.getElementById('applicationEmbedContent');
     if (gameAreaContent) {
         gameAreaContent.innerHTML = `
             <div id="blundersRoot" class="blunders-root">
@@ -805,9 +805,9 @@ async function startHopeMate() {
         console.warn('Unable to persist Hope Mate players to localStorage:', error);
     }
 
-    showGameArea();
+    showApplicationEmbed();
 
-    const gameAreaContent = document.getElementById('gameAreaContent');
+    const gameAreaContent = document.getElementById('applicationEmbedContent');
     if (gameAreaContent) {
         gameAreaContent.innerHTML = `
             <div id="hopeMateRoot" class="hope-mate-root">
@@ -862,8 +862,8 @@ async function startVChessPlatform() {
         console.warn('Unable to persist vChessPlatform context to localStorage:', e);
     }
 
-    showGameArea();
-    const gameAreaContent = document.getElementById('gameAreaContent');
+    showApplicationEmbed();
+    const gameAreaContent = document.getElementById('applicationEmbedContent');
     if (!gameAreaContent) return;
 
     gameAreaContent.innerHTML = `
@@ -915,17 +915,17 @@ async function startVChessPlatform() {
 
 window.startVChessPlatform = startVChessPlatform;
 
-function showGameArea() {
-    document.getElementById('gameSelectionSection').style.display = 'none';
-    document.getElementById('studentSelectionSection').style.display = 'none';
-    document.getElementById('gameAreaSection').style.display = 'block';
+function showApplicationEmbed() {
+    document.getElementById('applicationCatalogSection').style.display = 'none';
+    document.getElementById('applicationStudentPickSection').style.display = 'none';
+    document.getElementById('applicationEmbedSection').style.display = 'block';
 }
 
 function loadGameStudents() {
-    const container = document.getElementById('gameStudentList');
+    const container = document.getElementById('applicationStudentPickList');
     if (!container) return;
     
-    const searchTerm = (document.getElementById('gameStudentSearch')?.value || '').toLowerCase();
+    const searchTerm = (document.getElementById('applicationStudentSearch')?.value || '').toLowerCase();
     const filteredStudents = students.filter(student => 
         String(student.name || '').toLowerCase().includes(searchTerm) ||
         String(student.chessComId || '').toLowerCase().includes(searchTerm)
@@ -987,15 +987,6 @@ function openGameInNewWindow() {
 // Make functions globally available
 window.toggleGameStudent = toggleGameStudent;
 
-// Event listeners for Game Zone
-document.getElementById('gameZoneBtn')?.addEventListener('click', () => {
-    // "Application" in Quick Actions now jumps to the main Applications tab.
-    const ok = openTeacherApplicationsTab();
-    if (!ok) {
-        // Fallback: open old modal if tab switch isn't available.
-        openGameZoneModal();
-    }
-});
 document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
     // Quick Action entry: open V.Chess Platform directly in a new tab (no modal).
     try {
@@ -1019,15 +1010,15 @@ document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
     showNotification('V.Chess Platform opened in a new tab', 'success');
 });
 document.getElementById('chessComSettingsBtn')?.addEventListener('click', openChessComSettingsModal);
-document.getElementById('gameZoneModalClose')?.addEventListener('click', closeGameZoneModal);
-document.getElementById('gameZoneSizeBtn')?.addEventListener('click', toggleGameZoneSize);
-document.getElementById('gameZoneFullscreenBtn')?.addEventListener('click', toggleGameZoneFullscreen);
-document.getElementById('backToGameSelection')?.addEventListener('click', showGameSelection);
+document.getElementById('applicationModalClose')?.addEventListener('click', closeApplicationModal);
+document.getElementById('applicationModalSizeBtn')?.addEventListener('click', toggleApplicationModalSize);
+document.getElementById('applicationModalFullscreenBtn')?.addEventListener('click', toggleApplicationModalFullscreen);
+document.getElementById('backToApplicationCatalog')?.addEventListener('click', showApplicationCatalog);
 document.getElementById('openGameInNewWindow')?.addEventListener('click', openGameInNewWindow);
-document.getElementById('gameStudentSearch')?.addEventListener('input', loadGameStudents);
+document.getElementById('applicationStudentSearch')?.addEventListener('input', loadGameStudents);
 document.getElementById('selectAllStudents')?.addEventListener('click', selectAllGameStudents);
 document.getElementById('deselectAllStudents')?.addEventListener('click', deselectAllGameStudents);
-document.getElementById('applicationStudentPickerCancelBtn')?.addEventListener('click', closeGameZoneModal);
+document.getElementById('applicationStudentPickerCancelBtn')?.addEventListener('click', closeApplicationModal);
 document.getElementById('applicationStudentPickerConfirmBtn')?.addEventListener('click', () => {
     confirmApplicationStudentPicker().catch((e) => {
         console.error('Application confirm error:', e);
@@ -1036,9 +1027,9 @@ document.getElementById('applicationStudentPickerConfirmBtn')?.addEventListener(
 });
 
 // Close modal when clicking outside
-document.getElementById('gameZoneModal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'gameZoneModal') {
-        closeGameZoneModal();
+document.getElementById('applicationModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'applicationModal') {
+        closeApplicationModal();
     }
 });
 

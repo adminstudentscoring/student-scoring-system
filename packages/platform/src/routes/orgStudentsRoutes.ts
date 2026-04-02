@@ -162,7 +162,7 @@ function registerOrgStudentsRoutes(app: any, deps: any): void {
       const organization = organizations.find(o => o.id === orgUser.organizationId);
 
       let createdCount = 0;
-      let errors = [];
+      const errors = [];
 
       for (const s of studentsList) {
         if (!s.name) {
@@ -239,7 +239,7 @@ function registerOrgStudentsRoutes(app: any, deps: any): void {
 
       const data = await readData();
       let createdCount = 0;
-      let errors = [];
+      const errors = [];
 
       for (const s of studentsData) {
         // Validate Name

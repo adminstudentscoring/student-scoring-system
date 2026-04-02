@@ -56,7 +56,7 @@
                       `
                     )
                     .join('')
-                : `<div style="color:#6b7280;">No players selected. Open via Teacher → Game Zone with selected students.</div>`
+                : `<div style="color:#6b7280;">No players loaded. Open from Teacher → App or the application window.</div>`
             }
           </div>
         </div>

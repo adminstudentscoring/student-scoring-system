@@ -580,7 +580,7 @@ function renderStudentOverlayPaymentHistory() {
 }
 
 // Load Student Orders
-async function loadStudentOrders(studentId) {
+window.loadStudentOrders = async function loadStudentOrders(studentId) {
     // Fetch all orders and filter (simplest integration)
     // Ideally backend should support /organizations/orders?studentId=...
     try {
@@ -595,7 +595,7 @@ async function loadStudentOrders(studentId) {
     } catch (e) {
         console.error('Failed to load student orders', e);
     }
-}
+};
 
 // Render Unpaid Orders in Sidebar
 function renderStudentUnpaidOrders() {
@@ -1035,14 +1035,17 @@ function renderSalesCart() {
     
     return `
       <div class="cart-item">
-        <div class="cart-item-header">
-          <span class="cart-item-title">${escapeHtml(item.productData.name)}</span>
-          <span class="cart-item-price">$${item.price.toFixed(0)}</span>
+        <div class="cart-item-body" role="button" tabindex="0" onclick="openSalesCartLessonDatesModal(${index})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSalesCartLessonDatesModal(${index});}">
+          <div class="cart-item-header">
+            <span class="cart-item-title">${escapeHtml(item.productData.name)}</span>
+            <span class="cart-item-price">$${item.price.toFixed(0)}</span>
+          </div>
+          <div class="cart-item-details">
+            ${dateCount} lesson${dateCount > 1 ? 's' : ''} • ${dateRange}
+            <span class="cart-item-hint"> · Click for dates</span>
+          </div>
         </div>
-        <div class="cart-item-details">
-          ${dateCount} lesson${dateCount > 1 ? 's' : ''} • ${dateRange}
-        </div>
-        <button class="btn-remove-item" onclick="removeSalesCartItem(${index})">Remove</button>
+        <button type="button" class="btn-remove-item" onclick="event.stopPropagation(); removeSalesCartItem(${index})">Remove</button>
       </div>
     `;
   }).join('');
@@ -1058,8 +1061,71 @@ function renderSalesCart() {
 }
 
 window.removeSalesCartItem = function(index) {
+  if (index < 0 || index >= salesState.cart.length) return;
+  if (document.getElementById('salesCartDatesModal')) window.closeSalesCartDatesModal();
   salesState.cart.splice(index, 1);
   renderSalesCart();
+  if (typeof updateDaySchedule === 'function') updateDaySchedule();
+  if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+};
+
+window.closeSalesCartDatesModal = function() {
+  const m = document.getElementById('salesCartDatesModal');
+  if (!m) return;
+  m.classList.remove('show');
+  setTimeout(() => m.remove(), 250);
+};
+
+window.openSalesCartLessonDatesModal = function(index) {
+  const item = salesState.cart[index];
+  if (!item || !item.enrolledClasses || !item.enrolledClasses.length) return;
+  const existing = document.getElementById('salesCartDatesModal');
+  if (existing) existing.remove();
+
+  const sorted = [...item.enrolledClasses].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const rows = sorted.map(cls => {
+    const entry = cls.entry || {};
+    const d = cls.date;
+    let dateLabel = '';
+    if (d) {
+      const dateObj = new Date(d);
+      dateLabel = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+        : String(d);
+    }
+    const time =
+      entry.startTime && entry.endTime ? `${escapeHtml(String(entry.startTime))} – ${escapeHtml(String(entry.endTime))}` : '—';
+    const title = entry.className ? escapeHtml(entry.className) : 'Class';
+    return `<tr><td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${escapeHtml(dateLabel)}</td><td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${time}</td><td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${title}</td></tr>`;
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'salesCartDatesModal';
+  modal.className = 'edit-student-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.innerHTML = `
+    <div class="edit-student-modal-content" style="max-width:560px;" onclick="event.stopPropagation()">
+      <div class="edit-student-modal-header">
+        <h2 style="font-size:1.1rem;">Enrolled lesson dates (cart)</h2>
+        <button type="button" class="org-modal-close-x" onclick="closeSalesCartDatesModal()" aria-label="Close">&times;</button>
+      </div>
+      <div class="edit-student-modal-body" style="padding-top:12px;">
+        <p style="margin-bottom:12px;color:#64748b;font-size:0.875rem;">${escapeHtml(item.productData.name)} · ${sorted.length} lesson(s)</p>
+        <div style="max-height:min(55vh,420px);overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+          <thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:8px 10px;">Date</th><th style="text-align:left;padding:8px 10px;">Time</th><th style="text-align:left;padding:8px 10px;">Class</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        </div>
+        <div class="edit-student-modal-actions" style="border-top:none;padding-top:16px;">
+          <button type="button" class="btn btn-secondary" onclick="closeSalesCartDatesModal()">Close</button>
+        </div>
+      </div>
+    </div>`;
+  modal.onclick = () => window.closeSalesCartDatesModal();
+  document.body.appendChild(modal);
+  setTimeout(() => modal.classList.add('show'), 10);
 };
 
 // Click outside to close dropdown

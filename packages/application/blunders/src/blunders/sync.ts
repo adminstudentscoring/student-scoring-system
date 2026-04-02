@@ -59,9 +59,9 @@ function createBlundersSync(deps: any): any {
 
         // Record analyzed games meta (cumulative) so we can compute rolling stats later.
         // We update once per sync to avoid frequent file writes.
-        let statsOrgs = null;
-        let statsOrg = null;
-        let stStats = null;
+        let statsOrgs;
+        let statsOrg;
+        let stStats;
         try {
           statsOrgs = await readBlundersStats();
           if (!statsOrgs[orgId] || typeof statsOrgs[orgId] !== 'object') statsOrgs[orgId] = {};
@@ -164,12 +164,12 @@ function createBlundersSync(deps: any): any {
           if (!studentColor) continue;
 
           // Parse PGN and replay to find blunders on student's moves
-          let full = null;
+          let full;
           try {
             full = new Chess();
             full.loadPgn(pgn, { sloppy: true });
           } catch {
-            full = null;
+            continue;
           }
           if (!full) continue;
           const moves = full.history({ verbose: true }) || [];
@@ -186,7 +186,7 @@ function createBlundersSync(deps: any): any {
 
             // Apply the move as recorded.
             // IMPORTANT: chess.js move() is strict about input shape; we only pass {from,to,promotion}.
-            let applied = null;
+            let applied;
             try {
               applied = replay.move({
                 from: String(mv?.from || '').toLowerCase(),
@@ -520,12 +520,12 @@ function createBlundersSync(deps: any): any {
           const masterColor = whiteU === me ? 'w' : (blackU === me ? 'b' : '');
           if (!masterColor) continue;
 
-          let full = null;
+          let full;
           try {
             full = new Chess();
             full.loadPgn(pgn, { sloppy: true });
           } catch {
-            full = null;
+            continue;
           }
           if (!full) continue;
           const moves = full.history({ verbose: true }) || [];
@@ -537,7 +537,7 @@ function createBlundersSync(deps: any): any {
             const turn = replay.turn();
             const mv = moves[ply];
             const prev = ply > 0 ? moves[ply - 1] : null;
-            let applied = null;
+            let applied;
             try {
               applied = replay.move({
                 from: String(mv?.from || '').toLowerCase(),

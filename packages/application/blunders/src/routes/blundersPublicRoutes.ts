@@ -526,8 +526,12 @@ function registerBlundersPublicRoutes(app: any, deps: any): void {
       const parsed = parseUciMove(moveUci);
       if (!parsed) return { ok: false, error: 'Invalid moveUci (use UCI like e2e4 or e7e8q)' };
 
-      let chess = null;
-      try { chess = new Chess(startFen); } catch { chess = null; }
+      let chess;
+      try {
+        chess = new Chess(startFen);
+      } catch {
+        return { ok: false, error: 'Invalid startFEN' };
+      }
       if (!chess) return { ok: false, error: 'Invalid startFEN' };
 
       const mv = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });

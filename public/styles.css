@@ -105,8 +105,8 @@ body.dash-layout-topnav .dash-topbar-nav .dash-nav-item {
     flex: 0 1 auto;
     min-height: 36px;
     border-radius: 0 !important;
-    border: 1px solid var(--ui-border);
-    background: #f3f4f6;
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--ui-text);
     font-weight: 600;
     box-shadow: none;
@@ -114,15 +114,42 @@ body.dash-layout-topnav .dash-topbar-nav .dash-nav-item {
 
 body.dash-layout-topnav .dash-topbar-nav .dash-nav-item:hover {
     transform: none;
-    background: #e5e7eb;
+    background: rgba(15, 23, 42, 0.05);
+    border-color: var(--ui-border);
     box-shadow: none;
 }
 
 body.dash-layout-topnav .dash-topbar-nav .dash-nav-item.active {
     background: #111827;
     color: #fff;
-    border-color: #111827;
+    border-color: transparent;
     box-shadow: none;
+}
+
+body.dash-layout-topnav .dash-topbar-nav .dash-nav-item.active:hover {
+    background: #111827;
+    color: #fff;
+    border-color: var(--ui-border);
+}
+
+/* Top bar actions (e.g. Logout): same transparent / border-on-hover treatment */
+body.dash-layout-topnav .dash-topbar-end .btn {
+    background: transparent !important;
+    border: 1px solid transparent;
+    color: #64748b;
+    box-shadow: none;
+}
+
+body.dash-layout-topnav .dash-topbar-end .btn:hover {
+    background: rgba(15, 23, 42, 0.05) !important;
+    border-color: var(--ui-border);
+    color: #475569;
+}
+
+body.dash-layout-topnav .dash-topbar-nav .dash-nav-item:focus-visible,
+body.dash-layout-topnav .dash-topbar-end .btn:focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: 2px;
 }
 
 .dash-topbar {
@@ -2169,7 +2196,7 @@ body.electron .floating-indicator {
     font-style: italic;
 }
 
-/* Game Zone Modal Styles */
+/* Application modal (embedded mini-apps / student picker) */
 .modal-header-actions {
     display: flex;
     gap: 10px;
@@ -2192,7 +2219,7 @@ body.electron .floating-indicator {
     color: white;
 }
 
-.modal-content.game-zone-fullscreen {
+.modal-content.application-modal-fullscreen {
     width: 100vw;
     height: 100vh;
     max-width: 100vw;
@@ -2201,19 +2228,19 @@ body.electron .floating-indicator {
     margin: 0;
 }
 
-.modal-content.game-zone-large {
+.modal-content.application-modal-large {
     width: 95vw;
     height: 90vh;
     max-width: 95vw;
     max-height: 90vh;
 }
 
-.game-selection-section,
+.application-catalog-section,
 .student-selection-section {
     margin-bottom: 30px;
 }
 
-.game-selection-section h3,
+.application-catalog-section h3,
 .student-selection-section h3 {
     color: #667eea;
     margin-bottom: 15px;
@@ -2312,11 +2339,11 @@ body.electron .floating-indicator {
     border: 2px solid #667eea;
 }
 
-.game-area-section {
+.application-embed-section {
     margin-top: 20px;
 }
 
-.game-area-header {
+.application-embed-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2325,7 +2352,7 @@ body.electron .floating-indicator {
     border-bottom: 2px solid #e0e0e0;
 }
 
-.game-area-content {
+.application-embed-content {
     min-height: 400px;
     background: #f8f9fa;
     border-radius: 10px;

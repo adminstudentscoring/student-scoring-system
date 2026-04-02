@@ -109,8 +109,12 @@ function createBlundersTagger(deps: any): any {
   }
 
   function phaseTagsForFen(startFen) {
-    let chess = null;
-    try { chess = new Chess(String(startFen || '')); } catch { chess = null; }
+    let chess;
+    try {
+      chess = new Chess(String(startFen || ''));
+    } catch {
+      return [];
+    }
     if (!chess) return [];
     const fm = parseFenFullmove(startFen);
     const { total, queens } = countPieces(chess);
@@ -448,8 +452,12 @@ function createBlundersTagger(deps: any): any {
     const parsed = parseUciMove(mvUci);
     if (!parsed) return Array.from(tags);
 
-    let chess = null;
-    try { chess = new Chess(startFen); } catch { chess = null; }
+    let chess;
+    try {
+      chess = new Chess(startFen);
+    } catch {
+      return Array.from(tags);
+    }
     if (!chess) return Array.from(tags);
 
     const moverColor = chess.turn(); // color who blundered
@@ -485,8 +493,12 @@ function createBlundersTagger(deps: any): any {
       if (!foundHang && isCapture) {
         const capVal = pieceValue({ type: capturedType });
         if (capVal >= 3) {
-          let ch2 = null;
-          try { ch2 = new Chess(chess.fen()); } catch { ch2 = null; }
+          let ch2;
+          try {
+            ch2 = new Chess(chess.fen());
+          } catch {
+            ch2 = undefined;
+          }
           if (ch2) {
             const cap = ch2.move({ from: String(m.from).toLowerCase(), to: String(m.to).toLowerCase(), promotion: m.promotion ? String(m.promotion).toLowerCase() : undefined });
             if (cap) {
@@ -503,8 +515,12 @@ function createBlundersTagger(deps: any): any {
 
       // Fork / pin / skewer patterns: look at the moved piece after playing m.
       if ((!foundFork || !foundDouble || !foundPin || !foundSkewer || !foundDisc || !foundMate)) {
-        let ch3 = null;
-        try { ch3 = new Chess(chess.fen()); } catch { ch3 = null; }
+        let ch3;
+        try {
+          ch3 = new Chess(chess.fen());
+        } catch {
+          continue;
+        }
         if (!ch3) continue;
         const played = ch3.move({ from: String(m.from).toLowerCase(), to: String(m.to).toLowerCase(), promotion: m.promotion ? String(m.promotion).toLowerCase() : undefined });
         if (!played) continue;

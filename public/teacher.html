@@ -502,22 +502,22 @@
         </div>
     </div>
 
-    <!-- Application (Student Picker) Modal -->
-    <div id="gameZoneModal" class="modal">
-        <div class="modal-content" id="gameZoneModalContent">
+    <!-- Application shell modal (embedded apps + Monster Fight student picker) -->
+    <div id="applicationModal" class="modal">
+        <div class="modal-content" id="applicationModalContent">
             <div class="modal-header">
-                <h2 id="gameZoneModalTitle">🎮 Application</h2>
+                <h2 id="applicationModalTitle">🎮 Application</h2>
                 <div class="modal-header-actions">
-                    <button id="gameZoneFullscreenBtn" class="btn-icon" title="Toggle Fullscreen">⛶</button>
-                    <button id="gameZoneSizeBtn" class="btn-icon" title="Toggle Size">⛶</button>
-                    <span class="modal-close" id="gameZoneModalClose">&times;</span>
+                    <button id="applicationModalFullscreenBtn" class="btn-icon" title="Toggle Fullscreen">⛶</button>
+                    <button id="applicationModalSizeBtn" class="btn-icon" title="Toggle Size">⛶</button>
+                    <span class="modal-close" id="applicationModalClose">&times;</span>
                 </div>
             </div>
             <div class="modal-body">
-                <!-- Game Selection -->
-                <div class="game-selection-section" id="gameSelectionSection">
-                    <h3>Select a Game</h3>
-                    <div class="game-list" id="gameList">
+                <!-- Application catalog (embedded launcher) -->
+                <div class="application-catalog-section" id="applicationCatalogSection">
+                    <h3>Select an application</h3>
+                    <div class="game-list" id="applicationCatalogList">
                         <!-- Games will be loaded here -->
                         <div class="game-item">
                             <div class="game-icon">🎯</div>
@@ -529,15 +529,15 @@
                     </div>
                 </div>
 
-                <!-- Student Selection -->
-                <div class="student-selection-section" id="studentSelectionSection">
-                    <h3>Select Students</h3>
+                <!-- Student selection (e.g. Monster Fight) -->
+                <div class="student-selection-section" id="applicationStudentPickSection">
+                    <h3>Select students</h3>
                     <div class="student-selector-toolbar">
-                        <input type="text" id="gameStudentSearch" placeholder="🔍 Search students..." class="student-search-input">
+                        <input type="text" id="applicationStudentSearch" placeholder="🔍 Search students..." class="student-search-input">
                         <button id="selectAllStudents" class="btn btn-sm">Select All</button>
                         <button id="deselectAllStudents" class="btn btn-sm">Deselect All</button>
                     </div>
-                    <div class="student-selector-list" id="gameStudentList">
+                    <div class="student-selector-list" id="applicationStudentPickList">
                         <!-- Students will be loaded here -->
                     </div>
                     <div class="modal-actions" id="applicationStudentPickerActions" style="margin-top: 12px; justify-content: flex-end; gap: 10px;">
@@ -546,13 +546,13 @@
                     </div>
                 </div>
 
-                <!-- Game Area (will be shown when game starts) -->
-                <div class="game-area-section" id="gameAreaSection" style="display: none;">
-                    <div class="game-area-header">
-                        <button id="backToGameSelection" class="btn btn-secondary">← Back to Game Selection</button>
+                <!-- Embedded application view -->
+                <div class="application-embed-section" id="applicationEmbedSection" style="display: none;">
+                    <div class="application-embed-header">
+                        <button id="backToApplicationCatalog" class="btn btn-secondary">← Back to application list</button>
                         <button id="openGameInNewWindow" class="btn btn-primary">🪟 Open in New Window</button>
                     </div>
-                    <div class="game-area-content" id="gameAreaContent">
+                    <div class="application-embed-content" id="applicationEmbedContent">
                         <!-- Game content will be loaded here -->
                     </div>
                 </div>

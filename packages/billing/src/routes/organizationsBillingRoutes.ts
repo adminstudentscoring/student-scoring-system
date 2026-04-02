@@ -5,6 +5,66 @@ import { Request, Response, NextFunction } from 'express';
 
 const billingAccessFlags = require('../access');
 
+/** Same matching rules as refund logic: order line class vs dropped enrollment date + series entry id */
+function classSlotMatchesDroppedEnrollment(
+  cls: any,
+  enrollment: { date: string; timetableEntryId: string }
+): boolean {
+  let clsDate: string;
+  if (cls.dateString) clsDate = cls.dateString;
+  else if (cls.date) clsDate = new Date(cls.date).toISOString().split('T')[0];
+  else return false;
+  if (clsDate !== enrollment.date) return false;
+  const tid = enrollment.timetableEntryId;
+  if (cls.id === tid) return true;
+  if (typeof cls.id === 'string' && cls.id.startsWith(`${tid}_`)) return true;
+  if (cls.entry && cls.entry.id === tid) return true;
+  if (typeof cls.id === 'string' && cls.id.includes(tid)) return true;
+  return false;
+}
+
+/** Remove dropped lessons from unpaid order line items; delete empty unpaid orders */
+function pruneUnpaidOrdersAfterEnrollmentDrops(
+  orders: any[],
+  organizationId: string,
+  studentId: string,
+  dropped: { date: string; timetableEntryId: string }[]
+): void {
+  if (!dropped.length || !organizationId) return;
+  for (const order of orders) {
+    if (order.organizationId !== organizationId || order.studentId !== studentId || order.status !== 'unpaid') {
+      continue;
+    }
+    if (!Array.isArray(order.items)) continue;
+    for (const item of order.items) {
+      if (!item.enrolledClasses || !Array.isArray(item.enrolledClasses)) continue;
+      const oldLen = item.enrolledClasses.length;
+      const oldPrice = Number(item.price) || 0;
+      item.enrolledClasses = item.enrolledClasses.filter(
+        (cls: any) => !dropped.some((enr) => classSlotMatchesDroppedEnrollment(cls, enr))
+      );
+      const newLen = item.enrolledClasses.length;
+      if (newLen < oldLen && oldLen > 0) {
+        if (newLen === 0) item.price = 0;
+        else item.price = Math.round(((oldPrice * newLen) / oldLen) * 100) / 100;
+      }
+    }
+    order.items = order.items.filter((it: any) => it.enrolledClasses && it.enrolledClasses.length > 0);
+    order.totalAmount = order.items.reduce((s: number, it: any) => s + (Number(it.price) || 0), 0);
+  }
+  for (let i = orders.length - 1; i >= 0; i--) {
+    const o = orders[i];
+    if (
+      o.organizationId === organizationId &&
+      o.studentId === studentId &&
+      o.status === 'unpaid' &&
+      (!o.items || o.items.length === 0)
+    ) {
+      orders.splice(i, 1);
+    }
+  }
+}
+
 function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   const {
     // middleware
@@ -554,7 +614,6 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
       // 2. Process Enrollments
       const enrollments = await readEnrollments();
       const timetableData = await readTimetable();
-      let timetableModified = false;
 
       for (const item of items) {
         if (item.enrolledClasses && Array.isArray(item.enrolledClasses)) {
@@ -623,12 +682,7 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
       }
 
       await writeEnrollments(enrollments);
-      if (timetableModified) {
-        console.log('[DEBUG] Writing updated timetable data');
-        await writeTimetable(timetableData);
-      } else {
-        console.log('[DEBUG] No changes to timetable entries');
-      }
+      console.log('[DEBUG] No changes to timetable entries');
 
       res.status(201).json(newOrder);
     } catch (error) {
@@ -664,6 +718,7 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
 
       let refundAmount = 0;
       let droppedCount = 0;
+      const droppedForOrderSync: { date: string; timetableEntryId: string }[] = [];
 
       // Helper to calculate refund value for a single enrollment
       const getRefundValue = (enrollment) => {
@@ -719,18 +774,23 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
         if (targetIndex !== -1) {
           const enrollment = enrollments[targetIndex];
           refundAmount += getRefundValue(enrollment);
+          droppedForOrderSync.push({ date: enrollment.date, timetableEntryId: enrollment.timetableEntryId });
           enrollments.splice(targetIndex, 1);
           droppedCount++;
         }
       } else if (mode === 'all') {
         if (!timetableEntryId) return res.status(400).json({ error: 'Timetable Entry ID required for Drop All' });
 
-        const today = new Date().toISOString().split('T')[0];
+        // Drop from this calendar day onward (inclusive), same series (timetableEntryId).
+        // Optional `date` = YYYY-MM-DD from the UI's selected day; if omitted, use server "today".
+        const dateStrIn = typeof date === 'string' ? date.trim() : '';
+        const cutoff =
+          /^\d{4}-\d{2}-\d{2}$/.test(dateStrIn) ? dateStrIn : new Date().toISOString().split('T')[0];
         const newEnrollments = [];
 
         for (const e of enrollments) {
           let shouldDrop = false;
-          if (e.studentId === studentId && e.date >= today) {
+          if (e.studentId === studentId && e.date >= cutoff) {
             // Check if enrollment belongs to the specific Timetable Entry (Series)
             // This ensures we only drop "Elite Class (Mon)" and not "Regular Class (Wed)"
             if (e.timetableEntryId === timetableEntryId) {
@@ -740,6 +800,7 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
 
           if (shouldDrop) {
             refundAmount += getRefundValue(e);
+            droppedForOrderSync.push({ date: e.date, timetableEntryId: e.timetableEntryId });
             droppedCount++;
           } else {
             newEnrollments.push(e);
@@ -755,6 +816,12 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
       }
 
       await writeEnrollments(enrollments);
+
+      const orgIdForOrders = resolveOrgIdFromUser(req.user);
+      if (orgIdForOrders && droppedForOrderSync.length > 0) {
+        pruneUnpaidOrdersAfterEnrollmentDrops(orders, orgIdForOrders, studentId, droppedForOrderSync);
+        await writeOrders(orders);
+      }
 
       res.json({
         success: true,

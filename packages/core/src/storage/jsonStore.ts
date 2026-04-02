@@ -13,13 +13,16 @@ interface JsonStore<T> {
   write(data: T): Promise<boolean>;
 }
 
-function createJsonStore<T>(filePath: string, defaultValue: T = {} as T): JsonStore<T> {
+function createJsonStore<T>(filePath: string, defaultValue: T | (() => T) = {} as T): JsonStore<T> {
   return {
     async read(): Promise<T> {
       try {
         return JSON.parse(await require('fs').promises.readFile(filePath, 'utf8'));
       } catch {
-        return typeof defaultValue === 'function' ? (defaultValue as Function)() : JSON.parse(JSON.stringify(defaultValue));
+        if (typeof defaultValue === 'function') {
+          return (defaultValue as () => T)();
+        }
+        return JSON.parse(JSON.stringify(defaultValue));
       }
     },
     async write(data: T): Promise<boolean> {
