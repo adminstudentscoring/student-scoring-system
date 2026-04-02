@@ -3,6 +3,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 
+const billingAccessFlags = require('../access');
+
 function registerPayPalRoutes(app: any, deps: any): void {
   const authenticateUser = deps && deps.authenticateUser;
   const authorizeRole = deps && deps.authorizeRole;
@@ -30,6 +32,9 @@ function registerPayPalRoutes(app: any, deps: any): void {
   // Admin: sync active+live prices to PayPal (auto-create Product/Plans, store paypalPlanId back into price records)
   app.post('/api/admin/billing/paypal/sync-prices', authenticateUser, authorizeRole('admin'), async (req, res) => {
     try {
+      if (!billingAccessFlags.isBillingEnforcementEnabled()) {
+        return res.status(503).json({ error: 'Platform subscription billing is disabled (BILLING_ENFORCEMENT=0).' });
+      }
       if (!paypal.PAYPAL_CONFIGURED) {
         return res.status(503).json({ error: 'PayPal billing is not configured on this server' });
       }
@@ -53,6 +58,9 @@ function registerPayPalRoutes(app: any, deps: any): void {
   // PayPal webhook (Sandbox/Live) - signature verification + store event + refresh subscription + update entitlement
   app.post('/api/webhooks/paypal', async (req, res) => {
     try {
+      if (!billingAccessFlags.isBillingEnforcementEnabled()) {
+        return res.status(200).json({ ok: false, error: 'billing_enforcement_off' });
+      }
       if (!paypal.PAYPAL_CONFIGURED) {
         // 200 avoids PayPal retry storms when billing env was never provisioned for this deployment.
         return res.status(200).json({ ok: false, error: 'paypal_not_configured' });

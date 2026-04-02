@@ -18,6 +18,7 @@ export const ensureTrialForOrg = access.ensureTrialForOrg;
 export const getTrial = access.getTrial;
 export const getOrgAccessSnapshot = access.getOrgAccessSnapshot;
 export const isBillingAllowedPath = access.isBillingAllowedPath;
+export const isBillingEnforcementEnabled = access.isBillingEnforcementEnabled;
 
 // PayPal
 export const PAYPAL_ENV = paypal.PAYPAL_ENV;

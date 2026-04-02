@@ -3,6 +3,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 
+const billingAccessFlags = require('../access');
+
 function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   const {
     // middleware
@@ -40,6 +42,13 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
     return res.status(503).json({ error: 'PayPal billing is not configured on this server' });
   }
 
+  function billingEnforcementOff(res: Response) {
+    return res.status(503).json({
+      error: 'Platform subscription billing is disabled (BILLING_ENFORCEMENT=0).',
+      code: 'billing_enforcement_off'
+    });
+  }
+
   function isBillingDbUnavailable(error: any): boolean {
     const message = String(error?.message || error || '').toLowerCase();
     return message.includes('postgres not configured') ||
@@ -52,6 +61,7 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   // Organization: create PayPal subscription for a selected priceId (active+live only)
   app.post('/api/organizations/billing/subscriptions', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!billingAccessFlags.isBillingEnforcementEnabled()) return billingEnforcementOff(res);
       if (!paypal.PAYPAL_CONFIGURED) return billingPayPalUnavailable(res);
 
       const orgId = resolveOrgIdFromUser(req.user);
@@ -102,6 +112,7 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   // Organization: after PayPal approve redirect, force-refresh subscription state from PayPal (fallback when webhook is delayed)
   app.post('/api/organizations/billing/subscriptions/refresh', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!billingAccessFlags.isBillingEnforcementEnabled()) return billingEnforcementOff(res);
       if (!paypal.PAYPAL_CONFIGURED) return billingPayPalUnavailable(res);
 
       const orgId = resolveOrgIdFromUser(req.user);
@@ -127,6 +138,7 @@ function registerOrganizationsBillingRoutes(app: any, deps: any): void {
   // Organization: cancel PayPal subscription (stop auto-renew; PayPal decides whether it remains active until period end)
   app.post('/api/organizations/billing/subscriptions/cancel', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
+      if (!billingAccessFlags.isBillingEnforcementEnabled()) return billingEnforcementOff(res);
       if (!paypal.PAYPAL_CONFIGURED) return billingPayPalUnavailable(res);
 
       const orgId = resolveOrgIdFromUser(req.user);

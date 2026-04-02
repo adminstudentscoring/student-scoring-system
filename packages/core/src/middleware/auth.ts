@@ -72,6 +72,10 @@ function authorizeRole(...allowedRoles: string[]): (req: AuthenticatedRequest, r
         return;
       }
 
+      if (typeof billingAccess.isBillingEnforcementEnabled === 'function' && !billingAccess.isBillingEnforcementEnabled()) {
+        return next();
+      }
+
       billingAccess
         .getOrgAccessSnapshot(orgId)
         .then((snap: any) => {

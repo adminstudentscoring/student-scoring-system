@@ -51,6 +51,10 @@ function createRequireOrganizationAccess(readUsersFn: () => Promise<any[]>): any
     
     // Organization users can only access their own organization's data
     if (req.user.role === 'organization' && organizationId) {
+      if (typeof billingAccess.isBillingEnforcementEnabled === 'function' && !billingAccess.isBillingEnforcementEnabled()) {
+        req.organizationFilter = organizationId;
+        return next();
+      }
       try {
         const snap = await billingAccess.getOrgAccessSnapshot(organizationId);
         if (!snap.allowAll && !billingAccess.isBillingAllowedPath(req.path)) {
@@ -71,6 +75,10 @@ function createRequireOrganizationAccess(readUsersFn: () => Promise<any[]>): any
     
     // Teachers can only access their organization's data
     if (req.user.role === 'teacher' && organizationId) {
+      if (typeof billingAccess.isBillingEnforcementEnabled === 'function' && !billingAccess.isBillingEnforcementEnabled()) {
+        req.organizationFilter = organizationId;
+        return next();
+      }
       try {
         const snap = await billingAccess.getOrgAccessSnapshot(organizationId);
         if (!snap.allowAll && !billingAccess.isBillingAllowedPath(req.path)) {

@@ -80,11 +80,18 @@ function isBillingAllowedPath(path: string): boolean {
   return p.startsWith('/api/organizations/billing/');
 }
 
+/** When false, org/teacher routes skip trial/subscription gates; SaaS PayPal subscription APIs return disabled. Course sales (orders) are unchanged. */
+function isBillingEnforcementEnabled(): boolean {
+  const v = String(process.env.BILLING_ENFORCEMENT ?? '1').trim().toLowerCase();
+  return !['0', 'false', 'off', 'disabled', 'no'].includes(v);
+}
+
 module.exports = {
   ensureTrialForOrg,
   getTrial,
   getOrgAccessSnapshot,
-  isBillingAllowedPath
+  isBillingAllowedPath,
+  isBillingEnforcementEnabled
 };
 
 
