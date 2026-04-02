@@ -171,9 +171,10 @@ function renderCourseManagement() {
               </div>
               
               <div id="emptyStudentState" class="empty-student-state">
-                <div class="empty-icon">🎓</div>
-                <div class="empty-text">Create New Student</div>
-                <button class="btn btn-primary" type="button" onclick="openSalesCreateStudentModal()">Create New Student</button>
+                <button type="button" class="btn-sales-new-student" onclick="openSalesCreateStudentModal()" title="Same form as Add student in Organization">
+                  <span class="btn-sales-new-student-icon" aria-hidden="true">+</span>
+                  <span class="btn-sales-new-student-label">Create new student</span>
+                </button>
               </div>
             </div>
             
@@ -642,7 +643,9 @@ style.textContent = `
   .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     margin-top: 20px;
   }
   
@@ -803,8 +806,9 @@ style.textContent = `
   /* Sales Module Styles */
   .sales-container {
     display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
     height: 100%;
-    min-height: 600px;
     gap: 20px;
   }
   
@@ -1047,23 +1051,54 @@ style.textContent = `
   
   .empty-student-state {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    padding: 2px 0 6px;
+    font-size: 13px;
+  }
+  
+  .btn-sales-new-student {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 6px 12px 6px 8px;
+    border: 1px solid #0f766e;
+    background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(15, 118, 110, 0.35);
+    transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  }
+  
+  .btn-sales-new-student:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 2px 8px rgba(15, 118, 110, 0.35);
+  }
+  
+  .btn-sales-new-student:active {
+    transform: translateY(1px);
+  }
+  
+  .btn-sales-new-student-icon {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 30px 0;
-    color: #666;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.22);
+    font-size: 1.05rem;
+    line-height: 1;
+    font-weight: 700;
   }
   
-  .empty-icon {
-    font-size: 48px;
-    margin-bottom: 10px;
-    opacity: 0.3;
-  }
-  
-  .empty-text {
-    font-size: 18px;
-    font-weight: 500;
-    margin-bottom: 15px;
+  .btn-sales-new-student-label {
+    letter-spacing: 0.01em;
   }
   
   .btn-outline {
@@ -1139,29 +1174,46 @@ style.textContent = `
   
   .sales-cart-section {
     flex: 1;
-    overflow-y: auto;
-    padding: 15px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 12px 15px;
     background: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  #salesCartContent {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
   }
   
   .cart-empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    color: #999;
-    padding: 40px 20px;
-    font-size: 14px;
-    line-height: 1.5;
+    color: #94a3b8;
+    padding: 16px 12px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    min-height: 120px;
   }
   
   .sales-footer-actions {
-    padding: 15px;
+    padding: 10px 12px;
     border-top: 1px solid #e0e0e0;
     background: #f8f9fa;
     display: flex;
-    gap: 10px;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
   }
   
   .sales-footer-actions .btn {
-    flex: 1;
+    flex: 0 1 auto;
   }
   
   @media (max-width: 1024px) {

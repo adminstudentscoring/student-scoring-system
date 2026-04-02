@@ -179,8 +179,10 @@ function renderPackages() {
         </td>
         <td>${validityStatus}</td>
         <td>
+          <span class="btn-row-pair">
           <button class="btn btn-secondary" onclick="openEditPackageModal('${pkg.id}')">Edit</button>
           <button class="btn btn-danger" onclick="deletePackage('${pkg.id}', '${escapeHtml(pkg.name)}')">Delete</button>
+          </span>
         </td>
       </tr>
     `;

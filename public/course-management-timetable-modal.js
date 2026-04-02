@@ -316,10 +316,12 @@ window.openEditClassModal = async function(entry, dateStr) {
               </div>`;
             })()}
           </div>
-          <div class="edit-class-modal-actions">
-            ${isEdit ? `<button type="button" class="btn btn-danger" onclick="deleteClassEntry('${entry.id}', '${dateStr || ''}')">Delete</button>` : ''}
+          <div class="edit-class-modal-actions edit-class-modal-actions-bar">
+            <span class="edit-class-modal-actions-left">${isEdit ? `<button type="button" class="btn btn-danger" onclick="deleteClassEntry('${entry.id}', '${dateStr || ''}')">Delete</button>` : ''}</span>
+            <span class="btn-row-pair">
             <button type="button" class="btn btn-secondary" onclick="closeEditClassModal()">Cancel</button>
             <button type="submit" class="btn btn-primary">Save</button>
+            </span>
           </div>
         </form>
       </div>

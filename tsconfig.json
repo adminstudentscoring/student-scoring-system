@@ -22,11 +22,14 @@
     "paths": {
       "@student-scoring/core": ["packages/core/src/index.ts"],
       "@student-scoring/core/*": ["packages/core/src/*"],
-      "@student-scoring/games-simple": ["packages/games-simple/src/index.ts"],
-      "@student-scoring/games-chess": ["packages/games-chess/src/index.ts"],
-      "@student-scoring/games-monster-fight": ["packages/games-monster-fight/src/index.ts"],
-      "@student-scoring/games-blunders": ["packages/games-blunders/src/index.ts"],
-      "@student-scoring/games-tactics-fighter": ["packages/games-tactics-fighter/src/index.ts"],
+      "@student-scoring/application-chess": ["packages/application/chess/src/index.ts"],
+      "@student-scoring/application-monster-fight": ["packages/application/monster-fight/src/index.ts"],
+      "@student-scoring/application-blunders": ["packages/application/blunders/src/index.ts"],
+      "@student-scoring/application-tactics-fighter": ["packages/application/tactics-fighter/src/index.ts"],
+      "@student-scoring/application-truceboard": ["packages/application/truceboard/src/index.ts"],
+      "@student-scoring/application-running-queen": ["packages/application/running-queen/src/index.ts"],
+      "@student-scoring/application-royal-exchange": ["packages/application/royal-exchange/src/index.ts"],
+      "@student-scoring/application-hope-mate": ["packages/application/hope-mate/src/index.ts"],
       "@student-scoring/vcp": ["packages/vcp/src/index.ts"],
       "@student-scoring/billing": ["packages/billing/src/index.ts"],
       "@student-scoring/billing/*": ["packages/billing/*"],
@@ -40,11 +43,7 @@
   "include": [
     "server.ts",
     "packages/core/src/**/*.ts",
-    "packages/games-simple/src/**/*.ts",
-    "packages/games-chess/src/**/*.ts",
-    "packages/games-monster-fight/src/**/*.ts",
-    "packages/games-blunders/src/**/*.ts",
-    "packages/games-tactics-fighter/src/**/*.ts",
+    "packages/application/*/src/**/*.ts",
     "packages/vcp/src/**/*.ts",
     "packages/billing/src/**/*.ts",
     "packages/class-view/src/**/*.ts",
@@ -55,7 +54,7 @@
     "node_modules",
     "dist",
     "public",
-    "game",
+    "application",
     "data"
   ]
 }

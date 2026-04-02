@@ -7,6 +7,8 @@ interface Level {
   maxHP: number;
   reward: number;
   emoji: string;
+  /** Relative to site root (e.g. assets/...) or absolute http(s) URL for Class View monster art */
+  imageUrl?: string;
 }
 
 interface Rank {
@@ -15,16 +17,16 @@ interface Rank {
 }
 
 const LEVELS: Level[] = [
-  { level: 1, name: 'Slime', maxHP: 50, reward: 10, emoji: '🟢' },
-  { level: 2, name: 'Goblin', maxHP: 100, reward: 20, emoji: '👺' },
-  { level: 3, name: 'Orc', maxHP: 150, reward: 30, emoji: '👹' },
-  { level: 4, name: 'Dragon', maxHP: 250, reward: 40, emoji: '🐉' },        // 150 + 100
-  { level: 5, name: 'Demon', maxHP: 400, reward: 50, emoji: '😈' },         // 250 + 150
-  { level: 6, name: 'Boss Lv1', maxHP: 650, reward: 60, emoji: '👑' },      // 400 + 250
-  { level: 7, name: 'Boss Lv2', maxHP: 1050, reward: 75, emoji: '👑' },     // 650 + 400
-  { level: 8, name: 'Boss Lv3', maxHP: 1700, reward: 100, emoji: '👑' },    // 1050 + 650
-  { level: 9, name: 'Boss Lv4', maxHP: 2750, reward: 125, emoji: '👑' },    // 1700 + 1050
-  { level: 10, name: 'Final Boss', maxHP: 4450, reward: 150, emoji: '👑' }  // 2750 + 1700
+  { level: 1, name: 'Slime', maxHP: 50, reward: 10, emoji: '🟢', imageUrl: 'assets/class-view-monster/Slime.png' },
+  { level: 2, name: 'Goblin', maxHP: 100, reward: 20, emoji: '👺', imageUrl: 'assets/class-view-monster/Goblin.png' },
+  { level: 3, name: 'Orc', maxHP: 150, reward: 30, emoji: '👹', imageUrl: 'assets/class-view-monster/Orc.png' },
+  { level: 4, name: 'Dragon', maxHP: 250, reward: 40, emoji: '🐉', imageUrl: 'assets/class-view-monster/Dragon.png' },
+  { level: 5, name: 'Demon', maxHP: 400, reward: 50, emoji: '😈', imageUrl: 'assets/class-view-monster/Demon.png' },
+  { level: 6, name: 'Boss Lv1', maxHP: 650, reward: 60, emoji: '👑' },
+  { level: 7, name: 'Boss Lv2', maxHP: 1050, reward: 75, emoji: '👑' },
+  { level: 8, name: 'Boss Lv3', maxHP: 1700, reward: 100, emoji: '👑' },
+  { level: 9, name: 'Boss Lv4', maxHP: 2750, reward: 125, emoji: '👑' },
+  { level: 10, name: 'Final Boss', maxHP: 4450, reward: 150, emoji: '👑' }
 ];
 
 // Rank system configuration

@@ -1,0 +1,2100 @@
+// Blunders UI (Home / Blunder / Review)
+(function () {
+  const C = window.BlundersCore;
+  if (!C) {
+    console.error('BlundersCore missing. Ensure /application/blunders/core.js is loaded before /application/blunders/blunders.js');
+        return;
+      }
+  const {
+    escapeHtml,
+    STATE,
+    todayYmdLocal,
+    captureFocusInfo,
+    restoreFocusInfo,
+    getBlundersRole,
+    applyBoardColors,
+    setBoardColors,
+    getPlayers,
+    getStudentPasswordQuery,
+    getStudentPasswordQueryWith,
+    fetchMyBlunders,
+    fetchMasterList,
+    fetchMasterPuzzles,
+    submitMasterAttempt,
+    teacherApi,
+    submitAttempt,
+    challengeStart,
+    challengeAttempt,
+    fetchChallengeLeaderboard,
+    fmtTs,
+    fmtIsoUtc,
+    parseIsoMs,
+    puzzleTimeMs,
+    dropOfPuzzle,
+    isMissMatePuzzle,
+    bucketKeyOfPuzzle,
+    reviewDurationStartMs,
+    getReviewPuzzlesFiltered,
+    pieceImagePath,
+    parseFenBoard,
+    squareToRC,
+    rcToSquare,
+    isDarkSquare,
+    displaySquares
+  } = C;
+
+  // Expose a tiny API so feature modules (teacher/challenge) can call back into entry (render + shared UI helpers).
+  // These modules are loaded before this file, so they reference this via window.BlundersEntryApi at runtime.
+  window.BlundersEntryApi = window.BlundersEntryApi || {};
+
+  // Student module moved to game/blunders/student.js
+  function renderSidebar() { return window.BlundersStudent?.renderSidebar?.() || `<aside class="bl-sidebar"><div class="bl-side-title">💥 Blunders</div></aside>`; }
+  function renderDebugBlock() { return window.BlundersStudent?.renderDebugBlock?.() || ``; }
+  function openHomePracticeModal() { return window.BlundersStudent?.openHomePracticeModal?.(); }
+  function startPracticeFromHome(key) { return window.BlundersStudent?.startPracticeFromHome?.(key); }
+  function renderHomePage() { return window.BlundersStudent?.renderHomePage?.() || `<div class="bl-card">Student module not loaded.</div>`; }
+  function renderBlunderPage() { return window.BlundersStudent?.renderBlunderPage?.() || `<div class="bl-card">Student module not loaded.</div>`; }
+  function renderReviewPage() { return window.BlundersStudent?.renderReviewPage?.() || `<div class="bl-card">Student module not loaded.</div>`; }
+  function renderStudentMasterGamePage() { return window.BlundersStudent?.renderStudentMasterGamePage?.() || `<div class="bl-card">Student module not loaded.</div>`; }
+  function renderSettingsPage() { return window.BlundersStudent?.renderSettingsPage?.() || `<div class="bl-card">Student module not loaded.</div>`; }
+  function openModal(title, bodyHtml) {
+    STATE.ui.modalOpen = true;
+    STATE.ui.modalHtml = `
+      <div class="bl-modal-backdrop" id="blModalBackdrop" role="presentation">
+        <div class="bl-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+          <div class="bl-modal-header">
+            <div class="bl-modal-title">${escapeHtml(title)}</div>
+            <button class="bl-modal-close" type="button" id="blModalClose" aria-label="Close">×</button>
+          </div>
+          <div class="bl-modal-body">${bodyHtml}</div>
+        </div>
+      </div>
+    `;
+    render();
+  }
+
+  function closeModal() {
+    // Stop teacher job polling if a job modal is open.
+    try { window.BlundersTeacher?.stopTeacherJobPolling?.(); } catch {}
+    STATE.ui.modalOpen = false;
+    STATE.ui.modalHtml = '';
+    const shouldRefresh = !!STATE.needsRefreshAfterModal;
+    const shouldRefreshMaster = !!STATE.needsMasterRefreshAfterModal;
+    STATE.needsRefreshAfterModal = false;
+    STATE.needsMasterRefreshAfterModal = false;
+    if (shouldRefresh) {
+      // Fire-and-forget; render immediately and refresh in background.
+      render();
+      refreshData();
+      return;
+    }
+    if (shouldRefreshMaster) {
+      render();
+      const mid = String(STATE.master.selectedMasterId || '');
+      if (mid) ensureMasterPuzzlesLoaded(mid).catch(() => {});
+      else ensureMasterGameLoaded().catch(() => {});
+      return;
+    }
+    render();
+  }
+
+  // Populate entry API now that functions exist.
+  window.BlundersEntryApi.render = render;
+  window.BlundersEntryApi.openModal = openModal;
+  window.BlundersEntryApi.closeModal = closeModal;
+
+  function setPage(page) {
+    STATE.page = page;
+    render();
+  }
+
+  async function ensureMasterGameLoaded() {
+    if (!STATE.me?.id) return;
+    if (STATE.master.loading) return;
+    STATE.master.loading = true;
+    STATE.master.error = '';
+    render();
+    try {
+      const data = await fetchMasterList(STATE.me.id);
+      const masters = Array.isArray(data?.masters) ? data.masters : [];
+      STATE.master.masters = masters;
+      STATE.master.countsByMaster = Object.fromEntries(masters.map(m => [String(m.id || ''), m.counts || {}]));
+      // Auto-select first master with pending puzzles (or first)
+      const withPending = masters.find(m => Number(m?.counts?.pending || 0) > 0) || masters[0] || null;
+      STATE.master.selectedMasterId = withPending ? String(withPending.id || '') : '';
+      STATE.master.loading = false;
+      render();
+      if (STATE.master.selectedMasterId) {
+        await ensureMasterPuzzlesLoaded(STATE.master.selectedMasterId);
+      }
+    } catch (e) {
+      STATE.master.loading = false;
+      STATE.master.error = String(e?.message || e);
+      render();
+    }
+  }
+
+  async function ensureMasterPuzzlesLoaded(masterId) {
+    if (!STATE.me?.id) return;
+    const mid = String(masterId || '').trim();
+    if (!mid) return;
+    const prevMid = String(STATE.master.selectedMasterId || '').trim();
+    STATE.master.loading = true;
+    STATE.master.error = '';
+    STATE.master.selectedMasterId = mid;
+    if (prevMid && prevMid !== mid) {
+      STATE.master.selectedPuzzleId = '';
+    }
+    render();
+    try {
+      // New: bucketed master puzzles (like Review / Teacher All blunders).
+      const data = await window.BlundersCore.fetchMasterPuzzlesSummary(STATE.me.id, mid);
+      const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : {};
+      if (!ui.buckets || typeof ui.buckets !== 'object') ui.buckets = {};
+      ui.pageSize = Number(data?.pageSize || 50) || 50;
+      ui.counts = (data?.counts && typeof data.counts === 'object') ? data.counts : null;
+      // Reset buckets for new master selection
+      for (const k of ['missMate', 'd1', 'd2', 'd3', 'd4']) {
+        if (!ui.buckets[k] || typeof ui.buckets[k] !== 'object') ui.buckets[k] = {};
+        ui.buckets[k] = { ...ui.buckets[k], open: false, page: 1, totalPages: 1, total: 0, entries: [], jump: '', loading: false, error: '' };
+      }
+      STATE.master.ui = ui;
+      STATE.master.byId = {};
+      STATE.master.pending = [];
+      STATE.master.completed = [];
+      STATE.master.currentIndex = 0;
+
+      // Prefetch first bucket (d1) to show something on the board without expanding buckets.
+      try {
+        const pre = await window.BlundersCore.fetchMasterPuzzlesBucket(STATE.me.id, mid, 'd1', 1);
+        const b = STATE.master.ui.buckets.d1;
+        b.entries = Array.isArray(pre?.entries) ? pre.entries : [];
+        b.page = Number(pre?.page || 1) || 1;
+        b.totalPages = Number(pre?.totalPages || 1) || 1;
+        b.total = Number(pre?.totalBucket || b.entries.length || 0) || 0;
+        // Cache by id
+        const map = (STATE.master.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+        for (const p of b.entries) {
+          const pid = String(p?.id || '');
+          if (pid) map[pid] = p;
+        }
+        STATE.master.byId = map;
+        // Auto-select first pending puzzle if none selected
+        const cur = String(STATE.master.selectedPuzzleId || '');
+        if (!cur) {
+          const firstPending = b.entries.find(p => String(p?.status || 'pending') === 'pending') || b.entries[0] || null;
+          if (firstPending) {
+            STATE.master.selectedPuzzleId = String(firstPending.id || '');
+            STATE.uiBoard.masterFen = String(firstPending.startFEN || '');
+            STATE.uiBoard.masterMoveUci = '';
+            STATE.uiBoard.masterVerdict = '';
+            STATE.uiBoard.masterBestMoveUci = '';
+          }
+        }
+      } catch {}
+      STATE.master.loading = false;
+      render();
+    } catch (e) {
+      STATE.master.loading = false;
+      STATE.master.error = String(e?.message || e);
+      render();
+    }
+  }
+
+  async function masterLoadBucket(key, page) {
+    const mid = String(STATE.master?.selectedMasterId || '').trim();
+    if (!STATE.me?.id || !mid) return;
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    if (!ui || !ui.buckets || typeof ui.buckets !== 'object') return;
+    const b = ui.buckets[key];
+    if (!b || b.loading) return;
+    b.loading = true;
+    b.error = '';
+    render();
+    try {
+      const p = Math.max(1, Number(page || 1) || 1);
+      const out = await window.BlundersCore.fetchMasterPuzzlesBucket(STATE.me.id, mid, key, p);
+      b.entries = Array.isArray(out?.entries) ? out.entries : [];
+      b.page = Number(out?.page || p) || p;
+      b.totalPages = Number(out?.totalPages || 1) || 1;
+      b.total = Number(out?.totalBucket || b.entries.length || 0) || 0;
+      // Cache by id
+      const map = (STATE.master.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+      for (const it of b.entries) {
+        const pid = String(it?.id || '');
+        if (pid) map[pid] = it;
+      }
+      STATE.master.byId = map;
+    } catch (e) {
+      b.error = String(e?.message || e);
+    } finally {
+      b.loading = false;
+      render();
+    }
+  }
+
+  function masterBucketToggle(key) {
+    const k = String(key || '').trim();
+    if (!['missMate', 'd1', 'd2', 'd3', 'd4'].includes(k)) return;
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    if (!ui || !ui.buckets || typeof ui.buckets !== 'object') return;
+    const b = ui.buckets[k];
+    b.open = !b.open;
+    if (b.open && (!Array.isArray(b.entries) || !b.entries.length)) {
+      masterLoadBucket(k, 1).catch(() => {});
+    } else {
+      render();
+    }
+  }
+
+  function masterBucketPrev(key) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b || b.loading) return;
+    const p = Math.max(1, Number(b.page || 1) - 1);
+    masterLoadBucket(k, p).catch(() => {});
+  }
+
+  function masterBucketNext(key) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b || b.loading) return;
+    const max = Math.max(1, Number(b.totalPages || 1) || 1);
+    const p = Math.min(max, Number(b.page || 1) + 1);
+    masterLoadBucket(k, p).catch(() => {});
+  }
+
+  function masterBucketSetJump(key, value) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b) return;
+    b.jump = String(value || '');
+  }
+
+  function masterBucketGo(key) {
+    const k = String(key || '').trim();
+    const ui = (STATE.master.ui && typeof STATE.master.ui === 'object') ? STATE.master.ui : null;
+    const b = ui?.buckets?.[k];
+    if (!b || b.loading) return;
+    const raw = String(b.jump || '').trim();
+    const n = Math.floor(Number(raw || 0));
+    const max = Math.max(1, Number(b.totalPages || 1) || 1);
+    if (!Number.isFinite(n) || n < 1) return;
+    masterLoadBucket(k, Math.min(max, n)).catch(() => {});
+  }
+
+  function setBlunderModePending() {
+    STATE.mode = 'pending';
+    STATE.practicePuzzle = null;
+    STATE.currentIndex = 0;
+    STATE.selectedFrom = null;
+    STATE.lastAttemptWasPendingSolve = false;
+    render();
+  }
+
+  function setBlunderModePractice(puzzle) {
+    STATE.mode = 'practice';
+    STATE.practicePuzzle = puzzle || null;
+    STATE.selectedFrom = null;
+    STATE.lastAttemptWasPendingSolve = false;
+    render();
+  }
+
+  function currentPuzzle() {
+    if (STATE.mode === 'practice') return STATE.practicePuzzle;
+    const list = Array.isArray(STATE.pending) ? STATE.pending : [];
+    if (!list.length) return null;
+    const idx = Math.max(0, Math.min(list.length - 1, Number(STATE.currentIndex) || 0));
+    return list[idx] || null;
+  }
+
+  // Student pages extracted to game/blunders/student.js
+  // (thin wrappers defined near top)
+
+  // (Student page implementations moved to game/blunders/student.js)
+
+  function renderBoardForPuzzle(puzzle, flip, selectedFrom, opts = {}) {
+    const fen = String(opts.fenOverride || puzzle?.startFEN || '');
+    const parsed = parseFenBoard(fen);
+    if (!parsed) return `<div class="blunders-muted">Invalid FEN.</div>`;
+    const squares = displaySquares(!!flip);
+    const oppUci = String(puzzle?.opponentMoveUci || '');
+    const hlFrom = oppUci && oppUci.length >= 4 ? oppUci.slice(0, 2) : '';
+    const hlTo = oppUci && oppUci.length >= 4 ? oppUci.slice(2, 4) : '';
+    const myUci = String(opts.myMoveUci || '');
+    const myFrom = myUci && myUci.length >= 4 ? myUci.slice(0, 2) : '';
+    const myTo = myUci && myUci.length >= 4 ? myUci.slice(2, 4) : '';
+    return `
+      <div class="bl-board" id="blBoard" role="grid" aria-label="Chessboard">
+        ${squares.map((sq) => {
+          const rc = squareToRC(sq);
+          const piece = rc ? parsed.board[rc.r][rc.c] : '';
+          const light = !isDarkSquare(sq);
+          const isSel = selectedFrom && selectedFrom === sq;
+          const isLastFrom = hlFrom && sq === hlFrom;
+          const isLastTo = hlTo && sq === hlTo;
+          const isMyFrom = myFrom && sq === myFrom;
+          const isMyTo = myTo && sq === myTo;
+          const showRank = sq[0] === (flip ? 'h' : 'a');
+          const showFile = sq[1] === (flip ? '8' : '1');
+          return `
+            <div class="bl-sq ${light ? 'light' : 'dark'} ${isSel ? 'selected' : ''} ${isLastFrom ? 'bl-last-from' : ''} ${isLastTo ? 'bl-last-to' : ''} ${isMyFrom ? 'bl-my-from' : ''} ${isMyTo ? 'bl-my-to' : ''}" data-bl-sq="${escapeHtml(sq)}" role="gridcell" aria-label="${escapeHtml(sq)}">
+              ${piece ? `<img class="bl-piece" draggable="false" alt="${escapeHtml(piece)}" src="${pieceImagePath(piece)}">` : ''}
+              ${showRank ? `<span class="bl-coord bl-coord-rank">${escapeHtml(sq[1])}</span>` : ''}
+              ${showFile ? `<span class="bl-coord bl-coord-file">${escapeHtml(sq[0])}</span>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // (Student page implementations moved to game/blunders/student.js)
+
+  // Challenge / Leaderboard moved to game/blunders/challenge.js
+  function challengeCurrentPuzzle() { return window.BlundersChallenge?.challengeCurrentPuzzle?.() || null; }
+  function clearChallengeUi() { return window.BlundersChallenge?.clearChallengeUi?.(); }
+  function renderChallengePage() { return window.BlundersChallenge?.renderChallengePage?.() || `<div class="bl-card">Challenge module not loaded.</div>`; }
+  function renderLeaderboardPage() { return window.BlundersChallenge?.renderLeaderboardPage?.() || `<div class="bl-card">Leaderboard module not loaded.</div>`; }
+
+  function renderMiniBoardFromFen(fen) {
+    const parsed = parseFenBoard(fen);
+    if (!parsed) return `<div class="bl-mini"></div>`;
+    const squares = displaySquares(false);
+    return `
+      <div class="bl-mini" aria-hidden="true">
+        ${squares.map((sq) => {
+          const rc = squareToRC(sq);
+          const piece = rc ? parsed.board[rc.r][rc.c] : '';
+          const light = !isDarkSquare(sq);
+          return `
+            <div class="bl-mini-sq ${light ? 'light' : 'dark'}">
+              ${piece ? `<img class="bl-mini-piece" draggable="false" alt="${escapeHtml(piece)}" src="${pieceImagePath(piece)}">` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // (Student page implementations moved to game/blunders/student.js)
+
+  // (Student page implementations moved to game/blunders/student.js)
+
+  // Teacher module moved to game/blunders/teacher.js
+  function renderTeacherSidebar() { return window.BlundersTeacher?.renderTeacherSidebar?.() || `<aside class="bl-sidebar"><div class="bl-side-title">💥 Blunders</div><div class="bl-side-sub">Teacher mode</div></aside>`; }
+  function renderTeacherStudentsPage() { return window.BlundersTeacher?.renderTeacherStudentsPage?.() || `<div class="bl-card">Teacher module not loaded.</div>`; }
+  function renderTeacherAllBlundersPage() { return window.BlundersTeacher?.renderTeacherAllBlundersPage?.() || `<div class="bl-card">Teacher module not loaded.</div>`; }
+  function renderTeacherMasterGamePage() { return window.BlundersTeacher?.renderTeacherMasterGamePage?.() || `<div class="bl-card">Teacher module not loaded.</div>`; }
+
+  function renderTeacherModeMain() {
+    const tab = String(STATE.teacherTab || 'students');
+    if (tab === 'allBlunders') return renderTeacherAllBlundersPage();
+    if (tab === 'masterGame') return renderTeacherMasterGamePage();
+    if (tab === 'settings') return renderSettingsPage();
+    return renderTeacherStudentsPage();
+  }
+
+  function renderTeacherModePage() {
+    return renderTeacherModeMain();
+  }
+
+  async function refreshData(opts = {}) {
+    if (!STATE.me?.id) return;
+    const setStatus = (t) => {
+      const statusEl = document.getElementById('blGlobalStatus');
+      if (!statusEl) return;
+      const txt = String(t || '');
+      statusEl.textContent = txt;
+      statusEl.style.display = txt ? 'block' : 'none';
+    };
+    try {
+      setStatus('Loading...');
+      const data = await fetchMyBlunders(STATE.me.id, opts);
+      STATE.data = data;
+      STATE.pending = Array.isArray(data?.pending) ? data.pending : [];
+      STATE.completed = Array.isArray(data?.completed) ? data.completed : [];
+      if (STATE.currentIndex >= STATE.pending.length) STATE.currentIndex = 0;
+      setStatus('');
+      // Home: AI comment (best-effort, non-blocking)
+      if (STATE.page === 'home') {
+        // Prefer bundled response (fast), then lazy fetch.
+        try {
+          if (data?.ai?.monthComment) {
+            STATE.homeAi = STATE.homeAi && typeof STATE.homeAi === 'object' ? STATE.homeAi : {};
+            STATE.homeAi.status = String(data.ai.monthCommentStatus || 'cached');
+            STATE.homeAi.updatedAt = data.ai.monthCommentUpdatedAt || null;
+            STATE.homeAi.comment = data.ai.monthComment || null;
+            STATE.homeAi.error = data.ai.monthCommentError || '';
+      } else {
+            ensureHomeAiLoaded().catch(() => {});
+          }
+        } catch {}
+      }
+      // Home: load recent games (best-effort, non-blocking)
+      if (STATE.page === 'home') {
+        ensureHomeRecentGamesLoaded().catch(() => {});
+      }
+      render();
+    } catch (e) {
+      setStatus(`Failed: ${e?.message || e}`);
+    }
+  }
+
+  async function ensureHomeRecentGamesLoaded() {
+    if (!STATE.me?.id) return;
+    if (!STATE.homeRecent || typeof STATE.homeRecent !== 'object') STATE.homeRecent = { loading: false, error: '', games: [], selectedGameIdx: 0, plyIdx: 0 };
+    if (STATE.homeRecent.loading) return;
+    STATE.homeRecent.loading = true;
+    STATE.homeRecent.error = '';
+    render();
+    try {
+      const out = await window.BlundersCore.fetchRecentGamesWithBlunders(STATE.me.id, 5);
+      STATE.homeRecent.games = Array.isArray(out?.games) ? out.games : [];
+      STATE.homeRecent.selectedGameIdx = 0;
+      STATE.homeRecent.plyIdx = 0;
+    } catch (e) {
+      STATE.homeRecent.error = String(e?.message || e);
+    } finally {
+      STATE.homeRecent.loading = false;
+      render();
+    }
+  }
+
+  async function ensureHomeAiLoaded() {
+    if (!STATE.me?.id) return;
+    if (!STATE.homeAi || typeof STATE.homeAi !== 'object') STATE.homeAi = { loading: false, error: '', status: 'disabled', updatedAt: null, comment: null };
+    if (STATE.homeAi.loading) return;
+    STATE.homeAi.loading = true;
+    STATE.homeAi.error = '';
+    render();
+    try {
+      const out = await window.BlundersCore.fetchAiComment(STATE.me.id);
+      STATE.homeAi.status = String(out?.status || 'disabled');
+      STATE.homeAi.updatedAt = out?.updatedAt || null;
+      STATE.homeAi.comment = out?.comment || null;
+      STATE.homeAi.error = out?.error ? String(out.error) : '';
+    } catch (e) {
+      STATE.homeAi.error = String(e?.message || e);
+    } finally {
+      STATE.homeAi.loading = false;
+      render();
+    }
+  }
+
+  // Teacher actions moved to game/blunders/teacher.js
+  function requireTeacherModule() {
+    const mod = window.BlundersTeacher;
+    if (mod) return mod;
+    try {
+      STATE.teacher.error = 'Teacher module not loaded. Please hard refresh (Ctrl+F5) and check that /application/blunders/teacher.js returns 200 in the Network tab.';
+        render();
+    } catch {}
+    console.error('BlundersTeacher missing: teacher actions are disabled. Check /application/blunders/teacher.js load.');
+    return null;
+  }
+  async function teacherLoad(tab) { const m = requireTeacherModule(); return m ? m.teacherLoad?.(tab) : undefined; }
+  async function teacherSaveStudentSettings() { const m = requireTeacherModule(); return m ? m.teacherSaveStudentSettings?.() : undefined; }
+  async function teacherSaveMasters() { const m = requireTeacherModule(); return m ? m.teacherSaveMasters?.() : undefined; }
+  async function teacherSaveMasterConfig() { const m = requireTeacherModule(); return m ? m.teacherSaveMasterConfig?.() : undefined; }
+  async function teacherSyncStudent(studentId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncStudent?.(studentId, hkDayKey, force) : undefined; }
+  async function teacherHistoryScanStudent(studentId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanStudent?.(studentId, historyGames, force) : undefined; }
+  async function teacherSyncMaster(masterId, hkDayKey, force) { const m = requireTeacherModule(); return m ? m.teacherSyncMaster?.(masterId, hkDayKey, force) : undefined; }
+  async function teacherHistoryScanMaster(masterId, historyGames, force) { const m = requireTeacherModule(); return m ? m.teacherHistoryScanMaster?.(masterId, historyGames, force) : undefined; }
+  async function teacherTagPuzzles(scope, recompute) { const m = requireTeacherModule(); return m ? m.teacherTagPuzzles?.(scope, recompute) : undefined; }
+  async function teacherLoadTagStats() { const m = requireTeacherModule(); return m ? m.teacherLoadTagStats?.() : undefined; }
+  async function teacherBulkSyncSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkSyncSelected?.(force) : undefined; }
+  async function teacherBulkCompleteSelected() { const m = requireTeacherModule(); return m ? m.teacherBulkCompleteSelected?.() : undefined; }
+  async function teacherBulkHistoryScanSelected(force) { const m = requireTeacherModule(); return m ? m.teacherBulkHistoryScanSelected?.(force) : undefined; }
+
+  function setMessage(txt) {
+    const el = document.getElementById('blBlunderMsg');
+    if (el) el.textContent = String(txt || '');
+  }
+
+  function setMasterMessage(txt) {
+    const el = document.getElementById('blMasterMsg');
+    if (el) el.textContent = String(txt || '');
+  }
+
+  async function copyToClipboard(text) {
+    const t = String(text || '');
+    if (!t) return false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(t);
+        return true;
+      }
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.setAttribute('readonly', 'true');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch {
+      return false;
+    }
+  }
+
+  function clearInlineResult(scope) {
+    if (scope === 'master') {
+      STATE.uiBoard.masterVerdict = '';
+      STATE.uiBoard.masterMoveUci = '';
+      STATE.uiBoard.masterMoveSan = '';
+      STATE.uiBoard.masterBestMoveUci = '';
+      STATE.uiBoard.masterBestMoveSan = '';
+      STATE.uiBoard.masterBestOrigin = '';
+      STATE.uiBoard.masterFen = '';
+    } else if (scope === 'challenge') {
+      STATE.uiBoard.challengeVerdict = '';
+      STATE.uiBoard.challengeMoveUci = '';
+      STATE.uiBoard.challengeMoveSan = '';
+      STATE.uiBoard.challengeBestMoveUci = '';
+      STATE.uiBoard.challengeBestMoveSan = '';
+      STATE.uiBoard.challengeBestOrigin = '';
+      STATE.uiBoard.challengeFen = '';
+    } else {
+      STATE.uiBoard.blunderVerdict = '';
+      STATE.uiBoard.blunderMoveUci = '';
+      STATE.uiBoard.blunderMoveSan = '';
+      STATE.uiBoard.blunderBestMoveUci = '';
+      STATE.uiBoard.blunderBestMoveSan = '';
+      STATE.uiBoard.blunderBestOrigin = '';
+      STATE.uiBoard.blunderFen = '';
+    }
+  }
+
+  function renderInlineResultPanel(scope) {
+    const isMaster = scope === 'master';
+    const isChallenge = scope === 'challenge';
+    const verdict = String(isMaster ? STATE.uiBoard.masterVerdict : (isChallenge ? STATE.uiBoard.challengeVerdict : STATE.uiBoard.blunderVerdict));
+    const moveUci = String(isMaster ? STATE.uiBoard.masterMoveUci : (isChallenge ? STATE.uiBoard.challengeMoveUci : STATE.uiBoard.blunderMoveUci));
+    const moveSan = String(isMaster ? STATE.uiBoard.masterMoveSan : (isChallenge ? STATE.uiBoard.challengeMoveSan : STATE.uiBoard.blunderMoveSan));
+    const bestUci = String(isMaster ? STATE.uiBoard.masterBestMoveUci : (isChallenge ? STATE.uiBoard.challengeBestMoveUci : STATE.uiBoard.blunderBestMoveUci));
+    const bestSan = String(isMaster ? STATE.uiBoard.masterBestMoveSan : (isChallenge ? STATE.uiBoard.challengeBestMoveSan : STATE.uiBoard.blunderBestMoveSan));
+    const origin = String(isMaster ? STATE.uiBoard.masterBestOrigin : (isChallenge ? STATE.uiBoard.challengeBestOrigin : STATE.uiBoard.blunderBestOrigin));
+
+    const title =
+      verdict === 'best' ? 'Best Move' :
+      verdict === 'good' ? 'Good move' :
+      verdict === 'blunder' ? 'STILL BLUNDER!!' :
+      'Result';
+
+    const sub =
+      verdict === 'best' ? 'Perfect. You found the best move.' :
+      verdict === 'good' ? 'Correct, but not the best.' :
+      verdict === 'blunder' ? 'Try again.' :
+      'Your result will appear here.';
+
+    const iconSrc =
+      verdict === 'best' ? '/application/Sign/Best_move.jpeg' :
+      verdict === 'good' ? '/application/Sign/Good_move.jpeg' :
+      verdict === 'blunder' ? '/application/Sign/Blunder_move.jpeg' : '';
+
+    const mvLine = (moveSan || moveUci) ? `Move: ${moveSan || moveUci}` : '';
+    const bmLine = (bestSan || bestUci) ? `Best: ${bestSan || bestUci}` : '';
+
+    // Challenge mode requirement: remove "Show best move".
+    const canShowBest = (!isChallenge) && (verdict === 'good' || verdict === 'blunder' || !verdict);
+    const showBestBtn = canShowBest ? `<button class="btn btn-secondary" type="button" data-bl-inline-best="${isMaster ? 'master' : 'blunder'}">Show best move</button>` : '';
+    const retryBtn = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${isMaster ? 'master' : 'blunder'}">Retry</button>`;
+    const retryScope = isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder');
+    const retryBtn2 = `<button class="btn btn-primary" type="button" data-bl-inline-retry="${retryScope}">Retry</button>`;
+    // Next rules:
+    // - Master: when best by attempt (same as before)
+    // - Blunder: when best by attempt (same as before)
+    // - Challenge: when correct (best/good) by attempt (server decides advance), show Next
+    const canNext = (origin === 'attempt') && (isChallenge ? (verdict === 'best' || verdict === 'good') : (verdict === 'best'));
+    const nextBtn = canNext
+      ? `<button class="btn btn-secondary" type="button" data-bl-inline-next="${isMaster ? 'master' : (isChallenge ? 'challenge' : 'blunder')}">${isMaster ? 'Next' : (isChallenge ? 'Next' : (STATE.mode === 'practice' ? 'Next (Random)' : 'Next'))}</button>`
+      : '';
+
+    return `
+      <div class="bl-card bl-inline-result" style="box-shadow:none; margin-top:12px;">
+        <div class="bl-inline-head">
+          <span class="bl-inline-ico">
+            ${iconSrc ? `<img class="bl-inline-ico-img" src="${escapeHtml(iconSrc)}" alt="${escapeHtml(title)}" draggable="false">` : `<span class="bl-inline-ico-fallback">ℹ️</span>`}
+          </span>
+          <div>
+            <div class="bl-inline-title">${escapeHtml(title)}</div>
+            <div class="blunders-muted">${escapeHtml(sub)}</div>
+          </div>
+        </div>
+        <div class="blunders-muted" style="margin-top:10px;">
+          ${escapeHtml(mvLine)}${mvLine && bmLine ? '<br>' : ''}${escapeHtml(bmLine)}
+        </div>
+        <div class="bl-inline-actions">
+          ${showBestBtn || nextBtn}
+          ${retryBtn2}
+        </div>
+      </div>
+    `;
+  }
+
+  function openPromotionPicker(baseUci) {
+    STATE.promoPending = { baseUci };
+    openModal('Promotion', `
+      <div class="blunders-muted">Choose promotion piece:</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <button class="btn btn-primary" type="button" data-bl-promo="q">Queen</button>
+        <button class="btn btn-secondary" type="button" data-bl-promo="r">Rook</button>
+        <button class="btn btn-secondary" type="button" data-bl-promo="b">Bishop</button>
+        <button class="btn btn-secondary" type="button" data-bl-promo="n">Knight</button>
+      </div>
+    `);
+  }
+
+  // Result modal removed: use inline result panel instead.
+
+  async function submitMoveUci(uci) {
+    const puzzle = currentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    const isPractice = STATE.mode === 'practice';
+    try {
+      setMessage('');
+      const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, isPractice);
+      // Always apply the played move on board (even when verdict is blunder).
+      STATE.uiBoard.blunderVerdict = String(out?.verdict || (out?.ok ? 'good' : 'blunder'));
+      STATE.uiBoard.blunderMoveUci = String(out?.playedUci || uci || '');
+      STATE.uiBoard.blunderMoveSan = String(out?.playedSan || '');
+      STATE.uiBoard.blunderFen = String(out?.afterFEN || '') || String(puzzle.startFEN || '');
+      STATE.uiBoard.blunderBestOrigin = 'attempt';
+      // For GOOD/BEST on pending: allow retry (practice) or show best; do not auto-refresh.
+      if (!isPractice && (STATE.uiBoard.blunderVerdict === 'good' || STATE.uiBoard.blunderVerdict === 'best')) {
+        STATE.lastAttemptWasPendingSolve = true;
+      } else {
+        STATE.lastAttemptWasPendingSolve = false;
+      }
+    } catch (e) {
+      setMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      STATE.promoPending = null;
+      render();
+    }
+  }
+
+  function handleBoardClick(sq) {
+    // After answering, board is frozen until Retry (per UX request)
+    if (STATE.uiBoard.blunderVerdict) return;
+    const puzzle = currentPuzzle();
+    if (!puzzle) return;
+    const parsed = parseFenBoard(String(puzzle.startFEN || ''));
+    if (!parsed) return;
+    const turn = String(parsed.turn || 'w');
+    const rc = squareToRC(sq);
+    if (!rc) return;
+    const piece = parsed.board[rc.r][rc.c];
+
+    if (!STATE.selectedFrom) {
+      if (!piece) return;
+      const isWhite = piece === piece.toUpperCase();
+      if ((turn === 'w' && !isWhite) || (turn === 'b' && isWhite)) return;
+      STATE.selectedFrom = sq;
+      render();
+      return;
+    }
+
+    const from = STATE.selectedFrom;
+    if (from === sq) {
+      STATE.selectedFrom = null;
+      render();
+      return;
+    }
+
+    const fromRc = squareToRC(from);
+    const movingPiece = fromRc ? parsed.board[fromRc.r][fromRc.c] : '';
+    const movingPawn = movingPiece && movingPiece.toLowerCase() === 'p';
+    const toRank = Number(String(sq[1]));
+    const promoRank = (turn === 'w') ? 8 : 1;
+    const baseUci = `${from}${sq}`.toLowerCase();
+    if (movingPawn && toRank === promoRank) {
+      // No popups: default promotion to queen.
+      submitMoveUci(`${baseUci}q`);
+      return;
+    }
+    submitMoveUci(baseUci);
+  }
+
+  function handleMasterBoardClick(sq) {
+    // After answering, board is frozen until Retry (per UX request)
+    if (STATE.uiBoard.masterVerdict) return;
+    const puzzle = masterCurrentPuzzle();
+    if (!puzzle) return;
+    const parsed = parseFenBoard(String(puzzle.startFEN || ''));
+    if (!parsed) return;
+    const turn = String(parsed.turn || 'w');
+    const rc = squareToRC(sq);
+    if (!rc) return;
+    const piece = parsed.board[rc.r][rc.c];
+
+    if (!STATE.selectedFrom) {
+      if (!piece) return;
+      const isWhite = piece === piece.toUpperCase();
+      if ((turn === 'w' && !isWhite) || (turn === 'b' && isWhite)) return;
+      STATE.selectedFrom = sq;
+      render();
+      return;
+    }
+
+    const from = STATE.selectedFrom;
+    if (from === sq) {
+      STATE.selectedFrom = null;
+      render();
+      return;
+    }
+
+    const fromRc = squareToRC(from);
+    const movingPiece = fromRc ? parsed.board[fromRc.r][fromRc.c] : '';
+    const movingPawn = movingPiece && movingPiece.toLowerCase() === 'p';
+    const toRank = Number(String(sq[1]));
+    const promoRank = (turn === 'w') ? 8 : 1;
+    const baseUci = `${from}${sq}`.toLowerCase();
+    if (movingPawn && toRank === promoRank) {
+      // Promotion picker uses submitMoveUci; for Master Game we just default to queen for now.
+      submitMasterMoveUci(`${baseUci}q`);
+      return;
+    }
+    submitMasterMoveUci(baseUci);
+  }
+
+  function handleChallengeBoardClick(sq) {
+    // After answering, board is frozen until Retry/Next (same UX)
+    if (STATE.uiBoard.challengeVerdict) return;
+    const puzzle = challengeCurrentPuzzle();
+    if (!puzzle) return;
+    const parsed = parseFenBoard(String(puzzle.startFEN || ''));
+    if (!parsed) return;
+    const turn = String(parsed.turn || 'w');
+    const rc = squareToRC(sq);
+    if (!rc) return;
+    const piece = parsed.board[rc.r][rc.c];
+
+    if (!STATE.selectedFrom) {
+      if (!piece) return;
+      const isWhite = piece === piece.toUpperCase();
+      if ((turn === 'w' && !isWhite) || (turn === 'b' && isWhite)) return;
+      STATE.selectedFrom = sq;
+      render();
+      return;
+    }
+
+    const from = STATE.selectedFrom;
+    if (from === sq) {
+      STATE.selectedFrom = null;
+      render();
+      return;
+    }
+
+    const fromRc = squareToRC(from);
+    const movingPiece = fromRc ? parsed.board[fromRc.r][fromRc.c] : '';
+    const movingPawn = movingPiece && movingPiece.toLowerCase() === 'p';
+    const toRank = Number(String(sq[1]));
+    const promoRank = (turn === 'w') ? 8 : 1;
+    const baseUci = `${from}${sq}`.toLowerCase();
+    if (movingPawn && toRank === promoRank) {
+      submitChallengeMoveUci(`${baseUci}q`, false);
+      return;
+    }
+    submitChallengeMoveUci(baseUci, false);
+  }
+
+  async function revealBestMove() {
+    const puzzle = currentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    try {
+      const out = await submitAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
+      const bm = out?.bestMove ? String(out.bestMove) : '';
+      const engErr = out?.engineError ? String(out.engineError) : '';
+      const af = out?.afterFEN ? String(out.afterFEN) : '';
+      STATE.uiBoard.blunderBestMoveUci = bm;
+      STATE.uiBoard.blunderBestMoveSan = out?.bestSan ? String(out.bestSan) : '';
+      if (bm && af) {
+        STATE.uiBoard.blunderFen = af;
+        STATE.uiBoard.blunderMoveUci = bm;
+        STATE.uiBoard.blunderMoveSan = STATE.uiBoard.blunderBestMoveSan;
+      }
+      STATE.uiBoard.blunderVerdict = bm ? 'best' : '';
+      STATE.uiBoard.blunderBestOrigin = 'revealed';
+      if (!bm) setMessage(engErr ? `Best move not available (${engErr})` : 'Best move not available yet.');
+    } catch (e) {
+      setMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      render();
+    }
+  }
+
+  function masterCurrentPuzzle() {
+    // Prefer selected puzzle from bucketed UI
+    const pid = String(STATE.master?.selectedPuzzleId || '').trim();
+    if (pid) {
+      const map = (STATE.master?.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+      const hit = map[pid] || null;
+      if (hit) return hit;
+      // Fallback: try locate in loaded bucket entries
+      const ui = STATE.master?.ui && typeof STATE.master.ui === 'object' ? STATE.master.ui : null;
+      const buckets = ui?.buckets && typeof ui.buckets === 'object' ? ui.buckets : null;
+      if (buckets) {
+        for (const b of Object.values(buckets)) {
+          const arr = Array.isArray(b?.entries) ? b.entries : [];
+          const found = arr.find(x => String(x?.id || '') === pid) || null;
+          if (found) return found;
+        }
+      }
+    }
+    // Backward compatibility: pending list + index
+    const list = Array.isArray(STATE.master.pending) ? STATE.master.pending : [];
+    if (!list.length) return null;
+    const idx = Math.max(0, Math.min(list.length - 1, Number(STATE.master.currentIndex) || 0));
+    return list[idx] || null;
+  }
+
+  async function submitMasterMoveUci(uci) {
+    const puzzle = masterCurrentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    try {
+      setMasterMessage('');
+      const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), uci, false, false);
+      STATE.uiBoard.masterVerdict = String(out?.verdict || (out?.ok ? 'good' : 'blunder'));
+      STATE.uiBoard.masterMoveUci = String(out?.playedUci || uci || '');
+      STATE.uiBoard.masterMoveSan = String(out?.playedSan || '');
+      STATE.uiBoard.masterFen = String(out?.afterFEN || '') || String(puzzle.startFEN || '');
+      STATE.uiBoard.masterBestOrigin = 'attempt';
+    } catch (e) {
+      setMasterMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      STATE.promoPending = null;
+      render();
+    }
+  }
+
+  async function revealMasterBestMove() {
+    const puzzle = masterCurrentPuzzle();
+    if (!puzzle || !STATE.me?.id) return;
+    try {
+      const out = await submitMasterAttempt(STATE.me.id, String(puzzle.id || ''), '', true, false);
+      const bm = out?.bestMove ? String(out.bestMove) : '';
+      const engErr = out?.engineError ? String(out.engineError) : '';
+      const af = out?.afterFEN ? String(out.afterFEN) : '';
+      STATE.uiBoard.masterBestMoveUci = bm;
+      STATE.uiBoard.masterBestMoveSan = out?.bestSan ? String(out.bestSan) : '';
+      if (bm && af) {
+        STATE.uiBoard.masterFen = af;
+        STATE.uiBoard.masterMoveUci = bm;
+        STATE.uiBoard.masterMoveSan = STATE.uiBoard.masterBestMoveSan;
+      }
+      STATE.uiBoard.masterVerdict = bm ? 'best' : '';
+      STATE.uiBoard.masterBestOrigin = 'revealed';
+      if (!bm && engErr) setMasterMessage(`Best move not available (${engErr})`);
+    } catch (e) {
+      setMasterMessage(`Error: ${e?.message || e}`);
+    } finally {
+      STATE.selectedFrom = null;
+      render();
+    }
+  }
+
+  // Challenge actions moved to game/blunders/challenge.js
+  async function challengeLoadLeaderboard() { return window.BlundersChallenge?.challengeLoadLeaderboard?.(); }
+  async function challengeStartOrRestart() { return window.BlundersChallenge?.challengeStartOrRestart?.(); }
+  async function submitChallengeMoveUci(uci, revealBest) { return window.BlundersChallenge?.submitChallengeMoveUci?.(uci, revealBest); }
+
+  function render() {
+    const root = document.getElementById('blundersRoot');
+    if (!root) return;
+    captureFocusInfo(root);
+    const role = getBlundersRole();
+    if (role === 'teacher') {
+      root.innerHTML = `
+        <div class="bl-app">
+          ${renderTeacherSidebar()}
+          <main class="bl-main">
+            <div class="bl-container">
+              <div id="blGlobalStatus" class="bl-global-status blunders-muted"></div>
+              ${renderTeacherModePage()}
+            </div>
+          </main>
+          ${STATE.ui.modalOpen ? STATE.ui.modalHtml : ''}
+        </div>
+      `;
+      restoreFocusInfo(root);
+      return;
+    }
+    const content =
+      STATE.page === 'home' ? renderHomePage() :
+      STATE.page === 'blunder' ? renderBlunderPage() :
+      STATE.page === 'masterGame' ? renderStudentMasterGamePage() :
+      STATE.page === 'review' ? renderReviewPage() :
+      STATE.page === 'challenge' ? renderChallengePage() :
+      STATE.page === 'leaderboard' ? renderLeaderboardPage() :
+      renderSettingsPage();
+
+    root.innerHTML = `
+      <div class="bl-app">
+        ${renderSidebar()}
+        <main class="bl-main">
+          <div class="bl-container">
+            <div id="blGlobalStatus" class="bl-global-status blunders-muted"></div>
+            ${content}
+          </div>
+        </main>
+        ${STATE.ui.modalOpen ? STATE.ui.modalHtml : ''}
+      </div>
+    `;
+    restoreFocusInfo(root);
+  }
+
+  // Entry API for external modules (teacher/challenge) to reuse shared UI + trigger renders.
+  window.BlundersEntryApi.render = render;
+  window.BlundersEntryApi.openModal = openModal;
+  window.BlundersEntryApi.closeModal = closeModal;
+  window.BlundersEntryApi.setPage = setPage;
+  window.BlundersEntryApi.setBlunderModePending = setBlunderModePending;
+  window.BlundersEntryApi.setBlunderModePractice = setBlunderModePractice;
+  window.BlundersEntryApi.renderMiniBoardFromFen = renderMiniBoardFromFen;
+  window.BlundersEntryApi.renderBoardForPuzzle = renderBoardForPuzzle;
+  window.BlundersEntryApi.renderInlineResultPanel = renderInlineResultPanel;
+  window.BlundersEntryApi.clearInlineResult = clearInlineResult;
+
+  function initBlunders() {
+    const root = document.getElementById('blundersRoot');
+    if (!root) return;
+
+    applyBoardColors();
+
+    const role = getBlundersRole();
+    if (role === 'teacher') {
+      STATE.me = { id: 'teacher', name: 'Teacher', studentId: '' };
+      render();
+      if (!window.BlundersTeacher) {
+        STATE.teacher.error = 'Teacher module not loaded. Please hard refresh (Ctrl+F5) and ensure /application/blunders/teacher.js loads successfully.';
+        render();
+        console.error('BlundersTeacher missing during initBlunders (teacher mode).');
+        return;
+      }
+      teacherLoad(STATE.teacherTab || 'students').catch(() => {});
+    } else {
+      const players = getPlayers();
+      STATE.me = players[0] || null;
+      if (!STATE.me || !STATE.me.id) {
+        root.innerHTML = `<div class="bl-card"><div class="bl-title">Blunders</div><div class="blunders-muted">Missing student identity.</div></div>`;
+        return;
+      }
+      render();
+      refreshData();
+    }
+
+    root.addEventListener('click', async (ev) => {
+      const t = ev.target;
+
+      // Modal close (event delegation; modal DOM is injected dynamically)
+      if (STATE.ui?.modalOpen) {
+        if (t?.closest?.('#blModalClose') || t?.closest?.('.bl-modal-close')) {
+          closeModal();
+          return;
+        }
+        // Only close on backdrop direct clicks (not clicks inside the modal content)
+        if (t && String(t.id || '') === 'blModalBackdrop') {
+          closeModal();
+          return;
+        }
+      }
+
+      // Copy FEN
+      const cf = t?.closest?.('[data-bl-copy-fen]');
+      if (cf) {
+        const scope = String(cf.getAttribute('data-bl-copy-fen') || '');
+        const pz = scope === 'master' ? masterCurrentPuzzle() : currentPuzzle();
+        const fen = String(pz?.startFEN || '');
+        const ok = await copyToClipboard(fen);
+        if (scope === 'master') setMasterMessage(ok ? 'Copied.' : 'Copy failed.');
+        else setMessage(ok ? 'Copied.' : 'Copy failed.');
+        return;
+      }
+
+      // Teacher job modal actions
+      if (t?.closest?.('[data-bl-teacher-job-close]')) {
+        try { window.BlundersTeacher?.teacherJobClose?.(); } catch { closeModal(); }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-job-refresh]')) {
+        try { await window.BlundersTeacher?.teacherJobRefresh?.(); } catch (e) { console.error('Job refresh failed:', e); }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-job-cancel]')) {
+        try { await window.BlundersTeacher?.teacherJobCancel?.(); } catch (e) { console.error('Job cancel failed:', e); }
+        return;
+      }
+
+      // Teacher sidebar tabs
+      const tt = t?.closest?.('[data-bl-teacher-tab]');
+      if (tt) {
+        STATE.teacherTab = String(tt.getAttribute('data-bl-teacher-tab') || 'students');
+        render();
+        teacherLoad(STATE.teacherTab).catch(() => {});
+        return;
+      }
+
+      // Teacher actions
+      if (t?.closest?.('[data-bl-teacher-refresh-students]')) return teacherLoad('students');
+      if (t?.closest?.('[data-bl-teacher-tag-stats-refresh]')) {
+        try {
+          await teacherLoadTagStats();
+          render();
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-tag-puzzles]')) {
+        try {
+          await teacherTagPuzzles('student', false);
+          render();
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-refresh-masters]')) return teacherLoad('masterGame');
+      if (t?.closest?.('[data-bl-teacher-refresh-all]')) return teacherLoad('allBlunders');
+      if (t?.closest?.('[data-bl-teacher-all-stats]')) {
+        try { return window.BlundersTeacher?.teacherLoadAllBlundersStorageStats?.(); } catch {}
+        return;
+      }
+      const durBtn = t?.closest?.('[data-bl-teacher-all-duration]');
+      if (durBtn) {
+        STATE.teacher.allDuration = String(durBtn.getAttribute('data-bl-teacher-all-duration') || 'all');
+        render();
+        return teacherLoad('allBlunders');
+      }
+
+      // Teacher All blunders (paged buckets)
+      const allToggle = t?.closest?.('[data-bl-teacher-all-toggle]');
+      if (allToggle) {
+        const key = String(allToggle.getAttribute('data-bl-teacher-all-toggle') || '');
+        try { return window.BlundersTeacher?.teacherAllToggleBucket?.(key); } catch {}
+        return;
+      }
+      const allPrev = t?.closest?.('[data-bl-teacher-all-prev]');
+      if (allPrev) {
+        const key = String(allPrev.getAttribute('data-bl-teacher-all-prev') || '');
+        try { return window.BlundersTeacher?.teacherAllPrev?.(key); } catch {}
+        return;
+      }
+      const allNext = t?.closest?.('[data-bl-teacher-all-next]');
+      if (allNext) {
+        const key = String(allNext.getAttribute('data-bl-teacher-all-next') || '');
+        try { return window.BlundersTeacher?.teacherAllNext?.(key); } catch {}
+        return;
+      }
+      const allGo = t?.closest?.('[data-bl-teacher-all-go]');
+      if (allGo) {
+        const key = String(allGo.getAttribute('data-bl-teacher-all-go') || '');
+        try { return window.BlundersTeacher?.teacherAllGo?.(key); } catch {}
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-sync-selected]')) return teacherBulkSyncSelected(false);
+      if (t?.closest?.('[data-bl-teacher-force-selected]')) return teacherBulkSyncSelected(true);
+      if (t?.closest?.('[data-bl-teacher-complete-selected]')) return teacherBulkCompleteSelected();
+      if (t?.closest?.('[data-bl-teacher-history-selected]')) return teacherBulkHistoryScanSelected(false);
+      if (t?.closest?.('[data-bl-teacher-history-force-selected]')) return teacherBulkHistoryScanSelected(true);
+      if (t?.closest?.('[data-bl-teacher-apply-max-selected]')) {
+        const v = Number(STATE.teacher.bulkMaxGames || 10) || 10;
+        const selected = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (!selected.size) {
+          STATE.teacher.error = 'Please select at least one student.';
+          render();
+          return;
+        }
+        for (const sid of Array.from(selected)) {
+          if (!sid) continue;
+          if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+          STATE.teacher.edits.student[sid].maxGamesPerDay = v;
+        }
+        STATE.teacher.error = '';
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-apply-thr-selected]')) {
+        const v = Number(STATE.teacher.bulkThreshold || 1.0) || 1.0;
+        const selected = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (!selected.size) {
+          STATE.teacher.error = 'Please select at least one student.';
+          render();
+          return;
+        }
+        for (const sid of Array.from(selected)) {
+          if (!sid) continue;
+          if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+          STATE.teacher.edits.student[sid].thresholdPoints = v;
+        }
+        STATE.teacher.error = '';
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-save-students]')) {
+        try { await teacherSaveStudentSettings(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
+        return teacherLoad('students');
+      }
+      if (t?.closest?.('[data-bl-teacher-save-masters]')) {
+        try { await teacherSaveMasters(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
+        return teacherLoad('masterGame');
+      }
+      if (t?.closest?.('[data-bl-teacher-save-mastercfg]')) {
+        try { await teacherSaveMasterConfig(); STATE.teacher.error = ''; } catch (e) { STATE.teacher.error = String(e?.message || e); }
+        return teacherLoad('masterGame');
+      }
+      if (t?.closest?.('[data-bl-teacher-masters-presets]')) {
+        STATE.teacher.edits.masters = [
+          { id: 'magnuscarlsen', name: 'MagnusCarlsen', username: 'MagnusCarlsen' },
+          { id: 'hikaru', name: 'Hikaru', username: 'Hikaru' },
+          { id: 'fabianocaruana', name: 'fabianocaruana', username: 'fabianocaruana' }
+        ];
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-teacher-masters-add]')) {
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters.slice() : [];
+        cur.push({ id: '', name: '', username: '' });
+        STATE.teacher.edits.masters = cur;
+        render();
+        return;
+      }
+      const delM = t?.closest?.('[data-bl-teacher-master-del]');
+      if (delM) {
+        const idx = Number(delM.getAttribute('data-bl-teacher-master-del'));
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters.slice() : [];
+        if (!Number.isNaN(idx) && idx >= 0 && idx < cur.length) cur.splice(idx, 1);
+        STATE.teacher.edits.masters = cur;
+        render();
+        return;
+      }
+      const syncStu = t?.closest?.('[data-bl-teacher-sync-student]');
+      if (syncStu) {
+        const sid = String(syncStu.getAttribute('data-bl-teacher-sync-student') || '');
+        const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
+        try {
+          await teacherSyncStudent(sid, hkDayKey, false);
+        return teacherLoad('students');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher sync failed:', e);
+          render();
+          return;
+        }
+      }
+      const syncStuF = t?.closest?.('[data-bl-teacher-sync-student-force]');
+      if (syncStuF) {
+        const sid = String(syncStuF.getAttribute('data-bl-teacher-sync-student-force') || '');
+        const hkDayKey = String(STATE.teacher?.dateByStudent?.[sid] || '') || todayYmdLocal();
+        try {
+          await teacherSyncStudent(sid, hkDayKey, true);
+        return teacherLoad('students');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher force sync failed:', e);
+          render();
+          return;
+        }
+      }
+      const hs = t?.closest?.('[data-bl-teacher-history-scan]');
+      if (hs) {
+        const sid = String(hs.getAttribute('data-bl-teacher-history-scan') || '');
+        const sel = root.querySelector(`[data-bl-teacher-history-n="${CSS.escape(sid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanN?.[sid] || 0) || 200;
+        try {
+          await teacherHistoryScanStudent(sid, n, false);
+          // History is async job now; keep message and do NOT immediately reload counts.
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher history scan failed:', e);
+          render();
+          return;
+        }
+      }
+      const hsF = t?.closest?.('[data-bl-teacher-history-scan-force]');
+      if (hsF) {
+        const sid = String(hsF.getAttribute('data-bl-teacher-history-scan-force') || '');
+        const sel = root.querySelector(`[data-bl-teacher-history-n="${CSS.escape(sid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanN?.[sid] || 0) || 200;
+        try {
+          await teacherHistoryScanStudent(sid, n, true);
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher history force scan failed:', e);
+          render();
+          return;
+        }
+      }
+      const syncM = t?.closest?.('[data-bl-teacher-sync-master]');
+      if (syncM) {
+        const mid = String(syncM.getAttribute('data-bl-teacher-sync-master') || '');
+        const hkDayKey = String(STATE.teacher?.dateByMaster?.[mid] || '') || todayYmdLocal();
+        try {
+          await teacherSyncMaster(mid, hkDayKey, false);
+        return teacherLoad('masterGame');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master sync failed:', e);
+          render();
+          return;
+        }
+      }
+      const syncMF = t?.closest?.('[data-bl-teacher-sync-master-force]');
+      if (syncMF) {
+        const mid = String(syncMF.getAttribute('data-bl-teacher-sync-master-force') || '');
+        const hkDayKey = String(STATE.teacher?.dateByMaster?.[mid] || '') || todayYmdLocal();
+        try {
+          await teacherSyncMaster(mid, hkDayKey, true);
+        return teacherLoad('masterGame');
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master force sync failed:', e);
+          render();
+          return;
+        }
+      }
+
+      const mhs = t?.closest?.('[data-bl-teacher-history-scan-master]');
+      if (mhs) {
+        const mid = String(mhs.getAttribute('data-bl-teacher-history-scan-master') || '');
+        const sel = root.querySelector(`[data-bl-teacher-master-history-n="${CSS.escape(mid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanNMaster?.[mid] || 0) || 200;
+        try {
+          await teacherHistoryScanMaster(mid, n, false);
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master history scan failed:', e);
+          render();
+          return;
+        }
+      }
+      const mhsF = t?.closest?.('[data-bl-teacher-history-scan-master-force]');
+      if (mhsF) {
+        const mid = String(mhsF.getAttribute('data-bl-teacher-history-scan-master-force') || '');
+        const sel = root.querySelector(`[data-bl-teacher-master-history-n="${CSS.escape(mid)}"]`);
+        const n = Number(sel?.value || 0) || Number(STATE.teacher?.historyScanNMaster?.[mid] || 0) || 200;
+        try {
+          await teacherHistoryScanMaster(mid, n, true);
+          render();
+          return;
+        } catch (e) {
+          STATE.teacher.error = String(e?.message || e);
+          console.error('Teacher master history force scan failed:', e);
+          render();
+          return;
+        }
+      }
+
+      const nav = t?.closest?.('[data-bl-nav]');
+      if (nav) {
+        const key = String(nav.getAttribute('data-bl-nav') || '');
+        if (key) {
+          setPage(key);
+          if (key === 'masterGame') {
+            ensureMasterGameLoaded().catch(() => {});
+          }
+          if (key === 'leaderboard') {
+            challengeLoadLeaderboard().catch(() => {});
+          }
+        }
+        return;
+      }
+
+      const selAll = t?.closest?.('[data-bl-teacher-select-all]');
+      if (selAll) {
+        const checked = !!selAll.checked;
+        const q = String(STATE.teacher.search || '').trim().toLowerCase();
+        const allRows = Array.isArray(STATE.teacher.students) ? STATE.teacher.students : [];
+        const rows = !q ? allRows : allRows.filter((s) => {
+          const name = String(s?.name || '').toLowerCase();
+          const sid2 = String(s?.studentId || '').toLowerCase();
+          const chessId = String(s?.chessComUsername || '').toLowerCase();
+          return name.includes(q) || sid2.includes(q) || chessId.includes(q);
+        });
+        const cur = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (checked) {
+          for (const s of rows) cur.add(String(s?.id || ''));
+        } else {
+          for (const s of rows) cur.delete(String(s?.id || ''));
+        }
+        STATE.teacher.selectedIds = Array.from(cur).filter(Boolean);
+        render();
+        return;
+      }
+      const selOne = t?.closest?.('[data-bl-teacher-select]');
+      if (selOne) {
+        const sid = String(selOne.getAttribute('data-bl-teacher-select') || '');
+        const checked = !!selOne.checked;
+        const cur = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
+        if (checked) cur.add(sid);
+        else cur.delete(sid);
+        STATE.teacher.selectedIds = Array.from(cur).filter(Boolean);
+        render();
+        return;
+      }
+
+      const setTab = t?.closest?.('[data-bl-settings-tab]');
+      if (setTab) {
+        STATE.settingsTab = String(setTab.getAttribute('data-bl-settings-tab') || 'board');
+        render();
+        return;
+      }
+
+      if (t?.closest?.('#blBoardResetBtn')) {
+        setBoardColors({ light: VCP_DEFAULTS.boardLight, dark: VCP_DEFAULTS.boardDark });
+        render();
+        return;
+      }
+
+      if (t?.closest?.('[data-bl-refresh]')) return refreshData();
+      if (t?.closest?.('[data-bl-force]')) return refreshData({ force: true });
+      if (t?.closest?.('[data-bl-page-reload]')) {
+        try { window.location.reload(); } catch { window.location.href = window.location.href; }
+        return;
+      }
+      if (t?.closest?.('[data-bl-go-blunder]')) { setBlunderModePending(); return setPage('blunder'); }
+      if (t?.closest?.('[data-bl-go-review]')) {
+        const ts = Number(STATE.ui?.lastBlunderUiActionTs || 0);
+        if (STATE.page === 'blunder' && ts && (Date.now() - ts) < 900) return;
+        return setPage('review');
+      }
+      if (t?.closest?.('[data-bl-home-practice-open]')) {
+        openHomePracticeModal();
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-recent-refresh]')) {
+        ensureHomeRecentGamesLoaded().catch(() => {});
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-ai-refresh]')) {
+        ensureHomeAiLoaded().catch(() => {});
+        return;
+      }
+      const hg = t?.closest?.('[data-bl-home-game]');
+      if (hg) {
+        const idx = Math.max(0, Number(hg.getAttribute('data-bl-home-game') || 0) || 0);
+        if (STATE.homeRecent && typeof STATE.homeRecent === 'object') {
+          STATE.homeRecent.selectedGameIdx = idx;
+          STATE.homeRecent.plyIdx = 0;
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-pgn-prev]')) {
+        if (STATE.homeRecent && typeof STATE.homeRecent === 'object') {
+          STATE.homeRecent.plyIdx = Math.max(0, Number(STATE.homeRecent.plyIdx || 0) - 1);
+          render();
+        }
+        return;
+      }
+      if (t?.closest?.('[data-bl-home-pgn-next]')) {
+        if (STATE.homeRecent && typeof STATE.homeRecent === 'object') {
+          const games = Array.isArray(STATE.homeRecent.games) ? STATE.homeRecent.games : [];
+          const gIdx = Math.max(0, Math.min(games.length - 1, Number(STATE.homeRecent.selectedGameIdx || 0) || 0));
+          const g = games[gIdx] || null;
+          const max = g && Array.isArray(g.fens) ? Math.max(0, g.fens.length - 1) : 0;
+          STATE.homeRecent.plyIdx = Math.min(max, Number(STATE.homeRecent.plyIdx || 0) + 1);
+          render();
+        }
+        return;
+      }
+      const hpd = t?.closest?.('[data-bl-home-practice-duration]');
+      if (hpd) {
+        const v = String(hpd.getAttribute('data-bl-home-practice-duration') || 'all');
+        STATE.ui.homePracticeDuration = v;
+        STATE.reviewDuration = v; // keep practice duration in sync with filter
+        try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
+        openHomePracticeModal();
+        return;
+      }
+      const hps = t?.closest?.('[data-bl-home-practice-start]');
+      if (hps) {
+        const key = String(hps.getAttribute('data-bl-home-practice-start') || 'random');
+        startPracticeFromHome(key);
+        return;
+      }
+
+      const cd = t?.closest?.('[data-bl-challenge-diff]');
+      if (cd) {
+        STATE.challenge.difficulty = String(cd.getAttribute('data-bl-challenge-diff') || 'easy');
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-challenge-start]')) {
+        clearChallengeUi();
+        challengeStartOrRestart().catch(() => {});
+        return;
+      }
+      if (t?.closest?.('[data-bl-challenge-refresh]')) {
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-lb-refresh]')) {
+        challengeLoadLeaderboard().catch(() => {});
+        return;
+      }
+
+      const rp = t?.closest?.('[data-bl-review-practice]');
+      if (rp) {
+        const key = String(rp.getAttribute('data-bl-review-practice') || '');
+        let all = getReviewPuzzlesFiltered();
+        const theme = String(STATE.ui?.reviewUi?.theme || 'any').trim() || 'any';
+        if (theme !== 'any') {
+          all = all.filter((p) => (Array.isArray(p?.tags) ? p.tags.map(String) : []).includes(theme));
+        }
+        if (!all.length) return;
+
+        let pool = [];
+        if (key === 'random') {
+          // Random = pick from the requested 4 drop buckets (exclude miss-mate, since it's its own category)
+          pool = all.filter(p => bucketKeyOfPuzzle(p) !== 'missMate');
+        } else {
+          pool = all.filter(p => bucketKeyOfPuzzle(p) === key);
+        }
+        if (!pool.length) return;
+
+        STATE.practiceKey = key || 'random';
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        setBlunderModePractice(pick);
+        clearInlineResult('blunder');
+        setPage('blunder');
+        return;
+      }
+
+      const rd = t?.closest?.('[data-bl-review-duration]');
+      if (rd) {
+        STATE.reviewDuration = String(rd.getAttribute('data-bl-review-duration') || 'all');
+        STATE.ui.homePracticeDuration = STATE.reviewDuration;
+        try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
+        render();
+        return;
+      }
+      // NOTE: Review theme/duration selects use 'change' events, not 'click' (avoid dropdown flashing).
+
+      // Review (bucketed paging)
+      const rvT = t?.closest?.('[data-bl-review-toggle]');
+      if (rvT) {
+        const key = String(rvT.getAttribute('data-bl-review-toggle') || '');
+        try { return window.BlundersStudent?.reviewToggleBucket?.(key); } catch {}
+        return;
+      }
+      const rvP = t?.closest?.('[data-bl-review-prev]');
+      if (rvP) {
+        const key = String(rvP.getAttribute('data-bl-review-prev') || '');
+        try { return window.BlundersStudent?.reviewPrev?.(key); } catch {}
+        return;
+      }
+      const rvN = t?.closest?.('[data-bl-review-next]');
+      if (rvN) {
+        const key = String(rvN.getAttribute('data-bl-review-next') || '');
+        try { return window.BlundersStudent?.reviewNext?.(key); } catch {}
+        return;
+      }
+      const rvG = t?.closest?.('[data-bl-review-go]');
+      if (rvG) {
+        const key = String(rvG.getAttribute('data-bl-review-go') || '');
+        try { return window.BlundersStudent?.reviewGo?.(key); } catch {}
+        return;
+      }
+
+      if (t?.closest?.('[data-bl-prev]')) {
+        STATE.currentIndex = Math.max(0, STATE.currentIndex - 1);
+        STATE.selectedFrom = null;
+        clearInlineResult('blunder');
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-next]')) {
+        STATE.currentIndex = Math.min((STATE.pending.length - 1), STATE.currentIndex + 1);
+        STATE.selectedFrom = null;
+        clearInlineResult('blunder');
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-back-review]')) {
+        // On some mobile browsers, DOM updates after "Show best move" can cause a ghost click to land here.
+        // Guard against accidental navigation.
+        const ts1 = Number(STATE.ui?.lastInlineBestClickTs || 0);
+        const ts2 = Number(STATE.ui?.lastBlunderUiActionTs || 0);
+        if ((ts1 && (Date.now() - ts1) < 900) || (ts2 && (Date.now() - ts2) < 900)) return;
+        setPage('review');
+        return;
+      }
+
+      // Reveal buttons removed (use "Show best move" in the Result panel instead).
+
+      const inlineBest = t?.closest?.('[data-bl-inline-best]');
+      if (inlineBest) {
+        STATE.ui.lastInlineBestClickTs = Date.now();
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        ev.preventDefault?.();
+        ev.stopPropagation?.();
+        const scope = String(inlineBest.getAttribute('data-bl-inline-best') || '');
+        if (scope === 'master') revealMasterBestMove();
+        else revealBestMove();
+        return;
+      }
+      const inlineNext = t?.closest?.('[data-bl-inline-next]');
+      if (inlineNext) {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        const scope = String(inlineNext.getAttribute('data-bl-inline-next') || '');
+        if (scope === 'master') {
+          const mid = String(STATE.master.selectedMasterId || '');
+          // after solving/revealing, refresh list so completed moves out, then keep current index to show next.
+          clearInlineResult('master');
+          STATE.selectedFrom = null;
+          await ensureMasterPuzzlesLoaded(mid);
+          return;
+        }
+        if (scope === 'challenge') {
+          // Advance to next puzzle prepared by server after a correct answer.
+          const np = STATE.challenge?.nextPuzzle || null;
+          clearInlineResult('challenge');
+          STATE.selectedFrom = null;
+          STATE.challenge.nextPuzzle = null;
+          if (np && !STATE.challenge?.done) {
+            STATE.challenge.puzzle = np;
+            STATE.uiBoard.challengeFen = String(np.startFEN || '');
+            render();
+            return;
+          }
+          // If done (or no next), just re-render.
+          render();
+          return;
+        }
+        // blunder
+        clearInlineResult('blunder');
+        STATE.selectedFrom = null;
+        if (STATE.mode === 'practice') {
+          const key = String(STATE.practiceKey || 'random');
+          const all = getReviewPuzzlesFiltered();
+          let pool = [];
+          if (key === 'missMate') pool = all.filter(p => bucketKeyOfPuzzle(p) === 'missMate');
+          else if (key === 'random') pool = all.filter(p => bucketKeyOfPuzzle(p) !== 'missMate');
+          else pool = all.filter(p => bucketKeyOfPuzzle(p) === key);
+
+          // Fallbacks
+          if (!pool.length) pool = all.slice();
+          if (!pool.length) { render(); return; }
+
+          const curId = String(STATE.practicePuzzle?.id || '');
+          if (curId && pool.length > 1) {
+            const filtered = pool.filter(p => String(p?.id || '') !== curId);
+            if (filtered.length) pool = filtered;
+          }
+
+          const pick = pool[Math.floor(Math.random() * pool.length)];
+          setBlunderModePractice(pick);
+          setPage('blunder');
+          return;
+        }
+        // pending: refresh list so solved puzzle disappears, then stay at same index (now points to next)
+        await refreshData();
+        setBlunderModePending();
+        setPage('blunder');
+        return;
+      }
+      const inlineRetry = t?.closest?.('[data-bl-inline-retry]');
+      if (inlineRetry) {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        ev.preventDefault?.();
+        ev.stopPropagation?.();
+        const scope = String(inlineRetry.getAttribute('data-bl-inline-retry') || '');
+        if (scope === 'master') {
+          const pz = masterCurrentPuzzle();
+          if (pz) {
+            STATE.uiBoard.masterFen = String(pz.startFEN || '');
+          }
+          STATE.uiBoard.masterMoveUci = '';
+          STATE.uiBoard.masterVerdict = '';
+          STATE.uiBoard.masterBestMoveUci = '';
+          STATE.selectedFrom = null;
+          render();
+          return;
+        }
+        if (scope === 'challenge') {
+          const pz = challengeCurrentPuzzle();
+          if (pz) STATE.uiBoard.challengeFen = String(pz.startFEN || '');
+          STATE.uiBoard.challengeMoveUci = '';
+          STATE.uiBoard.challengeVerdict = '';
+          STATE.uiBoard.challengeBestMoveUci = '';
+          STATE.selectedFrom = null;
+          render();
+          return;
+        }
+        const pz = currentPuzzle();
+        // Keep the current mode on Retry (Pending stays Pending; Practice stays Practice).
+        // Previously we auto-switched Pending -> Practice after a successful solve, which was confusing.
+        if (STATE.lastAttemptWasPendingSolve && STATE.mode !== 'practice') {
+          console.debug?.('[Blunders] Retry after pending solve: staying in Pending mode.');
+        }
+        if (pz) {
+          STATE.uiBoard.blunderFen = String(pz.startFEN || '');
+        }
+        STATE.uiBoard.blunderMoveUci = '';
+        STATE.uiBoard.blunderVerdict = '';
+        STATE.uiBoard.blunderBestMoveUci = '';
+        STATE.selectedFrom = null;
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-master-prev]')) {
+        STATE.master.currentIndex = Math.max(0, Number(STATE.master.currentIndex || 0) - 1);
+        STATE.selectedFrom = null;
+        clearInlineResult('master');
+        render();
+        return;
+      }
+      if (t?.closest?.('[data-bl-master-next]')) {
+        const max = Math.max(0, (Array.isArray(STATE.master.pending) ? STATE.master.pending.length : 0) - 1);
+        STATE.master.currentIndex = Math.min(max, Number(STATE.master.currentIndex || 0) + 1);
+        STATE.selectedFrom = null;
+        clearInlineResult('master');
+        render();
+        return;
+      }
+      const mbt = t?.closest?.('[data-bl-master-bucket-toggle]');
+      if (mbt) {
+        const key = String(mbt.getAttribute('data-bl-master-bucket-toggle') || '');
+        masterBucketToggle(key);
+        return;
+      }
+      const mbp = t?.closest?.('[data-bl-master-bucket-prev]');
+      if (mbp) {
+        const key = String(mbp.getAttribute('data-bl-master-bucket-prev') || '');
+        masterBucketPrev(key);
+        return;
+      }
+      const mbn = t?.closest?.('[data-bl-master-bucket-next]');
+      if (mbn) {
+        const key = String(mbn.getAttribute('data-bl-master-bucket-next') || '');
+        masterBucketNext(key);
+        return;
+      }
+      const mbg = t?.closest?.('[data-bl-master-bucket-go]');
+      if (mbg) {
+        const key = String(mbg.getAttribute('data-bl-master-bucket-go') || '');
+        masterBucketGo(key);
+        return;
+      }
+      const mp = t?.closest?.('[data-bl-master-pick]');
+      if (mp) {
+        const pid = String(mp.getAttribute('data-bl-master-pick') || '').trim();
+        if (pid) {
+          STATE.master.selectedPuzzleId = pid;
+          const map = (STATE.master.byId && typeof STATE.master.byId === 'object') ? STATE.master.byId : {};
+          const pz = map[pid] || null;
+          if (pz) {
+            STATE.uiBoard.masterFen = String(pz.startFEN || '');
+          }
+          STATE.uiBoard.masterMoveUci = '';
+          STATE.uiBoard.masterVerdict = '';
+          STATE.uiBoard.masterBestMoveUci = '';
+          STATE.selectedFrom = null;
+          clearInlineResult('master');
+          render();
+        }
+        return;
+      }
+      const mb = t?.closest?.('[data-bl-master]');
+      if (mb) {
+        const mid = String(mb.getAttribute('data-bl-master') || '');
+        ensureMasterPuzzlesLoaded(mid).catch(() => {});
+        return;
+      }
+
+      const openAll = t?.closest?.('[data-bl-teacher-all-open]');
+      if (openAll) {
+        const pid = String(openAll.getAttribute('data-bl-teacher-all-open') || '').trim();
+        if (!pid) return;
+        const ui = (STATE.teacher?.allUi && typeof STATE.teacher.allUi === 'object') ? STATE.teacher.allUi : null;
+        const buckets = ui?.buckets && typeof ui.buckets === 'object' ? ui.buckets : null;
+        let found = null;
+        if (buckets) {
+          for (const b of Object.values(buckets)) {
+            const arr = Array.isArray(b?.entries) ? b.entries : [];
+            const hit = arr.find(x => String(x?.id || x?.key || '') === pid) || null;
+            if (hit) { found = hit; break; }
+          }
+        }
+        if (!found) return;
+        const drop = (Number(found?.dropPoints ?? (Number(found?.dropCp || 0) / 100)) || 0).toFixed(2);
+        const tags = (() => {
+          if (Array.isArray(found?.tags)) return found.tags.map(String).filter(Boolean);
+          if (typeof found?.tags === 'string') {
+            try {
+              const parsed = JSON.parse(found.tags);
+              return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+            } catch { return []; }
+          }
+          return [];
+        })();
+        openModal('Puzzle', `
+          <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(found.studentName || ''))}</div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+            ${renderMiniBoardFromFen(String(found.startFEN || ''))}
+            <div style="min-width:240px; max-width:520px;">
+              <div class="blunders-muted">Move: <strong>${escapeHtml(String(found.blunderSan || found.blunderMoveUci || ''))}</strong></div>
+              <div class="blunders-muted" style="margin-top:6px;">Drop: <strong>${escapeHtml(drop)}</strong></div>
+              ${found.bestMoveUci ? `<div class="blunders-muted" style="margin-top:6px;">Best move: <strong>${escapeHtml(String(found.bestMoveUci))}</strong></div>` : ``}
+              ${tags.length ? `<div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">${tags.map(t => `<span class="bl-badge" style="background:#eef2ff; color:#3730a3;">${escapeHtml(t)}</span>`).join('')}</div>` : ``}
+              ${found.gameUrl ? `<div class="blunders-muted" style="margin-top:10px;">Source: <a href="${escapeHtml(String(found.gameUrl))}" target="_blank" rel="noopener noreferrer">Chess.com</a></div>` : ``}
+              <div class="blunders-muted" style="margin-top:10px;">FEN: <span style="word-break:break-word;">${escapeHtml(String(found.startFEN || ''))}</span></div>
+            </div>
+          </div>
+        `);
+        return;
+      }
+
+      const sqEl = t?.closest?.('[data-bl-sq]');
+      if (sqEl && STATE.page === 'blunder') {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        const sq = String(sqEl.getAttribute('data-bl-sq') || '');
+        handleBoardClick(sq);
+        return;
+      }
+      if (sqEl && STATE.page === 'challenge') {
+        STATE.ui.lastBlunderUiActionTs = Date.now();
+        const sq = String(sqEl.getAttribute('data-bl-sq') || '');
+        handleChallengeBoardClick(sq);
+        return;
+      }
+      if (sqEl && STATE.page === 'masterGame') {
+        const sq = String(sqEl.getAttribute('data-bl-sq') || '');
+        handleMasterBoardClick(sq);
+        return;
+      }
+
+      const open = t?.closest?.('[data-bl-open]');
+      if (open) {
+        const id = String(open.getAttribute('data-bl-open') || '');
+        const all = [
+          ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+          ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+        ];
+        const pz = all.find(x => String(x?.id || '') === id) || null;
+        if (!pz) return;
+        openModal('Review', `
+          <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(pz.blunderSan || pz.blunderMoveUci || ''))}</div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            ${renderMiniBoardFromFen(String(pz.startFEN || ''))}
+            <div style="min-width:220px;">
+              <div class="blunders-muted">Drop: <strong>${escapeHtml(Number(pz.dropPoints ?? (Number(pz.dropCp || 0) / 100)).toFixed(2))}</strong></div>
+              <div class="blunders-muted" style="margin-top:6px;">Status: <strong>${escapeHtml(String(pz.status || 'pending'))}</strong></div>
+              <div class="blunders-muted" style="margin-top:6px;">Time: <strong>${escapeHtml(fmtTs(pz.completedAt || pz.createdAt))}</strong></div>
+              ${pz.gameUrl ? `<div class="blunders-muted" style="margin-top:6px;">Source: <a href="${escapeHtml(String(pz.gameUrl))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(pz.gameUrl))}</a></div>` : ''}
+              <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                <button class="btn btn-primary" type="button" data-bl-practice="${escapeHtml(String(pz.id || ''))}">Practice</button>
+              </div>
+            </div>
+          </div>
+        `);
+        return;
+      }
+
+      const practiceBtn = t?.closest?.('[data-bl-practice]');
+      if (practiceBtn) {
+        const id = String(practiceBtn.getAttribute('data-bl-practice') || '');
+        const all = [
+          ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+          ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+        ];
+        const pz = all.find(x => String(x?.id || '') === id) || null;
+        if (!pz) return;
+        closeModal();
+        STATE.practiceKey = bucketKeyOfPuzzle(pz) || 'random';
+        setBlunderModePractice(pz);
+        setPage('blunder');
+        return;
+      }
+
+      if (t?.closest?.('[data-bl-random]')) {
+        const all = [
+          ...(Array.isArray(STATE.pending) ? STATE.pending : []),
+          ...(Array.isArray(STATE.completed) ? STATE.completed : [])
+        ];
+        if (!all.length) return;
+        STATE.practiceKey = 'random';
+        const pick = all[Math.floor(Math.random() * all.length)];
+        setBlunderModePractice(pick);
+        setPage('blunder');
+        return;
+      }
+    });
+
+    // Use change events for <select> filters (prevents dropdown from flashing due to re-render on click)
+    root.addEventListener('change', (ev) => {
+      const t = ev.target;
+
+      const rt = t?.closest?.('[data-bl-review-theme]');
+      if (rt) {
+        const v = String(rt.value || 'any').trim() || 'any';
+        try { window.BlundersStudent?.reviewSetTheme?.(v); } catch {}
+        return;
+      }
+
+      const rd = t?.closest?.('[data-bl-review-duration-select]');
+      if (rd) {
+        const v = String(rd.value || 'all').trim() || 'all';
+        STATE.reviewDuration = v;
+        STATE.ui.homePracticeDuration = v;
+        try { window.BlundersStudent?.resetReviewUi?.(); } catch {}
+        render();
+        return;
+      }
+
+      // Teacher all-blunders theme search (datalist): if user selects an exact tag, apply it.
+      const ts = t?.closest?.('[data-bl-teacher-all-tag-search]');
+      if (ts) {
+        const v = String(ts.value || '').trim();
+        if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = {};
+        STATE.teacher.allUi.tagSearch = v;
+        // If it matches a known tag exactly, apply filter immediately.
+        const tagCounts = (STATE.teacher.allUi.tagCounts && typeof STATE.teacher.allUi.tagCounts === 'object') ? STATE.teacher.allUi.tagCounts : null;
+        if (tagCounts && v && Object.prototype.hasOwnProperty.call(tagCounts, v)) {
+          STATE.teacher.allTag = v;
+          render();
+          teacherLoad('allBlunders').catch(() => {});
+        } else {
+          // Just refresh dropdown options
+          applyTeacherAllTagSearchFilter();
+        }
+        return;
+      }
+    });
+
+    root.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      if (t.id === 'blBoardLightInput' || t.id === 'blBoardDarkInput') {
+        const lightEl = document.getElementById('blBoardLightInput');
+        const darkEl = document.getElementById('blBoardDarkInput');
+        const light = String(lightEl?.value || '').trim() || VCP_DEFAULTS.boardLight;
+        const dark = String(darkEl?.value || '').trim() || VCP_DEFAULTS.boardDark;
+        setBoardColors({ light, dark });
+        // Re-render to refresh preview + input values
+        render();
+      }
+    });
+
+    root.addEventListener('input', (ev) => {
+      const el = ev.target;
+      // Teacher inputs
+      const sEl = el?.closest?.('[data-bl-teacher-search]');
+      if (sEl) {
+        STATE.teacher.search = String(sEl.value || '');
+        render();
+        return;
+      }
+      const sd = el?.closest?.('[data-bl-teacher-student-date]');
+      if (sd) {
+        const sid = String(sd.getAttribute('data-bl-teacher-student-date') || '');
+        const v = String(sd.value || '').trim();
+        if (sid) {
+          if (!STATE.teacher.dateByStudent || typeof STATE.teacher.dateByStudent !== 'object') STATE.teacher.dateByStudent = {};
+          STATE.teacher.dateByStudent[sid] = v;
+        }
+        return;
+      }
+      const md = el?.closest?.('[data-bl-teacher-master-date]');
+      if (md) {
+        const mid = String(md.getAttribute('data-bl-teacher-master-date') || '');
+        const v = String(md.value || '').trim();
+        if (mid) {
+          if (!STATE.teacher.dateByMaster || typeof STATE.teacher.dateByMaster !== 'object') STATE.teacher.dateByMaster = {};
+          STATE.teacher.dateByMaster[mid] = v;
+        }
+        return;
+      }
+      const mhn = el?.closest?.('[data-bl-teacher-master-history-n]');
+      if (mhn) {
+        const mid = String(mhn.getAttribute('data-bl-teacher-master-history-n') || '');
+        const v = Math.max(1, Math.min(500, Number(mhn.value || 0) || 200));
+        if (mid) {
+          if (!STATE.teacher.historyScanNMaster || typeof STATE.teacher.historyScanNMaster !== 'object') STATE.teacher.historyScanNMaster = {};
+          STATE.teacher.historyScanNMaster[mid] = v;
+        }
+        return;
+      }
+      const ar = el?.closest?.('[data-bl-teacher-all-rating]');
+      if (ar) {
+        STATE.teacher.allRating = String(ar.value || 'any');
+        render();
+        teacherLoad('allBlunders').catch(() => {});
+        return;
+      }
+      const at = el?.closest?.('[data-bl-teacher-all-tag]');
+      if (at) {
+        STATE.teacher.allTag = String(at.value || 'any');
+        render();
+        teacherLoad('allBlunders').catch(() => {});
+        return;
+      }
+      const td = el?.closest?.('[data-bl-teacher-tag-duration]');
+      if (td) {
+        STATE.teacher.tagDuration = String(td.value || 'month');
+        render();
+        return;
+      }
+      const ts = el?.closest?.('[data-bl-teacher-all-tag-search]');
+      if (ts) {
+        if (!STATE.teacher.allUi || typeof STATE.teacher.allUi !== 'object') STATE.teacher.allUi = {};
+        STATE.teacher.allUi.tagSearch = String(ts.value || '');
+        applyTeacherAllTagSearchFilter();
+        return;
+      }
+      const rj = el?.closest?.('[data-bl-review-jump]');
+      if (rj) {
+        const key = String(rj.getAttribute('data-bl-review-jump') || '');
+        try { window.BlundersStudent?.reviewSetJump?.(key, String(rj.value || '')); } catch {}
+        return;
+      }
+      const aj = el?.closest?.('[data-bl-teacher-all-jump]');
+      if (aj) {
+        const key = String(aj.getAttribute('data-bl-teacher-all-jump') || '');
+        try { window.BlundersTeacher?.teacherAllSetJump?.(key, String(aj.value || '')); } catch {}
+        return;
+      }
+      const mj = el?.closest?.('[data-bl-master-bucket-jump]');
+      if (mj) {
+        const key = String(mj.getAttribute('data-bl-master-bucket-jump') || '');
+        masterBucketSetJump(key, String(mj.value || ''));
+        return;
+      }
+      const bm = el?.closest?.('[data-bl-teacher-bulk-max]');
+      if (bm) {
+        STATE.teacher.bulkMaxGames = Number(bm.value);
+        return;
+      }
+      const bt = el?.closest?.('[data-bl-teacher-bulk-thr]');
+      if (bt) {
+        STATE.teacher.bulkThreshold = Number(bt.value);
+        return;
+      }
+      const bh = el?.closest?.('[data-bl-teacher-bulk-history]');
+      if (bh) {
+        STATE.teacher.bulkHistoryGames = Math.max(1, Math.min(500, Number(bh.value || 0) || 200));
+        return;
+      }
+      const maxEl = el?.closest?.('[data-bl-teacher-student-max]');
+      if (maxEl) {
+        const sid = String(maxEl.getAttribute('data-bl-teacher-student-max') || '');
+        const v = Number(maxEl.value);
+        if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+        STATE.teacher.edits.student[sid].maxGamesPerDay = Number.isFinite(v) ? v : 10;
+        return;
+      }
+      const thrEl = el?.closest?.('[data-bl-teacher-student-thr]');
+      if (thrEl) {
+        const sid = String(thrEl.getAttribute('data-bl-teacher-student-thr') || '');
+        const v = Number(thrEl.value);
+        if (!STATE.teacher.edits.student[sid]) STATE.teacher.edits.student[sid] = {};
+        STATE.teacher.edits.student[sid].thresholdPoints = Number.isFinite(v) ? v : 1.0;
+        return;
+      }
+      const hn = el?.closest?.('[data-bl-teacher-history-n]');
+      if (hn) {
+        const sid = String(hn.getAttribute('data-bl-teacher-history-n') || '');
+        const v = Math.max(1, Math.min(500, Number(hn.value || 0) || 200));
+        if (!STATE.teacher.historyScanN || typeof STATE.teacher.historyScanN !== 'object') STATE.teacher.historyScanN = {};
+        STATE.teacher.historyScanN[sid] = v;
+        return;
+      }
+      const mn = el?.closest?.('[data-bl-teacher-master-name]');
+      if (mn) {
+        const idx = Number(mn.getAttribute('data-bl-teacher-master-name'));
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : [];
+        if (!Number.isNaN(idx) && cur[idx]) cur[idx].name = String(mn.value || '');
+        return;
+      }
+      const mu = el?.closest?.('[data-bl-teacher-master-user]');
+      if (mu) {
+        const idx = Number(mu.getAttribute('data-bl-teacher-master-user'));
+        const cur = Array.isArray(STATE.teacher.edits.masters) ? STATE.teacher.edits.masters : [];
+        if (!Number.isNaN(idx) && cur[idx]) cur[idx].username = String(mu.value || '');
+        return;
+      }
+      const mm = el?.closest?.('[data-bl-teacher-mastercfg-max]');
+      if (mm) {
+        const v = Number(mm.value);
+        if (!STATE.teacher.edits.masterCfg) STATE.teacher.edits.masterCfg = {};
+        STATE.teacher.edits.masterCfg.maxGamesPerDay = Number.isFinite(v) ? v : 10;
+        return;
+      }
+      const mt = el?.closest?.('[data-bl-teacher-mastercfg-thr]');
+      if (mt) {
+        const v = Number(mt.value);
+        if (!STATE.teacher.edits.masterCfg) STATE.teacher.edits.masterCfg = {};
+        STATE.teacher.edits.masterCfg.thresholdPoints = Number.isFinite(v) ? v : 1.0;
+        return;
+      }
+
+      // Student settings inputs
+      if (el?.closest?.('#blBoardLightInput') || el?.closest?.('#blBoardDarkInput')) {
+        const light = document.getElementById('blBoardLightInput')?.value;
+        const dark = document.getElementById('blBoardDarkInput')?.value;
+        setBoardColors({ light, dark });
+        render();
+      }
+    });
+
+  function applyTeacherAllTagSearchFilter() {
+    try {
+      const root = document.getElementById('blundersRoot');
+      if (!root) return;
+      const input = root.querySelector('[data-bl-teacher-all-tag-search]');
+      const select = root.querySelector('[data-bl-teacher-all-tag]');
+      const dl = root.querySelector('#blTeacherAllTagList');
+      if (!input || !select) return;
+
+      const ui = (STATE.teacher?.allUi && typeof STATE.teacher.allUi === 'object') ? STATE.teacher.allUi : {};
+      const tagCounts = (ui.tagCounts && typeof ui.tagCounts === 'object') ? ui.tagCounts : null;
+      const q = String(input.value || '').trim().toLowerCase();
+      if (!tagCounts) return;
+
+      const entries = Object.entries(tagCounts)
+        .map(([k, v]) => ({ k: String(k), n: Number(v || 0) || 0 }))
+        .filter(x => x.k && x.k !== 'any')
+        .filter(x => !q || x.k.toLowerCase().includes(q))
+        .sort((a, b) => (b.n - a.n) || a.k.localeCompare(b.k))
+        .slice(0, 200);
+
+      const selected = String(STATE.teacher?.allTag || 'any');
+      const optsHtml = [
+        `<option value="any"${selected === 'any' ? ' selected' : ''}>Any theme</option>`,
+        ...entries.map(x => `<option value="${escapeHtml(x.k)}"${selected === x.k ? ' selected' : ''}>${escapeHtml(`${x.k} (${x.n})`)}</option>`)
+      ].join('');
+      select.innerHTML = optsHtml;
+
+      if (dl) {
+        dl.innerHTML = entries.map(x => `<option value="${escapeHtml(x.k)}"></option>`).join('');
+      }
+    } catch {}
+  }
+  }
+
+  window.initBlunders = initBlunders;
+})();
+
+

@@ -1,7 +1,34 @@
 // Game Zone Modal Functions
 let gameZoneModalSize = 'normal'; // 'normal', 'large', 'fullscreen'
 let selectedGameStudents = [];
-let applicationPickGameKey = null; // 'monsterFight'|'runningQueen'|'royalExchange'|'hopeMate'
+let applicationPickGameKey = null; // only 'monsterFight' uses the student picker modal
+
+function getTeacherAsPlayerDetails() {
+    if (!currentUser || !currentUser.id) {
+        showNotification('Missing teacher identity. Please refresh and try again.', 'error');
+        return null;
+    }
+    return [{
+        id: String(currentUser.id),
+        name: String(currentUser.name || currentUser.email || 'Teacher'),
+        studentId: String(currentUser.teacherId || currentUser.id)
+    }];
+}
+
+/** If the teacher picked students in the Game Zone list, use them; otherwise use the teacher as the only player. */
+function buildPlayersForApplication() {
+    if (selectedGameStudents.length > 0) {
+        return selectedGameStudents.map(id => {
+            const student = students.find(s => s.id === id) || {};
+            return {
+                id,
+                name: student.name || 'Unknown',
+                studentId: student.chessComId || ''
+            };
+        });
+    }
+    return getTeacherAsPlayerDetails();
+}
 
 function openGameZoneModal() {
     const modal = document.getElementById('gameZoneModal');
@@ -34,7 +61,7 @@ function openVChessPlatformNewTab() {
         console.warn('Unable to persist vChessPlatform context to localStorage:', e);
     }
 
-    const url = '/game/game-window.html?game=vChessPlatform&role=teacher';
+    const url = '/application/application-window.html?game=vChessPlatform&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening V.Chess Platform in current tab...', 'warning');
@@ -47,19 +74,18 @@ function openVChessPlatformNewTab() {
 window.openVChessPlatformNewTab = openVChessPlatformNewTab;
 
 function openApplicationStudentPicker(gameKey) {
-    applicationPickGameKey = String(gameKey || '');
+    const key = String(gameKey || '');
+    if (key !== 'monsterFight') {
+        console.warn('openApplicationStudentPicker: only Monster Fight uses the student picker');
+        return;
+    }
+    applicationPickGameKey = key;
     selectedGameStudents = [];
     const modal = document.getElementById('gameZoneModal');
     if (!modal) return;
 
-    // Title
     const titleEl = document.getElementById('gameZoneModalTitle');
-    const label =
-        applicationPickGameKey === 'monsterFight' ? 'Monster Fight' :
-        applicationPickGameKey === 'runningQueen' ? 'Running Queen' :
-        applicationPickGameKey === 'royalExchange' ? 'Royal Exchange' :
-        applicationPickGameKey === 'hopeMate' ? 'Hope Mate' : 'Application';
-    if (titleEl) titleEl.textContent = `🎮 Application · ${label}`;
+    if (titleEl) titleEl.textContent = '🎮 Application · Monster Fight';
 
     // Hide game selection + game area; show student selection only
     const gs = document.getElementById('gameSelectionSection');
@@ -93,7 +119,7 @@ function openTacticsFighterAsMe() {
         console.warn('Unable to persist tacticsFighterPlayers to localStorage:', error);
     }
 
-    const url = '/game/game-window.html?game=tacticsFighter&role=teacher';
+    const url = '/application/application-window.html?game=tacticsFighter&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening in current window...', 'warning');
@@ -121,7 +147,7 @@ function openMazeRunnerAsMe() {
         console.warn('Unable to persist mazeRunnerPlayers to localStorage:', error);
     }
 
-    const url = '/game/game-window.html?game=mazeRunner&role=teacher';
+    const url = '/application/application-window.html?game=mazeRunner&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening in current window...', 'warning');
@@ -149,7 +175,7 @@ function openChessLightAsMe() {
         console.warn('Unable to persist chessLightPlayers to localStorage:', error);
     }
 
-    const url = '/game/game-window.html?game=chessLight&role=teacher';
+    const url = '/application/application-window.html?game=chessLight&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening in current window...', 'warning');
@@ -177,7 +203,7 @@ function openChessSolitaireAsMe() {
         console.warn('Unable to persist chessSolitairePlayers to localStorage:', error);
     }
 
-    const url = '/game/game-window.html?game=chessSolitaire&role=teacher';
+    const url = '/application/application-window.html?game=chessSolitaire&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening in current window...', 'warning');
@@ -205,7 +231,7 @@ function openChessWorksAsMe() {
         console.warn('Unable to persist chessWorksPlayers to localStorage:', error);
     }
 
-    const url = '/game/game-window.html?game=chessWorks&role=teacher';
+    const url = '/application/application-window.html?game=chessWorks&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         showNotification('Popup blocked. Opening in current window...', 'warning');
@@ -219,7 +245,7 @@ window.openChessWorksAsMe = openChessWorksAsMe;
 
 function openBlundersTeacherMode() {
     // Teacher mode Blunders: open in a new tab and render a dedicated teacher UI.
-    const url = '/game/game-window.html?game=blunders&role=teacher';
+    const url = '/application/application-window.html?game=blunders&role=teacher';
     // Ensure Blunders teacher window can always access teacher auth, even if localStorage timing differs.
     try {
         const t = String(localStorage.getItem('authToken') || '').trim();
@@ -236,58 +262,112 @@ function openBlundersTeacherMode() {
 
 window.openBlundersTeacherMode = openBlundersTeacherMode;
 
+function openRunningQueenAsMe() {
+    const playerDetails = getTeacherAsPlayerDetails();
+    if (!playerDetails) return;
+    try {
+        localStorage.setItem('runningQueenPlayers', JSON.stringify(playerDetails));
+    } catch (e) {
+        console.warn('Unable to persist runningQueenPlayers to localStorage:', e);
+    }
+    const url = '/application/application-window.html?game=runningQueen&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Running Queen opened in a new tab', 'success');
+}
+
+window.openRunningQueenAsMe = openRunningQueenAsMe;
+
+function openRoyalExchangeAsMe() {
+    const playerDetails = getTeacherAsPlayerDetails();
+    if (!playerDetails) return;
+    try {
+        localStorage.setItem('royalExchangePlayers', JSON.stringify(playerDetails));
+    } catch (e) {
+        console.warn('Unable to persist royalExchangePlayers to localStorage:', e);
+    }
+    const url = '/application/application-window.html?game=royalExchange&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Royal Exchange opened in a new tab', 'success');
+}
+
+window.openRoyalExchangeAsMe = openRoyalExchangeAsMe;
+
+function openHopeMateAsMe() {
+    const playerDetails = getTeacherAsPlayerDetails();
+    if (!playerDetails) return;
+    try {
+        localStorage.setItem('hopeMatePlayers', JSON.stringify(playerDetails));
+    } catch (e) {
+        console.warn('Unable to persist hopeMatePlayers to localStorage:', e);
+    }
+    const url = '/application/application-window.html?game=hopeMate&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Hope Mate opened in a new tab', 'success');
+}
+
+window.openHopeMateAsMe = openHopeMateAsMe;
+
+function openNoBlunderAsMe() {
+    const playerDetails = getTeacherAsPlayerDetails();
+    if (!playerDetails) return;
+    try {
+        localStorage.setItem('noBlunderPlayers', JSON.stringify(playerDetails));
+    } catch (e) {
+        console.warn('Unable to persist noBlunderPlayers to localStorage:', e);
+    }
+    const url = '/application/application-window.html?game=noBlunder&role=teacher';
+    const win = window.open(url, '_blank');
+    if (!win) {
+        showNotification('Popup blocked. Opening in current window...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('No Blunder opened in a new tab', 'success');
+}
+
+window.openNoBlunderAsMe = openNoBlunderAsMe;
+
+function openTruceboardNewTab() {
+    const url = '/truceboard/index.html';
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win) {
+        showNotification('Popup blocked. Opening Truceboard in current tab...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Truceboard opened in a new tab', 'success');
+}
+
+window.openTruceboardNewTab = openTruceboardNewTab;
+
 async function confirmApplicationStudentPicker() {
     const key = String(applicationPickGameKey || '');
-    if (!key) {
-        showNotification('Missing game selection.', 'error');
+    if (key !== 'monsterFight') {
+        showNotification('Please choose Monster Fight from the App tab.', 'error');
         return;
     }
-    if (key === 'hopeMate' && selectedGameStudents.length !== 1) {
-        showNotification('Hope Mate supports exactly 1 student. Please select one student.', 'error');
-        return;
-    }
-    if (key !== 'hopeMate' && selectedGameStudents.length === 0) {
+    if (selectedGameStudents.length === 0) {
         showNotification('Please select at least one student', 'error');
         return;
     }
 
-    // Persist players for game-window based games
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        // Keep property name `studentId` for backward compatibility with game windows,
-        // but its value is the chess.com ID.
-        return { id, name: student.name || 'Unknown', studentId: student.chessComId || '' };
-    });
+    await startMonsterFight();
 
-    try {
-        if (key === 'runningQueen') localStorage.setItem('runningQueenPlayers', JSON.stringify(playerDetails));
-        if (key === 'royalExchange') localStorage.setItem('royalExchangePlayers', JSON.stringify(playerDetails));
-        if (key === 'hopeMate') localStorage.setItem('hopeMatePlayers', JSON.stringify(playerDetails));
-    } catch (e) {
-        console.warn('Unable to persist players to localStorage:', e);
-    }
-
-    // Launch
-    if (key === 'monsterFight') {
-        await startMonsterFight();
-    } else if (key === 'runningQueen') {
-        const url = '/game/game-window.html?game=runningQueen';
-        const w = window.open(url, '_blank');
-        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
-        else showNotification('Running Queen opened in new tab', 'success');
-    } else if (key === 'royalExchange') {
-        const url = '/game/game-window.html?game=royalExchange';
-        const w = window.open(url, '_blank');
-        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
-        else showNotification('Royal Exchange opened in new tab', 'success');
-    } else if (key === 'hopeMate') {
-        const url = '/game/game-window.html?game=hopeMate';
-        const w = window.open(url, '_blank');
-        if (!w) { showNotification('Popup blocked. Opening in current window...', 'warning'); window.location.href = url; }
-        else showNotification('Hope Mate opened in new tab', 'success');
-    }
-
-    // Close modal
     closeGameZoneModal();
     applicationPickGameKey = null;
 }
@@ -369,7 +449,7 @@ function showGameSelection() {
             </div>
             <div class="game-item" onclick="startMonsterFight()">
                 <div class="game-icon">
-                    <img src="/game/monster-fight/images/Logo.png" alt="Monster Fight" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
+                    <img src="/application/monster-fight/images/Logo.png" alt="Monster Fight" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
                 </div>
                 <div class="game-info">
                     <h4>Monster Fight</h4>
@@ -450,7 +530,7 @@ async function startMonsterFight() {
         
         // 打開獨立專案的頁面
         // 使用伺服器提供的路徑訪問獨立專案
-        const gameUrl = '/game/monster-fight/index.html';
+        const gameUrl = '/application/monster-fight/index.html';
         
         // 嘗試在新視窗中打開
         const gameWindow = window.open(
@@ -476,19 +556,8 @@ async function startMonsterFight() {
 window.startMonsterFight = startMonsterFight;
 
 async function startRunningQueen() {
-    if (selectedGameStudents.length === 0) {
-        showNotification('Please select at least one student', 'error');
-        return;
-    }
-
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        return {
-            id,
-            name: student.name || 'Unknown',
-            studentId: student.chessComId || ''
-        };
-    });
+    const playerDetails = buildPlayersForApplication();
+    if (!playerDetails) return;
 
     window.runningQueenPlayers = playerDetails;
     window.currentGameKey = 'runningQueen';
@@ -519,13 +588,13 @@ async function startRunningQueen() {
 
         if (!window.runningQueenLoaded) {
             const script = document.createElement('script');
-            script.src = '/game/running-queen.js';
+            script.src = '/application/running-queen/running-queen.js';
             script.onload = () => {
                 window.runningQueenLoaded = true;
                 ensureScriptLoaded();
             };
             script.onerror = (error) => {
-                console.error('Error loading running-queen.js:', error);
+                console.error('Error loading running-queen/running-queen.js:', error);
                 showNotification('Failed to load Running Queen scripts', 'error');
             };
             document.body.appendChild(script);
@@ -538,19 +607,8 @@ async function startRunningQueen() {
 window.startRunningQueen = startRunningQueen;
 
 async function startRoyalExchange() {
-    if (selectedGameStudents.length === 0) {
-        showNotification('Please select at least one student', 'error');
-        return;
-    }
-
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        return {
-            id,
-            name: student.name || 'Unknown',
-            studentId: student.chessComId || ''
-        };
-    });
+    const playerDetails = buildPlayersForApplication();
+    if (!playerDetails) return;
 
     window.royalExchangePlayers = playerDetails;
     window.currentGameKey = 'royalExchange';
@@ -581,13 +639,13 @@ async function startRoyalExchange() {
 
         if (!window.royalExchangeLoaded) {
             const script = document.createElement('script');
-            script.src = '/game/royal-exchange.js';
+            script.src = '/application/royal-exchange/royal-exchange.js';
             script.onload = () => {
                 window.royalExchangeLoaded = true;
                 ensureScriptLoaded();
             };
             script.onerror = (error) => {
-                console.error('Error loading royal-exchange.js:', error);
+                console.error('Error loading royal-exchange/royal-exchange.js:', error);
                 showNotification('Failed to load Royal Exchange scripts', 'error');
             };
             document.body.appendChild(script);
@@ -600,19 +658,8 @@ async function startRoyalExchange() {
 window.startRoyalExchange = startRoyalExchange;
 
 async function startNoBlunder() {
-    if (selectedGameStudents.length === 0) {
-        showNotification('Please select at least one student', 'error');
-        return;
-    }
-
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        return {
-            id,
-            name: student.name || 'Unknown',
-            studentId: student.chessComId || ''
-        };
-    });
+    const playerDetails = buildPlayersForApplication();
+    if (!playerDetails) return;
 
     window.noBlunderPlayers = playerDetails;
     window.currentGameKey = 'noBlunder';
@@ -638,7 +685,7 @@ async function startNoBlunder() {
             const link = document.createElement('link');
             link.id = 'noBlunderCss';
             link.rel = 'stylesheet';
-            link.href = '/game/no-blunder.css';
+            link.href = '/application/no-blunder/no-blunder.css';
             document.head.appendChild(link);
         }
 
@@ -652,13 +699,13 @@ async function startNoBlunder() {
 
         if (!window.noBlunderLoaded) {
             const script = document.createElement('script');
-            script.src = '/game/no-blunder.js';
+            script.src = '/application/no-blunder/no-blunder.js';
             script.onload = () => {
                 window.noBlunderLoaded = true;
                 ensureScriptLoaded();
             };
             script.onerror = (error) => {
-                console.error('Error loading no-blunder.js:', error);
+                console.error('Error loading no-blunder/no-blunder.js:', error);
                 showNotification('Failed to load No Blunder scripts', 'error');
             };
             document.body.appendChild(script);
@@ -671,19 +718,8 @@ async function startNoBlunder() {
 window.startNoBlunder = startNoBlunder;
 
 async function startBlunders() {
-    if (selectedGameStudents.length === 0) {
-        showNotification('Please select at least one student', 'error');
-        return;
-    }
-
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        return {
-            id,
-            name: student.name || 'Unknown',
-            studentId: student.chessComId || ''
-        };
-    });
+    const playerDetails = buildPlayersForApplication();
+    if (!playerDetails) return;
 
     window.blundersPlayers = playerDetails;
     window.currentGameKey = 'blunders';
@@ -709,7 +745,7 @@ async function startBlunders() {
             const link = document.createElement('link');
             link.id = 'blundersCss';
             link.rel = 'stylesheet';
-            link.href = '/game/blunders/blunders.css';
+            link.href = '/application/blunders/blunders.css';
             document.head.appendChild(link);
         }
 
@@ -733,11 +769,11 @@ async function startBlunders() {
                 s.onerror = (e) => reject(e);
                 document.body.appendChild(s);
             });
-            loadJs('/game/blunders/core.js')
-                .then(() => loadJs('/game/blunders/teacher.js'))
-                .then(() => loadJs('/game/blunders/challenge.js'))
-                .then(() => loadJs('/game/blunders/student.js'))
-                .then(() => loadJs('/game/blunders/blunders.js'))
+            loadJs('/application/blunders/core.js')
+                .then(() => loadJs('/application/blunders/teacher.js'))
+                .then(() => loadJs('/application/blunders/challenge.js'))
+                .then(() => loadJs('/application/blunders/student.js'))
+                .then(() => loadJs('/application/blunders/blunders.js'))
                 .then(() => {
                 window.blundersLoaded = true;
                 ensureScriptLoaded();
@@ -755,19 +791,11 @@ async function startBlunders() {
 window.startBlunders = startBlunders;
 
 async function startHopeMate() {
-    if (selectedGameStudents.length !== 1) {
-        showNotification('Hope Mate currently supports exactly 1 student. Please select one student to start.', 'error');
-        return;
+    let playerDetails = buildPlayersForApplication();
+    if (!playerDetails) return;
+    if (playerDetails.length > 1) {
+        playerDetails = [playerDetails[0]];
     }
-
-    const playerDetails = selectedGameStudents.map(id => {
-        const student = students.find(s => s.id === id) || {};
-        return {
-            id,
-            name: student.name || 'Unknown',
-            studentId: student.chessComId || ''
-        };
-    });
 
     window.hopeMatePlayers = playerDetails;
     window.currentGameKey = 'hopeMate';
@@ -793,7 +821,7 @@ async function startHopeMate() {
             const link = document.createElement('link');
             link.id = 'hopeMateCss';
             link.rel = 'stylesheet';
-            link.href = '/game/hope-mate.css';
+            link.href = '/application/hope-mate/hope-mate.css';
             document.head.appendChild(link);
         }
 
@@ -807,13 +835,13 @@ async function startHopeMate() {
 
         if (!window.hopeMateLoaded) {
             const script = document.createElement('script');
-            script.src = '/game/hope-mate.js';
+            script.src = '/application/hope-mate/hope-mate.js';
             script.onload = () => {
                 window.hopeMateLoaded = true;
                 ensureScriptLoaded();
             };
             script.onerror = (error) => {
-                console.error('Error loading hope-mate.js:', error);
+                console.error('Error loading hope-mate/hope-mate.js:', error);
                 showNotification('Failed to load Hope Mate scripts', 'error');
             };
             document.body.appendChild(script);
@@ -850,7 +878,7 @@ async function startVChessPlatform() {
         const link = document.createElement('link');
         link.id = 'vChessPlatformCss';
         link.rel = 'stylesheet';
-        link.href = '/game/vchess-platform/vchess-platform.css';
+        link.href = '/application/vchess-platform/vchess-platform.css';
         document.head.appendChild(link);
     }
 
@@ -870,8 +898,8 @@ async function startVChessPlatform() {
             s.onerror = (e) => reject(e);
             document.body.appendChild(s);
         });
-        loadScript('/game/vchess-platform/normal-chess.js')
-            .then(() => loadScript('/game/vchess-platform/vchess-platform.js'))
+        loadScript('/application/vchess-platform/normal-chess.js')
+            .then(() => loadScript('/application/vchess-platform/vchess-platform.js'))
             .then(() => {
                 window.vChessPlatformLoaded = true;
                 ensureScriptLoaded();
@@ -943,13 +971,13 @@ function openGameInNewWindow() {
     
     if (isElectron) {
         // In Electron, use a special URL that will be handled by main.js
-        const gameWindow = window.open(`${window.location.origin}/game/game-window.html?${query}`, 'gameWindow');
+        const gameWindow = window.open(`${window.location.origin}/application/application-window.html?${query}`, 'gameWindow');
         if (!gameWindow) {
             showNotification('Please allow popups to open game in new window', 'error');
         }
     } else {
         // In browser, create a new window with the game content
-        const gameWindow = window.open(`/game/game-window.html?${query}`, 'gameWindow', 'width=1200,height=800,alwaysOnTop=yes');
+        const gameWindow = window.open(`/application/application-window.html?${query}`, 'gameWindow', 'width=1200,height=800,alwaysOnTop=yes');
         if (!gameWindow) {
             showNotification('Please allow popups to open game in new window', 'error');
         }
@@ -980,7 +1008,7 @@ document.getElementById('vChessPlatformBtn')?.addEventListener('click', () => {
         console.warn('Unable to persist vChessPlatform context to localStorage:', e);
     }
 
-    const url = '/game/game-window.html?game=vChessPlatform&role=teacher';
+    const url = '/application/application-window.html?game=vChessPlatform&role=teacher';
     const win = window.open(url, '_blank');
     if (!win) {
         // Popup blocked: fall back to same tab.

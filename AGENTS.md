@@ -13,11 +13,15 @@ This is **StudentScoring** — a chess education and student management platform
 - **`@student-scoring/billing`** (`packages/billing`): PayPal billing, subscriptions, billing DB, access control, and billing/admin routes.
 - **`@student-scoring/class-view`** (`packages/class-view`): Challenge, teacher class view, and statistics routes.
 - **`@student-scoring/vcp`** (`packages/vcp`): V.Chess Platform WebSocket realtime module.
-- **`@student-scoring/games-simple`** (`packages/games-simple`): Running Queen, Royal Exchange, Hope Mate routes.
-- **`@student-scoring/games-chess`** (`packages/games-chess`): Chess Light, Chess Solitaire, Chess Works, Maze Runner routes.
-- **`@student-scoring/games-monster-fight`** (`packages/games-monster-fight`): Monster Fight game logic, routes, and leaderboard.
-- **`@student-scoring/games-blunders`** (`packages/games-blunders`): Blunders analysis, Chess.com sync, Stockfish integration, teacher/public routes, and DB helpers.
-- **`@student-scoring/games-tactics-fighter`** (`packages/games-tactics-fighter`): Tactics Fighter builder, puzzles, attempts, and admin routes.
+- **Application packages** (browser-facing bundles live under repo root `application/`; server modules under `packages/application/*`; workspace glob `packages/application/*` in `pnpm-workspace.yaml`):
+  - **`@student-scoring/application-running-queen`** (`packages/application/running-queen`): Running Queen API routes.
+  - **`@student-scoring/application-royal-exchange`** (`packages/application/royal-exchange`): Royal Exchange API routes.
+  - **`@student-scoring/application-hope-mate`** (`packages/application/hope-mate`): Hope Mate + admin stage-puzzle routes.
+  - **`@student-scoring/application-chess`** (`packages/application/chess`): Chess Light, Chess Solitaire, Chess Works, Maze Runner routes.
+  - **`@student-scoring/application-monster-fight`** (`packages/application/monster-fight`): Monster Fight game logic, routes, and leaderboard (HTTP API remains under `/api/game/*`).
+  - **`@student-scoring/application-blunders`** (`packages/application/blunders`): Blunders analysis, Chess.com sync, Stockfish integration, teacher/public routes, and DB helpers.
+  - **`@student-scoring/application-tactics-fighter`** (`packages/application/tactics-fighter`): Tactics Fighter builder, puzzles, attempts, and admin routes.
+  - **`@student-scoring/application-truceboard`** (`packages/application/truceboard`): Registers `/truceboard` static from `application/truceboard/`.
 
 ### Prerequisites
 
@@ -42,17 +46,14 @@ Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, logi
 ### Monorepo structure
 
 ```
-pnpm-workspace.yaml        # declares packages/* and apps/*
+pnpm-workspace.yaml        # declares packages/*, packages/application/*, and apps/*
 packages/core/             # @student-scoring/core — shared auth, types, middleware, storage, config, db, lib
 packages/platform/         # @student-scoring/platform — auth, students, organizations, admin, attendance routes + autoRenew + OpenAI
 packages/billing/          # @student-scoring/billing — PayPal billing, subscriptions, access control, billing routes
 packages/class-view/       # @student-scoring/class-view — challenge, teacher class view, statistics routes
 packages/vcp/              # @student-scoring/vcp — V.Chess Platform WebSocket
-packages/games-simple/     # @student-scoring/games-simple — Running Queen, Royal Exchange, Hope Mate
-packages/games-chess/      # @student-scoring/games-chess — Chess Light, Chess Solitaire, Chess Works, Maze Runner
-packages/games-monster-fight/ # @student-scoring/games-monster-fight — Monster Fight game
-packages/games-blunders/   # @student-scoring/games-blunders — Blunders analysis, Chess.com integration
-packages/games-tactics-fighter/ # @student-scoring/games-tactics-fighter — Tactics Fighter
+packages/application/*     # one workspace package per application family (see list above)
+application/               # static assets served at /application/... (HTML, JS, CSS, images); shared shell: application-window.html
 server.ts                  # main Express server (root workspace) — imports ONLY from @student-scoring/* packages
 ```
 
@@ -63,11 +64,14 @@ const { registerAuthRoutes, registerOrganizationsRoutes, createAutoRenew, openAi
 const { registerPayPalRoutes, registerOrganizationsBillingRoutes, createPayPalBillingHelpers } = require('@student-scoring/billing');
 const { registerChallengeRoutes, registerStatisticsRoutes } = require('@student-scoring/class-view');
 const { setupVcpChess } = require('@student-scoring/vcp');
-const { registerRunningQueenRoutes } = require('@student-scoring/games-simple');
-const { registerChessLightRoutes } = require('@student-scoring/games-chess');
-const { registerMonsterFightRoutes } = require('@student-scoring/games-monster-fight');
-const { registerBlundersTeacherRoutes, createBlundersStorage } = require('@student-scoring/games-blunders');
-const { registerTacticsFighterRoutes } = require('@student-scoring/games-tactics-fighter');
+const { registerRunningQueenRoutes } = require('@student-scoring/application-running-queen');
+const { registerRoyalExchangeRoutes } = require('@student-scoring/application-royal-exchange');
+const { registerHopeMateRoutes, registerHopeMateAdminRoutes } = require('@student-scoring/application-hope-mate');
+const { registerChessLightRoutes } = require('@student-scoring/application-chess');
+const { registerMonsterFightRoutes } = require('@student-scoring/application-monster-fight');
+const { registerBlundersTeacherRoutes, createBlundersStorage } = require('@student-scoring/application-blunders');
+const { registerTacticsFighterRoutes } = require('@student-scoring/application-tactics-fighter');
+const { registerTruceboardRoutes } = require('@student-scoring/application-truceboard');
 ```
 
 For submodules not re-exported by the barrel (e.g. direct db/billing access):

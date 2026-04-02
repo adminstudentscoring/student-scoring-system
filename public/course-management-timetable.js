@@ -388,7 +388,8 @@ function renderWeekView() {
   
   let html = '<div class="timetable-week-view">';
   
-  // Header
+  // Header + body share one scroll container so column widths match (avoids scrollbar width drift).
+  html += '<div class="timetable-week-body-scrollable">';
   html += '<div class="timetable-week-header">';
   html += '<div class="timetable-week-header-cell timetable-week-time-col">Time</div>';
   days.forEach((day, index) => {
@@ -397,9 +398,6 @@ function renderWeekView() {
     html += `<div class="timetable-week-header-cell${holidayCls}">${day}<br><small>${formatDate(date)}</small></div>`;
   });
   html += '</div>';
-  
-  // Body with scrollable content
-  html += '<div class="timetable-week-body-scrollable">';
   html += '<div class="timetable-week-body">';
   
   allTimeSlots.forEach(timeSlot => {

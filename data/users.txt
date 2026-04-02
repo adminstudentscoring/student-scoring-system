@@ -168,7 +168,39 @@
       "role": "organization",
       "organizationId": "1773728046188",
       "createdAt": "2026-03-17T06:14:06.189Z"
+    },
+    {
+      "id": "1774900525997",
+      "email": "vchessacademy.main@gmail.com",
+      "password": "$2b$10$bbiasWXNAaEFzkNYRAiey.vNJJkJmss7V/QaRZk0wCsDSYZgJO8M6",
+      "name": "V.Chess",
+      "role": "organization",
+      "organizationId": "1774900525996",
+      "createdAt": "2026-03-30T19:55:25.997Z"
+    },
+    {
+      "id": "1774900824558",
+      "email": "vwongpt",
+      "username": "vwongpt",
+      "password": "$2b$10$dl6dr2MEsEFmbNrQ351i4OcyoRY90HLi89xduv0XfX0xpiOJ3jMGC",
+      "name": "vwongpt",
+      "teacherId": "1",
+      "gender": "male",
+      "role": "teacher",
+      "organizationId": "1774900525996",
+      "createdAt": "2026-03-30T20:00:24.558Z",
+      "classViewStudents": [],
+      "assignedStudents": []
+    },
+    {
+      "id": "1775118406020",
+      "email": "test@gmail.com",
+      "password": "$2b$10$ltDVMRYw.DbwlZ/isXbVzeY7p/7r6CAzhVro0r2cJS6b0z9c/rcF.",
+      "name": "Test",
+      "role": "organization",
+      "organizationId": "1775118406019",
+      "createdAt": "2026-04-02T08:26:46.020Z"
     }
   ],
-  "lastUpdate": "2026-03-17T06:14:06.189Z"
+  "lastUpdate": "2026-04-02T08:26:46.020Z"
 }

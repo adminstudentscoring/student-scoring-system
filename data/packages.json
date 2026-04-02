@@ -1,0 +1,28 @@
+{
+  "packages": [
+    {
+      "id": "package_1775121252491_bb0g3bt91",
+      "organizationId": "1775118406019",
+      "name": "2 months",
+      "courses": [
+        {
+          "courseId": "course_1775121199181",
+          "quantity": 1
+        }
+      ],
+      "priceStrategy": "monthly",
+      "fixedPrice": null,
+      "discountPercentage": null,
+      "customPrice": null,
+      "monthlyLessonPrice": 225,
+      "monthlyPeriod": 2,
+      "description": null,
+      "startDate": null,
+      "endDate": null,
+      "status": "active",
+      "createdAt": "2026-04-02T09:14:12.491Z",
+      "updatedAt": "2026-04-02T09:14:12.491Z"
+    }
+  ],
+  "lastUpdate": "2026-04-02T09:14:12.491Z"
+}

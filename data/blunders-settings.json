@@ -1,4 +1,26 @@
 {
-  "orgs": {},
-  "lastUpdate": "2026-03-16T05:11:37.844Z"
+  "orgs": {
+    "1774900525996": {
+      "masters": [
+        {
+          "id": "magnuscarlsen",
+          "name": "MagnusCarlsen",
+          "username": "MagnusCarlsen"
+        },
+        {
+          "id": "hikaru",
+          "name": "Hikaru",
+          "username": "Hikaru"
+        },
+        {
+          "id": "fabianocaruana",
+          "name": "fabianocaruana",
+          "username": "fabianocaruana"
+        }
+      ],
+      "student": {},
+      "master": {}
+    }
+  },
+  "lastUpdate": "2026-03-30T20:02:34.269Z"
 }

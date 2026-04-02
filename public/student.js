@@ -260,9 +260,9 @@ window.openStudentGame = function(gameKey, options = {}) {
             console.warn('Unable to persist runningQueenPlayers', e);
         }
         if (openMode === 'sameTab') {
-            window.location.href = '/game/game-window.html?game=runningQueen';
+            window.location.href = '/application/application-window.html?game=runningQueen';
         } else {
-            window.open('/game/game-window.html?game=runningQueen', '_blank');
+            window.open('/application/application-window.html?game=runningQueen', '_blank');
         }
         return;
     }
@@ -274,9 +274,9 @@ window.openStudentGame = function(gameKey, options = {}) {
             console.warn('Unable to persist royalExchangePlayers', e);
         }
         if (openMode === 'sameTab') {
-            window.location.href = '/game/game-window.html?game=royalExchange';
+            window.location.href = '/application/application-window.html?game=royalExchange';
         } else {
-            window.open('/game/game-window.html?game=royalExchange', '_blank');
+            window.open('/application/application-window.html?game=royalExchange', '_blank');
         }
         return;
     }
@@ -288,9 +288,9 @@ window.openStudentGame = function(gameKey, options = {}) {
             console.warn('Unable to persist hopeMatePlayers', e);
         }
         if (openMode === 'sameTab') {
-            window.location.href = '/game/game-window.html?game=hopeMate';
+            window.location.href = '/application/application-window.html?game=hopeMate';
         } else {
-            window.open('/game/game-window.html?game=hopeMate', '_blank');
+            window.open('/application/application-window.html?game=hopeMate', '_blank');
         }
         return;
     }
@@ -317,7 +317,7 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             // ignore
         }
-        const url = `/game/game-window.html?game=tacticsFighter&role=student${extra}`;
+        const url = `/application/application-window.html?game=tacticsFighter&role=student${extra}`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
@@ -332,7 +332,7 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             console.warn('Unable to persist mazeRunnerPlayers', e);
         }
-        const url = `/game/game-window.html?game=mazeRunner&role=student`;
+        const url = `/application/application-window.html?game=mazeRunner&role=student`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
@@ -347,7 +347,7 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             console.warn('Unable to persist chessLightPlayers', e);
         }
-        const url = `/game/game-window.html?game=chessLight&role=student`;
+        const url = `/application/application-window.html?game=chessLight&role=student`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
@@ -362,7 +362,7 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             console.warn('Unable to persist chessSolitairePlayers', e);
         }
-        const url = `/game/game-window.html?game=chessSolitaire&role=student`;
+        const url = `/application/application-window.html?game=chessSolitaire&role=student`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
@@ -377,7 +377,7 @@ window.openStudentGame = function(gameKey, options = {}) {
         } catch (e) {
             console.warn('Unable to persist chessWorksPlayers', e);
         }
-        const url = `/game/game-window.html?game=chessWorks&role=student`;
+        const url = `/application/application-window.html?game=chessWorks&role=student`;
         if (openMode === 'sameTab') {
             window.location.href = url;
         } else {
@@ -393,9 +393,9 @@ window.openStudentGame = function(gameKey, options = {}) {
             console.warn('Unable to persist blundersPlayers', e);
         }
         if (openMode === 'sameTab') {
-            window.location.href = '/game/game-window.html?game=blunders';
+            window.location.href = '/application/application-window.html?game=blunders';
         } else {
-            window.open('/game/game-window.html?game=blunders', '_blank');
+            window.open('/application/application-window.html?game=blunders', '_blank');
         }
         return;
     }
@@ -445,7 +445,7 @@ window.openStudentGame = function(gameKey, options = {}) {
                 console.warn('Failed to fetch VCP token', e);
             }
 
-            const url = '/game/game-window.html?game=vChessPlatform&role=student';
+            const url = '/application/application-window.html?game=vChessPlatform&role=student';
             if (openMode === 'sameTab') {
                 window.location.href = url;
             } else {

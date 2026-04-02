@@ -24,6 +24,7 @@ function classViewMonsterImageSrcByName(name) {
     const n = String(name || '').toLowerCase();
     if (!n) return null;
     // NOTE: Use relative paths so it works in both http(s) and Electron file:// loads.
+    // Fallback when org custom levels omit imageUrl (legacy).
     if (n.includes('slime')) return 'assets/class-view-monster/Slime.png';
     if (n.includes('goblin')) return 'assets/class-view-monster/Goblin.png';
     if (n.includes('orc')) return 'assets/class-view-monster/Orc.png';
@@ -32,15 +33,18 @@ function classViewMonsterImageSrcByName(name) {
     return null;
 }
 
-function classViewDebug(...args) {
-    // Keep logs low-noise but always available for troubleshooting.
-    // eslint-disable-next-line no-console
-    console.log('[class-view][monster]', ...args);
+/** Prefer levelInfo.imageUrl (relative or absolute); else legacy name→asset mapping. */
+function classViewResolveMonsterImageSrc(levelInfo) {
+    if (!levelInfo) return null;
+    const raw = typeof levelInfo.imageUrl === 'string' ? levelInfo.imageUrl.trim() : '';
+    if (raw) {
+        if (/^https?:\/\//i.test(raw)) return raw;
+        const path = raw.replace(/^\//, '');
+        return classViewResolveAssetUrl(path);
+    }
+    const byName = classViewMonsterImageSrcByName(levelInfo.name);
+    return byName ? classViewResolveAssetUrl(byName) : null;
 }
-
-// Always log one line so we can confirm the latest script is loaded.
-// eslint-disable-next-line no-console
-console.log('[class-view] class-view.js loaded (monster-images v3)', { href: window.location.href });
 
 async function loadClassViewSettings() {
     try {
@@ -285,7 +289,7 @@ function levelBadgeSrcByRankIndex(rankIndex) {
     ];
     const name = files[idx];
     if (!name) return '';
-    // Support both Electron file:// (relative path) and web /game/... routes (need absolute-from-root).
+    // Support both Electron file:// (relative path) and web /application/... routes (need absolute-from-root).
     const base = (window.location && window.location.protocol === 'file:') ? 'assets/level-badge/' : '/assets/level-badge/';
     return `${base}${name}`;
 }
@@ -529,8 +533,8 @@ function updateChallengeDisplay() {
     const levelEmoji = document.getElementById('levelEmoji');
     const levelName = document.getElementById('levelName');
     const levelReward = document.getElementById('levelReward');
-    const monsterEmoji = document.getElementById('monsterEmoji');
     const monsterAvatar = document.getElementById('monsterAvatar');
+    const monsterUnavailable = document.getElementById('monsterImageUnavailable');
     const monsterName = document.getElementById('monsterName');
     const currentHP = document.getElementById('currentHP');
     const maxHP = document.getElementById('maxHP');
@@ -540,55 +544,51 @@ function updateChallengeDisplay() {
     if (levelName) levelName.textContent = `Level ${challengeData.currentLevel}: ${levelInfo.name}`;
     if (levelReward) levelReward.textContent = levelInfo.reward;
 
-    const monsterImgRel = classViewMonsterImageSrcByName(levelInfo.name);
-    const monsterImgSrc = monsterImgRel ? classViewResolveAssetUrl(monsterImgRel) : null;
-    classViewDebug('updateChallengeDisplay', {
-        href: window.location.href,
-        levelName: levelInfo.name,
-        emoji: levelInfo.emoji,
-        monsterImgRel,
-        monsterImgSrc
-    });
+    const monsterImgSrc = classViewResolveMonsterImageSrc(levelInfo);
+
+    if (monsterUnavailable) {
+        monsterUnavailable.classList.remove('is-visible');
+        monsterUnavailable.textContent = '';
+    }
     if (monsterAvatar) {
+        monsterAvatar.onload = null;
+        monsterAvatar.onerror = null;
         if (monsterImgSrc) {
-            // Default to emoji until image confirms it loaded (prevents blank UI on 404).
-            if (monsterEmoji) monsterEmoji.style.display = '';
-            monsterAvatar.style.display = 'none';
             monsterAvatar.alt = levelInfo.name || 'Monster';
             monsterAvatar.onload = () => {
-                // CSS sets .monster-avatar { display:none }, so we must explicitly override it.
                 monsterAvatar.style.display = 'inline-block';
-                if (monsterEmoji) monsterEmoji.style.display = 'none';
-                classViewDebug('image onload', {
-                    src: monsterAvatar.src,
-                    naturalWidth: monsterAvatar.naturalWidth,
-                    naturalHeight: monsterAvatar.naturalHeight,
-                    clientWidth: monsterAvatar.clientWidth,
-                    clientHeight: monsterAvatar.clientHeight
-                });
+                if (monsterUnavailable) {
+                    monsterUnavailable.classList.remove('is-visible');
+                    monsterUnavailable.textContent = '';
+                }
             };
             monsterAvatar.onerror = () => {
                 monsterAvatar.style.display = 'none';
-                if (monsterEmoji) monsterEmoji.style.display = '';
-                classViewDebug('image onerror', {
-                    src: monsterAvatar.src,
-                    levelName: levelInfo.name
-                });
+                monsterAvatar.removeAttribute('src');
+                if (monsterUnavailable) {
+                    monsterUnavailable.textContent = 'Image unavailable';
+                    monsterUnavailable.classList.add('is-visible');
+                }
             };
             if (monsterAvatar.src !== monsterImgSrc) {
-                classViewDebug('setting image src', monsterImgSrc);
+                monsterAvatar.style.display = 'none';
                 monsterAvatar.src = monsterImgSrc;
+            } else if (monsterAvatar.complete && monsterAvatar.naturalWidth > 0) {
+                monsterAvatar.style.display = 'inline-block';
+                if (monsterUnavailable) {
+                    monsterUnavailable.classList.remove('is-visible');
+                    monsterUnavailable.textContent = '';
+                }
             }
         } else {
             monsterAvatar.removeAttribute('src');
             monsterAvatar.style.display = 'none';
-            monsterAvatar.alt = 'Monster';
+            monsterAvatar.alt = '';
+            if (monsterUnavailable) {
+                monsterUnavailable.textContent = 'No image for this level';
+                monsterUnavailable.classList.add('is-visible');
+            }
         }
-    }
-    if (monsterEmoji) {
-        monsterEmoji.textContent = levelInfo.emoji;
-        // If we have a candidate image, emoji will be hidden after image loads successfully.
-        monsterEmoji.style.display = monsterImgSrc ? '' : '';
     }
 
     if (monsterName) monsterName.textContent = levelInfo.name;

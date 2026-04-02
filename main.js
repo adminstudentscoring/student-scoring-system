@@ -399,7 +399,7 @@ ipcMain.handle('open-student-view', () => {
   });
 });
 
-// Handle window.open requests (for class-view, game-window and other popups)
+// Handle window.open requests (for class-view, application-window and other popups)
 app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
     const forceAlwaysOnTop = (win) => {
@@ -462,8 +462,8 @@ app.on('web-contents-created', (event, contents) => {
       return { action: 'deny' }; // We handle the window creation manually
     }
     
-    // If opening game-window.html, create a game window
-    if (url.includes('game-window.html')) {
+    // If opening application-window.html, create a game window
+    if (url.includes('application-window.html')) {
       const gameWindow = new BrowserWindow({
         width: 1200,
         height: 800,

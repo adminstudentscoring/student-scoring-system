@@ -125,35 +125,36 @@
         /* Student card button area - ensure buttons don't overflow */
         .student-card-actions {
             display: flex;
-            gap: 5px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
             margin-top: 10px;
+        }
+        .student-card-actions-primary {
+            display: flex;
+            flex-direction: row;
             flex-wrap: wrap;
+            gap: 6px;
             align-items: center;
         }
         .student-card-actions input[type="number"] {
-            flex: 1;
-            min-width: 60px;
-            max-width: 80px;
-            padding: 5px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
+            flex: 0 1 auto;
+            min-width: 52px;
+            max-width: 72px;
+            padding: 4px 6px;
+            border: 1px solid #d0d4dc;
+            border-radius: 0;
+            background: #fff;
+            color: #111827;
             font-weight: bold;
             text-align: center;
+            font-size: 0.8125rem;
         }
         .student-card-actions input[type="number"]::placeholder {
-            color: rgba(255, 255, 255, 0.6);
+            color: #9ca3af;
         }
-        .student-card-actions button {
-            flex: 1;
-            min-width: 60px;
-            padding: 5px 8px;
-            font-size: 0.85rem;
-            white-space: nowrap;
-        }
-        .student-card-actions .btn-danger {
-            min-width: 55px;
+        .student-card-actions .btn-row-pair {
+            align-self: flex-start;
         }
         /* Settings Styles */
         .settings-container {
@@ -361,7 +362,9 @@
         }
         .edit-student-modal-actions {
             display: flex;
-            gap: 10px;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
             justify-content: flex-end;
             margin-top: 20px;
             padding-top: 20px;
@@ -460,7 +463,9 @@
         }
         .edit-teacher-modal-actions {
             display: flex;
-            gap: 10px;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
             justify-content: flex-end;
             margin-top: 20px;
             padding-top: 20px;
@@ -520,8 +525,8 @@
             gap: 14px;
         }
         .org-subscription-banner {
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
+            border: 1px solid #d0d4dc;
+            border-radius: 0;
             padding: 12px 14px;
             background: #f8fafc;
             color: #111827;
@@ -549,14 +554,14 @@
             gap: 12px;
         }
         .org-plan-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
+            border: 1px solid #d0d4dc;
+            border-radius: 0;
             background: #ffffff;
             padding: 14px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.05);
+            box-shadow: none;
         }
         .org-plan-title {
             margin: 0;
@@ -586,36 +591,69 @@
         }
         /* Old fixed user-info removed; using dash topbar instead */
         .user-info { display: none !important; }
+
+        body.org-ui-sharp .edit-student-modal-content,
+        body.org-ui-sharp .edit-teacher-modal-content {
+            border-radius: 0 !important;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+        }
+        body.org-ui-sharp .edit-student-form-group input,
+        body.org-ui-sharp .edit-student-form-group select,
+        body.org-ui-sharp #createTeacherForm input,
+        body.org-ui-sharp #createTeacherForm select {
+            border-radius: 0 !important;
+        }
+        .org-modal-close-x {
+            background: none;
+            border: none;
+            font-size: 1.75rem;
+            line-height: 1;
+            cursor: pointer;
+            color: #64748b;
+            padding: 0 4px;
+        }
+        .org-modal-close-x:hover { color: #111827; }
+        .org-page-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .org-page-toolbar h2 { margin: 0; }
+        .org-entity-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 12px;
+        }
+        .org-entity-card {
+            border: 1px solid #d0d4dc;
+            border-radius: 0;
+            padding: 16px;
+            background: #fff;
+        }
+        .org-entity-card h4 { margin-top: 0; color: #111827; }
     </style>
 </head>
-<body class="dash-body">
-    <!-- Fixed Top Bar -->
+<body class="dash-body dash-layout-topnav org-ui-sharp">
     <div class="dash-topbar">
-        <div class="dash-topbar-inner">
-            <div class="dash-topbar-title">
-                <h1>🏢 Organization Management</h1>
-                <span class="org-name" id="orgName" style="margin-left: 10px;">Loading...</span>
-            </div>
-            <div class="dash-topbar-actions">
-            </div>
-        </div>
-    </div>
-
-    <!-- Fixed Left Sidebar -->
-    <aside class="dash-sidebar" aria-label="Dashboard navigation">
-        <div class="dash-sidebar-inner">
-            <button class="dash-nav-item active" onclick="switchTab('home', this)">🏠 Home</button>
-            <button class="dash-nav-item" onclick="switchTab('teachers', this)">👨‍🏫 Teacher Management</button>
-            <button class="dash-nav-item" onclick="switchTab('students', this)">👥 Student</button>
-            <button class="dash-nav-item" onclick="switchTab('courses', this)">📚 Course</button>
-            <button class="dash-nav-item" onclick="switchTab('statistics', this)">📊 Statistics</button>
-            <button class="dash-nav-item" onclick="switchTab('subscription', this)">💳 Subscription</button>
-            <button class="dash-nav-item" onclick="switchTab('settings', this)">⚙️ Settings</button>
-            <div class="dash-sidebar-bottom">
+        <div class="dash-topbar-inner dash-topbar-single-row">
+            <nav class="dash-topbar-nav" aria-label="Main navigation">
+                <button type="button" class="dash-nav-item active" onclick="switchTab('home', this)">🏠 Home</button>
+                <button type="button" class="dash-nav-item" onclick="switchTab('teachers', this)">👨‍🏫 Teachers</button>
+                <button type="button" class="dash-nav-item" onclick="switchTab('students', this)">👥 Students</button>
+                <button type="button" class="dash-nav-item" onclick="switchTab('courses', this)">📚 Course</button>
+                <button type="button" class="dash-nav-item" onclick="switchTab('statistics', this)">📊 Statistics</button>
+                <button type="button" class="dash-nav-item" onclick="switchTab('subscription', this)">💳 Subscription</button>
+                <button type="button" class="dash-nav-item" onclick="switchTab('settings', this)">⚙️ Settings</button>
+            </nav>
+            <div class="dash-topbar-end">
+                <span id="orgName" class="dash-sr-only" aria-live="polite">Loading...</span>
                 <button class="btn btn-secondary" type="button" onclick="logout()">Logout</button>
             </div>
         </div>
-    </aside>
+    </div>
 
     <main class="dash-main">
     <div class="container">
@@ -624,49 +662,17 @@
         <div id="homeTab" class="tab-content active" style="display:block;">
             <section class="card">
                 <h2>🏠 Home Page</h2>
-                <p style="color:#666; margin:0;">Welcome. Use the left sidebar to navigate.</p>
+                <p style="color:#666; margin:0;">Welcome. Use the top navigation to switch sections.</p>
             </section>
         </div>
 
         <!-- Teachers Tab -->
         <div id="teachersTab" class="tab-content">
             <section class="card">
-                <h2>Create New Teacher</h2>
-                <form id="createTeacherForm" onsubmit="createTeacher(event)">
-                    <div class="form-group">
-                        <label>Teacher Name:</label>
-                        <input type="text" id="createTeacherName" required>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Teacher ID:</label>
-                            <input type="text" id="createTeacherId" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Gender:</label>
-                            <select id="createTeacherGender" name="gender" required>
-                                <option value="">Please select</option>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Username:</label>
-                            <input type="text" id="teacherUsername" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Password:</label>
-                            <input type="password" id="teacherPassword" required minlength="6">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Create Teacher</button>
-                </form>
-            </section>
-
-            <section class="card">
-                <h2>Teacher List</h2>
+                <div class="org-page-toolbar">
+                    <h2>Teachers</h2>
+                    <button type="button" class="btn btn-primary" onclick="openCreateTeacherModal()">＋ Add teacher</button>
+                </div>
                 <div id="teachersList">
                     <p>Loading...</p>
                 </div>
@@ -676,24 +682,10 @@
         <!-- Students Tab -->
         <div id="studentsTab" class="tab-content">
             <section class="card">
-                <h2>Create New Student</h2>
-                <form id="createStudentForm" onsubmit="createStudent(event)">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Student Name:</label>
-                            <input type="text" id="createStudentName" required>
-                        </div>
-                        <div class="form-group">
-                            <label>chess.com ID:</label>
-                            <input type="text" id="createStudentId" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Create Student</button>
-                </form>
-            </section>
-
-            <section class="card">
-                <h2>Student List</h2>
+                <div class="org-page-toolbar">
+                    <h2>Students</h2>
+                    <button type="button" class="btn btn-primary" onclick="openCreateStudentModal()">＋ Add student</button>
+                </div>
                 <div class="search-bar">
                     <input type="text" id="orgStudentSearch" placeholder="Search students...">
                 </div>
@@ -746,6 +738,143 @@
         <div id="settingsTab" class="tab-content">
             <div id="settingsContainer">
                 <p>Loading settings...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create teacher (modal) -->
+    <div id="createTeacherModal" class="edit-student-modal" role="dialog" aria-modal="true" aria-labelledby="createTeacherModalTitle" onclick="if(event.target===this) closeCreateTeacherModal()">
+        <div class="edit-student-modal-content" onclick="event.stopPropagation()">
+            <div class="edit-student-modal-header">
+                <h2 id="createTeacherModalTitle">Add teacher</h2>
+                <button type="button" class="org-modal-close-x" onclick="closeCreateTeacherModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="edit-student-modal-body">
+                <form id="createTeacherForm" onsubmit="createTeacher(event)">
+                    <div class="edit-student-form-group">
+                        <label for="createTeacherName">Teacher name <span style="color:#ef4444">*</span></label>
+                        <input type="text" id="createTeacherName" required autocomplete="name">
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="edit-student-form-group">
+                            <label for="createTeacherId">Teacher ID <span style="color:#ef4444">*</span></label>
+                            <input type="text" id="createTeacherId" required>
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="createTeacherGender">Gender <span style="color:#ef4444">*</span></label>
+                            <select id="createTeacherGender" required>
+                                <option value="">Please select</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="edit-student-form-group">
+                            <label for="teacherUsername">Username <span style="color:#ef4444">*</span></label>
+                            <input type="text" id="teacherUsername" required autocomplete="username">
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="teacherPassword">Password <span style="color:#ef4444">*</span></label>
+                            <input type="password" id="teacherPassword" required minlength="6" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="edit-student-modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCreateTeacherModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create student (modal) -->
+    <div id="createStudentModal" class="edit-student-modal" role="dialog" aria-modal="true" aria-labelledby="createStudentModalTitle" onclick="if(event.target===this) closeCreateStudentModal()">
+        <div class="edit-student-modal-content" onclick="event.stopPropagation()" style="max-width: 840px;">
+            <div class="edit-student-modal-header">
+                <h2 id="createStudentModalTitle">Add student</h2>
+                <button type="button" class="org-modal-close-x" onclick="closeCreateStudentModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="edit-student-modal-body">
+                <form id="createStudentForm" onsubmit="createStudent(event)">
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                        <div class="edit-student-form-group">
+                            <label for="createStudentName">Student name <span style="color:#ef4444">*</span></label>
+                            <input type="text" id="createStudentName" required>
+                            <div class="error-message" id="errCreateStudentName"></div>
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="createStudentLocalName">Local name</label>
+                            <input type="text" id="createStudentLocalName">
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="createStudentId">chess.com ID</label>
+                            <input type="text" id="createStudentId" placeholder="Optional if not applicable">
+                            <div class="error-message" id="errCreateStudentId"></div>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                        <div class="edit-student-form-group">
+                            <label for="createStudentGender">Gender</label>
+                            <select id="createStudentGender">
+                                <option value="">Please select</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="createStudentDateOfBirth">Date of birth (DD/MM/YYYY)</label>
+                            <input type="text" id="createStudentDateOfBirth" placeholder="DD/MM/YYYY">
+                            <div class="error-message" id="errCreateStudentDob"></div>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="edit-student-form-group">
+                            <label for="createStudentContactPhone">Contact no.</label>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <select id="createStudentContactPhoneCountryCode" style="width:160px; padding:10px; border:2px solid #e0e0e0;">
+                                    <option value="+852" data-country="HK" selected>Hong Kong (+852)</option>
+                                    <option value="+853" data-country="MO">Macau (+853)</option>
+                                    <option value="+86" data-country="CN">China (+86)</option>
+                                    <option value="+886" data-country="TW">Taiwan (+886)</option>
+                                    <option value="+65" data-country="SG">Singapore (+65)</option>
+                                    <option value="+44" data-country="GB">United Kingdom (+44)</option>
+                                    <option value="+1" data-country="US">United States (+1)</option>
+                                </select>
+                                <input type="text" id="createStudentContactPhone" placeholder="Phone number" style="flex:1; padding:10px; border:2px solid #e0e0e0;" inputmode="numeric">
+                            </div>
+                            <div class="error-message" id="errCreateStudentPhone"></div>
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="createStudentContactEmail">Email</label>
+                            <input type="email" id="createStudentContactEmail">
+                            <div class="error-message" id="errCreateStudentEmail"></div>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="edit-student-form-group">
+                            <label for="createStudentEmergencyContactName">Emergency contact name</label>
+                            <input type="text" id="createStudentEmergencyContactName">
+                        </div>
+                        <div class="edit-student-form-group">
+                            <label for="createStudentEmergencyContactRelation">Relation</label>
+                            <select id="createStudentEmergencyContactRelation">
+                                <option value="">Please select</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="edit-student-form-group">
+                        <label for="createStudentEmergencyContactNumber">Emergency contact no.</label>
+                        <input type="text" id="createStudentEmergencyContactNumber">
+                    </div>
+                    <div class="edit-student-modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCreateStudentModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -1262,6 +1391,41 @@
             }
         }
 
+        function openCreateTeacherModal() {
+            const m = document.getElementById('createTeacherModal');
+            if (!m) return;
+            document.getElementById('createTeacherForm').reset();
+            m.classList.add('show');
+        }
+        function closeCreateTeacherModal() {
+            const m = document.getElementById('createTeacherModal');
+            if (!m) return;
+            m.classList.remove('show');
+            document.getElementById('createTeacherForm').reset();
+        }
+
+        function openCreateStudentModal() {
+            const m = document.getElementById('createStudentModal');
+            if (!m) return;
+            clearCreateStudentFormErrors();
+            document.getElementById('createStudentForm').reset();
+            m.classList.add('show');
+        }
+        function closeCreateStudentModal() {
+            const m = document.getElementById('createStudentModal');
+            if (!m) return;
+            m.classList.remove('show');
+            clearCreateStudentFormErrors();
+            document.getElementById('createStudentForm').reset();
+        }
+        function clearCreateStudentFormErrors() {
+            ['errCreateStudentName', 'errCreateStudentId', 'errCreateStudentDob', 'errCreateStudentEmail', 'errCreateStudentPhone'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.textContent = ''; el.style.display = 'none'; }
+            });
+            document.querySelectorAll('#createStudentForm .edit-student-form-group').forEach(g => g.classList.remove('has-error'));
+        }
+
         async function createTeacher(event) {
             event.preventDefault();
             const name = document.getElementById('createTeacherName').value;
@@ -1283,11 +1447,13 @@
                     throw new Error(data.error || 'Failed to create');
                 }
 
-                alert('Teacher created successfully!');
-                document.getElementById('createTeacherForm').reset();
+                if (typeof showToast === 'function') showToast('Teacher created successfully!', 'success');
+                else alert('Teacher created successfully!');
+                closeCreateTeacherModal();
                 loadTeachers();
             } catch (error) {
-                alert('Error: ' + error.message);
+                if (typeof showToast === 'function') showToast('Error: ' + error.message, 'error');
+                else alert('Error: ' + error.message);
             }
         }
 
@@ -1315,24 +1481,23 @@
                 }
 
                 const html = `
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                    <div class="org-entity-grid">
                         ${teachers.map((teacher, index) => {
                             const teacherData = JSON.stringify(teacher).replace(/'/g, "&#39;").replace(/"/g, '&quot;');
                             return `
-                            <div class="card teacher-card" style="padding: 15px; cursor: pointer; transition: all 0.2s;" 
-                                 onmouseover="this.style.backgroundColor='rgba(255,255,255,0.15)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.2)'" 
-                                 onmouseout="this.style.backgroundColor=''; this.style.boxShadow=''"
-                                 onclick="this.style.transform='scale(0.98)'; setTimeout(() => this.style.transform='', 150)">
+                            <div class="org-entity-card teacher-card">
                                 <h4>${escapeHtml(teacher.name || 'Unnamed')}</h4>
                                 <p>Teacher ID: ${escapeHtml(teacher.teacherId || 'N/A')}</p>
                                 <p>Username: ${escapeHtml(teacher.username || teacher.email)}</p>
                                 <p>Gender: ${teacher.gender === 'male' ? 'Male' : teacher.gender === 'female' ? 'Female' : 'N/A'}</p>
                                 <p>Created: ${new Date(teacher.createdAt).toLocaleString('en-US')}</p>
-                                <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-                                    <button class="btn btn-primary" onclick="event.stopPropagation(); assignStudents('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Assign Students</button>
-                                    <button class="btn btn-secondary" onclick="event.stopPropagation(); editTeacher('${teacher.id}')" style="flex: 1; min-width: 120px;">Edit</button>
-                                    <button class="btn btn-success" onclick="event.stopPropagation(); loginAsTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Login as Teacher</button>
-                                    <button class="btn btn-danger" onclick="event.stopPropagation(); deleteTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')" style="flex: 1; min-width: 120px;">Delete</button>
+                                <div style="margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                                    <button class="btn btn-primary" onclick="assignStudents('${teacher.id}', '${escapeHtml(teacher.name)}')">Assign</button>
+                                    <button class="btn btn-success" onclick="loginAsTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')">Login as</button>
+                                    <span class="btn-row-pair">
+                                    <button class="btn btn-secondary" onclick="editTeacher('${teacher.id}')">Edit</button>
+                                    <button class="btn btn-danger" onclick="deleteTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')">Delete</button>
+                                    </span>
                                 </div>
                             </div>
                         `;
@@ -1352,28 +1517,102 @@
 
         async function createStudent(event) {
             event.preventDefault();
-            const name = document.getElementById('createStudentName').value;
-            const chessComId = document.getElementById('createStudentId').value;
+            clearCreateStudentFormErrors();
+
+            const name = document.getElementById('createStudentName').value.trim();
+            const chessComId = document.getElementById('createStudentId').value.trim();
+            const localName = document.getElementById('createStudentLocalName').value.trim();
+            const gender = document.getElementById('createStudentGender').value || null;
+            let dateOfBirth = document.getElementById('createStudentDateOfBirth').value.trim() || null;
+            const contactPhone = String(document.getElementById('createStudentContactPhone').value || '').replace(/[^\d]/g, '').trim() || null;
+            const contactPhoneCountryCode = String(document.getElementById('createStudentContactPhoneCountryCode').value || '+852').trim();
+            const contactPhoneCountry = String(document.getElementById('createStudentContactPhoneCountryCode').selectedOptions[0]?.dataset?.country || 'HK');
+            const contactEmail = document.getElementById('createStudentContactEmail').value.trim() || null;
+            const emergencyContactName = document.getElementById('createStudentEmergencyContactName').value.trim() || null;
+            const emergencyContactRelation = document.getElementById('createStudentEmergencyContactRelation').value || null;
+            const emergencyContactNumber = document.getElementById('createStudentEmergencyContactNumber').value.trim() || null;
+
+            let hasError = false;
+            function flag(fieldKey, msg) {
+                hasError = true;
+                const map = {
+                    name: ['createStudentName', 'errCreateStudentName'],
+                    chess: ['createStudentId', 'errCreateStudentId'],
+                    dob: ['createStudentDateOfBirth', 'errCreateStudentDob'],
+                    email: ['createStudentContactEmail', 'errCreateStudentEmail']
+                };
+                const pair = map[fieldKey];
+                if (pair) {
+                    const input = document.getElementById(pair[0]);
+                    const err = document.getElementById(pair[1]);
+                    if (input && input.closest('.edit-student-form-group')) input.closest('.edit-student-form-group').classList.add('has-error');
+                    if (err) { err.textContent = msg; err.style.display = 'block'; }
+                }
+            }
+
+            if (!name) flag('name', 'Student name is required');
+
+            if (dateOfBirth) {
+                const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+                if (!dateRegex.test(dateOfBirth)) {
+                    flag('dob', 'Date must be in DD/MM/YYYY format');
+                } else {
+                    const [, day, month, year] = dateOfBirth.match(dateRegex);
+                    const d = new Date(year, month - 1, day);
+                    if (d.getDate() != day || d.getMonth() != month - 1 || d.getFullYear() != year) flag('dob', 'Invalid date');
+                    else if (d > new Date()) flag('dob', 'Date of birth cannot be in the future');
+                }
+            }
+
+            if (contactEmail) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(contactEmail)) flag('email', 'Invalid email format');
+            }
+
+            if (hasError) {
+                if (typeof showToast === 'function') showToast('Please fix the errors in the form', 'error');
+                return;
+            }
+
+            const payload = {
+                name,
+                chessComId: chessComId || '',
+                localName: localName || '',
+                gender,
+                dateOfBirth: dateOfBirth || '',
+                contactPhone: contactPhone || '',
+                contactPhoneCountryCode,
+                contactPhoneCountry,
+                contactEmail: contactEmail || '',
+                emergencyContactName: emergencyContactName || '',
+                emergencyContactRelation: emergencyContactRelation || '',
+                emergencyContactNumber: emergencyContactNumber || ''
+            };
 
             try {
                 const response = await window.authUtils.authenticatedFetch('/organizations/students', {
                     method: 'POST',
-                    body: JSON.stringify({ name, chessComId })
+                    body: JSON.stringify(payload)
                 });
 
                 if (!response) return;
 
                 const data = await response.json();
                 if (!response.ok) {
+                    if (data.error && String(data.error).includes('chess.com')) {
+                        flag('chess', data.error);
+                    }
                     throw new Error(data.error || 'Failed to create');
                 }
 
-                alert('Student created successfully!');
-                document.getElementById('createStudentForm').reset();
-                loadStudents(); // This will reload all students and re-render with search
+                if (typeof showToast === 'function') showToast('Student created successfully!', 'success');
+                else alert('Student created successfully!');
+                closeCreateStudentModal();
+                loadStudents();
                 setTimeout(initStudentSearch, 100);
             } catch (error) {
-                alert('Error: ' + error.message);
+                if (typeof showToast === 'function') showToast('Error: ' + error.message, 'error');
+                else alert('Error: ' + error.message);
             }
         }
 
@@ -1462,7 +1701,7 @@
             }
 
             const html = `
-                <div class="students-grid">
+                <div class="students-grid org-entity-grid">
                     ${filteredStudents.map(student => {
                         // Check for incomplete data (Red Dot Logic)
                         // Customize this list based on what is considered "Necessary"
@@ -1470,17 +1709,21 @@
                         const isIncomplete = necessaryFields.some(field => !student[field]);
                         
                         return `
-                        <div class="student-card" style="cursor: pointer; position: relative;" data-student-id="${student.id}">
-                            ${isIncomplete ? '<div style="position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: red; border-radius: 50%; border: 2px solid white;" title="Incomplete Data"></div>' : ''}
+                        <div class="student-card org-entity-card" style="cursor: pointer; position: relative;" data-student-id="${student.id}">
+                            ${isIncomplete ? '<div style="position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; background: #ef4444; border: 1px solid #fff;" title="Incomplete data"></div>' : ''}
                             <h3>${escapeHtml(student.name)}</h3>
                             <p>chess.com ID: ${escapeHtml(student.chessComId || '')}</p>
                             <p>Score: <span id="score-${student.id}">${student.score || 0}</span></p>
                             <p>Level: ${student.level || 1}</p>
                             <div class="student-card-actions" onclick="event.stopPropagation();">
+                                <div class="student-card-actions-primary">
                                 <input type="number" id="score-input-${student.id}" value="${student.score || 0}" min="0">
                                 <button class="btn btn-primary" onclick="updateStudentScore('${student.id}'); event.stopPropagation();">Update</button>
+                                </div>
+                                <span class="btn-row-pair">
                                 <button class="btn btn-info" onclick="openShareModal('${student.id}'); event.stopPropagation();">Share</button>
                                 <button class="btn btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
+                                </span>
                             </div>
                         </div>
                     `;}).join('')}

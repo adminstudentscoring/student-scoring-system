@@ -23,8 +23,9 @@
         .stat-card {
             background: white;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 0;
+            border: 1px solid #d0d4dc;
+            box-shadow: none;
             text-align: center;
         }
         .stat-card h3 {
@@ -40,8 +41,9 @@
         .org-card {
             background: white;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 0;
+            border: 1px solid #d0d4dc;
+            box-shadow: none;
             margin-bottom: 15px;
         }
         .org-card-header {
@@ -52,7 +54,9 @@
         }
         .org-actions {
             display: flex;
-            gap: 10px;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
         }
         /* Settings Modal Styles */
         .modal {
@@ -204,14 +208,13 @@
         /* Admin main tabs (beautified) */
         .admin-tabs {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             margin: 10px 0 22px;
-            padding: 10px;
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
-            backdrop-filter: blur(10px);
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
             flex-wrap: wrap;
         }
         .admin-tab {
@@ -219,24 +222,24 @@
             align-items: center;
             gap: 8px;
             padding: 10px 16px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.55);
-            background: rgba(255, 255, 255, 0.55);
+            border-radius: 0;
+            border: 1px solid #d0d4dc;
+            background: #f3f4f6;
             color: #1f2937;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
         }
         .admin-tab:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
-            background: rgba(255, 255, 255, 0.75);
+            transform: none;
+            box-shadow: none;
+            background: #e5e7eb;
         }
         .admin-tab.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-color: rgba(255, 255, 255, 0.35);
+            background: #111827;
+            border-color: #111827;
             color: #ffffff;
-            box-shadow: 0 14px 28px rgba(102, 126, 234, 0.35);
+            box-shadow: none;
         }
         .admin-tab:focus-visible {
             outline: none;
@@ -249,32 +252,22 @@
         header { display: none !important; }
     </style>
 </head>
-<body class="dash-body">
-    <!-- Fixed Top Bar -->
+<body class="dash-body dash-layout-topnav">
     <div class="dash-topbar">
-        <div class="dash-topbar-inner">
-            <div class="dash-topbar-title">
-                <h1>👑 Admin Dashboard</h1>
-            </div>
-            <div class="dash-topbar-actions">
-                <span id="adminName" style="font-weight: 900;">Loading...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Fixed Left Sidebar -->
-    <aside class="dash-sidebar" aria-label="Dashboard navigation">
-        <div class="dash-sidebar-inner">
-            <button class="dash-nav-item admin-tab active" onclick="switchAdminTab('dashboard', this)">🏠 Home</button>
-            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
-            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription Setting</button>
-            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('gameSetting', this)">🧩 App</button>
-            <button class="dash-nav-item admin-tab" onclick="switchAdminTab('myOwnApp', this)">🧪 My Own App</button>
-            <div class="dash-sidebar-bottom">
+        <div class="dash-topbar-inner dash-topbar-single-row">
+            <nav class="dash-topbar-nav" aria-label="Main navigation">
+                <button type="button" class="dash-nav-item admin-tab active" onclick="switchAdminTab('dashboard', this)">🏠 Home</button>
+                <button type="button" class="dash-nav-item admin-tab" onclick="switchAdminTab('accounting', this)">🧾 Accounting</button>
+                <button type="button" class="dash-nav-item admin-tab" onclick="switchAdminTab('subscriptionSetting', this)">💳 Subscription</button>
+                <button type="button" class="dash-nav-item admin-tab" onclick="switchAdminTab('gameSetting', this)">🧩 App</button>
+                <button type="button" class="dash-nav-item admin-tab" onclick="switchAdminTab('myOwnApp', this)">🧪 My Own App</button>
+            </nav>
+            <div class="dash-topbar-end">
+                <span id="adminName" class="dash-sr-only" aria-live="polite">Loading...</span>
                 <button class="btn btn-secondary" type="button" onclick="logout()">Logout</button>
             </div>
         </div>
-    </aside>
+    </div>
 
     <main class="dash-main">
     <div class="container">
@@ -759,7 +752,7 @@
 
         function openMyOwnAppEatWhat() {
             // Absolute path so it works from any dashboard path / hosting setup.
-            window.open('/game/my-own-app/eatwhat.html', '_blank', 'noopener');
+            window.open('/application/my-own-app/eatwhat.html', '_blank', 'noopener');
         }
 
         async function shareMyOwnAppEatWhat() {
@@ -779,7 +772,7 @@
 
                 const token = String(data.token || '').trim();
                 if (!token) throw new Error('Missing token');
-                const link = `${window.location.origin}/game/my-own-app/eatwhat.html?token=${encodeURIComponent(token)}`;
+                const link = `${window.location.origin}/application/my-own-app/eatwhat.html?token=${encodeURIComponent(token)}`;
 
                 // Copy to clipboard (fallback to prompt)
                 try {
@@ -827,8 +820,10 @@
                                 <button class="btn btn-success" onclick="loginAsOrganization('${org.id}')">Login as Org</button>
                                 <button class="btn btn-warning" onclick="openOrgSettings('${org.id}', 'manage')">Manage</button>
                                 <button class="btn btn-info" onclick="viewOrgDetails('${org.id}')">View Details</button>
+                                <span class="btn-row-pair">
                                 <button class="btn btn-primary" onclick="editOrg('${org.id}')">Edit</button>
                                 <button class="btn btn-danger" onclick="deleteOrg('${org.id}', '${org.name.replace(/'/g, "\\'")}')">Delete</button>
+                                </span>
                             </div>
                         </div>
                         <div>

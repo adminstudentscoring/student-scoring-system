@@ -34,7 +34,7 @@
 }
 
 .timetable-nav-btn {
-  padding: 8px 12px;
+  padding: 5px 10px;
   border: 1px solid #d1d5db;
   background: #fff;
   color: #4b5563;
@@ -44,8 +44,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  min-width: 32px;
+  font-size: 0.8125rem;
+  min-width: 28px;
 }
 
 .timetable-nav-btn:hover {
@@ -55,7 +55,7 @@
 }
 
 .timetable-nav-btn.today-btn {
-  padding: 8px 16px;
+  padding: 5px 12px;
   font-weight: 500;
 }
 
@@ -96,14 +96,14 @@
 }
 
 .timetable-view-btn {
-  padding: 8px 16px;
+  padding: 5px 12px;
   border: 2px solid #667eea;
   background: #fff;
   color: #667eea;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s;
-  font-size: 14px;
+  font-size: 0.8125rem;
 }
 
 .timetable-view-btn:hover {
@@ -118,21 +118,21 @@
 }
 
 .create-class-btn {
-  padding: 10px 20px;
+  padding: 6px 12px;
   background: #10b981;
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.8125rem;
+  line-height: 1.25;
   font-weight: 600;
-  transition: all 0.3s;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .create-class-btn:hover {
   background: #059669;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 /* Week View Styles */
@@ -148,16 +148,12 @@
 
 .timetable-week-header {
   display: grid;
-  grid-template-columns: 80px repeat(7, 1fr);
+  grid-template-columns: 80px repeat(7, minmax(0, 1fr));
   background: #f8f9fa;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   border-bottom: 2px solid #e0e0e0;
-  flex-shrink: 0;
-  scrollbar-gutter: stable;
-  /* Add padding-right to compensate for scrollbar width */
-  padding-right: 8px;
   box-sizing: border-box;
 }
 
@@ -179,6 +175,10 @@
   background: #f8f9fa;
   z-index: 5;
   border-right: 2px solid #e0e0e0;
+}
+
+.timetable-week-header .timetable-week-time-col {
+  z-index: 25;
 }
 
 .timetable-week-body-scrollable {
@@ -210,9 +210,8 @@
 
 .timetable-week-body {
   display: grid;
-  grid-template-columns: 80px repeat(7, 1fr);
+  grid-template-columns: 80px repeat(7, minmax(0, 1fr));
   position: relative;
-  /* Ensure body matches header width accounting for scrollbar */
   width: 100%;
   box-sizing: border-box;
 }
@@ -603,7 +602,7 @@
   
   .timetable-week-header,
   .timetable-week-body {
-    grid-template-columns: 60px repeat(7, 1fr);
+    grid-template-columns: 60px repeat(7, minmax(0, 1fr));
   }
   
   .timetable-week-time-col {
@@ -691,11 +690,22 @@
 
 .edit-class-modal-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
   justify-content: flex-end;
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid #e0e0e0;
+}
+
+.edit-class-modal-actions-bar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.edit-class-modal-actions-left {
+  min-height: 1.25em;
 }
 
 .edit-class-form-group {

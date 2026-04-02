@@ -192,7 +192,7 @@ function levelBadgeSrcByRankIndex(rankIndex) {
     ];
     const name = files[idx];
     if (!name) return '';
-    // Support both Electron file:// (relative path) and web /game/... routes (need absolute-from-root).
+    // Support both Electron file:// (relative path) and web /application/... routes (need absolute-from-root).
     const base = (window.location && window.location.protocol === 'file:') ? 'assets/level-badge/' : '/assets/level-badge/';
     return `${base}${name}`;
 }

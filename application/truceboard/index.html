@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Truceboard</title>
+  <link rel="stylesheet" href="truceboard.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="tb-header">
+      <h1 class="tb-title">Truceboard</h1>
+    </header>
+    <section id="setup" class="tb-setup">
+      <label class="tb-field">
+        <span>Clock</span>
+        <select id="clockMode">
+          <option value="unlimited">Unlimited</option>
+          <option value="fischer">Fischer</option>
+          <option value="byomi">Byo-yomi</option>
+          <option value="absolute">Absolute</option>
+        </select>
+      </label>
+      <div id="clockOptsFischer" class="tb-clock-opts" hidden>
+        <label>Minutes <input type="number" id="fischerMin" min="1" value="5" /></label>
+        <label>Increment (sec) <input type="number" id="fischerInc" min="0" value="3" /></label>
+      </div>
+      <div id="clockOptsByomi" class="tb-clock-opts" hidden>
+        <label>Main (min) <input type="number" id="byomiMainMin" min="0" value="10" /></label>
+        <label>Byo-yomi (sec) <input type="number" id="byomiPeriodSec" min="1" value="30" /></label>
+        <label>Periods <input type="number" id="byomiPeriods" min="1" value="5" /></label>
+      </div>
+      <div id="clockOptsAbsolute" class="tb-clock-opts" hidden>
+        <label>Minutes per player <input type="number" id="absMin" min="1" value="15" /></label>
+      </div>
+      <button type="button" id="btnStart" class="tb-btn tb-btn-primary">Start</button>
+    </section>
+    <section id="play" class="tb-play" hidden>
+      <div class="tb-clocks" id="clocksRow">
+        <div class="tb-clock tb-clock-w" id="clockW"><span class="tb-clock-label">White</span><span class="tb-clock-time" id="timeW">—</span></div>
+        <div class="tb-clock tb-clock-b" id="clockB"><span class="tb-clock-label">Black</span><span class="tb-clock-time" id="timeB">—</span></div>
+      </div>
+      <div class="tb-main">
+        <div class="tb-hand tb-hand-w" id="handW"></div>
+        <div class="tb-board-wrap">
+          <div class="tb-coords tb-coords-files" id="coordsFiles"></div>
+          <div class="tb-board-inner">
+            <div class="tb-coords tb-coords-ranks" id="coordsRanks"></div>
+            <div class="tb-board" id="board"></div>
+          </div>
+        </div>
+        <div class="tb-hand tb-hand-b" id="handB"></div>
+      </div>
+      <div class="tb-bar">
+        <span id="turnLabel" class="tb-turn"></span>
+        <button type="button" id="btnNew" class="tb-btn">New game</button>
+      </div>
+      <div id="overlay" class="tb-overlay" hidden>
+        <div class="tb-modal">
+          <p id="resultText" class="tb-result"></p>
+          <button type="button" id="btnDismiss" class="tb-btn tb-btn-primary">OK</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="truceboard.js"></script>
+</body>
+</html>

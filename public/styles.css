@@ -6,10 +6,10 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #e8eaed;
     min-height: 100vh;
     padding: 20px;
-    color: #333;
+    color: #1a1a1a;
 }
 
 .container {
@@ -23,13 +23,106 @@ body {
    Only applies when body has .dash-body
    ========================= */
 :root {
-    --dash-topbar-h: 47px; /* 78px - 40% ≈ 46.8px */
+    --dash-topbar-h: 47px; /* single-row topbar (sidebar layout) */
     --dash-sidebar-w: 160px;
     --dash-gap: 16px; /* used for main content padding */
+    --dash-topnav-extra-h: 56px; /* single-row top toolbar */
+    --ui-radius: 0;
+    --ui-border: #d0d4dc;
+    --ui-surface: #ffffff;
+    --ui-text: #1a1a1a;
+    --ui-accent: #2563eb;
 }
 
 body.dash-body {
     padding: 0;
+    background: #e8eaed;
+}
+
+/* Top navigation layout: no sidebar, nav under brand row */
+body.dash-layout-topnav {
+    --dash-topbar-h: var(--dash-topnav-extra-h);
+}
+
+body.dash-layout-topnav .dash-sidebar {
+    display: none !important;
+}
+
+body.dash-layout-topnav .dash-main {
+    padding-left: var(--dash-gap);
+    padding-top: calc(var(--dash-topnav-extra-h) + var(--dash-gap));
+}
+
+body.dash-layout-topnav .dash-topbar {
+    height: auto;
+}
+
+body.dash-layout-topnav .dash-topbar-inner.dash-topbar-single-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: auto;
+    min-height: 48px;
+    padding: 8px 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 0 var(--ui-border);
+}
+
+body.dash-layout-topnav .dash-topbar-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+body.dash-layout-topnav .dash-topbar-end {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Screen-reader / script-only: keep in DOM for JS that sets text */
+.dash-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+body.dash-layout-topnav .dash-topbar-nav .dash-nav-item {
+    width: auto;
+    flex: 0 1 auto;
+    min-height: 36px;
+    border-radius: 0 !important;
+    border: 1px solid var(--ui-border);
+    background: #f3f4f6;
+    color: var(--ui-text);
+    font-weight: 600;
+    box-shadow: none;
+}
+
+body.dash-layout-topnav .dash-topbar-nav .dash-nav-item:hover {
+    transform: none;
+    background: #e5e7eb;
+    box-shadow: none;
+}
+
+body.dash-layout-topnav .dash-topbar-nav .dash-nav-item.active {
+    background: #111827;
+    color: #fff;
+    border-color: #111827;
+    box-shadow: none;
 }
 
 .dash-topbar {
@@ -46,9 +139,9 @@ body.dash-body {
     height: 100%;
     max-width: none;
     margin: 0;
-    background: #ffffff;
-    border-radius: 0;
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
+    background: var(--ui-surface);
+    border-radius: var(--ui-radius);
+    box-shadow: 0 1px 0 var(--ui-border);
     padding: 6px calc(var(--dash-gap) + 6px);
     display: flex;
     align-items: center;
@@ -64,8 +157,8 @@ body.dash-body {
 }
 
 .dash-topbar-title h1 {
-    color: #667eea;
-    font-size: 1.5rem;
+    color: var(--ui-text);
+    font-size: 1.35rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -90,15 +183,15 @@ body.dash-body {
 
 .dash-sidebar-inner {
     height: 100%;
-    border-radius: 0;
+    border-radius: var(--ui-radius);
     padding: 12px 10px;
-    background: rgba(17, 24, 39, 0.22);
-    border: none;
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.10);
-    backdrop-filter: blur(10px);
+    background: #ffffff;
+    border-right: 1px solid var(--ui-border);
+    box-shadow: none;
+    backdrop-filter: none;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     overflow: auto;
 }
 
@@ -109,37 +202,37 @@ body.dash-body {
 
 .dash-sidebar-bottom .btn {
     width: 100%;
-    border-radius: 12px;
+    border-radius: var(--ui-radius);
 }
 
 .dash-nav-item {
     width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.10);
-    color: rgba(255, 255, 255, 0.92);
-    border-radius: 12px;
-    padding: 12px 12px;
+    border: 1px solid var(--ui-border);
+    background: #f3f4f6;
+    color: var(--ui-text);
+    border-radius: var(--ui-radius);
+    padding: 10px 12px;
     cursor: pointer;
     text-align: left;
-    font-size: 15px;
-    font-weight: 800;
+    font-size: 14px;
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .dash-nav-item:hover {
-    transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.18);
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+    transform: none;
+    background: #e5e7eb;
+    box-shadow: none;
 }
 
 .dash-nav-item.active {
-    background: rgba(255, 255, 255, 0.28);
+    background: #111827;
     color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.28);
-    box-shadow: 0 14px 28px rgba(102, 126, 234, 0.25);
+    border-color: #111827;
+    box-shadow: none;
 }
 
 .dash-main {
@@ -179,6 +272,10 @@ body.dash-body .course-management {
 
 body.dash-body .course-management-content {
     background: #ffffff !important;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
 }
 
 body.dash-body .course-sub-tab-content {
@@ -241,6 +338,26 @@ body.dash-body #timetableSubTabContent .timetable-month-body {
     overflow: auto;
 }
 
+/* Course Management: Sales tab fills remaining viewport height */
+body.dash-body #salesSubTabContent.course-sub-tab-content.active {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+body.dash-body #salesSubTabContent .sales-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+}
+
+body.dash-body #salesSubTabContent .sales-left-panel,
+body.dash-body #salesSubTabContent .sales-right-panel {
+    min-height: 0;
+}
+
 @media (max-width: 900px) {
     :root {
         --dash-sidebar-w: 210px;
@@ -277,10 +394,11 @@ body.dash-body #timetableSubTabContent .timetable-month-body {
 }
 
 header {
-    background: white;
+    background: var(--ui-surface);
     padding: 10px 20px;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    border-radius: var(--ui-radius);
+    border: 1px solid var(--ui-border);
+    box-shadow: none;
     margin-bottom: 15px;
     display: flex;
     justify-content: space-between;
@@ -288,7 +406,7 @@ header {
 }
 
 header h1 {
-    color: #667eea;
+    color: var(--ui-text);
     font-size: 1.5rem;
 }
 
@@ -430,16 +548,18 @@ header h1 {
 }
 
 .card {
-    background: white;
+    background: var(--ui-surface);
     padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    border-radius: var(--ui-radius);
+    border: 1px solid var(--ui-border);
+    box-shadow: none;
 }
 
 .card h2 {
-    color: #667eea;
+    color: var(--ui-text);
     margin-bottom: 20px;
-    font-size: 1.5rem;
+    font-size: 1.35rem;
+    font-weight: 700;
 }
 
 /* Form Styles */
@@ -458,38 +578,49 @@ header h1 {
 .form-group select {
     width: 100%;
     padding: 12px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius);
     font-size: 1rem;
-    transition: border-color 0.3s;
+    transition: border-color 0.2s;
 }
 
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--ui-accent);
 }
 
-/* Button Styles */
+/* Button Styles — compact defaults (create / logout / edit / delete / modals) */
 .btn {
-    padding: 12px 24px;
+    padding: 6px 12px;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
+    border-radius: var(--ui-radius);
+    font-size: 0.8125rem;
+    line-height: 1.25;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Keeps Edit + Delete (or similar pairs) on one horizontal row */
+.btn-row-pair {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+    vertical-align: middle;
 }
 
 .btn-primary {
-    background: #667eea;
+    background: var(--ui-accent);
     color: white;
 }
 
 .btn-primary:hover {
-    background: #5568d3;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    background: #1d4ed8;
+    transform: none;
+    box-shadow: none;
 }
 
 .btn-success {
@@ -499,7 +630,7 @@ header h1 {
 
 .btn-success:hover {
     background: #059669;
-    transform: translateY(-2px);
+    transform: none;
 }
 
 .btn-warning {
@@ -509,7 +640,7 @@ header h1 {
 
 .btn-warning:hover {
     background: #d97706;
-    transform: translateY(-2px);
+    transform: none;
 }
 
 .btn-danger {
@@ -519,7 +650,7 @@ header h1 {
 
 .btn-danger:hover {
     background: #dc2626;
-    transform: translateY(-2px);
+    transform: none;
 }
 
 .btn-secondary {
@@ -529,12 +660,12 @@ header h1 {
 
 .btn-secondary:hover {
     background: #4b5563;
-    transform: translateY(-2px);
+    transform: none;
 }
 
 .btn-small {
-    padding: 6px 12px;
-    font-size: 0.875rem;
+    padding: 5px 10px;
+    font-size: 0.75rem;
 }
 
 /* Search Bar */
@@ -744,13 +875,13 @@ header h1 {
 
 .student-card {
     position: relative;
-    background: #f8fafc; /* soft */
-    color: #0f172a; /* readable */
+    background: #ffffff;
+    color: #0f172a;
     padding: 15px;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-radius: var(--ui-radius);
+    border: 1px solid var(--ui-border);
+    box-shadow: none;
+    transition: border-color 0.15s ease;
     min-height: auto;
     height: auto;
     overflow: hidden;
@@ -769,8 +900,9 @@ header h1 {
 }
 
 .student-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+    transform: none;
+    border-color: #94a3b8;
+    box-shadow: none;
 }
 
 .student-card h3 {
@@ -1422,20 +1554,6 @@ body.electron .floating-indicator {
     }
 }
 
-.btn-warning {
-    background: #f59e0b;
-    color: white;
-}
-
-.btn-warning:hover {
-    background: #d97706;
-}
-
-.btn-small {
-    padding: 8px 16px;
-    font-size: 0.9rem;
-}
-
 .btn-info {
     background: #3b82f6;
     color: white;
@@ -1528,9 +1646,170 @@ body.electron .floating-indicator {
 
 .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
     margin-top: 20px;
+}
+
+/* Add / edit student modals (Course Sales, shared with Organization patterns) */
+@keyframes cmFadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes cmSlideDownModal {
+    from {
+        transform: translateY(-24px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.edit-student-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.edit-student-modal.show {
+    display: flex;
+    animation: cmFadeInModal 0.25s ease;
+}
+
+.edit-student-modal-content {
+    background: #ffffff;
+    border-radius: var(--ui-radius, 12px);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.22);
+    width: 100%;
+    max-width: 800px;
+    max-height: min(85vh, 900px);
+    overflow-y: auto;
+    animation: cmSlideDownModal 0.25s ease;
+    color: #333;
+}
+
+.edit-student-modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.edit-student-modal-header h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.edit-student-modal-body {
+    padding: 20px;
+}
+
+.edit-student-form-group {
+    margin-bottom: 12px;
+}
+
+.edit-student-form-group label {
+    display: block;
+    margin-bottom: 4px;
+    color: #334155;
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+.edit-student-form-group input[type="text"],
+.edit-student-form-group input[type="email"],
+.edit-student-form-group select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid #e2e8f0;
+    border-radius: var(--ui-radius, 8px);
+    font-size: 0.875rem;
+    color: #0f172a;
+    background-color: #fff;
+    box-sizing: border-box;
+}
+
+.edit-student-form-group input:focus,
+.edit-student-form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.edit-student-form-group .error-message {
+    color: #ef4444;
+    font-size: 0.8125rem;
+    margin-top: 4px;
+    display: none;
+}
+
+.edit-student-form-group.has-error input,
+.edit-student-form-group.has-error select {
+    border-color: #ef4444;
+}
+
+.edit-student-form-group.has-error .error-message {
+    display: block;
+}
+
+.sales-student-form-row-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.sales-student-form-row-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+@media (max-width: 720px) {
+    .sales-student-form-row-3,
+    .sales-student-form-row-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.org-modal-close-x {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #64748b;
+    padding: 4px 8px;
+    border-radius: var(--ui-radius, 6px);
+}
+
+.org-modal-close-x:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+}
+
+/* Shared course / sales modals (teacher page, etc.) */
+.edit-student-modal-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e0e0e0;
 }
 
 .search-group {
@@ -2054,6 +2333,6 @@ body.electron .floating-indicator {
 }
 
 .btn-sm {
-    padding: 6px 12px;
-    font-size: 0.85rem;
+    padding: 5px 10px;
+    font-size: 0.75rem;
 }

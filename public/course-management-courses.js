@@ -135,7 +135,7 @@ function renderCourseManagementHolidayRules() {
           <div style="font-weight:800; color:#0f172a;">${range}</div>
           <div style="color:#64748b; margin-top:4px; white-space:pre-wrap;">${escapeHtml(reason || '(no reason)')}</div>
         </div>
-        <div style="display:flex; gap:8px; flex-shrink:0;">
+        <div class="btn-row-pair" style="flex-shrink:0;">
           <button class="btn btn-secondary" onclick="openHolidayRuleModal('${String(r.id || '')}')">Edit</button>
           <button class="btn btn-danger" onclick="deleteHolidayRule('${String(r.id || '')}')">Delete</button>
         </div>

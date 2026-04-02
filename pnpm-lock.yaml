@@ -8,6 +8,30 @@ importers:
 
   .:
     dependencies:
+      '@student-scoring/application-blunders':
+        specifier: workspace:*
+        version: link:packages/application/blunders
+      '@student-scoring/application-chess':
+        specifier: workspace:*
+        version: link:packages/application/chess
+      '@student-scoring/application-hope-mate':
+        specifier: workspace:*
+        version: link:packages/application/hope-mate
+      '@student-scoring/application-monster-fight':
+        specifier: workspace:*
+        version: link:packages/application/monster-fight
+      '@student-scoring/application-royal-exchange':
+        specifier: workspace:*
+        version: link:packages/application/royal-exchange
+      '@student-scoring/application-running-queen':
+        specifier: workspace:*
+        version: link:packages/application/running-queen
+      '@student-scoring/application-tactics-fighter':
+        specifier: workspace:*
+        version: link:packages/application/tactics-fighter
+      '@student-scoring/application-truceboard':
+        specifier: workspace:*
+        version: link:packages/application/truceboard
       '@student-scoring/billing':
         specifier: workspace:*
         version: link:packages/billing
@@ -17,21 +41,6 @@ importers:
       '@student-scoring/core':
         specifier: workspace:*
         version: link:packages/core
-      '@student-scoring/games-blunders':
-        specifier: workspace:*
-        version: link:packages/games-blunders
-      '@student-scoring/games-chess':
-        specifier: workspace:*
-        version: link:packages/games-chess
-      '@student-scoring/games-monster-fight':
-        specifier: workspace:*
-        version: link:packages/games-monster-fight
-      '@student-scoring/games-simple':
-        specifier: workspace:*
-        version: link:packages/games-simple
-      '@student-scoring/games-tactics-fighter':
-        specifier: workspace:*
-        version: link:packages/games-tactics-fighter
       '@student-scoring/platform':
         specifier: workspace:*
         version: link:packages/platform
@@ -133,6 +142,50 @@ importers:
         specifier: ^8.57.1
         version: 8.57.1(eslint@10.0.3)(typescript@5.9.3)
 
+  packages/application/blunders:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/chess:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/hope-mate:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/monster-fight:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/royal-exchange:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/running-queen:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/tactics-fighter:
+    dependencies:
+      '@student-scoring/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/application/truceboard: {}
+
   packages/billing:
     dependencies:
       '@student-scoring/core':
@@ -146,36 +199,6 @@ importers:
         version: link:../core
 
   packages/core: {}
-
-  packages/games-blunders:
-    dependencies:
-      '@student-scoring/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/games-chess:
-    dependencies:
-      '@student-scoring/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/games-monster-fight:
-    dependencies:
-      '@student-scoring/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/games-simple:
-    dependencies:
-      '@student-scoring/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/games-tactics-fighter:
-    dependencies:
-      '@student-scoring/core':
-        specifier: workspace:*
-        version: link:../core
 
   packages/platform:
     dependencies:

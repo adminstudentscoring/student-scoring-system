@@ -7,8 +7,8 @@
     <title>Teacher Dashboard - Student Scoring System</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="course-management-timetable.css">
-    <link rel="stylesheet" href="/game/running-queen.css">
-    <link rel="stylesheet" href="/game/royal-exchange.css">
+    <link rel="stylesheet" href="/application/running-queen/running-queen.css">
+    <link rel="stylesheet" href="/application/royal-exchange/royal-exchange.css">
     <style>
         /* Teacher dashboard layout helpers */
         .container {
@@ -55,32 +55,22 @@
         }
     </style>
 </head>
-<body class="dash-body">
-    <!-- Fixed Top Bar -->
+<body class="dash-body dash-layout-topnav">
     <div class="dash-topbar">
-        <div class="dash-topbar-inner">
-            <div class="dash-topbar-title">
-                <h1>🎓 Student Scoring System</h1>
-            </div>
-            <div class="dash-topbar-actions">
-                <span id="teacherName" style="font-weight: 900;">Loading...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Fixed Left Sidebar -->
-    <aside class="dash-sidebar" aria-label="Dashboard navigation">
-        <div class="dash-sidebar-inner">
-            <button class="dash-nav-item active" onclick="switchTeacherTab('home', this)">🏠 Home</button>
-            <button class="dash-nav-item" onclick="switchTeacherTab('students', this)">👥 Student</button>
-            <button class="dash-nav-item" onclick="switchTeacherTab('courses', this)">📚 Course</button>
-            <button class="dash-nav-item" onclick="switchTeacherTab('statistics', this)">📊 Statistics</button>
-            <button class="dash-nav-item" id="teacherApplicationsTabBtn" onclick="switchTeacherTab('applications', this)">🧩 App</button>
-            <div class="dash-sidebar-bottom">
+        <div class="dash-topbar-inner dash-topbar-single-row">
+            <nav class="dash-topbar-nav" aria-label="Main navigation">
+                <button type="button" class="dash-nav-item active" onclick="switchTeacherTab('home', this)">🏠 Home</button>
+                <button type="button" class="dash-nav-item" onclick="switchTeacherTab('students', this)">👥 Students</button>
+                <button type="button" class="dash-nav-item" onclick="switchTeacherTab('courses', this)">📚 Course</button>
+                <button type="button" class="dash-nav-item" onclick="switchTeacherTab('statistics', this)">📊 Statistics</button>
+                <button type="button" class="dash-nav-item" id="teacherApplicationsTabBtn" onclick="switchTeacherTab('applications', this)">🧩 App</button>
+            </nav>
+            <div class="dash-topbar-end">
+                <span id="teacherName" class="dash-sr-only" aria-live="polite">Loading...</span>
                 <button class="btn btn-secondary" type="button" onclick="logout()">Logout</button>
             </div>
         </div>
-    </aside>
+    </div>
 
     <main class="dash-main">
     <div class="container">
@@ -226,7 +216,7 @@
                     <div class="game-list" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
                         <div class="game-item" onclick="openApplicationStudentPicker('monsterFight')">
                             <div class="game-icon">
-                                <img src="/game/monster-fight/images/Logo.png" alt="Monster Fight" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
+                                <img src="/application/monster-fight/images/Logo.png" alt="Monster Fight" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
                             </div>
                             <div class="game-info">
                                 <h4>Monster Fight</h4>
@@ -242,7 +232,7 @@
                         </div>
                         <div class="game-item" onclick="openMazeRunnerAsMe()">
                             <div class="game-icon">
-                                <img src="/game/maze-runner/images/logo/logo.jpg" alt="Maze Runner" style="width:44px; height:44px; border-radius:12px; object-fit:cover;">
+                                <img src="/application/maze-runner/images/logo/logo.jpg" alt="Maze Runner" style="width:44px; height:44px; border-radius:12px; object-fit:cover;">
                             </div>
                             <div class="game-info">
                                 <h4>Maze Runner</h4>
@@ -270,25 +260,39 @@
                                 <p>Run directly with the current teacher account</p>
                             </div>
                         </div>
-                        <div class="game-item" onclick="openApplicationStudentPicker('runningQueen')">
+                        <div class="game-item" onclick="openRunningQueenAsMe()">
                             <div class="game-icon">♕</div>
                             <div class="game-info">
                                 <h4>Running Queen</h4>
-                                <p>Select students → Confirm → Open in new tab</p>
+                                <p>Open in a new tab (current teacher as player)</p>
                             </div>
                         </div>
-                        <div class="game-item" onclick="openApplicationStudentPicker('royalExchange')">
+                        <div class="game-item" onclick="openRoyalExchangeAsMe()">
                             <div class="game-icon">♘</div>
                             <div class="game-info">
                                 <h4>Royal Exchange</h4>
-                                <p>Select students → Confirm → Open in new tab</p>
+                                <p>Open in a new tab (current teacher as player)</p>
                             </div>
                         </div>
-                        <div class="game-item" onclick="openApplicationStudentPicker('hopeMate')">
+                        <div class="game-item" onclick="openHopeMateAsMe()">
                             <div class="game-icon">✨</div>
                             <div class="game-info">
                                 <h4>Hope Mate</h4>
-                                <p>Select 1 student → Confirm → Open in new tab</p>
+                                <p>Open in a new tab (current teacher as player)</p>
+                            </div>
+                        </div>
+                        <div class="game-item" onclick="openNoBlunderAsMe()">
+                            <div class="game-icon">🛡️</div>
+                            <div class="game-info">
+                                <h4>No Blunder</h4>
+                                <p>Open stub in a new tab (current teacher as player)</p>
+                            </div>
+                        </div>
+                        <div class="game-item" onclick="openTruceboardNewTab()">
+                            <div class="game-icon">🤝</div>
+                            <div class="game-info">
+                                <h4>Truceboard</h4>
+                                <p>Clock &amp; board setup in a new tab</p>
                             </div>
                         </div>
                         <div class="game-item" onclick="openBlundersTeacherMode()">
