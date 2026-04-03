@@ -840,13 +840,22 @@ window.copyShareInfo = function() {
 
 document.getElementById('shareModalClose')?.addEventListener('click', closeShareModal);
 
-// ==================== Create Student Modal Functions ====================
+// ==================== Create Student Modal (same behavior as Organization "Add student") ====================
+
+function clearTeacherCreateStudentFormErrors() {
+    document.querySelectorAll('#teacherCreateStudentForm .teacher-create-student-field').forEach((g) => g.classList.remove('has-error'));
+    document.querySelectorAll('#teacherCreateStudentForm .error-message').forEach((el) => {
+        el.textContent = '';
+        el.style.display = 'none';
+    });
+}
 
 function openCreateStudentModal() {
     const modal = document.getElementById('teacherCreateStudentModal');
     if (modal) {
-        modal.classList.add('show');
+        clearTeacherCreateStudentFormErrors();
         document.getElementById('teacherCreateStudentForm')?.reset();
+        modal.classList.add('show');
     }
 }
 
@@ -859,93 +868,108 @@ function closeCreateStudentModal() {
 
 async function submitCreateStudent(event) {
     event.preventDefault();
-    
+    clearTeacherCreateStudentFormErrors();
+
     const name = document.getElementById('teacherCreateStudentName').value.trim();
     const chessComId = document.getElementById('teacherCreateStudentId').value.trim();
-    
-    if (!name || !chessComId) {
-        showNotification('Please fill in all fields', 'error');
+    const localName = document.getElementById('teacherCreateStudentLocalName').value.trim();
+    const gender = document.getElementById('teacherCreateStudentGender').value || null;
+    let dateOfBirth = document.getElementById('teacherCreateStudentDateOfBirth').value.trim() || null;
+    const contactPhone = String(document.getElementById('teacherCreateStudentContactPhone').value || '').replace(/[^\d]/g, '').trim() || null;
+    const contactPhoneCountryCode = String(document.getElementById('teacherCreateStudentContactPhoneCountryCode').value || '+852').trim();
+    const contactPhoneCountry = String(document.getElementById('teacherCreateStudentContactPhoneCountryCode').selectedOptions[0]?.dataset?.country || 'HK');
+    const contactEmail = document.getElementById('teacherCreateStudentContactEmail').value.trim() || null;
+    const emergencyContactName = document.getElementById('teacherCreateStudentEmergencyContactName').value.trim() || null;
+    const emergencyContactRelation = document.getElementById('teacherCreateStudentEmergencyContactRelation').value || null;
+    const emergencyContactNumber = document.getElementById('teacherCreateStudentEmergencyContactNumber').value.trim() || null;
+
+    let hasError = false;
+    function flag(fieldKey, msg) {
+        hasError = true;
+        const map = {
+            name: ['teacherCreateStudentName', 'errTeacherCreateStudentName'],
+            chess: ['teacherCreateStudentId', 'errTeacherCreateStudentId'],
+            dob: ['teacherCreateStudentDateOfBirth', 'errTeacherCreateStudentDob'],
+            email: ['teacherCreateStudentContactEmail', 'errTeacherCreateStudentEmail']
+        };
+        const pair = map[fieldKey];
+        if (pair) {
+            const input = document.getElementById(pair[0]);
+            const err = document.getElementById(pair[1]);
+            if (input && input.closest('.teacher-create-student-field')) input.closest('.teacher-create-student-field').classList.add('has-error');
+            if (err) {
+                err.textContent = msg;
+                err.style.display = 'block';
+            }
+        }
+    }
+
+    if (!name) flag('name', 'Student name is required');
+
+    if (dateOfBirth) {
+        const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        if (!dateRegex.test(dateOfBirth)) {
+            flag('dob', 'Date must be in DD/MM/YYYY format');
+        } else {
+            const [, day, month, year] = dateOfBirth.match(dateRegex);
+            const d = new Date(year, month - 1, day);
+            if (d.getDate() != day || d.getMonth() != month - 1 || d.getFullYear() != year) flag('dob', 'Invalid date');
+            else if (d > new Date()) flag('dob', 'Date of birth cannot be in the future');
+        }
+    }
+
+    if (contactEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(contactEmail)) flag('email', 'Invalid email format');
+    }
+
+    if (hasError) {
+        showNotification('Please fix the errors in the form', 'error');
         return;
     }
-    
+
+    const payload = {
+        name,
+        chessComId: chessComId || '',
+        localName: localName || '',
+        gender,
+        dateOfBirth: dateOfBirth || '',
+        contactPhone: contactPhone || '',
+        contactPhoneCountryCode,
+        contactPhoneCountry,
+        contactEmail: contactEmail || '',
+        emergencyContactName: emergencyContactName || '',
+        emergencyContactRelation: emergencyContactRelation || '',
+        emergencyContactNumber: emergencyContactNumber || ''
+    };
+
     try {
         const response = await apiFetch('/organizations/students', {
             method: 'POST',
-            body: JSON.stringify({ name, chessComId })
+            body: JSON.stringify(payload)
         });
-        
+
+        if (!response) return;
+
+        const data = await response.json();
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to create student');
+            if (data.error && String(data.error).includes('chess.com')) {
+                flag('chess', data.error);
+            }
+            throw new Error(data.error || 'Failed to create student');
         }
-        
-        const newStudent = await response.json();
-        
-        showNotification('Student ' + newStudent.name + ' created and assigned!', 'success');
+
+        showNotification('Student created and assigned!', 'success');
         closeCreateStudentModal();
-        
-        // Reload students to show the new one
         loadStudents();
     } catch (error) {
-        console.error('Create student error:', error);
-        showNotification(error.message, 'error');
+        showNotification(error.message || 'Failed to create student', 'error');
     }
 }
 
-// Make globally available
 window.openCreateStudentModal = openCreateStudentModal;
 window.closeCreateStudentModal = closeCreateStudentModal;
 window.submitCreateStudent = submitCreateStudent;
-
-// Inline Create Student (below Students List)
-function focusCreateStudentInline() {
-    try {
-        const card = document.getElementById('teacherCreateStudentInlineCard');
-        const nameEl = document.getElementById('teacherCreateStudentNameInline');
-        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        if (nameEl && nameEl.focus) nameEl.focus({ preventScroll: true });
-    } catch (e) {}
-}
-
-async function submitCreateStudentInline(event) {
-    event.preventDefault();
-
-    const name = document.getElementById('teacherCreateStudentNameInline')?.value?.trim?.() || '';
-    const chessComId = document.getElementById('teacherCreateStudentIdInline')?.value?.trim?.() || '';
-    const msgEl = document.getElementById('teacherCreateStudentInlineMsg');
-    if (msgEl) msgEl.textContent = '';
-
-    if (!name || !chessComId) {
-        showNotification('Please fill in all fields', 'error');
-        return;
-    }
-
-    try {
-        const response = await apiFetch('/organizations/students', {
-            method: 'POST',
-            body: JSON.stringify({ name, chessComId })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to create student');
-        }
-
-        const newStudent = await response.json();
-        showNotification('Student ' + newStudent.name + ' created and assigned!', 'success');
-        if (msgEl) msgEl.textContent = 'Created.';
-
-        document.getElementById('teacherCreateStudentInlineForm')?.reset();
-        loadStudents();
-    } catch (error) {
-        console.error('Create student error:', error);
-        showNotification(error.message, 'error');
-        if (msgEl) msgEl.textContent = error.message || 'Error';
-    }
-}
-
-window.focusCreateStudentInline = focusCreateStudentInline;
-window.submitCreateStudentInline = submitCreateStudentInline;
 
 
 

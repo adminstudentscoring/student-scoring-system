@@ -42,6 +42,11 @@ window.loadTimetableManagement = function(userRole = 'organization') {
   });
 };
 
+function applyScheduleSettingsFromTimetablePayload(data) {
+  if (!data || typeof data.scheduleSettings !== 'object' || data.scheduleSettings === null) return;
+  window.timetableSettings = data.scheduleSettings;
+}
+
 async function loadTimetableStudents() {
   try {
     if (window.students && Array.isArray(window.students) && window.students.length > 0) return;
@@ -57,7 +62,11 @@ async function loadTimetableStudents() {
 
 async function loadTimetableOrders() {
   // Orders are used for paid/unpaid coloring (organization only).
-  // Teachers may not have permission; fail silently.
+  if (isReadOnly) {
+    timetableOrders = [];
+    timetableOrdersById = {};
+    return;
+  }
   try {
     timetableOrders = [];
     timetableOrdersById = {};
@@ -76,6 +85,10 @@ async function loadTimetableOrders() {
 }
 
 async function loadTimetableSettings() {
+    if (isReadOnly) {
+        window.timetableSettings = window.timetableSettings || {};
+        return;
+    }
     try {
         const response = await window.authUtils.authenticatedFetch('/organizations/settings');
         if (response && response.ok) {
@@ -100,6 +113,7 @@ async function loadTimetableData() {
     }
 
     const data = await response.json();
+    applyScheduleSettingsFromTimetablePayload(data);
     timetableEntries = data.entries || [];
     timetableEnrollments = data.enrollments || [];
     // Expose globally for Sales module
@@ -249,10 +263,8 @@ async function loadTimetableCourses() {
 // Load teachers for Timetable
 async function loadTimetableTeachers() {
   try {
-    console.log('[DEBUG] Fetching teachers...');
     const response = await window.authUtils.authenticatedFetch('/organizations/teachers');
     if (!response) {
-        console.error('[DEBUG] No response from fetch teachers');
         return;
     }
     
@@ -261,7 +273,6 @@ async function loadTimetableTeachers() {
     }
     
     teachers = await response.json();
-    console.log('[DEBUG] Teachers loaded:', teachers);
     renderTimetable(); // Re-render to update names
   } catch (error) {
     console.error('Error loading teachers:', error);

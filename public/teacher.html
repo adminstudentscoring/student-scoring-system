@@ -53,6 +53,11 @@
                 max-width: 100%;
             }
         }
+
+        .teacher-create-student-field.has-error input,
+        .teacher-create-student-field.has-error select {
+            border-color: #ef4444 !important;
+        }
     </style>
 </head>
 <body class="dash-body dash-layout-topnav">
@@ -134,7 +139,7 @@
                         <div style="color: rgba(255,255,255,0.92); font-weight: 900;">Student Management</div>
                         <div style="color: rgba(255,255,255,0.80); font-size: 13px;">Manage students and create new profiles.</div>
                     </div>
-                    <button class="btn btn-primary" type="button" onclick="focusCreateStudentInline()">➕ Create Student</button>
+                    <button class="btn btn-primary" type="button" onclick="openCreateStudentModal()">➕ Create Student</button>
                 </div>
 
                 <!-- Students List -->
@@ -149,26 +154,6 @@
                     <!-- Spacer to align list viewport height with the right column (which has class-actions footer) -->
                     <div class="students-list-footer-spacer" aria-hidden="true"></div>
             </section>
-
-                <!-- Create Student (inline) -->
-                <section class="card" id="teacherCreateStudentInlineCard" style="margin-top: 20px;">
-                    <h2>➕ Create New Student</h2>
-                    <form id="teacherCreateStudentInlineForm" onsubmit="submitCreateStudentInline(event)" style="max-width: 520px;">
-                        <div class="form-group">
-                            <label>Student Name:</label>
-                            <input type="text" id="teacherCreateStudentNameInline" required class="form-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
-                        </div>
-                        <div class="form-group">
-                            <label>chess.com ID:</label>
-                            <input type="text" id="teacherCreateStudentIdInline" required class="form-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
-                        </div>
-                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top: 10px;">
-                            <button type="submit" class="btn btn-primary">Create & Assign</button>
-                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('teacherCreateStudentInlineForm')?.reset()">Clear</button>
-                            <span id="teacherCreateStudentInlineMsg" style="color:#666; font-size:0.95rem;"></span>
-                        </div>
-                    </form>
-                </section>
             </div>
         </div>
 
@@ -615,26 +600,91 @@
         </div>
     </div>
 
-    <!-- Create Student Modal (Teacher) -->
+    <!-- Create Student Modal (Teacher) — same fields & validation as Organization "Add student" -->
     <div id="teacherCreateStudentModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 840px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
-                <h2>➕ Create New Student</h2>
+                <h2>Add student</h2>
                 <span class="modal-close" onclick="closeCreateStudentModal()">&times;</span>
             </div>
             <div class="modal-body">
                 <form id="teacherCreateStudentForm" onsubmit="submitCreateStudent(event)">
-                    <div class="form-group">
-                        <label>Student Name:</label>
-                        <input type="text" id="teacherCreateStudentName" required class="form-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:4px;">
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group teacher-create-student-field">
+                            <label>Student name <span style="color:#ef4444">*</span></label>
+                            <input type="text" id="teacherCreateStudentName" required class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                            <div class="error-message" id="errTeacherCreateStudentName" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;"></div>
+                        </div>
+                        <div class="form-group teacher-create-student-field">
+                            <label>Local name</label>
+                            <input type="text" id="teacherCreateStudentLocalName" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                        <div class="form-group teacher-create-student-field">
+                            <label>chess.com ID</label>
+                            <input type="text" id="teacherCreateStudentId" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;" placeholder="Optional if not applicable">
+                            <div class="error-message" id="errTeacherCreateStudentId" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>chess.com ID:</label>
-                        <input type="text" id="teacherCreateStudentId" required class="form-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:4px;">
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 10px;">
+                        <div class="form-group teacher-create-student-field">
+                            <label>Gender</label>
+                            <select id="teacherCreateStudentGender" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                                <option value="">Please select</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group teacher-create-student-field">
+                            <label>Date of birth (DD/MM/YYYY)</label>
+                            <input type="text" id="teacherCreateStudentDateOfBirth" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;" placeholder="DD/MM/YYYY">
+                            <div class="error-message" id="errTeacherCreateStudentDob" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;"></div>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                        <div class="form-group teacher-create-student-field">
+                            <label>Contact no.</label>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <select id="teacherCreateStudentContactPhoneCountryCode" class="form-control" style="width:160px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                                    <option value="+852" data-country="HK" selected>Hong Kong (+852)</option>
+                                    <option value="+853" data-country="MO">Macau (+853)</option>
+                                    <option value="+86" data-country="CN">China (+86)</option>
+                                    <option value="+886" data-country="TW">Taiwan (+886)</option>
+                                    <option value="+65" data-country="SG">Singapore (+65)</option>
+                                    <option value="+44" data-country="GB">United Kingdom (+44)</option>
+                                    <option value="+1" data-country="US">United States (+1)</option>
+                                </select>
+                                <input type="text" id="teacherCreateStudentContactPhone" class="form-control" placeholder="Phone number" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px;" inputmode="numeric">
+                            </div>
+                            <div class="error-message" id="errTeacherCreateStudentPhone" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;"></div>
+                        </div>
+                        <div class="form-group teacher-create-student-field">
+                            <label>Email</label>
+                            <input type="email" id="teacherCreateStudentContactEmail" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                            <div class="error-message" id="errTeacherCreateStudentEmail" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;"></div>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                        <div class="form-group teacher-create-student-field">
+                            <label>Emergency contact name</label>
+                            <input type="text" id="teacherCreateStudentEmergencyContactName" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                        <div class="form-group teacher-create-student-field">
+                            <label>Relation</label>
+                            <select id="teacherCreateStudentEmergencyContactRelation" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                                <option value="">Please select</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group teacher-create-student-field" style="margin-top: 10px;">
+                        <label>Emergency contact no.</label>
+                        <input type="text" id="teacherCreateStudentEmergencyContactNumber" class="form-control" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
                     </div>
                     <div class="modal-actions" style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
                         <button type="button" class="btn btn-secondary" onclick="closeCreateStudentModal()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Create & Assign</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
             </div>

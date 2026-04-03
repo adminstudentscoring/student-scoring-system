@@ -754,10 +754,18 @@ function registerOrgCrudRoutes(app: any, deps: any): void {
       const enrollmentsData = await readEnrollments();
       const filteredEnrollments = enrollmentsData.filter(e => e.organizationId === teacher.organizationId);
 
+      const organizations = await readOrganizations();
+      const teacherOrg = organizations.find(o => o.id === teacher.organizationId);
+      const scheduleSettings =
+        teacherOrg && teacherOrg.settings && typeof teacherOrg.settings.scheduleSettings === 'object'
+          ? teacherOrg.settings.scheduleSettings
+          : {};
+
       res.json({
         entries: filteredEntries,
         metadata: timetableData.metadata,
-        enrollments: filteredEnrollments
+        enrollments: filteredEnrollments,
+        scheduleSettings
       });
     } catch (error) {
       console.error('Error getting teacher timetable:', error);

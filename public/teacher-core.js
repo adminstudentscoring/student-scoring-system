@@ -51,9 +51,8 @@ function initWebSocket() {
         }
     };
 
-    ws.onerror = (error) => {
-        // Avoid noisy console spam in production when websocket isn't available
-        console.warn('WebSocket error:', error);
+    ws.onerror = () => {
+        // Browser already logs connection failures; avoid duplicate noise here.
     };
 
     ws.onclose = () => {
