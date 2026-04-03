@@ -2768,10 +2768,15 @@ window.jumpToDate = function(dateString, courseId) {
     // Select Date
     salesState.classSelection.selectedDate = targetDate;
     
-    // Refresh UI
+    // Refresh UI (rebuild dots when view month changes — same fix as changeCalendarMonth)
     if (document.getElementById('miniCalendarGrid0') || document.getElementById('miniCalendarGrid')) {
-        if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
-        if (typeof updateDaySchedule === 'function') updateDaySchedule();
+        const cid = salesState.classSelection && salesState.classSelection.courseId;
+        if (typeof rebuildSalesAvailableClasses === 'function' && cid && Array.isArray(window.timetableEntries)) {
+            rebuildSalesAvailableClasses(cid);
+        } else {
+            if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+            if (typeof updateDaySchedule === 'function') updateDaySchedule();
+        }
     }
 };
 

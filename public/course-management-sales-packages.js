@@ -585,6 +585,32 @@ function showProductList() {
   }
 }
 
+function filterTimetableEntriesForSalesCourse(courseId) {
+  const allEntries = window.timetableEntries || [];
+  return allEntries.filter((e) => {
+    if (!e.teacherName && e.teacherIds && e.teacherIds.length > 0) {
+      e.teacherName = getTeacherName(e.teacherIds[0]);
+    }
+    if (e.courseIds && Array.isArray(e.courseIds) && e.courseIds.includes(courseId)) {
+      return true;
+    }
+    return e.courseId === courseId;
+  });
+}
+
+/** Recompute green-dot / day list from cached timetable (call after month navigation). */
+function rebuildSalesAvailableClasses(courseId) {
+  if (!courseId || !salesState.classSelection) {
+    updateDaySchedule();
+    return;
+  }
+  const courseEntries = filterTimetableEntriesForSalesCourse(courseId);
+  const viewDate = salesState.classSelection.viewDate;
+  salesState.classSelection.availableClasses = generateFutureClasses(courseEntries, 26, viewDate);
+  renderMiniCalendar();
+  updateDaySchedule();
+}
+
 // Load Available Classes
 async function loadAvailableClasses(courseId) {
   if (typeof window !== 'undefined' && window.salesTrace) {
@@ -608,27 +634,7 @@ async function loadAvailableClasses(courseId) {
     window.timetableEntries = allEntries;
     window.timetableEnrollments = data.enrollments || [];
     
-    // Filter for this course
-    const courseEntries = allEntries.filter(e => {
-      // Ensure teacherName is populated if missing
-      if (!e.teacherName && e.teacherIds && e.teacherIds.length > 0) {
-          e.teacherName = getTeacherName(e.teacherIds[0]);
-      }
-
-      if (e.courseIds && Array.isArray(e.courseIds) && e.courseIds.includes(courseId)) {
-        return true;
-      }
-      return e.courseId === courseId;
-    });
-    
-    // Generate next 6 months of classes for the calendar
-    const futureClasses = generateFutureClasses(courseEntries, 26); // 26 weeks ~ 6 months
-    
-    salesState.classSelection.availableClasses = futureClasses;
-    
-    // Refresh Calendar and Schedule
-    renderMiniCalendar();
-    updateDaySchedule();
+    rebuildSalesAvailableClasses(courseId);
     
   } catch (error) {
     console.error('Error loading classes:', error);
@@ -637,16 +643,37 @@ async function loadAvailableClasses(courseId) {
   }
 }
 
-// Generate future class instances
-function generateFutureClasses(entries, weeks = 8) {
+// Generate class instances for the sales calendar: visible 3-month window + forward weeks,
+// and at least 1 calendar year before today (whichever reaches further back).
+function generateFutureClasses(entries, weeks = 8, viewDate = null) {
   const classes = [];
   const now = new Date();
-  // Start from today 00:00 for display purposes
-  const startCheck = new Date(now);
-  startCheck.setHours(0,0,0,0);
-  
-  const endDate = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  let startCheck = new Date(todayStart);
+  let endDate = new Date(todayStart);
   endDate.setDate(endDate.getDate() + (weeks * 7));
+
+  if (viewDate && !isNaN(viewDate.getTime())) {
+    const visStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    visStart.setHours(0, 0, 0, 0);
+    const visEnd = new Date(viewDate.getFullYear(), viewDate.getMonth() + 3, 0);
+    visEnd.setHours(23, 59, 59, 999);
+    if (visStart < startCheck) {
+      startCheck = visStart;
+    }
+    if (visEnd.getTime() > endDate.getTime()) {
+      endDate = visEnd;
+    }
+  }
+
+  // Allow ~1 year before today so you can scroll far back without empty dots / lists.
+  const historyStart = new Date(todayStart);
+  historyStart.setFullYear(historyStart.getFullYear() - 1);
+  if (historyStart < startCheck) {
+    startCheck = historyStart;
+  }
 
   const holidaySet = new Set(
     Array.isArray(window.timetableSettings?.holidays) ? window.timetableSettings.holidays : []
@@ -765,7 +792,12 @@ window.changeCalendarMonth = function(delta) {
   if (!salesState.classSelection) return;
   const currentDate = salesState.classSelection.viewDate;
   currentDate.setMonth(currentDate.getMonth() + delta);
-  renderMiniCalendar();
+  const cid = salesState.classSelection.courseId;
+  if (cid && Array.isArray(window.timetableEntries)) {
+    rebuildSalesAvailableClasses(cid);
+  } else {
+    renderMiniCalendar();
+  }
 };
 
 window.selectCalendarDate = function(year, month, day) {
