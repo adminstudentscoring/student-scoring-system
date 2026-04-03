@@ -447,6 +447,13 @@ function showApplicationCatalog() {
                     <p>Open chess.com (external link)</p>
                 </div>
             </div>
+            <div class="game-item" onclick="openChessAnalysisBoard()">
+                <div class="game-icon">🔍</div>
+                <div class="game-info">
+                    <h4>Chess Analysis</h4>
+                    <p>FEN / PGN board, setup position, and move navigation</p>
+                </div>
+            </div>
             <div class="game-item" onclick="startMonsterFight()">
                 <div class="game-icon">
                     <img src="/application/monster-fight/images/Logo.png" alt="Monster Fight" style="width:44px; height:44px; border-radius:12px; object-fit:cover; background:#f3f4f6; border:1px solid #e5e7eb;">
@@ -506,6 +513,19 @@ function openChessCom() {
 }
 
 window.openChessCom = openChessCom;
+
+function openChessAnalysisBoard() {
+    const url = '/chess-analysis/';
+    const win = window.open(url, 'ChessAnalysis', 'width=1100,height=820,resizable=yes,scrollbars=yes');
+    if (!win) {
+        showNotification('Popup blocked. Opening Chess Analysis in this tab...', 'warning');
+        window.location.href = url;
+        return;
+    }
+    showNotification('Chess Analysis opened in a new tab', 'success');
+}
+
+window.openChessAnalysisBoard = openChessAnalysisBoard;
 
 async function startMonsterFight() {
     if (selectedGameStudents.length === 0) {

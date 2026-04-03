@@ -547,6 +547,32 @@ function registerStudentsRoutes(app: any, deps: StudentsRouteDeps): void {
         }
       });
 
+      // Lesson quota credits (org/admin only) — used by sales "pay with quota" and integration tests.
+      if (updates.lessonQuotaByCents !== undefined) {
+        if (req.user.role === 'teacher') {
+          return res.status(403).json({ error: 'Teachers cannot edit lesson quota credits' });
+        }
+        if (req.user.role !== 'organization' && req.user.role !== 'admin') {
+          return res.status(403).json({ error: 'Not allowed to edit lesson quota' });
+        }
+        const q = updates.lessonQuotaByCents;
+        if (q === null || q === '') {
+          cleanUpdates.lessonQuotaByCents = {};
+        } else if (typeof q !== 'object' || Array.isArray(q)) {
+          return res.status(400).json({ error: 'lessonQuotaByCents must be a map of tier (cents string) to lesson count' });
+        } else {
+          const next: Record<string, number> = {};
+          for (const [k, raw] of Object.entries(q)) {
+            const n = Number(raw);
+            if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+              return res.status(400).json({ error: `Invalid lesson quota count for tier ${k}` });
+            }
+            next[String(k)] = n;
+          }
+          cleanUpdates.lessonQuotaByCents = next;
+        }
+      }
+
       // Backward compatibility: if client still sends `studentId`, treat it as chessComId.
       if (updates.studentId !== undefined && updates.chessComId === undefined) {
         cleanUpdates.chessComId = updates.studentId === '' ? null : String(updates.studentId);

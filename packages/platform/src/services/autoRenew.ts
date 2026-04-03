@@ -210,6 +210,7 @@ function createAutoRenew(deps: AutoRenewDeps): AutoRenewReturn {
           paymentDetails: null,
           items: [orderItem],
           totalAmount: price,
+          amountPaid: 0,
           createdBy: 'system:autoRenew',
           meta: {
             autoRenew: {

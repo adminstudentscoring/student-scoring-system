@@ -1,18 +1,18 @@
 // Course Management Module
 // Handles all course-related functionality for organizations
 
-// Predefined colors (10 colors in 5x2 grid)
+// Predefined colors — Apple system–style palette (iOS / macOS accent family)
 const PREDEFINED_COLORS = [
-  '#3B82F6', // Blue
-  '#10B981', // Green
-  '#8B5CF6', // Purple
-  '#EF4444', // Red
-  '#F59E0B', // Orange
-  '#EAB308', // Yellow
-  '#06B6D4', // Cyan
-  '#EC4899', // Pink
-  '#84CC16', // Lime
-  '#6B7280'  // Gray
+  '#007AFF', // Blue
+  '#34C759', // Green
+  '#5856D6', // Indigo
+  '#FF9500', // Orange
+  '#FF2D55', // Pink
+  '#AF52DE', // Purple
+  '#5AC8FA', // Light blue
+  '#FFCC00', // Yellow
+  '#FF3B30', // Red
+  '#8E8E93'  // Gray
 ];
 
 // State
@@ -166,23 +166,22 @@ function renderCourseManagement() {
                 <!-- Student search results will appear here -->
               </div>
               
-              <div id="selectedStudentCard" class="selected-student-card" style="display: none;">
-                <!-- Selected student info will appear here -->
-              </div>
-              
-              <div id="emptyStudentState" class="empty-student-state">
-                <button type="button" class="btn-sales-new-student" onclick="openSalesCreateStudentModal()" title="Add a new student">
-                  <span class="btn-sales-new-student-icon" aria-hidden="true">+</span>
-                  <span class="btn-sales-new-student-label">Create new student</span>
-                </button>
+              <div class="sales-student-below-search">
+                <div class="sales-create-student-row">
+                  <button type="button" class="btn-sales-new-student" onclick="openSalesCreateStudentModal()" title="Add a new student">
+                    <span class="btn-sales-new-student-icon" aria-hidden="true">+</span>
+                    <span class="btn-sales-new-student-label">Create new student</span>
+                  </button>
+                </div>
+                <div id="selectedStudentCard" class="selected-student-card" style="display: none;">
+                  <!-- Selected student info will appear here -->
+                </div>
               </div>
             </div>
             
             <!-- Enrollment/Cart Section -->
             <div class="sales-cart-section">
-              <div class="cart-empty-state">
-                You will see student's orders here once you have selected a student above.
-              </div>
+              <div class="cart-empty-state" aria-hidden="true"></div>
               <div id="salesCartContent" style="display: none;">
                 <!-- Cart items will go here -->
               </div>
@@ -289,17 +288,19 @@ style.textContent = `
   .course-sub-tabs {
     display: flex;
     flex-direction: column;
-    width: 200px;
-    min-width: 200px;
-    gap: 5px;
-    padding: 10px;
-    background: #f8f9fa;
-    border-right: 2px solid #e0e0e0;
-    border-radius: 8px 0 0 8px;
+    width: fit-content;
+    min-width: 0;
+    max-width: 220px;
+    align-self: flex-start;
+    gap: 2px;
+    padding: 8px 6px 8px 4px;
+    background: rgba(245, 245, 247, 0.95);
+    border-right: 1px solid rgba(60, 60, 67, 0.12);
+    border-radius: 12px 0 0 12px;
   }
   
   .course-sub-tab {
-    padding: 12px 16px;
+    padding: 9px 12px 9px 10px;
     background: none;
     border: none;
     cursor: pointer;
@@ -318,10 +319,10 @@ style.textContent = `
   }
   
   .course-sub-tab.active {
-    color: #667eea;
-    background: #e0f2fe;
-    border-left-color: #667eea;
-    font-weight: bold;
+    color: #007aff;
+    background: rgba(0, 122, 255, 0.1);
+    border-left-color: #007aff;
+    font-weight: 600;
   }
   
   .course-sub-tab-content {
@@ -367,8 +368,8 @@ style.textContent = `
     
     .course-sub-tab.active {
       border-left: none;
-      border-bottom-color: #667eea;
-      color: #667eea;
+      border-bottom-color: #007aff;
+      color: #007aff;
     }
     
     .course-sub-tab-content {
@@ -467,7 +468,7 @@ style.textContent = `
   }
   
   .courses-table tbody tr.selected {
-    background: #f0f4ff;
+    background: rgba(0, 122, 255, 0.06);
   }
   
   .courses-table tbody tr:hover {
@@ -606,20 +607,21 @@ style.textContent = `
   .color-option {
     width: 40px;
     height: 40px;
-    border-radius: 4px;
+    border-radius: 10px;
     cursor: pointer;
-    border: 2px solid transparent;
-    transition: all 0.2s;
+    border: 2px solid rgba(0, 0, 0, 0.06);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
   
   .color-option:hover {
-    transform: scale(1.1);
-    border-color: #fff;
+    transform: scale(1.06);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.12);
   }
   
   .color-option.selected {
-    border-color: #fff;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.28);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(0, 122, 255, 0.45);
   }
   
   .custom-color-input {
@@ -697,7 +699,7 @@ style.textContent = `
   }
   
   .package-courses-summary {
-    color: #667eea;
+    color: #007aff;
     text-decoration: underline;
     cursor: pointer;
   }
@@ -711,7 +713,7 @@ style.textContent = `
     padding: 10px;
     background: #f8f9fa;
     border-radius: 4px;
-    border-left: 3px solid #667eea;
+    border-left: 3px solid #007aff;
   }
   
   .package-course-detail {
@@ -858,9 +860,9 @@ style.textContent = `
   }
   
   .category-btn.active {
-    background: #667eea;
+    background: #007aff;
     color: #fff;
-    border-color: #667eea;
+    border-color: #007aff;
   }
   
   .sales-product-list {
@@ -888,7 +890,7 @@ style.textContent = `
   }
   
   .sales-product-card:hover {
-    border-color: #667eea;
+    border-color: #007aff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     transform: translateY(-2px);
   }
@@ -941,10 +943,25 @@ style.textContent = `
   
   /* Sales Right Panel Styles */
   .sales-student-section {
-    padding: 15px;
+    padding: 10px 12px 12px;
     border-bottom: 1px solid #e0e0e0;
     background: #f8f9fa;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .sales-student-below-search {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+  }
+  
+  .sales-create-student-row {
+    display: flex;
+    align-items: center;
   }
   
   .student-search-wrapper {
@@ -958,8 +975,8 @@ style.textContent = `
   }
   
   .student-search-wrapper:focus-within {
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+    border-color: #007aff;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.18);
   }
   
   .search-icon {
@@ -984,8 +1001,8 @@ style.textContent = `
   .student-dropdown-list {
     position: absolute;
     top: 100%;
-    left: 15px;
-    right: 15px;
+    left: 12px;
+    right: 12px;
     background: #fff;
     border: 1px solid #e0e0e0;
     border-radius: 0 0 6px 6px;
@@ -1010,7 +1027,7 @@ style.textContent = `
   }
   
   .dropdown-item:hover {
-    background: #f0f4ff;
+    background: rgba(0, 122, 255, 0.06);
   }
   
   .dropdown-item.empty {
@@ -1127,32 +1144,93 @@ style.textContent = `
   
   .selected-student-card {
     display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 10px 0;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 12px 12px 12px;
+    margin: 0;
     position: relative;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.06);
   }
   
   .selected-student-avatar {
-    width: 50px;
-    height: 50px;
-    background: #e0f2fe;
-    color: #0284c7;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(0, 122, 255, 0.14), rgba(0, 122, 255, 0.06));
+    color: #0071e3;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 20px;
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.02em;
   }
   
   .selected-student-info h3 {
-    margin: 0 0 5px 0;
-    font-size: 16px;
-    color: #333;
+    margin: 0 0 4px 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #1d1d1f;
     display: flex;
     align-items: center;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .btn-sales-student-edit {
+    margin-left: 4px;
+    padding: 1px 8px;
+    min-height: 0;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    border-radius: 980px;
+    border: 1px solid rgba(60, 60, 67, 0.18);
+    background: rgba(120, 120, 128, 0.08);
+    color: #1d1d1f;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  
+  .btn-sales-student-edit:hover {
+    background: rgba(120, 120, 128, 0.12);
+    border-color: rgba(60, 60, 67, 0.22);
+  }
+  
+  .student-name-plain {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #1d1d1f;
+  }
+  
+  .btn-sales-student-history {
+    margin-left: 4px;
+    padding: 1px 8px;
+    min-height: 0;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    border-radius: 980px;
+    border: 1px solid rgba(60, 60, 67, 0.18);
+    background: rgba(120, 120, 128, 0.08);
+    color: #1d1d1f;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  
+  .btn-sales-student-history:hover {
+    background: rgba(120, 120, 128, 0.12);
+    border-color: rgba(60, 60, 67, 0.22);
   }
   
   .student-id-badge {
@@ -1166,8 +1244,10 @@ style.textContent = `
   
   .student-balance {
     font-size: 13px;
-    color: #666;
+    color: #6e6e73;
+    letter-spacing: -0.01em;
   }
+  
   
   .btn-close-student {
     position: absolute;
@@ -1202,16 +1282,11 @@ style.textContent = `
   }
   
   .cart-empty-state {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #94a3b8;
-    padding: 16px 12px;
-    font-size: 0.8125rem;
-    line-height: 1.45;
-    min-height: 120px;
+    flex: 0 0 auto;
+    display: none;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
   }
   
   .sales-footer-actions {
@@ -1305,7 +1380,7 @@ style.textContent = `
   .btn-back {
     background: none;
     border: none;
-    color: #667eea;
+    color: #007aff;
     font-size: 14px;
     cursor: pointer;
     margin-right: 15px;
@@ -1370,7 +1445,7 @@ style.textContent = `
   }
   
   .class-selection-item:hover {
-    border-color: #667eea;
+    border-color: #007aff;
     background: #f8f9fa;
   }
   

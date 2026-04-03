@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:* https://cloudflareinsights.com https://*.cloudflareinsights.com;">
+    <title>Chess Analysis — Student Scoring</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="chess-analysis.css">
+</head>
+<body class="ca-body">
+    <!-- Fig1 hub -->
+    <section id="viewHub" class="ca-hub">
+        <div class="ca-hub-card">
+            <h1 class="ca-hub-title">Chess Analysis</h1>
+            <p class="ca-hub-text">Load FEN or PGN, step through moves, and edit positions for class. Engine analysis is coming later.</p>
+            <button type="button" id="btnOpenWorkspace" class="ca-btn ca-btn-primary">Open analysis workspace</button>
+        </div>
+    </section>
+
+    <!-- Workspace -->
+    <div id="viewWorkspace" class="ca-workspace" hidden>
+        <header class="ca-workspace-head">
+            <button type="button" id="btnBackHub" class="ca-icon-btn" aria-label="Back">←</button>
+            <span id="workspaceTitle" class="ca-workspace-title">Analysis</span>
+            <span class="ca-workspace-head-spacer"></span>
+        </header>
+
+        <div class="ca-main">
+            <div class="ca-board-column">
+                <div class="ca-player-bar ca-player-bar-dark">
+                    <span class="ca-player-avatar" aria-hidden="true">♟</span>
+                    <span id="caBlackName">Black</span>
+                </div>
+                <div class="ca-board-wrap">
+                    <div id="caEvalBar" class="ca-eval-bar" title="Engine evaluation (coming soon)">
+                        <span class="ca-eval-label">0.0</span>
+                    </div>
+                    <div class="ca-board-frame">
+                        <button type="button" id="btnBoardGear" class="ca-board-gear" aria-label="Board settings">⚙</button>
+                        <div id="caBoardGrid" class="ca-board-grid" aria-label="Chess board"></div>
+                    </div>
+                </div>
+                <div class="ca-player-bar ca-player-bar-light">
+                    <span class="ca-player-avatar" aria-hidden="true">♙</span>
+                    <span id="caWhiteName">White</span>
+                </div>
+            </div>
+
+            <div class="ca-panel">
+                <nav class="ca-tabs" aria-label="Panel tabs">
+                    <button type="button" class="ca-tab active" data-tab="analysis">Analysis</button>
+                    <button type="button" class="ca-tab" data-tab="games">Games</button>
+                    <button type="button" class="ca-tab" data-tab="explore">Explore</button>
+                </nav>
+
+                <div id="panelAnalysis" class="ca-panel-body">
+                    <div class="ca-analysis-toolbar">
+                        <label class="ca-toggle ca-toggle-disabled">
+                            <input type="checkbox" id="caEngineToggle" disabled>
+                            <span>Analysis</span>
+                        </label>
+                        <button type="button" id="btnMenuEngine" class="ca-icon-btn" aria-label="Engine menu" title="Engine options">⋯</button>
+                        <span id="caDepthLabel" class="ca-depth">depth —</span>
+                        <button type="button" class="ca-icon-btn" aria-label="Info" title="Info">ⓘ</button>
+                        <button type="button" class="ca-icon-btn" aria-label="Panel settings">⚙</button>
+                    </div>
+                    <div id="caEngineLines" class="ca-engine-lines">
+                        <div class="ca-engine-line">—</div>
+                        <div class="ca-engine-line">—</div>
+                        <div class="ca-engine-line">—</div>
+                    </div>
+                    <div class="ca-position-row">
+                        <span id="caPositionLabel" class="ca-position-label">Starting position</span>
+                    </div>
+                    <div class="ca-names-row">
+                        <span id="caNamesDisplay" class="ca-names-display">White – Black</span>
+                        <button type="button" id="btnEditNames" class="ca-icon-btn" aria-label="Edit names">✎</button>
+                    </div>
+                    <div id="caMoveList" class="ca-move-list" aria-live="polite"></div>
+                </div>
+
+                <div id="panelSetup" class="ca-panel-body" hidden>
+                    <h2 class="ca-setup-heading">Setup position</h2>
+                    <div class="ca-piece-palette">
+                        <div class="ca-palette-row" id="caPaletteBlack"></div>
+                        <div class="ca-palette-row" id="caPaletteWhite"></div>
+                    </div>
+                    <div class="ca-setup-toolbar">
+                        <label>Side <select id="caSetupTurn"><option value="w">White to move</option><option value="b">Black to move</option></select></label>
+                        <button type="button" id="btnSetupFlip" class="ca-btn ca-btn-sm">Flip</button>
+                        <button type="button" id="btnSetupReset" class="ca-btn ca-btn-sm">Reset</button>
+                        <button type="button" id="btnSetupClear" class="ca-btn ca-btn-sm">Clear</button>
+                    </div>
+                    <fieldset class="ca-castling">
+                        <legend>Castling</legend>
+                        <label><input type="checkbox" id="cwK" checked> White O-O</label>
+                        <label><input type="checkbox" id="cwQ" checked> White O-O-O</label>
+                        <label><input type="checkbox" id="cbK" checked> Black O-O</label>
+                        <label><input type="checkbox" id="cbQ" checked> Black O-O-O</label>
+                    </fieldset>
+                    <label class="ca-field">FEN
+                        <input type="text" id="caSetupFen" class="ca-input ca-input-fen" spellcheck="false" placeholder="FEN string">
+                    </label>
+                    <label class="ca-field">PGN
+                        <textarea id="caSetupPgn" class="ca-textarea" rows="6" placeholder="Paste PGN (optional)"></textarea>
+                    </label>
+                    <div class="ca-setup-actions">
+                        <button type="button" id="btnSetupLoad" class="ca-btn ca-btn-primary">Load</button>
+                        <button type="button" id="btnSetupApply" class="ca-btn ca-btn-secondary">Apply to analysis</button>
+                    </div>
+                    <p class="ca-hint">Load: if PGN box is non-empty, PGN is used; otherwise FEN. Apply copies the editor position into the main board without parsing PGN moves.</p>
+                </div>
+
+                <div id="panelGames" class="ca-panel-body" hidden>
+                    <p class="ca-placeholder">Games library — coming soon.</p>
+                </div>
+                <div id="panelExplore" class="ca-panel-body" hidden>
+                    <p class="ca-placeholder">Explore — coming soon.</p>
+                </div>
+            </div>
+        </div>
+
+        <footer class="ca-footer">
+            <div class="ca-transport">
+                <button type="button" id="btnFirst" class="ca-transport-btn" aria-label="Start">|«</button>
+                <button type="button" id="btnPrev" class="ca-transport-btn" aria-label="Previous">‹</button>
+                <button type="button" id="btnNext" class="ca-transport-btn" aria-label="Next">›</button>
+                <button type="button" id="btnLast" class="ca-transport-btn" aria-label="End">»|</button>
+            </div>
+            <div class="ca-footer-actions">
+                <button type="button" id="btnNew" class="ca-footer-btn" title="New">New</button>
+                <button type="button" id="btnSave" class="ca-footer-btn" title="Save">Save</button>
+                <button type="button" id="btnReview" class="ca-footer-btn ca-footer-btn-disabled" disabled title="Coming soon">Review</button>
+                <button type="button" id="btnMenuBottom" class="ca-footer-btn" aria-label="More">⋯</button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Popovers -->
+    <div id="popoverBoard" class="ca-popover" hidden>
+        <button type="button" id="popBoardFlip" class="ca-popover-item">Flip board</button>
+        <label class="ca-popover-item ca-popover-check"><input type="checkbox" id="popBoardCoords" checked> Coordinates</label>
+    </div>
+    <div id="popoverEngine" class="ca-popover ca-popover-menu" hidden>
+        <div class="ca-popover-item ca-popover-disabled">MultiPV — engine off</div>
+        <div class="ca-popover-item">Engine settings — coming soon</div>
+    </div>
+    <div id="popoverBottom" class="ca-popover ca-popover-menu" hidden>
+        <button type="button" class="ca-popover-item ca-popover-disabled">Toggle charts</button>
+        <button type="button" id="popEditPosition" class="ca-popover-item">Edit position</button>
+        <button type="button" class="ca-popover-item ca-popover-disabled">Add games</button>
+        <button type="button" class="ca-popover-item ca-popover-disabled">Add to game collection</button>
+        <button type="button" class="ca-popover-item ca-popover-disabled">Practice vs computer</button>
+        <button type="button" id="popSavedAnalysis" class="ca-popover-item">Saved analysis</button>
+        <button type="button" id="popShare" class="ca-popover-item">Share game</button>
+    </div>
+
+    <!-- Modals -->
+    <div id="modalNames" class="ca-modal" hidden>
+        <div class="ca-modal-backdrop" data-close-modal></div>
+        <div class="ca-modal-card">
+            <h3>Player names</h3>
+            <label>White <input type="text" id="inputWhiteName" class="ca-input"></label>
+            <label>Black <input type="text" id="inputBlackName" class="ca-input"></label>
+            <div class="ca-modal-actions">
+                <button type="button" class="ca-btn" data-close-modal>Cancel</button>
+                <button type="button" id="btnNamesSave" class="ca-btn ca-btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+    <div id="modalSaved" class="ca-modal" hidden>
+        <div class="ca-modal-backdrop" data-close-modal></div>
+        <div class="ca-modal-card ca-modal-wide">
+            <h3>Saved analysis</h3>
+            <ul id="savedList" class="ca-saved-list"></ul>
+            <p id="savedEmpty" class="ca-placeholder" hidden>No saved items yet.</p>
+            <div class="ca-modal-actions">
+                <button type="button" class="ca-btn" data-close-modal>Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../auth.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!window.authUtils || !window.authUtils.requireRole('teacher')) {
+                /* redirect handled in auth */
+            }
+        });
+    </script>
+    <script type="module" src="chess-analysis-app.js"></script>
+</body>
+</html>

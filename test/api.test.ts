@@ -142,6 +142,19 @@ describe('API integration tests', () => {
     assert.ok(Array.isArray(res.body.students) || Array.isArray(res.body), 'Should return students');
   });
 
+  it('GET /api/organizations/orders with org token returns 200 array', async () => {
+    const res = await request
+      .get('/api/organizations/orders')
+      .set('Authorization', `Bearer ${authToken}`);
+    assert.strictEqual(res.status, 200);
+    assert.ok(Array.isArray(res.body), 'Should return orders array');
+  });
+
+  it('GET /api/organizations/orders without auth returns 401', async () => {
+    const res = await request.get('/api/organizations/orders');
+    assert.strictEqual(res.status, 401);
+  });
+
   it('POST /api/students without auth returns 401', async () => {
     const res = await request
       .post('/api/students')

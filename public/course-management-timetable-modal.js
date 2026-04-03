@@ -764,7 +764,12 @@ window.handleCancelLessonSelection = async function() {
     closeMakeupPopup();
     return;
   }
-  if (!confirm('Cancel this lesson? If it was paid, the fee will be returned as credit.')) return;
+  if (
+    !confirm(
+      'Cancel this lesson? If it was paid, credit becomes lesson quota for that price tier (not cash balance).'
+    )
+  )
+    return;
   closeMakeupPopup();
   await cancelEnrollmentWithRefund(window.makeupContext);
 };
@@ -782,11 +787,19 @@ async function cancelEnrollmentWithRefund(ctx) {
     });
     if (response && response.ok) {
       const r = await response.json().catch(() => ({}));
-      const amt = Number(r.refundAmount || 0) || 0;
+      const delta = r.lessonQuotaDelta && typeof r.lessonQuotaDelta === 'object' ? r.lessonQuotaDelta : {};
+      const keys = Object.keys(delta);
+      let msg = 'Cancelled.';
+      if (keys.length) {
+        const parts = keys.map(
+          (cents) => `$${(Number(cents) / 100).toFixed(2)} +${delta[cents]}`
+        );
+        msg = `Cancelled. Lesson quota credit: ${parts.join(', ')}.`;
+      }
       if (window.showToast) {
-        window.showToast(amt > 0 ? `Cancelled. Refunded $${amt.toFixed(2)} credit.` : 'Cancelled.', 'success');
+        window.showToast(msg, 'success');
       } else {
-        alert(amt > 0 ? `Cancelled. Refunded $${amt.toFixed(2)} credit.` : 'Cancelled.');
+        alert(msg);
       }
       await loadTimetableData();
       return;

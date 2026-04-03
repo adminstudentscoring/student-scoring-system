@@ -19,7 +19,8 @@
     "db:ping": "tsx -e \"require('dotenv').config(); require('@student-scoring/core').dbPing().then(()=>console.log('OK')).catch((e)=>{console.error(e); process.exit(1);});\"",
     "blunders:import-db": "tsx scripts/blunders-import-to-db.ts",
     "lint": "eslint .",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts",
+    "test:lesson-quota": "node --import tsx --test test/lesson-quota-api.test.ts"
   },
   "keywords": [
     "student",

@@ -23,9 +23,9 @@
         .stat-card {
             background: white;
             padding: 20px;
-            border-radius: 0;
-            border: 1px solid #d0d4dc;
-            box-shadow: none;
+            border-radius: 16px;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
             text-align: center;
         }
         .stat-card h3 {
@@ -36,14 +36,14 @@
         .stat-card .number {
             font-size: 32px;
             font-weight: bold;
-            color: #667eea;
+            color: #007aff;
         }
         .org-card {
             background: white;
             padding: 20px;
-            border-radius: 0;
-            border: 1px solid #d0d4dc;
-            box-shadow: none;
+            border-radius: 16px;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
             margin-bottom: 15px;
         }
         .org-card-header {
@@ -79,7 +79,9 @@
             background-color: white;
             margin: auto;
             padding: 0;
-            border-radius: 8px;
+            border-radius: 16px;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
             width: 90%;
             max-width: 1200px;
             max-height: 90vh;
@@ -138,11 +140,11 @@
         .settings-group select,
         .settings-group textarea {
             width: 100%;
-            padding: 8px;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            color: #333;
+            padding: 10px 12px;
+            border: 1px solid rgba(60, 60, 67, 0.18);
+            border-radius: 12px;
+            background: #f2f2f7;
+            color: #1c1c1e;
             font-size: 14px;
         }
         .settings-group input[type="checkbox"] {
@@ -166,20 +168,21 @@
             flex-wrap: wrap;
         }
         .settings-tab {
-            padding: 8px 16px;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            padding: 10px 18px;
+            background: #e5e5ea;
+            border: 1px solid transparent;
+            border-radius: 980px;
             cursor: pointer;
-            color: #333;
-            transition: all 0.3s;
+            color: #1c1c1e;
+            font-weight: 600;
+            transition: background 0.2s, color 0.2s;
         }
         .settings-tab:hover {
-            background: #e5e5e5;
+            background: #d8d8dc;
         }
         .settings-tab.active {
-            background: #667eea;
-            border-color: #667eea;
+            background: #007aff;
+            border-color: transparent;
             color: white;
         }
         .settings-category-content {
@@ -194,14 +197,16 @@
             margin-bottom: 20px;
         }
         .tools-tab {
-            padding: 10px 20px;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            padding: 10px 18px;
+            background: #e5e5ea;
+            border: 1px solid transparent;
+            border-radius: 980px;
             cursor: pointer;
+            font-weight: 600;
+            color: #1c1c1e;
         }
         .tools-tab.active {
-            background: #667eea;
+            background: #007aff;
             color: white;
         }
 
@@ -210,9 +215,9 @@
             display: flex;
             gap: 8px;
             margin: 10px 0 22px;
-            padding: 0;
-            border-radius: 0;
-            background: transparent;
+            padding: 4px;
+            border-radius: 980px;
+            background: #e5e5ea;
             border: none;
             box-shadow: none;
             flex-wrap: wrap;
@@ -221,33 +226,33 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 16px;
-            border-radius: 0;
-            border: 1px solid #d0d4dc;
-            background: #f3f4f6;
-            color: #1f2937;
+            padding: 10px 18px;
+            border-radius: 980px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #6e6e73;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+            transition: background 0.15s ease, color 0.15s ease;
         }
         .admin-tab:hover {
             transform: none;
             box-shadow: none;
-            background: #e5e7eb;
+            background: rgba(255, 255, 255, 0.5);
+            color: #1c1c1e;
         }
         .admin-tab.active {
-            background: #111827;
-            border-color: #111827;
-            color: #ffffff;
-            box-shadow: none;
+            background: #fff;
+            border-color: transparent;
+            color: #007aff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
         }
         .admin-tab:focus-visible {
             outline: none;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.35), 0 10px 22px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.35);
         }
 
         /* Admin - Subscription Setting styles extracted to admin-subscription-setting.css */
-    </style>
         /* Remove old header spacing; using fixed dash topbar instead */
         header { display: none !important; }
     </style>

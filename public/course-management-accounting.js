@@ -189,6 +189,14 @@ function getOrdersRows() {
         const studentName = student ? escapeHtml(student.name) : 'Unknown';
         const dateStr = new Date(order.date).toLocaleDateString();
         const itemsSummary = order.items.map(i => i.productData.name).join(', ');
+        const due =
+          typeof window.salesOrderBalanceDue === 'function'
+            ? window.salesOrderBalanceDue(order)
+            : Number(order.totalAmount) || 0;
+        const amountCell =
+          order.status === 'unpaid' && due < Number(order.totalAmount) - 0.005
+            ? `<span title="Invoiced total">$${formatNumber(order.totalAmount)}</span><br><span style="color:#b45309;font-size:12px;">Due $${formatNumber(due)}</span>`
+            : `$${formatNumber(order.totalAmount)}`;
         
         let actionHtml = '';
         if (order.status === 'unpaid') {
@@ -204,7 +212,7 @@ function getOrdersRows() {
                 <td>${dateStr}</td>
                 <td>${studentName}</td>
                 <td>${itemsSummary}</td>
-                <td>$${formatNumber(order.totalAmount)}</td>
+                <td>${amountCell}</td>
                 <td><span class="status-badge status-${order.status}">${order.status}</span></td>
                 <td>${actionHtml}</td>
             </tr>

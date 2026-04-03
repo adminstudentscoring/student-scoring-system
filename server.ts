@@ -280,6 +280,11 @@ app.use((req, res, next) => {
 
 // Serve static files using absolute paths (avoids 404s when server is started from a different cwd)
 app.use(express.static(path.join(__dirname, 'public')));
+// Chess Analysis board (ES module): chess.js from dependency (CSP script-src 'self')
+app.use(
+  '/chess-analysis/vendor',
+  express.static(path.join(__dirname, 'node_modules/chess.js/dist/esm'))
+);
 // Serve application/ (browser bundles for chess apps and mini-games)
 app.use('/application', express.static(path.join(__dirname, 'application')));
 // Monster Fight standalone entry (same tree; explicit mount for clarity)

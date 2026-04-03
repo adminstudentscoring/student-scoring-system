@@ -34,24 +34,25 @@
 }
 
 .timetable-nav-btn {
-  padding: 5px 10px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #4b5563;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border: 1px solid rgba(60, 60, 67, 0.12);
+  background: #e5e5ea;
+  color: #1c1c1e;
+  border-radius: 980px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.8125rem;
+  font-weight: 600;
   min-width: 28px;
 }
 
 .timetable-nav-btn:hover {
-  background: #f3f4f6;
-  color: #667eea;
-  border-color: #667eea;
+  background: #d8d8dc;
+  color: #007aff;
+  border-color: transparent;
 }
 
 .timetable-nav-btn.today-btn {

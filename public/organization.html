@@ -141,12 +141,12 @@
             flex: 0 1 auto;
             min-width: 52px;
             max-width: 72px;
-            padding: 4px 6px;
-            border: 1px solid #d0d4dc;
-            border-radius: 0;
-            background: #fff;
-            color: #111827;
-            font-weight: bold;
+            padding: 6px 8px;
+            border: 1px solid rgba(60, 60, 67, 0.18);
+            border-radius: 10px;
+            background: #f2f2f7;
+            color: #1c1c1e;
+            font-weight: 600;
             text-align: center;
             font-size: 0.8125rem;
         }
@@ -256,8 +256,8 @@
             color: #333;
         }
         .settings-tab.active {
-            background: #667eea;
-            border-color: #667eea;
+            background: #007aff;
+            border-color: #007aff;
             color: #fff;
             font-weight: bold;
         }
@@ -394,7 +394,7 @@
         .edit-student-form-group input:focus,
         .edit-student-form-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #007aff;
         }
         .edit-student-form-group .error-message {
             color: #ef4444;
@@ -495,7 +495,7 @@
         .edit-teacher-form-group input:focus,
         .edit-teacher-form-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #007aff;
         }
         .edit-teacher-form-group .error-message {
             color: #ef4444;
@@ -525,11 +525,11 @@
             gap: 14px;
         }
         .org-subscription-banner {
-            border: 1px solid #d0d4dc;
-            border-radius: 0;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            border-radius: 14px;
             padding: 12px 14px;
             background: #f8fafc;
-            color: #111827;
+            color: #1c1c1e;
         }
         .org-subscription-banner.active { border-color: #bbf7d0; background: #f0fdf4; }
         .org-subscription-banner.grace { border-color: #fde68a; background: #fffbeb; }
@@ -554,14 +554,14 @@
             gap: 12px;
         }
         .org-plan-card {
-            border: 1px solid #d0d4dc;
-            border-radius: 0;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            border-radius: 16px;
             background: #ffffff;
             padding: 14px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            box-shadow: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
         .org-plan-title {
             margin: 0;
@@ -592,16 +592,19 @@
         /* Old fixed user-info removed; using dash topbar instead */
         .user-info { display: none !important; }
 
-        body.org-ui-sharp .edit-student-modal-content,
-        body.org-ui-sharp .edit-teacher-modal-content {
-            border-radius: 0 !important;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+        .edit-student-modal-content,
+        .edit-teacher-modal-content {
+            border-radius: 16px !important;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15) !important;
+            border: 1px solid rgba(60, 60, 67, 0.1) !important;
         }
-        body.org-ui-sharp .edit-student-form-group input,
-        body.org-ui-sharp .edit-student-form-group select,
-        body.org-ui-sharp #createTeacherForm input,
-        body.org-ui-sharp #createTeacherForm select {
-            border-radius: 0 !important;
+        .edit-student-form-group input,
+        .edit-student-form-group select,
+        #createTeacherForm input,
+        #createTeacherForm select {
+            border-radius: 12px !important;
+            border-color: rgba(60, 60, 67, 0.18) !important;
+            background: #f2f2f7 !important;
         }
         .org-modal-close-x {
             background: none;
@@ -625,18 +628,149 @@
         .org-entity-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 12px;
+            gap: 16px;
         }
         .org-entity-card {
-            border: 1px solid #d0d4dc;
-            border-radius: 0;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            border-radius: 16px;
             padding: 16px;
             background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         .org-entity-card h4 { margin-top: 0; color: #111827; }
+
+        /* Apple-style entity cards (teachers / students) */
+        .org-entity-card.org-card-apple {
+            border: none;
+            border-radius: 16px;
+            padding: 18px 20px 16px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow:
+                0 4px 24px rgba(0, 0, 0, 0.06),
+                0 1px 0 rgba(255, 255, 255, 0.9) inset;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+            position: relative;
+        }
+        .org-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .org-card-title {
+            margin: 0;
+            font-size: 1.125rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: #1c1c1e;
+            line-height: 1.25;
+        }
+        .org-card-meta {
+            margin: 0;
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            color: #3c3c43;
+            line-height: 1.35;
+        }
+        .org-card-meta dt {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #8e8e93;
+        }
+        .org-card-meta dd {
+            margin: 0 0 8px 0;
+            font-weight: 500;
+            color: #1c1c1e;
+        }
+        .org-card-meta dd:last-child { margin-bottom: 0; }
+        .org-card-incomplete-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff3b30;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+        .org-card-quota {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .org-card-quota-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #8e8e93;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .org-quota-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .org-quota-chip {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 980px;
+            background: rgba(0, 122, 255, 0.12);
+            color: #007aff;
+        }
+        .org-card-actions {
+            margin-top: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .org-pill-btn {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            border-radius: 980px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: transform 0.12s ease, opacity 0.12s ease, background 0.15s ease;
+        }
+        .org-pill-btn:active { transform: scale(0.98); }
+        .org-pill-btn-primary { background: #007aff; color: #fff; }
+        .org-pill-btn-primary:hover { background: #0066d6; }
+        .org-pill-btn-success { background: #34c759; color: #fff; }
+        .org-pill-btn-success:hover { background: #2fb350; }
+        .org-pill-btn-muted { background: #e5e5ea; color: #1c1c1e; }
+        .org-pill-btn-muted:hover { background: #d8d8dc; }
+        .org-pill-btn-danger { background: rgba(255, 59, 48, 0.12); color: #ff3b30; }
+        .org-pill-btn-danger:hover { background: rgba(255, 59, 48, 0.2); }
+        .org-student-score-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-top: 4px;
+        }
+        .org-student-score-row input[type="number"] {
+            width: 72px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: #f2f2f7;
+            font-size: 14px;
+            font-weight: 600;
+        }
     </style>
 </head>
-<body class="dash-body dash-layout-topnav org-ui-sharp">
+<body class="dash-body dash-layout-topnav">
     <div class="dash-topbar">
         <div class="dash-topbar-inner dash-topbar-single-row">
             <nav class="dash-topbar-nav" aria-label="Main navigation">
@@ -896,8 +1030,11 @@
                     <div id="checkoutItemsList"></div>
                     
                     <div style="margin-top: 20px; display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; border-top: 2px solid #eee; padding-top: 10px;">
-                        <span>Should Pay</span>
+                        <span id="checkoutShouldPayLabel">Should Pay</span>
                         <span id="checkoutShouldPay">$0.00</span>
+                    </div>
+                    <div id="checkoutQuotaFootnote" style="display: none; font-size: 12px; color: #6e6e73; margin-top: 6px; text-align: right;">
+                        No cash collected — settled from lesson quota credits.
                     </div>
                 </div>
                 
@@ -917,10 +1054,11 @@
                     </div>
 
                     <p style="color:#666; font-size:0.9rem; margin-bottom:10px;">Pick one or many payment methods:</p>
-                    <div class="payment-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <div class="payment-tabs" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
                         <button class="btn btn-primary" id="payMethodCash" onclick="switchPaymentMethod('cash')">Cash</button>
                         <button class="btn btn-secondary" id="payMethodFPS" onclick="switchPaymentMethod('fps')">FPS</button>
                         <button class="btn btn-secondary" id="payMethodOther" onclick="switchPaymentMethod('other')">Other</button>
+                        <button class="btn btn-secondary" id="payMethodQuota" onclick="switchPaymentMethod('quota')">Quota</button>
                     </div>
                     
                     <!-- Cash Form -->
@@ -972,6 +1110,14 @@
                             <label>Method / Remark</label>
                             <input type="text" id="payOtherRemark" placeholder="e.g. Cheque, Transfer">
                         </div>
+                    </div>
+                    
+                    <div id="paymentFormQuota" class="payment-form" style="display: none;">
+                        <h4>Lesson quota</h4>
+                        <p style="color:#6e6e73;font-size:14px;line-height:1.45;margin:0 0 12px;">
+                            Pay this cart using credited lessons at each per-lesson price tier (from paid drops). No cash or wallet balance is charged.
+                        </p>
+                        <p style="color:#1d1d1f;font-size:14px;margin:0;"><strong>Should pay (cash equivalent):</strong> <span id="quotaCheckoutEquivalent">$0</span></p>
                     </div>
                     
                     <div style="margin-top: auto;">
@@ -1150,18 +1296,27 @@
                 const hasPaid = subscriptionStatus === 'active' || subscriptionStatus === 'grace';
                 const trialActive = !!data?.trial?.active;
 
-                const restricted = !hasPaid && !trialActive;
+                // SaaS gate only when billing is enforced and billing APIs work
+                const billingOff =
+                    data.billingEnforcement === false ||
+                    data.billingDisabled === true;
+                const restricted = billingOff ? false : (!hasPaid && !trialActive);
 
                 if (restricted) {
-                    // Hide all tabs except Subscription
-                    document.querySelectorAll('.tabs .tab').forEach(btn => {
+                    const gateMsg = '<p class="org-gate-msg" style="padding:12px;color:#6e6e73;">Subscription or trial required. Open <strong>Subscription</strong> in the top menu.</p>';
+                    const tl = document.getElementById('teachersList');
+                    const sl = document.getElementById('studentsList');
+                    if (tl) tl.innerHTML = gateMsg;
+                    if (sl) sl.innerHTML = gateMsg;
+
+                    // Hide all top nav items except Subscription (dash layout)
+                    document.querySelectorAll('.dash-topbar-nav .dash-nav-item').forEach(btn => {
                         const label = (btn.textContent || '');
                         if (label.includes('Subscription')) return;
                         btn.style.display = 'none';
                     });
 
-                    // Force Subscription tab
-                    const subTabBtn = Array.from(document.querySelectorAll('.tab')).find(b => (b.textContent || '').includes('Subscription'));
+                    const subTabBtn = Array.from(document.querySelectorAll('.dash-topbar-nav .dash-nav-item')).find(b => (b.textContent || '').includes('Subscription'));
                     if (subTabBtn) {
                         switchTab('subscription', subTabBtn);
                     } else {
@@ -1485,19 +1640,21 @@
                         ${teachers.map((teacher, index) => {
                             const teacherData = JSON.stringify(teacher).replace(/'/g, "&#39;").replace(/"/g, '&quot;');
                             return `
-                            <div class="org-entity-card teacher-card">
-                                <h4>${escapeHtml(teacher.name || 'Unnamed')}</h4>
-                                <p>Teacher ID: ${escapeHtml(teacher.teacherId || 'N/A')}</p>
-                                <p>Username: ${escapeHtml(teacher.username || teacher.email)}</p>
-                                <p>Gender: ${teacher.gender === 'male' ? 'Male' : teacher.gender === 'female' ? 'Female' : 'N/A'}</p>
-                                <p>Created: ${new Date(teacher.createdAt).toLocaleString('en-US')}</p>
-                                <div style="margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-                                    <button class="btn btn-primary" onclick="assignStudents('${teacher.id}', '${escapeHtml(teacher.name)}')">Assign</button>
-                                    <button class="btn btn-success" onclick="loginAsTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')">Login as</button>
-                                    <span class="btn-row-pair">
-                                    <button class="btn btn-secondary" onclick="editTeacher('${teacher.id}')">Edit</button>
-                                    <button class="btn btn-danger" onclick="deleteTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')">Delete</button>
-                                    </span>
+                            <div class="org-entity-card org-card-apple teacher-card">
+                                <div class="org-card-head">
+                                    <h4 class="org-card-title">${escapeHtml(teacher.name || 'Unnamed')}</h4>
+                                </div>
+                                <dl class="org-card-meta">
+                                    <dt>Teacher ID</dt><dd>${escapeHtml(teacher.teacherId || 'N/A')}</dd>
+                                    <dt>Username</dt><dd>${escapeHtml(teacher.username || teacher.email)}</dd>
+                                    <dt>Gender</dt><dd>${teacher.gender === 'male' ? 'Male' : teacher.gender === 'female' ? 'Female' : 'N/A'}</dd>
+                                    <dt>Created</dt><dd>${new Date(teacher.createdAt).toLocaleString('en-US')}</dd>
+                                </dl>
+                                <div class="org-card-actions">
+                                    <button type="button" class="org-pill-btn org-pill-btn-primary" onclick="assignStudents('${teacher.id}', '${escapeHtml(teacher.name)}')">Assign</button>
+                                    <button type="button" class="org-pill-btn org-pill-btn-success" onclick="loginAsTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')">Login as</button>
+                                    <button type="button" class="org-pill-btn org-pill-btn-muted" onclick="editTeacher('${teacher.id}')">Edit</button>
+                                    <button type="button" class="org-pill-btn org-pill-btn-danger" onclick="deleteTeacher('${teacher.id}', '${escapeHtml(teacher.name)}')">Delete</button>
                                 </div>
                             </div>
                         `;
@@ -1624,6 +1781,19 @@
             return div.innerHTML;
         }
 
+        function formatStudentQuotaChips(student) {
+            const q = student && student.lessonQuotaByCents;
+            if (!q || typeof q !== 'object') return '';
+            const parts = Object.entries(q).filter(([, n]) => Number(n) > 0);
+            if (!parts.length) return '';
+            return parts
+                .map(([c, n]) => {
+                    const dollars = (Number(c) / 100).toFixed(2);
+                    return `<span class="org-quota-chip">$${dollars} × ${Number(n)}</span>`;
+                })
+                .join('');
+        }
+
         // Store students globally for search functionality
         let allStudents = [];
 
@@ -1708,22 +1878,26 @@
                         const necessaryFields = ['gender', 'dateOfBirth', 'contactPhone'];
                         const isIncomplete = necessaryFields.some(field => !student[field]);
                         
+                        const quotaHtml = formatStudentQuotaChips(student);
                         return `
-                        <div class="student-card org-entity-card" style="cursor: pointer; position: relative;" data-student-id="${student.id}">
-                            ${isIncomplete ? '<div style="position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; background: #ef4444; border: 1px solid #fff;" title="Incomplete data"></div>' : ''}
-                            <h3>${escapeHtml(student.name)}</h3>
-                            <p>chess.com ID: ${escapeHtml(student.chessComId || '')}</p>
-                            <p>Score: <span id="score-${student.id}">${student.score || 0}</span></p>
-                            <p>Level: ${student.level || 1}</p>
-                            <div class="student-card-actions" onclick="event.stopPropagation();">
-                                <div class="student-card-actions-primary">
-                                <input type="number" id="score-input-${student.id}" value="${student.score || 0}" min="0">
-                                <button class="btn btn-primary" onclick="updateStudentScore('${student.id}'); event.stopPropagation();">Update</button>
+                        <div class="student-card org-entity-card org-card-apple" style="cursor: pointer;" data-student-id="${student.id}">
+                            <div class="org-card-head">
+                                <h3 class="org-card-title">${escapeHtml(student.name)}</h3>
+                                ${isIncomplete ? '<span class="org-card-incomplete-dot" title="Incomplete profile"></span>' : ''}
+                            </div>
+                            <dl class="org-card-meta">
+                                <dt>chess.com ID</dt><dd>${escapeHtml(student.chessComId || '—')}</dd>
+                                <dt>Score</dt><dd><span id="score-${student.id}">${student.score || 0}</span></dd>
+                                <dt>Level</dt><dd>${student.level || 1}</dd>
+                            </dl>
+                            ${quotaHtml ? `<div class="org-card-quota"><span class="org-card-quota-label">Lesson quota</span><div class="org-quota-chips">${quotaHtml}</div></div>` : ''}
+                            <div class="student-card-actions org-card-actions" onclick="event.stopPropagation();">
+                                <div class="org-student-score-row">
+                                    <input type="number" id="score-input-${student.id}" value="${student.score || 0}" min="0" aria-label="Score">
+                                    <button type="button" class="org-pill-btn org-pill-btn-primary" onclick="updateStudentScore('${student.id}'); event.stopPropagation();">Update</button>
                                 </div>
-                                <span class="btn-row-pair">
-                                <button class="btn btn-info" onclick="openShareModal('${student.id}'); event.stopPropagation();">Share</button>
-                                <button class="btn btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
-                                </span>
+                                <button type="button" class="org-pill-btn org-pill-btn-muted" onclick="openShareModal('${student.id}'); event.stopPropagation();">Share</button>
+                                <button type="button" class="org-pill-btn org-pill-btn-danger" onclick="deleteStudent('${student.id}', '${escapeHtml(student.name)}'); event.stopPropagation();">Delete</button>
                             </div>
                         </div>
                     `;}).join('')}

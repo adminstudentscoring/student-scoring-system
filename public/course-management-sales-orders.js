@@ -13,6 +13,251 @@ function hideStudentDropdown() {
   }
 }
 
+function salesOrderEffectivePaid(order) {
+  if (!order) return 0;
+  if (order.amountPaid != null && Number.isFinite(Number(order.amountPaid))) {
+    return Math.round(Number(order.amountPaid) * 100) / 100;
+  }
+  if (order.status === 'paid') return Math.round(Number(order.totalAmount || 0) * 100) / 100;
+  return 0;
+}
+
+function salesOrderBalanceDue(order) {
+  const t = Math.round(Number(order?.totalAmount || 0) * 100) / 100;
+  return Math.max(0, Math.round((t - salesOrderEffectivePaid(order)) * 100) / 100);
+}
+
+window.salesOrderEffectivePaid = salesOrderEffectivePaid;
+window.salesOrderBalanceDue = salesOrderBalanceDue;
+
+/** Verbose lines only when `localStorage.classHistoryUiDebug=1` or `window.__CLASS_HISTORY_UI_DEBUG__=true`. */
+function classHistoryUiVerbose() {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      (window.__CLASS_HISTORY_UI_DEBUG__ === true ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('classHistoryUiDebug') === '1'))
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
+function classHistoryUiLog(msg, data) {
+  if (data !== undefined) console.log('[ClassHistoryUI]', msg, data);
+  else console.log('[ClassHistoryUI]', msg);
+}
+
+function classHistoryUiVerboseLog(msg, data) {
+  if (!classHistoryUiVerbose()) return;
+  classHistoryUiLog(msg, data);
+}
+
+/**
+ * When enrollment.orderId is missing (legacy / duplicate slot), infer from paid+unpaid sales orders' line items.
+ */
+function resolveCourseIdForEnrollment(e, entries) {
+  const entry = (entries || []).find((ent) => ent.id === e.timetableEntryId);
+  if (!entry) return '';
+  if (entry.courseIds && entry.courseIds.length > 0) return String(entry.courseIds[0]);
+  if (entry.courseId) return String(entry.courseId);
+  return '';
+}
+
+/**
+ * One row per month: "2026 April" + clickable day numbers. mode: 'sidebar' | 'overlay'
+ */
+function buildEnrollmentMonthRowsMarkup(enrollmentList, entries, mode) {
+  const sorted = [...enrollmentList].sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (!sorted.length) return '';
+  const entList = entries && entries.length ? entries : window.timetableEntries || [];
+  const byMonth = new Map();
+  for (const e of sorted) {
+    const ymd = String(e.date || '').split('T')[0].split(' ')[0];
+    const mat = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!mat) continue;
+    const key = `${mat[1]}-${mat[2]}`;
+    const dayNum = parseInt(mat[3], 10);
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key).push({ ymd, dayNum, e });
+  }
+  const keys = Array.from(byMonth.keys()).sort();
+  if (keys.length === 0) return '';
+
+  const firstEntry = entList.find((ent) => ent.id === sorted[0].timetableEntryId);
+  const classTitle = firstEntry ? firstEntry.className : 'Class';
+
+  const isOverlay = mode === 'overlay';
+  const rowCls = isOverlay ? 'overlay-month-row' : 'sales-month-row';
+  const labelCls = isOverlay ? 'overlay-month-label' : 'sales-month-label';
+  const daysCls = isOverlay ? 'overlay-month-days' : 'sales-month-days';
+  const btnCls = isOverlay ? 'overlay-day-jump' : 'sales-day-jump';
+  const titleCls = isOverlay ? 'overlay-month-class-title' : 'sales-month-class-title';
+  const closeOverlayAttr = isOverlay ? ' data-close-overlay="1"' : '';
+
+  const parts = [`<div class="${titleCls}">${escapeHtml(classTitle)}</div>`];
+  for (const key of keys) {
+    const items = byMonth.get(key).sort((a, b) => a.dayNum - b.dayNum);
+    const [y, m] = key.split('-');
+    const monthName = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleDateString('en-US', {
+      month: 'long'
+    });
+    const btns = items.map((it) => {
+      const cid = resolveCourseIdForEnrollment(it.e, entList);
+      return `<button type="button" class="${btnCls}" data-date="${escapeHtml(it.ymd)}" data-course-id="${escapeHtml(cid)}"${closeOverlayAttr}>${it.dayNum}</button>`;
+    });
+    parts.push(
+      `<div class="${rowCls}"><span class="${labelCls}">${escapeHtml(y)} ${escapeHtml(monthName)}</span> <span class="${daysCls}">${btns.join(' ')}</span></div>`
+    );
+  }
+  return parts.join('');
+}
+
+function inferOrderIdForEnrollmentDisplay(enrollment, studentId, orders) {
+  if (enrollment.orderId != null && String(enrollment.orderId).trim() !== '') return String(enrollment.orderId);
+  const sid = String(studentId);
+  const enrDate = String(enrollment.date || '').split('T')[0].split(' ')[0];
+  const tid = String(enrollment.timetableEntryId || '');
+  for (const ord of orders || []) {
+    if (String(ord.studentId) !== sid) continue;
+    for (const item of ord.items || []) {
+      for (const cls of item.enrolledClasses || []) {
+        const rawD = cls.dateString != null ? cls.dateString : cls.date;
+        const clsDate = rawD ? String(rawD).split('T')[0].split(' ')[0] : '';
+        let cid = String(cls.id || '');
+        const baseId = cid.includes('_') ? cid.slice(0, cid.lastIndexOf('_')) : cid;
+        const dateOk = clsDate === enrDate;
+        const idOk = baseId === tid || cid === tid || (tid && cid.startsWith(tid + '_'));
+        if (dateOk && idOk) return String(ord.id);
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * UI smoke: refresh timetable + orders, log table of orderId vs inferred, re-render lists.
+ * Run in console: await smokeTestClassHistoryUI()
+ */
+window.smokeTestClassHistoryUI = async function smokeTestClassHistoryUI() {
+  console.log('[ClassHistoryUI:smoke] start');
+  const sid = salesState.selectedStudent?.id;
+  if (!sid) {
+    console.warn('[ClassHistoryUI:smoke] select a student in Sales first');
+    return { ok: false, reason: 'no_selected_student' };
+  }
+  if (typeof window.refreshSalesTimetableFromApi === 'function') {
+    await window.refreshSalesTimetableFromApi();
+  }
+  if (typeof loadStudentOrders === 'function') await loadStudentOrders(sid);
+  const enrollments = (window.timetableEnrollments || []).filter((e) => String(e.studentId) === String(sid));
+  const ordLookup = [
+    ...(salesState.currentPaidOrdersForStudent || []),
+    ...(salesState.currentUnpaidOrders || [])
+  ];
+  const rows = enrollments.map((e) => {
+    const inferred = inferOrderIdForEnrollmentDisplay(e, sid, ordLookup);
+    return {
+      date: e.date,
+      timetableEntryId: e.timetableEntryId,
+      orderId_on_record: e.orderId || '',
+      inferred_orderId: inferred || ''
+    };
+  });
+  console.log('[ClassHistoryUI:smoke] enrollments vs orders', {
+    studentId: sid,
+    enrollmentCount: enrollments.length,
+    ordersForStudent: ordLookup.length
+  });
+  console.table(rows);
+  if (typeof window.renderStudentEnrollments === 'function') window.renderStudentEnrollments();
+  if (typeof window.renderStudentOverlayClassHistory === 'function') window.renderStudentOverlayClassHistory();
+  return {
+    ok: true,
+    enrollmentCount: enrollments.length,
+    withOrderIdOnRecord: enrollments.filter((e) => e.orderId != null && String(e.orderId).trim() !== '').length
+  };
+};
+
+/** Refresh selected student from GET /api/students so lessonQuotaByCents matches server (fixes 2nd quota attempt after partial/stale UI). */
+async function refreshSelectedSalesStudentFromApi() {
+  const sid = salesState.selectedStudent?.id;
+  if (!sid || !window.authUtils) return;
+  try {
+    const sr = await window.authUtils.authenticatedFetch('/students');
+    if (!sr || !sr.ok) return;
+    const data = await sr.json();
+    const list = Array.isArray(data) ? data : data.students || [];
+    window.students = list;
+    const updated = list.find((s) => String(s.id) === String(sid));
+    if (updated) {
+      salesState.selectedStudent = updated;
+      quotaPayClientLog('refreshSelectedSalesStudentFromApi', {
+        lessonQuotaByCents: updated.lessonQuotaByCents
+      });
+    }
+  } catch (e) {
+    console.warn('[QuotaPay] refreshSelectedSalesStudentFromApi', e);
+  }
+}
+
+/**
+ * Console helper: same list as GET /api/organizations/orders (org-scoped). Run on Course → Sales while logged in.
+ * Example: await debugDumpOrgOrders()
+ */
+window.debugDumpOrgOrders = async function () {
+  try {
+    const r = await window.authUtils.authenticatedFetch('/organizations/orders');
+    if (!r) {
+      console.error('[debugDumpOrgOrders] no response (session expired?)');
+      return null;
+    }
+    if (!r.ok) {
+      console.error('[debugDumpOrgOrders] HTTP', r.status);
+      return null;
+    }
+    const list = await r.json();
+    const arr = Array.isArray(list) ? list : [];
+    const rows = arr.map((o) => ({
+      id: o.id,
+      studentId: o.studentId,
+      status: o.status,
+      total: o.totalAmount,
+      amountPaid: o.amountPaid,
+      due: typeof window.salesOrderBalanceDue === 'function' ? window.salesOrderBalanceDue(o) : null
+    }));
+    console.info('[debugDumpOrgOrders] rows=', rows.length, '(filter console by debugDump)');
+    console.table(rows);
+    return arr;
+  } catch (e) {
+    console.error('[debugDumpOrgOrders]', e);
+    return null;
+  }
+};
+
+function orderPayDebug(...args) {
+  try {
+    if (
+      typeof window !== 'undefined' &&
+      (window.__ORDER_PAY_DEBUG__ ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('orderPayDebug') === '1'))
+    ) {
+      console.info('%c[OrderPay]', 'color:#e11d48;font-weight:bold', ...args);
+    }
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+/** Always-on browser logs for lesson quota pay (filter console by [QuotaPay]). */
+function quotaPayClientLog(...args) {
+  try {
+    console.info('%c[QuotaPay]', 'color:#dc2626;font-weight:bold', ...args);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 // Handle Student Search
 window.handleSalesStudentSearch = async function() {
   const term = document.getElementById('salesStudentSearch').value.toLowerCase();
@@ -56,32 +301,51 @@ window.handleSalesStudentSearch = async function() {
 };
 
 // Select Student
-window.selectSalesStudent = function(studentId) {
-  const student = (window.students || []).find(s => s.id === studentId);
+window.selectSalesStudent = async function (studentId) {
+  const student = (window.students || []).find((s) => String(s.id) === String(studentId));
   if (!student) return;
-  
+
+  if (typeof window.salesDebug === 'function') {
+    window.salesDebug('selectSalesStudent: start', {
+      studentId: String(studentId),
+      step: salesState.step,
+      hasSelectedProduct: !!salesState.selectedProduct,
+      lessonQuotaByCents: student.lessonQuotaByCents
+    });
+  }
+
   salesState.selectedStudent = student;
-  
-  document.getElementById('salesStudentSearch').value = ''; 
+
+  document.getElementById('salesStudentSearch').value = '';
   hideStudentDropdown();
-  
-  document.getElementById('emptyStudentState').style.display = 'none';
+
+  if (typeof window.refreshSalesTimetableFromApi === 'function') {
+    await window.refreshSalesTimetableFromApi();
+  }
+
   const card = document.getElementById('selectedStudentCard');
   card.style.display = 'flex';
   
   const balance = typeof student.balance === 'number' ? student.balance : 0;
   
+  const quotaLine =
+    typeof window.formatLessonQuotaPlainText === 'function'
+      ? window.formatLessonQuotaPlainText(student)
+      : '';
+
   card.innerHTML = `
     <div class="selected-student-avatar">${student.name.charAt(0).toUpperCase()}</div>
     <div class="selected-student-info">
       <h3>
-        <button class="student-name-link" onclick="openStudentDetailsOverlay(event)">${escapeHtml(student.name)}</button>
-        <button type="button" class="btn btn-secondary" style="margin-left:6px;" onclick="openSalesEditStudent(event, '${student.id}')">Edit</button>
+        <span class="student-name-plain">${escapeHtml(student.name)}</span>
+        <button type="button" class="btn-sales-student-edit" onclick="openSalesEditStudent(event, '${student.id}')">Edit</button>
+        <button type="button" class="btn-sales-student-history" onclick="openStudentDetailsOverlay(event)">History</button>
       </h3>
       <div style="margin-top:6px;">
         <span class="student-id-badge">${escapeHtml(student.chessComId || '')}</span>
       </div>
       <div class="student-balance">Balance: $${balance.toFixed(2)}</div>
+      <div class="student-balance" style="margin-top:4px;">Remaining lesson quota: ${escapeHtml(quotaLine)}</div>
     </div>
     <button class="btn-close-student" onclick="deselectSalesStudent()">×</button>
   `;
@@ -94,12 +358,32 @@ window.selectSalesStudent = function(studentId) {
       if (card.parentNode) card.parentNode.insertBefore(historyContainer, card.nextSibling);
   }
   
-  // Load student's orders
-  loadStudentOrders(studentId);
+  await loadStudentOrders(studentId);
+
+  if (typeof window.salesDebug === 'function') {
+    const paid = salesState.currentPaidOrdersForStudent || [];
+    window.salesDebug('selectSalesStudent: after loadStudentOrders', {
+      paidCount: paid.length,
+      paidIds: paid.map((o) => o.id),
+      quotaAfterLoad: student.lessonQuotaByCents
+    });
+  }
+
+  if (typeof window.syncSalesProductFromStudentOrders === 'function') {
+    await window.syncSalesProductFromStudentOrders(studentId);
+  }
+
+  if (typeof window.salesDebug === 'function') {
+    window.salesDebug('selectSalesStudent: after sync', {
+      step: salesState.step,
+      productType: salesState.selectedProduct?.type,
+      productId: salesState.selectedProduct?.data?.id,
+      priceStrategy: salesState.selectedProduct?.data?.priceStrategy
+    });
+  }
 
   if (window.renderStudentEnrollments) window.renderStudentEnrollments();
-  
-  document.querySelector('.cart-empty-state').innerHTML = 'Select products from the left to create an order.';
+
   renderSalesCart();
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
@@ -406,7 +690,7 @@ async function createStudentFromSalesModal() {
 }
 
 // Open Student Details Overlay (Class/Payment History)
-window.openStudentDetailsOverlay = function(event) {
+window.openStudentDetailsOverlay = async function (event) {
   if (event) event.stopPropagation();
   const student = salesState.selectedStudent;
   if (!student) return;
@@ -466,8 +750,17 @@ window.openStudentDetailsOverlay = function(event) {
         .student-details-overlay .btn-close-overlay { min-width: 100px; padding: 10px 14px; background: #1d4ed8; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
         .student-details-overlay .btn-close-overlay:hover { background: #1e40af; }
         .overlay-empty { color: #94a3b8; font-size: 14px; text-align: center; padding: 20px 10px; }
+        .overlay-history-by-order { display: flex; flex-direction: column; gap: 12px; }
+        .overlay-order-group { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; overflow: hidden; }
+        .overlay-order-group[open] .overlay-order-summary { border-bottom: 1px solid #e2e8f0; }
+        .overlay-order-summary { list-style: none; cursor: pointer; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: #1e293b; background: #f8fafc; user-select: none; }
+        .overlay-order-summary::-webkit-details-marker { display: none; }
+        .overlay-order-label { font-weight: 600; flex: 1; min-width: 0; text-align: left; }
+        .overlay-order-meta { font-size: 12px; color: #64748b; font-weight: 600; flex-shrink: 0; }
+        .overlay-order-kind { font-size: 11px; font-weight: 600; color: #94a3b8; margin-left: 6px; }
+        .overlay-order-classes { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; background: #fafafa; }
         .overlay-history-list { display: flex; flex-direction: column; gap: 10px; }
-        .overlay-history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+        .overlay-history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
         .overlay-history-item.makeup-class { border-color: #667eea; background: #eef2ff; }
         .overlay-history-date { font-weight: 700; color: #2563eb; }
         .overlay-history-title { flex: 1; margin-left: 12px; color: #111827; font-weight: 600; }
@@ -496,6 +789,14 @@ window.openStudentDetailsOverlay = function(event) {
   }
   if (balanceEl) balanceEl.textContent = `Balance: $${balance.toFixed(2)}`;
   if (avatarEl) avatarEl.textContent = student.name ? student.name.charAt(0).toUpperCase() : '?';
+
+  if (typeof window.refreshSalesTimetableFromApi === 'function') {
+    classHistoryUiLog('openStudentDetailsOverlay: refreshing timetable before render');
+    await window.refreshSalesTimetableFromApi();
+  }
+  if (typeof loadStudentOrders === 'function') {
+    await loadStudentOrders(student.id);
+  }
 
   switchStudentOverlayTab('class');
   overlay.style.display = 'flex';
@@ -526,47 +827,143 @@ window.closeStudentOverlay = function() {
   if (overlay) overlay.style.display = 'none';
 };
 
-// Render Class History tab content
+// Render Class History tab content (grouped by purchase order / orderId)
 function renderStudentOverlayClassHistory() {
   const panel = document.getElementById('studentOverlayClassTab');
   if (!panel) return;
+  classHistoryUiLog('renderStudentOverlayClassHistory: start');
+  if (!document.getElementById('studentOverlayOrderGroupStyles')) {
+    const s = document.createElement('style');
+    s.id = 'studentOverlayOrderGroupStyles';
+    s.textContent = `
+      .overlay-history-by-order { display: flex; flex-direction: column; gap: 12px; }
+      .overlay-order-group { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; overflow: hidden; }
+      .overlay-order-group[open] .overlay-order-summary { border-bottom: 1px solid #e2e8f0; }
+      .overlay-order-summary { list-style: none; cursor: pointer; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: #1e293b; background: #f8fafc; user-select: none; }
+      .overlay-order-summary::-webkit-details-marker { display: none; }
+      .overlay-order-label { font-weight: 600; flex: 1; min-width: 0; text-align: left; }
+      .overlay-order-meta { font-size: 12px; color: #64748b; font-weight: 600; flex-shrink: 0; }
+      .overlay-order-kind { font-size: 11px; font-weight: 600; color: #94a3b8; margin-left: 6px; }
+      .overlay-order-classes { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; background: #fafafa; }
+      .overlay-order-classes .overlay-history-item { background: #fff; }
+      .overlay-month-class-title { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+      .overlay-month-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; }
+      .overlay-month-row:last-child { border-bottom: none; }
+      .overlay-month-label { color: #0f172a; font-weight: 700; flex-shrink: 0; }
+      .overlay-month-days { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      .overlay-day-jump { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; color: #2563eb; font-weight: 700; font-size: 13px; padding: 2px 10px; cursor: pointer; font-family: inherit; line-height: 1.3; }
+      .overlay-day-jump:hover { background: #dbeafe; }
+    `;
+    document.head.appendChild(s);
+  }
   const studentId = salesState.selectedStudent?.id;
   if (!studentId) {
     panel.innerHTML = '<div class="overlay-empty">No student selected.</div>';
     return;
   }
 
-  const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
-  enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
-
+  const enrollments = (window.timetableEnrollments || []).filter(
+    (e) => String(e.studentId) === String(studentId)
+  );
+  classHistoryUiLog('renderStudentOverlayClassHistory: enrollments', {
+    count: enrollments.length,
+    sampleRawOrderIds: enrollments.slice(0, 5).map((e) => e.orderId ?? null)
+  });
   if (enrollments.length === 0) {
     panel.innerHTML = '<div class="overlay-empty">No class history yet.</div>';
     return;
   }
 
-  const entries = window.timetableEntries || [];
-  panel.innerHTML = `
-    <div class="overlay-history-list">
-      ${enrollments.map(e => {
-        const entry = entries.find(ent => ent.id === e.timetableEntryId);
-        const className = entry ? entry.className : 'Unknown Class';
-        const isMakeup = e.makeupFrom || (e.notes && e.notes.includes('Makeup from'));
-        const makeupInfo = isMakeup ? (e.makeupFrom ? `Makeup from ${e.makeupFrom.date}` : e.notes) : '';
+  const ordLookup = [
+    ...(salesState.currentPaidOrdersForStudent || []),
+    ...(salesState.currentUnpaidOrders || [])
+  ];
 
-        return `
-          <div class="overlay-history-item ${isMakeup ? 'makeup-class' : ''}">
-            <div>
-              <div class="overlay-history-date">${e.date}</div>
-              <div class="overlay-history-meta">${escapeHtml(className)}</div>
-              ${makeupInfo ? `<div class="overlay-history-note" style="font-size: 11px; color: #667eea; margin-top: 2px;">${escapeHtml(makeupInfo)}</div>` : ''}
-            </div>
-            <div class="overlay-history-title">${escapeHtml(className)}</div>
-          </div>
-        `;
-      }).join('')}
+  const groupMap = new Map();
+  for (const e of enrollments) {
+    const inferred = inferOrderIdForEnrollmentDisplay(e, studentId, ordLookup);
+    const fromRec = e.orderId != null && String(e.orderId).trim() !== '' ? String(e.orderId) : '';
+    const effectiveOid = fromRec || inferred;
+    const k = effectiveOid ? `order:${effectiveOid}` : 'no-order';
+    classHistoryUiVerboseLog('enrollment → group', {
+      date: e.date,
+      timetableEntryId: e.timetableEntryId,
+      orderId_on_record: fromRec || null,
+      inferred_orderId: inferred || null,
+      groupKey: k
+    });
+    if (!groupMap.has(k)) groupMap.set(k, []);
+    groupMap.get(k).push(e);
+  }
+
+  classHistoryUiLog('renderStudentOverlayClassHistory: groups built', {
+    groupCount: groupMap.size,
+    keys: Array.from(groupMap.keys())
+  });
+
+  const groups = Array.from(groupMap.entries()).map(([key, list]) => {
+    list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const minDate = list[0].date;
+    const orderId = key.startsWith('order:') ? key.slice(6) : '';
+    const short =
+      orderId.length > 12 ? `${escapeHtml(orderId.slice(0, 10))}…` : escapeHtml(orderId);
+    const ordRow = orderId ? ordLookup.find((o) => String(o.id) === String(orderId)) : null;
+    let productTitle = '';
+    if (ordRow && ordRow.items && ordRow.items[0] && ordRow.items[0].productData) {
+      const n = ordRow.items[0].productData.name;
+      if (n) productTitle = ` · ${escapeHtml(String(n))}`;
+    }
+    const anyInferred = list.some(
+      (en) => !(en.orderId != null && String(en.orderId).trim() !== '') && orderId
+    );
+    const inferredHint = anyInferred
+      ? ` <span style="color:#94a3b8;font-size:11px;font-weight:500;">(order from schedule match)</span>`
+      : '';
+    const label =
+      key === 'no-order'
+        ? `<span style="color:#64748b;">Classes not linked to an order</span>`
+        : `Order <span style="color:#64748b;font-weight:500;">${short || escapeHtml(orderId)}</span>${productTitle}${inferredHint}`;
+    return { key, list, minDate, label, orderId, ordRow };
+  });
+  groups.sort((a, b) => new Date(a.minDate) - new Date(b.minDate));
+
+  const entries = window.timetableEntries || [];
+
+  panel.innerHTML = `
+    <div class="overlay-history-by-order">
+      ${groups
+        .map((g) => {
+          let kindSpan = '';
+          if (g.orderId && g.ordRow && g.ordRow.items && g.ordRow.items.length) {
+            const isPkg = g.ordRow.items.some(
+              (it) =>
+                it.productType === 'package' ||
+                (it.productData &&
+                  Array.isArray(it.productData.courses) &&
+                  it.productData.courses.length > 0)
+            );
+            kindSpan = `<span class="overlay-order-kind">${isPkg ? 'Package' : 'Course'}</span>`;
+          }
+          return `
+      <details class="overlay-order-group" ${groups.length === 1 ? 'open' : ''}>
+        <summary class="overlay-order-summary">
+          <span class="overlay-order-label">${g.label}${kindSpan}</span>
+          <span class="overlay-order-meta">${g.list.length} class(es)</span>
+        </summary>
+        <div class="overlay-order-classes">
+          ${buildEnrollmentMonthRowsMarkup(g.list, entries, 'overlay')}
+        </div>
+      </details>`;
+        })
+        .join('')}
     </div>
   `;
+  classHistoryUiLog('renderStudentOverlayClassHistory: done', {
+    detailsElements: panel.querySelectorAll('details.overlay-order-group').length
+  });
 }
+
+window.renderStudentOverlayClassHistory = renderStudentOverlayClassHistory;
 
 // Render Payment History tab content (placeholder for backend hookup)
 function renderStudentOverlayPaymentHistory() {
@@ -587,13 +984,68 @@ window.loadStudentOrders = async function loadStudentOrders(studentId) {
         const response = await window.authUtils.authenticatedFetch('/organizations/orders');
         if (response.ok) {
             const allOrders = await response.json();
-            // Filter for this student and unpaid status
-            const unpaidOrders = allOrders.filter(o => o.studentId === studentId && o.status === 'unpaid');
-            salesState.currentUnpaidOrders = unpaidOrders; // Store in state
+            const sid = String(studentId);
+            const unpaidOrders = allOrders.filter(
+              (o) => String(o.studentId) === sid && o.status === 'unpaid'
+            );
+            salesState.currentUnpaidOrders = unpaidOrders;
+            salesState.currentPaidOrdersForStudent = allOrders.filter(
+              (o) => String(o.studentId) === sid && o.status === 'paid'
+            );
+            if (typeof window.salesDebug === 'function') {
+              const paid = salesState.currentPaidOrdersForStudent;
+              window.salesDebug('loadStudentOrders', {
+                studentId: sid,
+                allOrdersCount: allOrders.length,
+                paidCount: paid.length,
+                unpaidCount: unpaidOrders.length,
+                firstPaidItemSample: paid[0]?.items?.[0]
+                  ? {
+                      name: paid[0].items[0].productData?.name,
+                      priceStrategy: paid[0].items[0].productData?.priceStrategy
+                    }
+                  : null
+              });
+            }
+            if (typeof window.salesTrace === 'function') {
+              const paid = salesState.currentPaidOrdersForStudent || [];
+              window.salesTrace('loadStudentOrders', {
+                studentId: sid,
+                paidOrderIds: paid.map((o) => o.id),
+                paidCount: paid.length,
+                firstOrderFirstLine: paid[0]?.items?.[0]
+                  ? {
+                      productType: paid[0].items[0].productType,
+                      priceStrategy: paid[0].items[0].productData?.priceStrategy
+                    }
+                  : null
+              });
+            }
+            const unpaidSnap = salesState.currentUnpaidOrders || [];
+            orderPayDebug('loadStudentOrders', {
+              studentId: sid,
+              unpaidCount: unpaidSnap.length,
+              unpaidSummaries: unpaidSnap.map((o) => ({
+                id: o.id,
+                total: o.totalAmount,
+                amountPaid: o.amountPaid,
+                due: salesOrderBalanceDue(o),
+                status: o.status
+              }))
+            });
             renderStudentUnpaidOrders();
+        } else {
+            salesState.currentPaidOrdersForStudent = [];
+            if (typeof window.salesDebug === 'function') {
+              window.salesDebug('loadStudentOrders: API not ok, cleared paid orders', { status: response.status });
+            }
         }
     } catch (e) {
         console.error('Failed to load student orders', e);
+        salesState.currentPaidOrdersForStudent = [];
+        if (typeof window.salesDebug === 'function') {
+          window.salesDebug('loadStudentOrders: exception', String(e && e.message ? e.message : e));
+        }
     }
 };
 
@@ -614,13 +1066,13 @@ function renderStudentUnpaidOrders() {
             const style = document.createElement('style');
             style.id = 'salesUnpaidStyles';
             style.textContent = `
-                .sales-unpaid-orders { margin-top: 10px; padding: 10px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; }
-                .unpaid-header { font-weight: bold; font-size: 12px; color: #9f1239; margin-bottom: 8px; display:flex; justify-content:space-between; }
-                .unpaid-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 0; border-bottom: 1px solid #fecdd3; }
+                .sales-unpaid-orders { margin-top: 6px; padding: 12px; background: rgba(255, 59, 48, 0.06); border: 1px solid rgba(255, 59, 48, 0.18); border-radius: 12px; }
+                .unpaid-header { font-weight: 600; font-size: 12px; color: #1d1d1f; margin-bottom: 8px; display:flex; justify-content:space-between; letter-spacing: -0.01em; }
+                .unpaid-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 0; border-bottom: 1px solid rgba(60, 60, 67, 0.1); }
                 .unpaid-item:last-child { border-bottom: none; }
                 .unpaid-info { flex: 1; }
-                .unpaid-date { font-size: 11px; color: #881337; }
-                .unpaid-amount { font-weight: bold; color: #be123c; }
+                .unpaid-date { font-size: 11px; color: #6e6e73; }
+                .unpaid-amount { font-weight: 600; color: #ff3b30; }
                 .btn-pay-order { padding: 4px 10px; font-size: 11px; background: #e11d48; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px; }
                 .btn-pay-order:hover { background: #be123c; }
             `;
@@ -668,7 +1120,8 @@ function renderStudentUnpaidOrders() {
                             <div class="unpaid-date" style="font-size:10px; color:#666;">${dateLabel}${displayDate}</div>
                             <div title="${escapeHtml(itemsSummary)}" style="font-weight:600; color:#333;">${escapeHtml(itemsSummary.substring(0, 25))}${itemsSummary.length > 25 ? '...' : ''}</div>
                         </div>
-                        <div class="unpaid-amount">$${formatNumber(order.totalAmount)}</div>
+                        <div class="unpaid-amount">$${formatNumber(salesOrderBalanceDue(order))}</div>
+                        ${salesOrderEffectivePaid(order) > 0 && salesOrderBalanceDue(order) > 0 ? `<div class="unpaid-date" style="margin-top:2px;">Paid $${formatNumber(salesOrderEffectivePaid(order))} of $${formatNumber(order.totalAmount)}</div>` : ''}
                         <div style="display:flex; gap:5px;">
                             <button class="btn-pay-order" onclick="payExistingOrder('${order.id}')">Pay</button>
                             <button class="btn-pay-order" style="background:#ef4444;" onclick="deleteSalesOrder('${order.id}')">Del</button>
@@ -711,14 +1164,27 @@ window.payExistingOrder = function(orderId) {
     const selectAll = document.getElementById('checkoutSelectAll');
     if (selectAll) selectAll.disabled = true;
     
-    // Update total
-    document.getElementById('checkoutShouldPay').textContent = `$${formatNumber(order.totalAmount)}`;
+    const due = salesOrderBalanceDue(order);
+    document.getElementById('checkoutShouldPay').textContent = `$${formatNumber(due)}`;
     
-    // Pre-fill input
     const input = document.querySelector(`#paymentFormCash .payment-amount-input`);
-    if (input) input.value = order.totalAmount;
-    
-    switchPaymentMethod('cash');
+    const canQuota =
+      salesState.selectedStudent &&
+      typeof window.salesOrderCanPayRemainingWithLessonQuota === 'function' &&
+      window.salesOrderCanPayRemainingWithLessonQuota(salesState.selectedStudent, order);
+    orderPayDebug('payExistingOrder', {
+      orderId,
+      due,
+      canQuota,
+      paid: salesOrderEffectivePaid(order),
+      total: order.totalAmount
+    });
+    if (canQuota) {
+      switchPaymentMethod('quota');
+    } else {
+      switchPaymentMethod('cash');
+      if (input) input.value = due;
+    }
     updatePayButton();
 };
 
@@ -795,68 +1261,194 @@ window.deleteSalesOrder = async function(orderId) {
 
 window.deselectSalesStudent = function() {
   salesState.selectedStudent = null;
+  salesState.currentPaidOrdersForStudent = [];
   document.getElementById('selectedStudentCard').style.display = 'none';
   const historyContainer = document.getElementById('salesStudentHistory');
   if (historyContainer) historyContainer.innerHTML = '';
+  const unpaidEl = document.getElementById('salesUnpaidOrders');
+  if (unpaidEl) {
+    unpaidEl.style.display = 'none';
+    unpaidEl.innerHTML = '';
+  }
   closeStudentOverlay();
-  document.getElementById('emptyStudentState').style.display = 'flex';
-  document.querySelector('.cart-empty-state').innerHTML = 'You will see student\'s orders here once you have selected a student above.';
+  const ces = document.querySelector('.cart-empty-state');
+  if (ces) {
+    ces.innerHTML = '';
+    ces.style.display = 'none';
+  }
   document.getElementById('salesCartContent').style.display = 'none';
   if (typeof updateDaySchedule === 'function') updateDaySchedule();
   if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 };
 
-// Render Student Enrollments List
-window.renderStudentEnrollments = function() {
-    const container = document.getElementById('salesStudentHistory');
-    if (!container) return;
-    
-    const studentId = salesState.selectedStudent?.id;
-    if (!studentId) {
-        container.innerHTML = '';
-        return;
-    }
-    
-    const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
-    enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    if (enrollments.length === 0) {
-        container.innerHTML = ''; 
-        return;
-    }
-    
-    if (!document.getElementById('salesHistoryStyles')) {
-        const style = document.createElement('style');
-        style.id = 'salesHistoryStyles';
-        style.textContent = `
-            .sales-student-history { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto; }
-            .history-header { font-weight: bold; font-size: 12px; color: #666; margin-bottom: 5px; }
-            .history-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
-            .history-item:hover { background: #e5e7eb; }
-            .history-date { color: #667eea; font-weight: 500; margin-right: 10px; }
-            .history-info { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+// Render Student Enrollments List (grouped by purchase / orderId, expand/collapse)
+window.renderStudentEnrollments = function () {
+  const container = document.getElementById('salesStudentHistory');
+  if (!container) return;
+
+  const studentId = salesState.selectedStudent?.id;
+  if (!studentId) {
+    container.innerHTML = '';
+    return;
+  }
+
+  classHistoryUiLog('renderStudentEnrollments: start', { studentId: String(studentId) });
+
+  const enrollments = (window.timetableEnrollments || []).filter(
+    (e) => String(e.studentId) === String(studentId)
+  );
+  if (enrollments.length === 0) {
+    container.innerHTML = '';
+    classHistoryUiLog('renderStudentEnrollments: no enrollments');
+    return;
+  }
+
+  if (!document.getElementById('salesHistoryStyles')) {
+    const style = document.createElement('style');
+    style.id = 'salesHistoryStyles';
+    style.textContent = `
+            .sales-student-history { margin-top: 6px; padding: 10px 12px; background: rgba(248,248,250,0.95); border-radius: 14px; max-height: 280px; overflow-y: auto;
+              border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 12px rgba(0,0,0,0.04); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+            .sales-enroll-wrap { display: flex; flex-direction: column; gap: 8px; }
+            .history-header { font-weight: 600; font-size: 13px; color: #3c3c43; letter-spacing: -0.01em; margin-bottom: 2px; }
+            .sales-enroll-group { border-radius: 12px; background: #fff; border: 1px solid rgba(0,0,0,0.06); overflow: hidden; }
+            .sales-enroll-summary { list-style: none; cursor: pointer; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+              font-size: 13px; color: #1c1c1e; user-select: none; }
+            .sales-enroll-summary::-webkit-details-marker { display: none; }
+            .sales-enroll-summary-label { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .sales-enroll-summary-meta { font-size: 12px; color: #8e8e93; font-weight: 500; }
+            .sales-enroll-group[open] .sales-enroll-summary { border-bottom: 1px solid rgba(0,0,0,0.06); }
+            .sales-enroll-list { padding: 8px 10px 10px; }
+            .history-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 12px; cursor: pointer;
+              transition: background 0.15s; gap: 10px; border-bottom: 1px solid rgba(0,0,0,0.04); }
+            .history-item:last-child { border-bottom: none; }
+            .history-item:hover { background: rgba(0,122,255,0.06); }
+            .history-date { color: #007aff; font-weight: 600; flex-shrink: 0; }
+            .history-info { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #3c3c43; }
+            .sales-quota-label { font-size: 12px; font-weight: 600; color: #8e8e93; margin-bottom: 4px; }
+            .sales-quota-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+            .sales-quota-chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 980px;
+              background: rgba(0,122,255,0.12); color: #007aff; }
+            .sales-quota-muted { font-size: 12px; color: #8e8e93; }
+            .sales-enroll-summary-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+            .sales-history-kind { font-size: 11px; font-weight: 600; color: #8e8e93; margin-left: 4px; }
+            .sales-order-use-product-btn { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 8px;
+              border: 1px solid rgba(0,122,255,0.35); background: rgba(0,122,255,0.08); color: #007aff; cursor: pointer;
+              font-family: inherit; }
+            .sales-order-use-product-btn:hover { background: rgba(0,122,255,0.14); }
+            .sales-month-class-title { font-size: 12px; font-weight: 600; color: #3c3c43; margin-bottom: 6px; }
+            .sales-month-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.06); }
+            .sales-month-row:last-child { border-bottom: none; }
+            .sales-month-label { color: #1c1c1e; font-weight: 600; flex-shrink: 0; }
+            .sales-month-days { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+            .sales-day-jump { background: rgba(0,122,255,0.1); border: none; border-radius: 6px; color: #007aff; font-weight: 700; font-size: 13px; padding: 2px 8px; cursor: pointer; font-family: inherit; line-height: 1.3; }
+            .sales-day-jump:hover { background: rgba(0,122,255,0.18); }
         `;
-        document.head.appendChild(style);
-    }
-    
-    container.innerHTML = `
-        <div class="history-header">Enrolled Dates (${enrollments.length})</div>
-        <div class="history-list">
-            ${enrollments.map(e => {
-                const entry = (window.timetableEntries || []).find(ent => ent.id === e.timetableEntryId);
-                const className = entry ? entry.className : 'Unknown Class';
-                const courseId = (entry && entry.courseIds && entry.courseIds.length > 0) ? entry.courseIds[0] : '';
+    document.head.appendChild(style);
+  }
+
+  const ordLookupHist = [
+    ...(salesState.currentPaidOrdersForStudent || []),
+    ...(salesState.currentUnpaidOrders || [])
+  ];
+
+  const groupMap = new Map();
+  for (const e of enrollments) {
+    const inferred = inferOrderIdForEnrollmentDisplay(e, studentId, ordLookupHist);
+    const fromRec = e.orderId != null && String(e.orderId).trim() !== '' ? String(e.orderId) : '';
+    const effectiveOid = fromRec || inferred;
+    const k = effectiveOid ? `order:${effectiveOid}` : 'no-order';
+    classHistoryUiVerboseLog('sidebar enrollment → group', {
+      date: e.date,
+      orderId_on_record: fromRec || null,
+      inferred: inferred || null,
+      groupKey: k
+    });
+    if (!groupMap.has(k)) groupMap.set(k, []);
+    groupMap.get(k).push(e);
+  }
+
+  classHistoryUiLog('renderStudentEnrollments: groups', {
+    count: groupMap.size,
+    keys: Array.from(groupMap.keys())
+  });
+
+  const groups = Array.from(groupMap.entries()).map(([key, list]) => {
+    list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const minDate = list[0].date;
+    const orderId = key.startsWith('order:') ? key.slice(6) : '';
+    const short =
+      orderId.length > 12 ? `${escapeHtml(orderId.slice(0, 10))}…` : escapeHtml(orderId);
+    const anyInferred = list.some(
+      (en) => !(en.orderId != null && String(en.orderId).trim() !== '') && orderId
+    );
+    const inferredHint = anyInferred
+      ? ` <span style="color:#8e8e93;font-size:10px;font-weight:500;">(matched)</span>`
+      : '';
+    const label =
+      key === 'no-order'
+        ? 'Other enrollments'
+        : `Order <span style="color:#8e8e93;font-weight:500;">${short || escapeHtml(orderId)}</span>${inferredHint}`;
+    return { key, list, minDate, label, orderId };
+  });
+  groups.sort((a, b) => new Date(a.minDate) - new Date(b.minDate));
+
+  container.innerHTML = `
+        <div class="sales-enroll-wrap">
+            <div class="history-header">Enrolled dates (${enrollments.length})</div>
+            ${groups
+              .map((g) => {
+                const ordRow = g.orderId
+                  ? ordLookupHist.find((o) => String(o.id) === String(g.orderId))
+                  : null;
+                let kindSpan = '';
+                if (g.orderId && ordRow && ordRow.items && ordRow.items.length) {
+                  const isPkg = ordRow.items.some(
+                    (it) =>
+                      it.productType === 'package' ||
+                      (it.productData &&
+                        Array.isArray(it.productData.courses) &&
+                        it.productData.courses.length > 0)
+                  );
+                  kindSpan = `<span class="sales-history-kind">${isPkg ? 'Package' : 'Course'}</span>`;
+                }
+                const useBtn = g.orderId
+                  ? `<button type="button" class="sales-order-use-product-btn" data-order-id="${escapeHtml(String(g.orderId))}">Use product</button>`
+                  : '';
                 return `
-                    <div class="history-item" onclick="jumpToDate('${e.date}', '${courseId}')" title="Jump to date">
-                        <div class="history-date">${e.date}</div>
-                        <div class="history-info">${escapeHtml(className)}</div>
-                    </div>
-                `;
-            }).join('')}
+            <details class="sales-enroll-group" ${groups.length === 1 ? 'open' : ''}>
+                <summary class="sales-enroll-summary">
+                    <span class="sales-enroll-summary-label">${g.label}${kindSpan}</span>
+                    <span class="sales-enroll-summary-actions">
+                        ${useBtn}
+                        <span class="sales-enroll-summary-meta">${g.list.length} date(s)</span>
+                    </span>
+                </summary>
+                <div class="sales-enroll-list">
+                    ${buildEnrollmentMonthRowsMarkup(g.list, window.timetableEntries || [], 'sidebar')}
+                </div>
+            </details>`;
+              })
+              .join('')}
         </div>
     `;
-    const list = container.querySelector('.sales-student-history');
-    if (list) list.scrollTop = list.scrollHeight;
+  container.querySelectorAll('.sales-order-use-product-btn').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const id = btn.getAttribute('data-order-id');
+      if (typeof window.salesTrace === 'function') {
+        window.salesTrace('Use product button', { orderId: id, hasHandler: typeof window.salesApplyProductFromOrder === 'function' });
+      }
+      if (id && typeof window.salesApplyProductFromOrder === 'function') {
+        window.salesApplyProductFromOrder(id);
+      }
+    });
+  });
+  container.scrollTop = container.scrollHeight;
+  classHistoryUiLog('renderStudentEnrollments: done', {
+    detailsCount: container.querySelectorAll('details.sales-enroll-group').length
+  });
 };
 
 window.resetSales = function() {
@@ -881,7 +1473,17 @@ window.saveSalesOrder = async function() {
 };
 
 window.processSalesPayment = function() {
-  // Check if cart is empty but we have unpaid orders
+  const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
+  if (
+    payBtn &&
+    payBtn.getAttribute('data-pay-mode') === 'quota' &&
+    salesState.cart.length > 0 &&
+    typeof window.salesCartCanFullyPayWithLessonQuota === 'function' &&
+    window.salesCartCanFullyPayWithLessonQuota(salesState.selectedStudent, salesState.cart)
+  ) {
+    openCheckoutModal('new', { preferQuotaTab: true });
+    return;
+  }
   if (salesState.cart.length === 0 && salesState.currentUnpaidOrders && salesState.currentUnpaidOrders.length > 0) {
       openCheckoutModal('unpaid_orders');
   } else {
@@ -908,18 +1510,42 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
   const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
   const saveBtn = document.querySelector('.sales-footer-actions .btn-secondary'); 
   const activeBtn = status === 'paid' ? payBtn : saveBtn;
-  const originalText = activeBtn ? activeBtn.textContent : '';
   
   if (activeBtn) {
     activeBtn.textContent = 'Processing...';
     activeBtn.disabled = true;
   }
-  
+
+  const mergeIntoOrderId = resolveSalesMergeIntoOrderId(itemsToSubmit);
+  orderPayDebug('submitSalesOrder', {
+    status,
+    mergeIntoOrderId: mergeIntoOrderId || null,
+    paymentMethod: paymentDetails && paymentDetails.method,
+    itemCount: itemsToSubmit.length,
+    cartTotal: itemsToSubmit.reduce((s, it) => s + (Number(it.price) || 0), 0)
+  });
+  if (paymentDetails && String(paymentDetails.method).toLowerCase() === 'lesson_quota') {
+    const st = salesState.selectedStudent;
+    quotaPayClientLog('submitSalesOrder lesson_quota → POST /organizations/orders', {
+      studentId: st && st.id,
+      mergeIntoOrderId: mergeIntoOrderId || null,
+      itemLines: itemsToSubmit.map((it) => ({
+        price: it.price,
+        lessons: (it.enrolledClasses || []).length,
+        unitCents:
+          (it.enrolledClasses || []).length > 0
+            ? Math.round(((Number(it.price) || 0) * 100) / (it.enrolledClasses || []).length)
+            : null
+      })),
+      quotaTiersOnStudent: st && st.lessonQuotaByCents ? { ...st.lessonQuotaByCents } : {}
+    });
+  }
   const payload = {
     studentId: salesState.selectedStudent.id,
     items: itemsToSubmit,
     paymentStatus: status,
-    paymentDetails: paymentDetails
+    paymentDetails: paymentDetails,
+    ...(mergeIntoOrderId ? { mergeIntoOrderId } : {})
   };
   
   try {
@@ -930,8 +1556,35 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
      
      if (response && response.ok) {
        const order = await response.json();
+       orderPayDebug('submitSalesOrder response OK', {
+         orderId: order.id,
+         orderStatus: order.status,
+         totalAmount: order.totalAmount,
+         amountPaid: order.amountPaid
+       });
        if (window.showToast) window.showToast(status === 'paid' ? 'Payment successful!' : 'Order saved!', 'success');
        else alert(status === 'paid' ? 'Payment successful!' : 'Order saved!');
+
+       if (paymentDetails && String(paymentDetails.method).toLowerCase() === 'lesson_quota') {
+         try {
+           const sr = await window.authUtils.authenticatedFetch('/students');
+           if (sr && sr.ok) {
+             const data = await sr.json();
+             const list = Array.isArray(data) ? data : (data.students || []);
+             window.students = list;
+             if (salesState.selectedStudent) {
+               const sid = salesState.selectedStudent.id;
+               const updated = list.find((s) => String(s.id) === String(sid));
+               if (updated) salesState.selectedStudent = updated;
+             }
+           }
+         } catch (err) {
+           console.error('Failed to refresh students after quota payment', err);
+         }
+         if (salesState.selectedStudent && typeof window.selectSalesStudent === 'function') {
+           await window.selectSalesStudent(salesState.selectedStudent.id);
+         }
+       }
        
        // Update Cart
        if (itemsOverride) {
@@ -949,6 +1602,9 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
        
        // Refresh UI (History & Calendar)
        if (salesState.selectedStudent) {
+           if (typeof loadStudentOrders === 'function') {
+             await loadStudentOrders(salesState.selectedStudent.id);
+           }
            if (typeof renderStudentEnrollments === 'function') renderStudentEnrollments();
            if (typeof updateDaySchedule === 'function') updateDaySchedule();
            if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
@@ -960,11 +1616,25 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
        return order; // Always return order for further processing
      } else {
        let errorMsg = 'Failed to save order';
-       try {
-         const err = await response.json();
-         errorMsg = err.error || errorMsg;
-       } catch(e) {}
-       
+       if (!response) {
+         errorMsg = 'Not signed in or session expired (401). Please log in again.';
+         quotaPayClientLog('submitSalesOrder: fetch returned null (typical 401)', {
+           paymentMethod: paymentDetails && paymentDetails.method
+         });
+       } else {
+         try {
+           const err = await response.json();
+           errorMsg = err.error || errorMsg;
+         } catch (e) {
+           /* ignore */
+         }
+         quotaPayClientLog('submitSalesOrder: HTTP error', {
+           status: response.status,
+           errorMsg,
+           paymentMethod: paymentDetails && paymentDetails.method
+         });
+       }
+
        if (window.showToast) window.showToast(errorMsg, 'error');
        else alert(errorMsg);
      }
@@ -974,10 +1644,57 @@ async function submitSalesOrder(status, itemsOverride = null, paymentDetails = n
     else alert('Error processing order');
   } finally {
     if (activeBtn) {
-       activeBtn.textContent = originalText;
        activeBtn.disabled = false;
      }
+    // Pay / Save label must reflect cart (success path cleared cart; finally used to reset "Processing…")
+    renderSalesCart();
   }
+}
+
+function orderProductKeys(order) {
+  return new Set(
+    (order.items || []).map((it) => `${it.productType}:${String(it.productData?.id ?? '')}`)
+  );
+}
+
+/**
+ * Merge cart into one existing order (same order id, enrollments use same orderId):
+ * 1) If exactly one unpaid order and its lines cover all cart products → that order.
+ * 2) Else if exactly one paid order covers all cart products → extend paid order (amountPaid kept; balance becomes due until paid).
+ */
+function resolveSalesMergeIntoOrderId(itemsToSubmit) {
+  if (!itemsToSubmit || itemsToSubmit.length === 0) return undefined;
+  const cartKeys = [
+    ...new Set(itemsToSubmit.map((ci) => `${ci.productType}:${String(ci.productData?.id ?? '')}`))
+  ];
+
+  const unpaid = salesState.currentUnpaidOrders || [];
+  const unpaidMatches = unpaid.filter((o) => {
+    const keys = orderProductKeys(o);
+    return keys.size > 0 && cartKeys.every((k) => keys.has(k));
+  });
+  if (unpaidMatches.length === 1) {
+    orderPayDebug('resolveSalesMergeIntoOrderId → unpaid', {
+      orderId: unpaidMatches[0].id,
+      unpaidCount: unpaid.length
+    });
+    return unpaidMatches[0].id;
+  }
+  if (unpaidMatches.length > 1) {
+    orderPayDebug('resolveSalesMergeIntoOrderId: multiple unpaid match cart keys, skip merge', {
+      matchIds: unpaidMatches.map((o) => o.id)
+    });
+  }
+
+  const paid = salesState.currentPaidOrdersForStudent || [];
+  const candidates = paid.filter((o) => {
+    if (o.status === 'cancelled' || o.status === 'refunded') return false;
+    const keys = orderProductKeys(o);
+    if (keys.size === 0) return false;
+    return cartKeys.every((k) => keys.has(k));
+  });
+  if (candidates.length === 1) return candidates[0].id;
+  return undefined;
 }
 
 function renderSalesCart() {
@@ -990,34 +1707,40 @@ function renderSalesCart() {
   
   const payBtn = document.querySelector('.sales-footer-actions .btn-primary');
   if (payBtn) {
-      payBtn.textContent = `Pay $${total.toFixed(0)}`;
+      payBtn.removeAttribute('data-pay-mode');
+      const canQuota =
+        total > 0 &&
+        salesState.selectedStudent &&
+        typeof window.salesCartCanFullyPayWithLessonQuota === 'function' &&
+        window.salesCartCanFullyPayWithLessonQuota(salesState.selectedStudent, salesState.cart);
+      if (canQuota) {
+          payBtn.textContent = 'Pay quota';
+          payBtn.setAttribute('data-pay-mode', 'quota');
+      } else {
+          payBtn.textContent = `Pay $${total.toFixed(0)}`;
+      }
       
-      // If cart is empty but there are unpaid orders, maybe show sum of unpaid?
-      // Or just keep it $0. 
-      // User requested: "When there are unpaid orders, Pay button below should be enabled".
-      // Let's update logic: if cart is empty, check unpaid orders.
       if (total === 0 && salesState.currentUnpaidOrders && salesState.currentUnpaidOrders.length > 0) {
-          const unpaidTotal = salesState.currentUnpaidOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-          // Optional: Change text to "Pay Unpaid ($...)"?
-          // For now, keep $0 or update? 
-          // If we update to unpaid total, user might be confused if they click and it only pays one.
-          // Let's keep it $0 but ensure `processSalesPayment` handles it.
-          // Or better: change text to "Pay Unpaid"
+          const unpaidTotal = salesState.currentUnpaidOrders.reduce((sum, o) => sum + salesOrderBalanceDue(o), 0);
           payBtn.textContent = `Pay Unpaid ($${unpaidTotal.toFixed(0)})`;
+          payBtn.removeAttribute('data-pay-mode');
       } else if (total === 0) {
           payBtn.textContent = `Pay $0`;
+          payBtn.removeAttribute('data-pay-mode');
       }
   }
 
   if (salesState.cart.length === 0) {
     container.style.display = 'none';
-    emptyState.style.display = 'flex';
-    emptyState.innerHTML = 'You will see student\'s orders here once you have selected a student above.';
+    if (emptyState) {
+      emptyState.style.display = 'none';
+      emptyState.innerHTML = '';
+    }
     return;
   }
   
   container.style.display = 'block';
-  emptyState.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'none';
   
   const html = salesState.cart.map((item, index) => {
     // total is already calculated above, do not add again
@@ -1147,7 +1870,8 @@ let checkoutState = {
     balanceAmount: 0
 };
 
-window.openCheckoutModal = function(mode = 'new') {
+window.openCheckoutModal = function(mode = 'new', opts) {
+    opts = opts || {};
     if (mode === 'new' && salesState.cart.length === 0) {
         alert('Cart is empty');
         return;
@@ -1157,9 +1881,11 @@ window.openCheckoutModal = function(mode = 'new') {
     if (!modal) return;
     
     // Reset State
-    checkoutState.method = 'cash';
     checkoutState.mode = mode;
-    checkoutState.orderId = null;
+    if (mode !== 'existing') {
+      checkoutState.orderId = null;
+      checkoutState.existingOrder = null;
+    }
     checkoutState.useBalance = false;
     checkoutState.balanceAmount = 0;
     
@@ -1196,7 +1922,26 @@ window.openCheckoutModal = function(mode = 'new') {
     }
     
     renderCheckoutItems();
-    switchPaymentMethod('cash');
+    const unpaidList = salesState.currentUnpaidOrders || [];
+    const preferQuotaUnpaid =
+      mode === 'unpaid_orders' &&
+      unpaidList.length > 0 &&
+      student &&
+      typeof window.salesOrderCanPayRemainingWithLessonQuota === 'function' &&
+      unpaidList.every((o) => window.salesOrderCanPayRemainingWithLessonQuota(student, o));
+    const preferQuota =
+      (!!opts.preferQuotaTab &&
+        mode === 'new' &&
+        salesState.cart.length > 0 &&
+        typeof window.salesCartCanFullyPayWithLessonQuota === 'function' &&
+        window.salesCartCanFullyPayWithLessonQuota(salesState.selectedStudent, salesState.cart)) ||
+      preferQuotaUnpaid;
+    if (preferQuotaUnpaid) {
+      quotaPayClientLog('openCheckoutModal: defaulting to Quota tab (all unpaid orders match quota tiers)', {
+        unpaidCount: unpaidList.length
+      });
+    }
+    switchPaymentMethod(preferQuota ? 'quota' : 'cash');
     
     modal.classList.add('show');
 };
@@ -1229,13 +1974,18 @@ function renderCheckoutItems() {
         let detailsHtml = '';
         
         if (checkoutState.mode === 'unpaid_orders') {
-            // item is an Order
+            // item is an Order — show balance due (extended paid orders may have partial payment)
             name = item.items.map(i => i.productData.name).join(', ');
-            price = item.totalAmount;
+            const due = salesOrderBalanceDue(item);
+            const paid = salesOrderEffectivePaid(item);
+            price = due;
             
-            // Show order details
             const dateStr = new Date(item.date).toLocaleDateString();
-            detailsHtml = `<div style="font-size:0.85rem; color:#666; margin-left:20px;">Order Date: ${dateStr}</div>`;
+            let payLine = '';
+            if (paid > 0 && Number(item.totalAmount) > due + 0.005) {
+              payLine = ` · Invoiced $${formatNumber(item.totalAmount)} · Paid $${formatNumber(paid)}`;
+            }
+            detailsHtml = `<div style="font-size:0.85rem; color:#666; margin-left:20px;">Order Date: ${dateStr}${payLine}</div>`;
              if (item.items && item.items.length > 0) {
                 item.items.forEach(orderItem => {
                     if (orderItem.enrolledClasses && orderItem.enrolledClasses.length > 0) {
@@ -1321,11 +2071,13 @@ function updateCheckoutTotal() {
     let total = 0;
     let itemsSource = [];
     
-    if (checkoutState.mode === 'unpaid_orders') {
+    if (checkoutState.mode === 'existing' && checkoutState.existingOrder) {
+        total = salesOrderBalanceDue(checkoutState.existingOrder);
+    } else if (checkoutState.mode === 'unpaid_orders') {
         itemsSource = salesState.currentUnpaidOrders || [];
         checkoutState.selectedIndices.forEach(index => {
             if (itemsSource[index]) {
-                total += itemsSource[index].totalAmount;
+                total += salesOrderBalanceDue(itemsSource[index]);
             }
         });
     } else {
@@ -1336,7 +2088,28 @@ function updateCheckoutTotal() {
             }
         });
     }
-    
+
+    if (checkoutState.method === 'quota') {
+        const qEq = document.getElementById('quotaCheckoutEquivalent');
+        if (qEq) qEq.textContent = `$${formatNumber(total)}`;
+        checkoutState.balanceAmount = 0;
+        const deductionInfo = document.getElementById('balanceDeductionInfo');
+        if (deductionInfo) deductionInfo.style.display = 'none';
+        const payDisplay = document.getElementById('checkoutShouldPay');
+        const payLabel = document.getElementById('checkoutShouldPayLabel');
+        const quotaFoot = document.getElementById('checkoutQuotaFootnote');
+        if (payLabel) payLabel.textContent = 'Lesson quota (equiv.)';
+        if (payDisplay) payDisplay.textContent = `$${formatNumber(total)}`;
+        if (quotaFoot) quotaFoot.style.display = 'block';
+        updatePayButton();
+        return;
+    }
+
+    const payLabelReset = document.getElementById('checkoutShouldPayLabel');
+    if (payLabelReset) payLabelReset.textContent = 'Should Pay';
+    const quotaFootHide = document.getElementById('checkoutQuotaFootnote');
+    if (quotaFootHide) quotaFootHide.style.display = 'none';
+
     // Balance Calculation
     const student = salesState.selectedStudent;
     const studentBalance = student ? (student.balance || 0) : 0;
@@ -1378,7 +2151,7 @@ window.switchPaymentMethod = function(method) {
     checkoutState.method = method;
     
     // Update Tabs
-    ['Cash', 'FPS', 'Other'].forEach(m => {
+    ['Cash', 'FPS', 'Other', 'Quota'].forEach(m => {
         const key = m.toLowerCase();
         const btn = document.getElementById(`payMethod${m}`);
         const form = document.getElementById(`paymentForm${m}`);
@@ -1398,18 +2171,331 @@ window.switchPaymentMethod = function(method) {
 
 window.updatePayButton = function() {
     const method = checkoutState.method;
-    const input = document.querySelector(`#paymentForm${method.charAt(0).toUpperCase() + method.slice(1)} .payment-amount-input`);
-    const amount = parseFloat(input.value) || 0;
-    
     const btn = document.getElementById('checkoutPayBtn');
+    if (!btn) return;
+    if (method === 'quota') {
+        btn.textContent = 'Confirm lesson quota payment';
+        return;
+    }
+    const input = document.querySelector(`#paymentForm${method.charAt(0).toUpperCase() + method.slice(1)} .payment-amount-input`);
+    const amount = input ? parseFloat(input.value) || 0 : 0;
     btn.textContent = `Pay $${formatNumber(amount)}`;
 };
 
 window.confirmCheckout = async function() {
     const method = checkoutState.method;
+
+    if (method === 'quota') {
+        if (checkoutState.mode === 'existing' && checkoutState.orderId && checkoutState.existingOrder) {
+            await refreshSelectedSalesStudentFromApi();
+            const student = salesState.selectedStudent;
+            if (!student) {
+                alert('No student selected');
+                return;
+            }
+            const ord = checkoutState.existingOrder;
+            const due = salesOrderBalanceDue(ord);
+            const can =
+                typeof window.salesOrderCanPayRemainingWithLessonQuota === 'function' &&
+                window.salesOrderCanPayRemainingWithLessonQuota(student, ord);
+            orderPayDebug('confirmCheckout quota existing', {
+                orderId: checkoutState.orderId,
+                due,
+                can,
+                synthPreview:
+                    typeof window.salesBuildQuotaItemsForOrderBalance === 'function'
+                        ? window.salesBuildQuotaItemsForOrderBalance(ord, due).map((it) => ({
+                              price: it.price,
+                              lessons: (it.enrolledClasses || []).length
+                          }))
+                        : []
+            });
+            if (!can) {
+                quotaPayClientLog('existing quota: precheck failed after refresh', {
+                    lessonQuotaByCents: student.lessonQuotaByCents,
+                    due
+                });
+                alert(
+                    'Not enough lesson quota for this remaining balance (refreshed from server). If a previous attempt used credits without marking the order paid, check [QuotaPay] logs or pay with cash.'
+                );
+                return;
+            }
+            if (!confirm('Apply lesson quota credits to settle the remaining balance on this order?')) return;
+            const paymentDetails = {
+                method: 'lesson_quota',
+                amount: 0,
+                balanceUsed: 0,
+                remark: 'Paid remaining balance with lesson quota'
+            };
+            try {
+                quotaPayClientLog('PATCH lesson_quota (existing order)', {
+                    orderId: checkoutState.orderId,
+                    due,
+                    paymentDetails
+                });
+                const response = await window.authUtils.authenticatedFetch(
+                    `/organizations/orders/${checkoutState.orderId}/status`,
+                    {
+                        method: 'PATCH',
+                        body: JSON.stringify({ status: 'paid', paymentDetails })
+                    }
+                );
+                if (!response) {
+                    quotaPayClientLog('PATCH lesson_quota: response null (401?)');
+                    alert('Not signed in or session expired. Please log in again.');
+                    return;
+                }
+                if (response.ok) {
+                    const updatedOrder = await response.json();
+                    orderPayDebug('PATCH lesson_quota existing OK', {
+                        orderId: updatedOrder.id,
+                        amountPaid: updatedOrder.amountPaid,
+                        status: updatedOrder.status
+                    });
+                    if (window.showToast) window.showToast('Payment successful!', 'success');
+                    else alert('Payment successful!');
+                    closeCheckoutModal();
+                    if (typeof printReceipt === 'function') printReceipt(updatedOrder);
+                    try {
+                        const sr = await window.authUtils.authenticatedFetch('/students');
+                        if (sr && sr.ok) {
+                            const data = await sr.json();
+                            const list = Array.isArray(data) ? data : data.students || [];
+                            window.students = list;
+                            if (salesState.selectedStudent) {
+                                const sid = salesState.selectedStudent.id;
+                                const updated = list.find((s) => String(s.id) === String(sid));
+                                if (updated) salesState.selectedStudent = updated;
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Failed to refresh students after quota PATCH', err);
+                    }
+                    if (salesState.selectedStudent && typeof window.selectSalesStudent === 'function') {
+                        await window.selectSalesStudent(salesState.selectedStudent.id);
+                    }
+                    if (salesState.selectedStudent && typeof loadStudentOrders === 'function') {
+                        await loadStudentOrders(salesState.selectedStudent.id);
+                    }
+                    if (typeof renderStudentEnrollments === 'function') renderStudentEnrollments();
+                    if (typeof updateDaySchedule === 'function') updateDaySchedule();
+                    if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+                } else {
+                    let msg = 'Failed to update order';
+                    try {
+                        const err = await response.json();
+                        msg = err.error || msg;
+                    } catch (e) {
+                        /* ignore */
+                    }
+                    orderPayDebug('PATCH lesson_quota existing failed', { status: response.status, msg });
+                    quotaPayClientLog('PATCH lesson_quota failed', { httpStatus: response.status, msg });
+                    alert(msg);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Error processing quota payment');
+            }
+            return;
+        }
+        if (checkoutState.mode === 'unpaid_orders') {
+            await refreshSelectedSalesStudentFromApi();
+            const selectedIndices = Array.from(checkoutState.selectedIndices);
+            if (selectedIndices.length === 0) {
+                alert('No orders selected');
+                return;
+            }
+            const unpaidOrders = salesState.currentUnpaidOrders || [];
+            const ordersToPay = selectedIndices.map((i) => unpaidOrders[i]).filter(Boolean);
+            if (ordersToPay.length === 0) return;
+            const student = salesState.selectedStudent;
+            if (!student) {
+                alert('No student selected');
+                return;
+            }
+            for (const ord of ordersToPay) {
+                const can =
+                    typeof window.salesOrderCanPayRemainingWithLessonQuota === 'function' &&
+                    window.salesOrderCanPayRemainingWithLessonQuota(student, ord);
+                quotaPayClientLog('unpaid_orders quota precheck', {
+                    orderId: ord.id,
+                    due: salesOrderBalanceDue(ord),
+                    canPayWithQuota: can
+                });
+                if (!can) {
+                    quotaPayClientLog('unpaid_orders quota: precheck failed after refresh', {
+                        orderId: ord.id,
+                        due: salesOrderBalanceDue(ord),
+                        lessonQuotaByCents: student.lessonQuotaByCents
+                    });
+                    alert(
+                        'Not enough lesson quota for at least one selected order. If you already confirmed quota once, credits may have been deducted while the order stayed unpaid — check [QuotaPay] logs or run await debugDumpOrgOrders(). You can pay the remainder with cash/FPS or restore quota via admin.'
+                    );
+                    return;
+                }
+            }
+            if (!confirm(`Apply lesson quota to settle ${ordersToPay.length} unpaid order(s)?`)) return;
+            const payBtn = document.getElementById('checkoutPayBtn');
+            if (payBtn) {
+                payBtn.textContent = 'Processing...';
+                payBtn.disabled = true;
+            }
+            let okCount = 0;
+            const errors = [];
+            try {
+                for (const ord of ordersToPay) {
+                    const due = salesOrderBalanceDue(ord);
+                    const paymentDetails = {
+                        method: 'lesson_quota',
+                        amount: 0,
+                        balanceUsed: 0,
+                        remark: 'Paid with lesson quota (Pay Unpaid checkout)'
+                    };
+                    quotaPayClientLog('PATCH lesson_quota unpaid_orders batch', {
+                        orderId: ord.id,
+                        due
+                    });
+                    const response = await window.authUtils.authenticatedFetch(
+                        `/organizations/orders/${ord.id}/status`,
+                        {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: 'paid', paymentDetails })
+                        }
+                    );
+                    if (!response) {
+                        errors.push({ id: ord.id, msg: 'no response (401?)' });
+                        break;
+                    }
+                    if (response.ok) {
+                        okCount += 1;
+                    } else {
+                        let msg = 'failed';
+                        try {
+                            const e = await response.json();
+                            msg = e.error || msg;
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        errors.push({ id: ord.id, httpStatus: response.status, msg });
+                    }
+                }
+            } catch (e) {
+                quotaPayClientLog('unpaid_orders quota exception', { error: String(e) });
+                alert('Error processing quota payment');
+            } finally {
+                if (payBtn) {
+                    payBtn.disabled = false;
+                    payBtn.textContent = 'Confirm lesson quota payment';
+                }
+            }
+            if (errors.length) {
+                quotaPayClientLog('unpaid_orders quota finished with errors', { okCount, errors });
+                alert(
+                    `Completed ${okCount} of ${ordersToPay.length} order(s). ${errors.map((e) => `${e.id}: ${e.msg || e.httpStatus}`).join('; ')}`
+                );
+            } else if (okCount > 0) {
+                if (window.showToast) window.showToast(`Paid ${okCount} order(s) with lesson quota`, 'success');
+                else alert(`Paid ${okCount} order(s) with lesson quota`);
+                closeCheckoutModal();
+            }
+            try {
+                const sr = await window.authUtils.authenticatedFetch('/students');
+                if (sr && sr.ok) {
+                    const data = await sr.json();
+                    const list = Array.isArray(data) ? data : data.students || [];
+                    window.students = list;
+                    if (salesState.selectedStudent) {
+                        const sid = salesState.selectedStudent.id;
+                        const updated = list.find((s) => String(s.id) === String(sid));
+                        if (updated) salesState.selectedStudent = updated;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to refresh students after unpaid_orders quota', err);
+            }
+            if (salesState.selectedStudent && typeof window.selectSalesStudent === 'function') {
+                await window.selectSalesStudent(salesState.selectedStudent.id);
+            }
+            if (salesState.selectedStudent && typeof loadStudentOrders === 'function') {
+                await loadStudentOrders(salesState.selectedStudent.id);
+            }
+            if (typeof renderStudentEnrollments === 'function') renderStudentEnrollments();
+            if (typeof updateDaySchedule === 'function') updateDaySchedule();
+            if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+            return;
+        }
+        if (checkoutState.mode !== 'new') {
+            alert(
+                'Lesson quota is available for the cart, Pay Unpaid (when quota covers all selected orders), or the small Pay button on one order.'
+            );
+            return;
+        }
+        await refreshSelectedSalesStudentFromApi();
+        const student = salesState.selectedStudent;
+        if (!student) {
+            alert('No student selected');
+            return;
+        }
+        const selectedItems = salesState.cart.filter((_, i) => checkoutState.selectedIndices.has(i));
+        if (selectedItems.length === 0) {
+            alert('No items selected');
+            return;
+        }
+        if (
+            typeof window.salesCartCanFullyPayWithLessonQuota !== 'function' ||
+            !window.salesCartCanFullyPayWithLessonQuota(student, selectedItems)
+        ) {
+            quotaPayClientLog('cart quota: precheck failed after API refresh', {
+                lessonQuotaByCents: student.lessonQuotaByCents,
+                lines: selectedItems.map((it) => ({
+                    price: it.price,
+                    n: (it.enrolledClasses || []).length
+                }))
+            });
+            alert(
+                'Not enough lesson quota at the required per-lesson price tiers for this cart. If you already tried paying, credits may have been used — check the student card quota line or server logs [QuotaPay].'
+            );
+            return;
+        }
+        if (!confirm('Apply lesson quota credits for this order?')) return;
+
+        const paymentDetails = {
+            method: 'lesson_quota',
+            amount: 0,
+            balanceUsed: 0,
+            remark: 'Paid with lesson quota'
+        };
+
+        quotaPayClientLog('confirmCheckout: cart lesson_quota → submitSalesOrder', {
+            selectedLineCount: selectedItems.length,
+            studentId: student.id,
+            precheckOk: true
+        });
+        const order = await submitSalesOrder('paid', selectedItems, paymentDetails);
+        if (!order) {
+            quotaPayClientLog(
+                'confirmCheckout: submitSalesOrder returned no order — see Network tab + terminal [QuotaPay]'
+            );
+        }
+        if (order) {
+            closeCheckoutModal();
+            if (typeof printReceipt === 'function') printReceipt(order);
+            if (typeof window.refreshSalesTimetableFromApi === 'function') {
+                await window.refreshSalesTimetableFromApi();
+            }
+            if (salesState.selectedStudent && typeof loadStudentOrders === 'function') {
+                await loadStudentOrders(salesState.selectedStudent.id);
+            }
+            if (typeof renderStudentEnrollments === 'function') renderStudentEnrollments();
+            if (typeof updateDaySchedule === 'function') updateDaySchedule();
+            if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+        }
+        return;
+    }
+
     const suffix = method.charAt(0).toUpperCase() + method.slice(1);
     const amountInput = document.getElementById(`pay${suffix}Amount`);
-    const cashAmount = parseFloat(amountInput.value) || 0;
+    const cashAmount = amountInput ? parseFloat(amountInput.value) || 0 : 0;
     
     // Recalculate Total
     let totalOrderAmount = 0;
@@ -1417,10 +2503,10 @@ window.confirmCheckout = async function() {
     if (checkoutState.mode === 'unpaid_orders') {
         const unpaidOrders = salesState.currentUnpaidOrders || [];
         checkoutState.selectedIndices.forEach(i => {
-            if (unpaidOrders[i]) totalOrderAmount += unpaidOrders[i].totalAmount;
+            if (unpaidOrders[i]) totalOrderAmount += salesOrderBalanceDue(unpaidOrders[i]);
         });
     } else if (checkoutState.mode === 'existing') {
-        totalOrderAmount = checkoutState.existingOrder ? checkoutState.existingOrder.totalAmount : 0;
+        totalOrderAmount = checkoutState.existingOrder ? salesOrderBalanceDue(checkoutState.existingOrder) : 0;
     } else {
         salesState.cart.forEach((item, i) => {
             if (checkoutState.selectedIndices.has(i)) totalOrderAmount += item.price;
@@ -1552,27 +2638,22 @@ window.confirmCheckout = async function() {
 
         try {
             for (const order of ordersToPay) {
-                const thisOrderTotal = order.totalAmount;
+                const thisOrderDue = salesOrderBalanceDue(order);
                 
-                // Distribute Balance
-                const thisOrderBal = Math.min(thisOrderTotal, remainingBal);
+                const thisOrderBal = Math.min(thisOrderDue, remainingBal);
                 remainingBal -= thisOrderBal;
                 
-                // Distribute Cash (Fill remaining need if possible)
-                const needed = thisOrderTotal - thisOrderBal;
+                const needed = thisOrderDue - thisOrderBal;
                 const thisOrderCash = Math.min(needed, remainingCash);
-                // Note: If user overpaid cash, it accumulates in the last order or stays unused? 
-                // Currently we just use what is needed. If remainingCash > needed, we just take needed.
-                // If user wants to pay MORE than total? Logic assumes payment <= total usually.
-                // If remainingCash > needed, we decrement only needed.
                 if (remainingCash > thisOrderCash) {
                     remainingCash -= thisOrderCash;
                 } else {
                     remainingCash = 0;
                 }
 
-                // Determine per-order status
-                const thisStatus = (thisOrderBal + thisOrderCash > 0 || thisOrderTotal === 0) ? 'paid' : 'unpaid';
+                const covered = thisOrderBal + thisOrderCash;
+                const thisStatus =
+                  thisOrderDue < 0.005 || covered + 0.005 >= thisOrderDue ? 'paid' : 'unpaid';
                 
                 const orderPaymentDetails = {
                     ...paymentDetails,
@@ -1650,186 +2731,6 @@ window.confirmCheckout = async function() {
     }
 };
 
-window.printReceipt = async function(orderOrOrders) {
-    // Handle array input (merged receipt/reminder)
-    const isArray = Array.isArray(orderOrOrders);
-    const orders = isArray ? orderOrOrders : [orderOrOrders];
-    
-    if (orders.length === 0) return;
-    
-    // Use the first order to determine status (assuming all in batch have same status)
-    const primaryOrder = orders[0];
-    const isPaid = primaryOrder.status === 'paid'; 
-    
-    // Ensure settings are loaded
-    if (!window.currentSettings) {
-        try {
-            const response = await window.authUtils.authenticatedFetch('/organizations/settings');
-            if (response && response.ok) {
-                window.currentSettings = await response.json();
-            }
-        } catch (e) {
-            console.error('Failed to load settings for receipt', e);
-        }
-    }
-
-    const salesSettings = (window.currentSettings && window.currentSettings.salesSettings) ? window.currentSettings.salesSettings : {
-        receipt: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.' },
-        paymentReminder: { logo: '', remark: 'Make-up Lesson Arrangements:\n- All make-up class quotas must be used within two months.\n- Sessions cannot be postponed under any circumstances.\n- Classes canceled by Typhoon/Rainstorm will be arranged via Zoom or face-to-face.\n- Must apply for leave at least 2 hours before class.', paymentMethod: '', qrCode: '' }
-    };
-
-    const title = isPaid ? 'Receipt' : 'Payment Reminder';
-    const config = isPaid ? salesSettings.receipt : salesSettings.paymentReminder;
-    
-    const logoSrc = config.logo || '';
-    const remarkText = (config.remark || '').replace(/\n/g, '<br>');
-    const paymentMethodInfo = (!isPaid && config.paymentMethod) ? config.paymentMethod.replace(/\n/g, '<br>') : '';
-    const qrCodeSrc = (!isPaid && config.qrCode) ? config.qrCode : '';
-    
-    const student = salesState.selectedStudent;
-    const studentName = student ? student.name : 'Unknown';
-    const studentId = student ? (student.chessComId || '') : '';
-    
-    const dateStr = new Date().toLocaleString('en-GB');
-    
-    let itemsHtml = '';
-    let totalAmount = 0;
-    let payAmount = 0;
-    
-    // Collect all order IDs
-    const orderIds = orders.map(o => o.id.split('_').pop().toUpperCase()).join(', ');
-    
-    // Iterate through ALL orders
-    orders.forEach(order => {
-        const orderPayInfo = order.paymentDetails || {};
-        payAmount += (orderPayInfo.amount || 0);
-
-        order.items.forEach(item => {
-            const productName = item.productData.name;
-            const price = item.price;
-            const quantity = item.enrolledClasses ? item.enrolledClasses.length : 1;
-            totalAmount += price;
-            
-            let desc = `<b>${escapeHtml(productName)}</b>`;
-            if (item.enrolledClasses && item.enrolledClasses.length > 0) {
-                const dates = item.enrolledClasses.map(c => {
-                    const d = new Date(c.date);
-                    return `${d.getDate()}/${d.getMonth()+1}`;
-                }).join(', ');
-                
-                const first = item.enrolledClasses[0];
-                const teacherName = first.entry.teacherName || (first.entry.teacherIds && first.entry.teacherIds.length > 0 ? getTeacherName(first.entry.teacherIds[0]) : 'Unknown');
-
-                desc += `<br><span style="font-size:0.9em; color:#666;">${first.entry.startTime}-${first.entry.endTime} | ${dates}</span>`;
-                desc += `<br><span style="font-size:0.9em; color:#666;">Teacher: ${escapeHtml(teacherName)}</span>`;
-            }
-            
-            itemsHtml += `
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">${desc}</td>
-                    <td style="padding:8px; text-align:right;">$${formatNumber(price / quantity)}</td>
-                    <td style="padding:8px; text-align:center;">${quantity}</td>
-                    <td style="padding:8px; text-align:right;">$${formatNumber(price)}</td>
-                </tr>
-            `;
-        });
-    });
-    
-    const payInfo = primaryOrder.paymentDetails || {}; 
-    const payMethod = payInfo.method || '-';
-    const remark = payInfo.remark || '';
-    
-    const win = window.open('', 'Receipt', 'width=800,height=900');
-    win.document.write(`
-        <html>
-        <head>
-            <title>${title} - ${orderIds}</title>
-            <style>
-                body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-                .header { text-align: center; margin-bottom: 30px; position: relative; }
-                .header h1 { margin: 0; font-size: 24px; }
-                .meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }
-                .meta-right { text-align: right; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
-                th { border-bottom: 2px solid #000; text-align: left; padding: 8px; }
-                .totals { text-align: right; margin-bottom: 30px; }
-                .totals-row { display: flex; justify-content: flex-end; gap: 20px; margin-bottom: 5px; }
-                .footer { margin-top: 50px; font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
-                .logo { width: 80px; height: 80px; position: absolute; left: 0; top: 0; display:flex;align-items:center;justify-content:center; }
-                .logo img { max-width: 100%; max-height: 100%; }
-                .payment-info-section { margin-top: 30px; border: 1px dashed #ccc; padding: 15px; display: flex; gap: 20px; }
-                .qr-code-container { width: 120px; height: 120px; flex-shrink: 0; }
-                .qr-code-container img { width: 100%; height: 100%; object-fit: contain; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <div class="logo">
-                    ${logoSrc ? `<img src="${logoSrc}">` : '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;border-radius:50%;">Logo</div>'}
-                </div>
-                <h1>${title}</h1>
-                <div style="text-align:right; font-size:12px; margin-top:5px;">
-                    No.: ${orderIds}<br>
-                    Date: ${dateStr}
-                </div>
-            </div>
-            
-            <div class="meta">
-                <div class="meta-left">
-                    <strong>Received From:</strong><br>
-                    ${escapeHtml(studentName)} (${escapeHtml(studentId)})
-                </div>
-            </div>
-            
-            <table>
-                <thead>
-                    <tr>
-                        <th>Item Description</th>
-                        <th style="text-align:right;">Price</th>
-                        <th style="text-align:center;">Quantity</th>
-                        <th style="text-align:right;">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${itemsHtml}
-                </tbody>
-            </table>
-            
-            <div class="totals">
-                <div class="totals-row">
-                    <strong>TOTAL</strong>
-                    <strong>$${formatNumber(totalAmount)}</strong>
-                </div>
-                ${isPaid ? `
-                <div class="totals-row" style="border-top:1px dashed #ccc; padding-top:10px; margin-top:10px;">
-                    <span>Pay By: ${payMethod.toUpperCase()}</span>
-                    <span>$${formatNumber(payAmount)}</span>
-                </div>
-                ${remark ? `<div style="margin-top:5px; font-size:12px;">Remark: ${escapeHtml(remark)}</div>` : ''}
-                ` : ''}
-            </div>
-            
-            ${!isPaid && (paymentMethodInfo || qrCodeSrc) ? `
-            <div class="payment-info-section">
-                ${qrCodeSrc ? `<div class="qr-code-container"><img src="${qrCodeSrc}"></div>` : ''}
-                <div style="flex:1; font-size:13px;">
-                    <strong>Payment Methods:</strong><br>
-                    ${paymentMethodInfo || 'Please contact us for payment details.'}
-                </div>
-            </div>
-            ` : ''}
-            
-            <div class="footer">
-                ${remarkText}
-            </div>
-            
-            <script>window.print();</script>
-        </body>
-        </html>
-    `);
-    win.document.close();
-};
-
 // Jump to Date from History
 window.jumpToDate = function(dateString, courseId) {
     if (!dateString) return;
@@ -1840,7 +2741,8 @@ window.jumpToDate = function(dateString, courseId) {
     const targetDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     
     // Check if we need to switch to Step 2 (Calendar View)
-    const calendarExists = document.getElementById('miniCalendarGrid');
+    const calendarExists =
+      document.getElementById('miniCalendarGrid0') || document.getElementById('miniCalendarGrid');
     if (!calendarExists) {
         if (courseId) {
             let product = (window.courses || []).find(c => c.id === courseId);
@@ -1867,68 +2769,87 @@ window.jumpToDate = function(dateString, courseId) {
     salesState.classSelection.selectedDate = targetDate;
     
     // Refresh UI
-    if (document.getElementById('miniCalendarGrid')) {
+    if (document.getElementById('miniCalendarGrid0') || document.getElementById('miniCalendarGrid')) {
         if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
         if (typeof updateDaySchedule === 'function') updateDaySchedule();
     }
 };
 
-// Render Student Enrollments List
-window.renderStudentEnrollments = function() {
-    const container = document.getElementById('salesStudentHistory');
-    if (!container) return;
-    
-    const studentId = salesState.selectedStudent?.id;
-    if (!studentId) {
-        container.innerHTML = '';
-        return;
-    }
-    
-    // Get enrollments
-    const enrollments = (window.timetableEnrollments || []).filter(e => e.studentId === studentId);
-    
-    // Sort by date (Oldest -> Newest)
-    enrollments.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    if (enrollments.length === 0) {
-        container.innerHTML = ''; // No history to show
-        return;
-    }
-    
-    // Inject CSS for history
-    if (!document.getElementById('salesHistoryStyles')) {
-        const style = document.createElement('style');
-        style.id = 'salesHistoryStyles';
-        style.textContent = `
-            .sales-student-history { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto; }
-            .history-header { font-weight: bold; font-size: 12px; color: #666; margin-bottom: 5px; }
-            .history-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
-            .history-item:hover { background: #e5e7eb; }
-            .history-date { color: #667eea; font-weight: 500; margin-right: 10px; }
-            .history-info { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    container.innerHTML = `
-        <div class="history-header">Enrolled Dates (${enrollments.length})</div>
-        <div class="history-list">
-            ${enrollments.map(e => {
-                const entry = (window.timetableEntries || []).find(ent => ent.id === e.timetableEntryId);
-                const className = entry ? entry.className : 'Unknown Class';
-                const courseId = (entry && entry.courseIds && entry.courseIds.length > 0) ? entry.courseIds[0] : '';
-                return `
-                    <div class="history-item" onclick="jumpToDate('${e.date}', '${courseId}')" title="Jump to date">
-                        <div class="history-date">${e.date}</div>
-                        <div class="history-info">${escapeHtml(className)}</div>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-    `;
-    // Scroll to bottom
-    const list = container.querySelector('.sales-student-history');
-    if (list) list.scrollTop = list.scrollHeight;
+/** Close Class History overlay then jump (used by overlay month day buttons). */
+window.jumpToDateFromClassHistory = function (dateString, courseId) {
+    if (typeof closeStudentOverlay === 'function') closeStudentOverlay();
+    window.jumpToDate(dateString, courseId || '');
+};
+
+(function installSalesEnrollmentDayJumpDelegation() {
+    if (typeof document === 'undefined' || window.__salesEnrollmentDayJumpBound) return;
+    window.__salesEnrollmentDayJumpBound = true;
+    document.addEventListener(
+        'click',
+        function (ev) {
+            const btn = ev.target.closest('.sales-day-jump, .overlay-day-jump');
+            if (!btn) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const date = btn.getAttribute('data-date');
+            if (!date) return;
+            const courseId = btn.getAttribute('data-course-id') || '';
+            if (btn.getAttribute('data-close-overlay') === '1' && typeof window.closeStudentOverlay === 'function') {
+                window.closeStudentOverlay();
+            }
+            if (typeof window.jumpToDate === 'function') {
+                window.jumpToDate(date, courseId);
+            }
+        },
+        true
+    );
+})();
+
+/**
+ * UI smoke: verify month day buttons use data-* (not broken onclick) and delegation is installed.
+ * Run: smokeTestEnrollmentDayJump()
+ */
+window.smokeTestEnrollmentDayJump = function smokeTestEnrollmentDayJump() {
+    const sample = buildEnrollmentMonthRowsMarkup(
+        [
+            { date: '2026-04-09', timetableEntryId: 'te_smoke', studentId: 's1' },
+            { date: '2026-05-07', timetableEntryId: 'te_smoke', studentId: 's1' }
+        ],
+        [{ id: 'te_smoke', className: 'Chess Class', courseIds: ['course_smoke_1'] }],
+        'sidebar'
+    );
+    const wrap = document.createElement('div');
+    wrap.innerHTML = sample;
+    const buttons = wrap.querySelectorAll('.sales-day-jump');
+    const overlaySample = buildEnrollmentMonthRowsMarkup(
+        [{ date: '2026-04-09', timetableEntryId: 'te_smoke', studentId: 's1' }],
+        [{ id: 'te_smoke', className: 'Chess Class', courseIds: ['course_smoke_1'] }],
+        'overlay'
+    );
+    const wrapO = document.createElement('div');
+    wrapO.innerHTML = overlaySample;
+    const ob = wrapO.querySelectorAll('.overlay-day-jump');
+    const rows = Array.from(buttons).map((b) => ({
+        day: b.textContent,
+        dataDate: b.getAttribute('data-date'),
+        dataCourse: b.getAttribute('data-course-id'),
+        hasOnclick: b.hasAttribute('onclick')
+    }));
+    const orows = Array.from(ob).map((b) => ({
+        closeOverlay: b.getAttribute('data-close-overlay'),
+        hasOnclick: b.hasAttribute('onclick')
+    }));
+    console.log('[smokeTestEnrollmentDayJump] delegation', !!window.__salesEnrollmentDayJumpBound);
+    console.log('[smokeTestEnrollmentDayJump] sidebar buttons', rows);
+    console.log('[smokeTestEnrollmentDayJump] overlay buttons', orows);
+    const ok =
+        window.__salesEnrollmentDayJumpBound &&
+        buttons.length >= 2 &&
+        rows.every((r) => r.dataDate && !r.hasOnclick) &&
+        orows.length >= 1 &&
+        orows.every((r) => r.closeOverlay === '1' && !r.hasOnclick);
+    console.log('[smokeTestEnrollmentDayJump] OK=', ok);
+    return { ok, delegation: !!window.__salesEnrollmentDayJumpBound, sidebarButtons: rows, overlayMeta: orows };
 };
 
 window.printReceipt = async function(orderOrOrders) {
@@ -2016,16 +2937,11 @@ window.printReceipt = async function(orderOrOrders) {
         });
     });
     
-    const payInfo = primaryOrder.paymentDetails || {}; 
+    const payInfo = primaryOrder.paymentDetails || {};
     const payMethod = payInfo.method || '-';
     const remark = payInfo.remark || '';
-    
-    const win = window.open('', 'Receipt', 'width=800,height=900');
-    win.document.write(`
-        <html>
-        <head>
-            <title>${title} - ${orderIds}</title>
-            <style>
+
+    const receiptCss = `
                 body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
                 .header { text-align: center; margin-bottom: 30px; position: relative; }
                 .header h1 { margin: 0; font-size: 24px; }
@@ -2041,9 +2957,9 @@ window.printReceipt = async function(orderOrOrders) {
                 .payment-info-section { margin-top: 30px; border: 1px dashed #ccc; padding: 15px; display: flex; gap: 20px; }
                 .qr-code-container { width: 120px; height: 120px; flex-shrink: 0; }
                 .qr-code-container img { width: 100%; height: 100%; object-fit: contain; }
-            </style>
-        </head>
-        <body>
+            `;
+
+    const receiptBodyInner = `
             <div class="header">
                 <div class="logo">
                     ${logoSrc ? `<img src="${logoSrc}">` : '<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;border-radius:50%;">Logo</div>'}
@@ -2103,10 +3019,82 @@ window.printReceipt = async function(orderOrOrders) {
             <div class="footer">
                 ${remarkText}
             </div>
-            
-            <script>window.print();</script>
-        </body>
-        </html>
-    `);
-    win.document.close();
+            `;
+
+    const srcDoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - ${escapeHtml(orderIds)}</title><style>${receiptCss}</style></head><body>${receiptBodyInner}</body></html>`;
+
+    if (!document.getElementById('receiptPreviewModalStyles')) {
+        const st = document.createElement('style');
+        st.id = 'receiptPreviewModalStyles';
+        st.textContent = `
+            .receipt-preview-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 12000; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+            .receipt-preview-panel { background: #fff; width: min(920px, 100%); max-height: min(92vh, 900px); border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.25); display: flex; flex-direction: column; overflow: hidden; }
+            .receipt-preview-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+            .receipt-preview-textbtn { background: none; border: none; padding: 0; margin: 0; font: inherit; font-size: 15px; font-weight: 600; color: #2563eb; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+            .receipt-preview-textbtn:hover { color: #1d4ed8; }
+            .receipt-preview-textbtn-muted { color: #64748b; font-weight: 500; }
+            .receipt-preview-textbtn-muted:hover { color: #334155; }
+            .receipt-preview-iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; background: #fff; }
+        `;
+        document.head.appendChild(st);
+    }
+
+    window.closeReceiptPreviewModal = function closeReceiptPreviewModal() {
+        const r = document.getElementById('receiptPreviewModalRoot');
+        if (r) {
+            const fn = r._receiptEscHandler;
+            if (fn) document.removeEventListener('keydown', fn);
+            r.remove();
+        }
+    };
+
+    const oldRoot = document.getElementById('receiptPreviewModalRoot');
+    if (oldRoot) oldRoot.remove();
+
+    const root = document.createElement('div');
+    root.id = 'receiptPreviewModalRoot';
+    root.className = 'receipt-preview-backdrop';
+    root.innerHTML = `
+        <div class="receipt-preview-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}" onclick="event.stopPropagation()">
+            <div class="receipt-preview-toolbar">
+                <button type="button" class="receipt-preview-textbtn" id="receiptPreviewPrintBtn">Print</button>
+                <button type="button" class="receipt-preview-textbtn receipt-preview-textbtn-muted" id="receiptPreviewCloseBtn">Close</button>
+            </div>
+            <iframe class="receipt-preview-iframe" title="${escapeHtml(title)}"></iframe>
+        </div>
+    `;
+    root.addEventListener('click', () => window.closeReceiptPreviewModal());
+    const onKeyDown = (ev) => {
+        if (ev.key === 'Escape') window.closeReceiptPreviewModal();
+    };
+    root._receiptEscHandler = onKeyDown;
+    document.addEventListener('keydown', onKeyDown);
+
+    document.body.appendChild(root);
+
+    const iframe = root.querySelector('iframe');
+    iframe.srcdoc = srcDoc;
+
+    const runPrint = () => {
+        try {
+            const w = iframe.contentWindow;
+            if (w) {
+                w.focus();
+                w.print();
+            }
+        } catch (err) {
+            console.error('Receipt print failed', err);
+        }
+    };
+
+    root.querySelector('#receiptPreviewPrintBtn').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        runPrint();
+    });
+    root.querySelector('#receiptPreviewCloseBtn').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        window.closeReceiptPreviewModal();
+    });
+
+    window.__receiptPreviewDoPrint = runPrint;
 };
