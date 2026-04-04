@@ -185,17 +185,6 @@ function renderCourseManagement() {
                 <!-- Cart items will go here -->
               </div>
             </div>
-            
-            <div class="vchess-invoice-import-panel" aria-label="V.Chess invoice Excel import">
-              <div class="vchess-invoice-import-title">V.Chess 發票表（Excel）</div>
-              <div class="vchess-invoice-import-row">
-                <input type="file" id="vchessInvoiceXlsxInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="window.handleVchessInvoiceXlsxSelected(this)">
-                <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('vchessInvoiceXlsxInput').click()">上傳 .xlsx</button>
-                <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
-              </div>
-              <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
-              <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後僅貴機構可讀；之後可用 API 依匯入批次 id 取回完整列。</p>
-            </div>
             <!-- Footer Actions -->
             <div class="sales-footer-actions">
               <button class="btn btn-secondary" onclick="resetSales()">Reset</button>
@@ -221,6 +210,18 @@ function renderCourseManagement() {
               </div>
               <div style="color:#64748b; margin-bottom:10px;">Holidays will be skipped during class enrollment generation and auto-renew calculations.</div>
               <div id="cmHolidayRulesList" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+            <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
+              <div class="vchess-invoice-import-panel" aria-label="V.Chess invoice Excel import">
+                <div class="vchess-invoice-import-title">V.Chess 發票表（Excel）</div>
+                <div class="vchess-invoice-import-row">
+                  <input type="file" id="vchessInvoiceXlsxInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="window.handleVchessInvoiceXlsxSelected(this)">
+                  <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('vchessInvoiceXlsxInput').click()">上傳 .xlsx</button>
+                  <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
+                </div>
+                <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
+                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後僅貴機構可讀；之後可用 API 依匯入批次 id 取回完整列。</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1299,11 +1300,10 @@ style.textContent = `
   }
 
   .vchess-invoice-import-panel {
-    margin: 10px 12px 0;
-    padding: 10px 12px;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    background: #f8fafc;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
     font-size: 13px;
     color: #334155;
   }

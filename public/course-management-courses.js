@@ -45,6 +45,9 @@ function switchSubTab(subTab) {
   // Settings
   if (subTab === 'setting') {
     reloadCourseManagementHolidays();
+    if (typeof window.refreshVchessInvoiceImportBanner === 'function') {
+      window.refreshVchessInvoiceImportBanner();
+    }
   }
 }
 

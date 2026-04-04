@@ -44,10 +44,6 @@ window.loadSalesModule = async function() {
   
   // Setup event listeners if not already set
   setupSalesEventListeners();
-
-  if (typeof window.refreshVchessInvoiceImportBanner === 'function') {
-    window.refreshVchessInvoiceImportBanner();
-  }
 };
 
 function setupSalesEventListeners() {
