@@ -10,7 +10,6 @@ let isResizing = false;
 let resizeStart = { x: 0, y: 0 };
 let windowStartSize = { width: 0, height: 0 };
 const _recordingInProgress = new Set();
-let _batchAddInProgress = false;
 
 function classViewResolveAssetUrl(relativePath) {
     try {
@@ -294,6 +293,16 @@ function levelBadgeSrcByRankIndex(rankIndex) {
     return `${base}${name}`;
 }
 
+/** Score / current-rank ceiling for progress bar label (e.g. 369/500). */
+function formatRankProgressCaption(rankInfo, score) {
+    const s = Number(score) || 0;
+    const cap = rankInfo.maxScore;
+    if (cap === Infinity) {
+        return `${s}/∞`;
+    }
+    return `${s}/${cap}`;
+}
+
 // Render class view
 function renderClassView() {
     const container = document.getElementById('studentsSection');
@@ -341,11 +350,11 @@ function renderClassView() {
                     <div class="class-student-progress">
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: ${rankInfo.progress}%"></div>
+                            <span class="progress-bar-label">${formatRankProgressCaption(rankInfo, student.score)}</span>
                         </div>
                     </div>
                 </div>
                 <div class="class-student-row class-student-row-3">
-                    <div class="class-student-score">${student.score || 0}</div>
                     <div class="class-student-actions">
                         <input type="number" class="class-points-input" id="class-points-${student.id}" min="1" max="100" value="1">
                         <button class="class-add-btn" onclick="recordPoints('${student.id}')">Add</button>
@@ -530,18 +539,16 @@ function updateChallengeDisplay() {
     const levelInfo = challengeData.levelInfo;
     const hpPercent = (challengeData.currentHP / levelInfo.maxHP) * 100;
     
-    const levelEmoji = document.getElementById('levelEmoji');
     const levelName = document.getElementById('levelName');
     const levelReward = document.getElementById('levelReward');
     const monsterAvatar = document.getElementById('monsterAvatar');
     const monsterUnavailable = document.getElementById('monsterImageUnavailable');
     const monsterName = document.getElementById('monsterName');
-    const currentHP = document.getElementById('currentHP');
-    const maxHP = document.getElementById('maxHP');
+    const hpBarText = document.getElementById('hpBarText');
+    const hpBarTrack = document.getElementById('hpBarTrack');
     const hpFill = document.getElementById('hpFill');
     
-    if (levelEmoji) levelEmoji.textContent = levelInfo.emoji;
-    if (levelName) levelName.textContent = `Level ${challengeData.currentLevel}: ${levelInfo.name}`;
+    if (levelName) levelName.textContent = `Level ${challengeData.currentLevel}`;
     if (levelReward) levelReward.textContent = levelInfo.reward;
 
     const monsterImgSrc = classViewResolveMonsterImageSrc(levelInfo);
@@ -592,8 +599,13 @@ function updateChallengeDisplay() {
     }
 
     if (monsterName) monsterName.textContent = levelInfo.name;
-    if (currentHP) currentHP.textContent = challengeData.currentHP;
-    if (maxHP) maxHP.textContent = levelInfo.maxHP;
+    if (hpBarText) {
+        hpBarText.textContent = `${challengeData.currentHP}/${levelInfo.maxHP}`;
+    }
+    if (hpBarTrack) {
+        hpBarTrack.setAttribute('aria-valuenow', String(challengeData.currentHP));
+        hpBarTrack.setAttribute('aria-valuemax', String(levelInfo.maxHP));
+    }
     if (hpFill) {
         hpFill.style.width = `${hpPercent}%`;
         
@@ -648,10 +660,15 @@ function showAttackAnimation(data) {
 
 function updateChallengeHP(currentHP, maxHP) {
     const hpPercent = (currentHP / maxHP) * 100;
-    const currentHPElem = document.getElementById('currentHP');
+    const hpBarText = document.getElementById('hpBarText');
+    const hpBarTrack = document.getElementById('hpBarTrack');
     const hpFill = document.getElementById('hpFill');
     
-    if (currentHPElem) currentHPElem.textContent = currentHP;
+    if (hpBarText) hpBarText.textContent = `${currentHP}/${maxHP}`;
+    if (hpBarTrack) {
+        hpBarTrack.setAttribute('aria-valuenow', String(currentHP));
+        hpBarTrack.setAttribute('aria-valuemax', String(maxHP));
+    }
     if (hpFill) {
         hpFill.style.width = `${hpPercent}%`;
         
@@ -1128,72 +1145,20 @@ loadStudents();
 
 // Set initial window size (narrow and tall)
 if (window.navigator.userAgent.indexOf('Electron') === -1) {
-    window.resizeTo(340, 800);
+    window.resizeTo(390, 820);
 }
 
+// Collapsible footer (Save / Load / Reset)
+(function setupClassViewFooterToggle() {
+    const footer = document.getElementById('classViewFooter');
+    const toggle = document.getElementById('cvFooterToggle');
+    if (!footer || !toggle) return;
+    toggle.addEventListener('click', () => {
+        const collapsed = footer.classList.toggle('cv-footer-collapsed');
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+})();
 
 // Filter logic
 document.getElementById('classViewSearch')?.addEventListener('input', renderClassView);
-
-// Batch Add Points logic (with lock to prevent double-click)
-document.getElementById('batchAddPointsBtn')?.addEventListener('click', async () => {
-    if (_batchAddInProgress) return;
-
-    const input = document.getElementById('batchPointsInput');
-    if (!input) return;
-    
-    const points = parseInt(input.value, 10);
-    if (isNaN(points) || points < 1) {
-        alert('Please enter a valid positive number');
-        return;
-    }
-    
-    if (!confirm('Add ' + points + ' points to ALL visible students?')) return;
-    
-    // Get currently filtered/visible students
-    const searchInput = document.getElementById('classViewSearch');
-    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-    
-    const targets = selectedStudents.filter(student =>
-        !searchTerm || student.name.toLowerCase().includes(searchTerm)
-    );
-    
-    if (targets.length === 0) return;
-
-    _batchAddInProgress = true;
-    const batchBtn = document.getElementById('batchAddPointsBtn');
-    if (batchBtn) batchBtn.disabled = true;
-    
-    let successCount = 0;
-
-    try {
-        // IMPORTANT:
-        // Do this sequentially to avoid server-side read/write races on challenge HP.
-        // Parallel requests can overwrite each other's challenge updates, resulting in under-counted monster damage.
-        for (const student of targets) {
-            try {
-                const response = await fetch('/api/students/' + student.id + '/answer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ points: points })
-                });
-                if (response.ok) successCount++;
-            } catch (e) {
-                console.error(e);
-            }
-        }
-        
-        // Refresh (WebSocket will trigger reload anyway, but just in case)
-        if (challengeEnabled) loadChallenge();
-    } finally {
-        _batchAddInProgress = false;
-        if (batchBtn) batchBtn.disabled = false;
-    }
-    
-    const toast = document.createElement('div');
-    toast.textContent = 'Added ' + points + ' points to ' + successCount + ' students!';
-    toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#10b981; color:white; padding:10px 20px; border-radius:4px; z-index:9999;';
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-});
 

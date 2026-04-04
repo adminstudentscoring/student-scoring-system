@@ -12,7 +12,7 @@
     <div class="class-view-container">
         <div class="class-view-titlebar" id="titlebar">
             <div class="titlebar-left">
-                <span class="titlebar-title">📚 Class View</span>
+                <span class="titlebar-title">Class View</span>
             </div>
             <div class="titlebar-buttons">
                 <button class="titlebar-btn minimize" id="minimizeBtn" title="Minimize">−</button>
@@ -24,10 +24,9 @@
             <div class="challenge-section" id="challengeSection">
                 <div class="challenge-header">
                     <div class="challenge-level">
-                        <span class="level-emoji" id="levelEmoji">🟢</span>
                         <div class="level-info">
-                            <div class="level-name" id="levelName">Level 1: Slime</div>
-                            <div class="level-reward">Reward: <span id="levelReward">10</span> points</div>
+                            <div class="level-name" id="levelName">Level 1</div>
+                            <div class="level-reward">+<span id="levelReward">10</span> points</div>
                         </div>
                     </div>
                 </div>
@@ -40,9 +39,9 @@
                         <div class="monster-name" id="monsterName">Slime</div>
                     </div>
                     <div class="hp-bar-container">
-                        <div class="hp-label">HP: <span id="currentHP">200</span> / <span id="maxHP">200</span></div>
-                        <div class="hp-bar">
+                        <div class="hp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="200" aria-valuenow="200" id="hpBarTrack">
                             <div class="hp-fill" id="hpFill" style="width: 100%"></div>
+                            <span class="hp-bar-text" id="hpBarText">200/200</span>
                         </div>
                     </div>
                     <div class="attack-animation-area" id="attackAnimationArea"></div>
@@ -50,16 +49,8 @@
             </div>
             
             <!-- Students List Section -->
-            <div class="students-section-header" style="padding: 10px 15px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.2);">
-                <!-- Batch add (top) -->
-                <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end;">
-                    <span style="color: #ccc; font-size: 0.9rem;">Batch:</span>
-                    <input type="number" id="batchPointsInput" value="1" min="1" style="width: 60px; padding: 6px; text-align: center; border-radius: 4px; border: 1px solid #444; background: #333; color: white;">
-                    <button id="batchAddPointsBtn" class="btn-reset-challenge" style="background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5); color: #10b981;">Add to All</button>
-                </div>
-
-                <!-- Search (bottom) -->
-                <input type="text" id="classViewSearch" placeholder="Search student..." style="padding: 6px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; width: 100%;">
+            <div class="students-section-header">
+                <input type="text" id="classViewSearch" class="cv-search-field" placeholder="Search student..." autocomplete="off">
             </div>
             
             <div class="students-section" id="studentsSection">
@@ -67,11 +58,17 @@
             </div>
         </div>
 
-        <!-- Bottom Actions (always visible) -->
-        <div class="class-view-footer" id="classViewFooter">
-            <button id="saveProgressBtn" class="btn-reset-challenge" title="Save Progress">Save</button>
-            <button id="loadProgressBtn" class="btn-reset-challenge" title="Load Progress">Load</button>
-            <button id="resetChallengeBtn" class="btn-reset-challenge" title="Reset Challenge">Reset</button>
+        <!-- Bottom actions (collapsible) -->
+        <div class="class-view-footer cv-footer-apple" id="classViewFooter">
+            <button type="button" class="cv-footer-toggle" id="cvFooterToggle" aria-expanded="true" aria-controls="cvFooterPanel">
+                <span class="cv-footer-toggle-label">Tools</span>
+                <span class="cv-footer-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="cv-footer-panel" id="cvFooterPanel">
+                <button type="button" id="saveProgressBtn" class="cv-footer-btn" title="Save Progress">Save</button>
+                <button type="button" id="loadProgressBtn" class="cv-footer-btn" title="Load Progress">Load</button>
+                <button type="button" id="resetChallengeBtn" class="cv-footer-btn" title="Reset Challenge">Reset</button>
+            </div>
         </div>
     </div>
 
