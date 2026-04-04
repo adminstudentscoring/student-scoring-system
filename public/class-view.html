@@ -6,74 +6,108 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:* https://cloudflareinsights.com https://*.cloudflareinsights.com;">
     <title>Class View - Student Scoring System</title>
     <!-- Bump ?v= when changing class-view UI so CDN/browser pick up new CSS/JS -->
-    <link rel="stylesheet" href="styles.css?v=cv20260403">
-    <link rel="stylesheet" href="class-view.css?v=cv20260403">
+    <link rel="stylesheet" href="styles.css?v=cv20260404">
+    <link rel="stylesheet" href="class-view.css?v=cv20260404">
     <!-- Critical fallback if class-view.css is stale, blocked, or wrong path -->
     <style id="class-view-critical-fallback">
         body.class-view-page {
             margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
-            background: #f2f2f7 !important;
+            background: #0d0d0f !important;
+            color: #f5f5f7 !important;
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif !important;
         }
+        .class-view-page .class-view-container { background: #0d0d0f !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.08) !important; }
+        .class-view-page .class-view-content { background: #0d0d0f !important; }
         .class-view-page .class-view-titlebar {
-            background: rgba(249, 249, 249, 0.94) !important;
-            color: #1c1c1e !important;
-            border-bottom: 0.5px solid rgba(60, 60, 67, 0.18) !important;
+            background: rgba(28, 28, 30, 0.94) !important;
+            color: #f5f5f7 !important;
+            border-bottom: 0.5px solid rgba(255, 255, 255, 0.12) !important;
         }
+        .class-view-page .titlebar-btn { background: rgba(255,255,255,0.1) !important; color: #f5f5f7 !important; }
         .class-view-page .challenge-section {
-            background: #f2f2f7 !important;
-            border-bottom: none !important;
+            background: #0d0d0f !important;
+            padding: 4px 10px 4px !important;
         }
-        .class-view-page .level-name {
-            color: #1c1c1e !important;
+        .class-view-page .challenge-header-inner {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            gap: 8px !important;
+            margin-bottom: 2px !important;
         }
-        .class-view-page .level-reward {
-            color: #34c759 !important;
-        }
+        .class-view-page .level-name { color: #f5f5f7 !important; }
+        .class-view-page .level-reward { color: #32d74b !important; text-align: right !important; white-space: nowrap !important; }
         .class-view-page .monster-hp-container {
-            background: #ffffff !important;
-        }
-        .class-view-page .monster-name {
-            color: #1c1c1e !important;
+            background: #1c1c1e !important;
+            padding: 6px 8px 8px !important;
+            border-radius: 12px !important;
         }
         .class-view-page .monster-image-slot {
-            min-height: 132px !important;
+            position: relative !important;
+            min-height: 140px !important;
         }
-        .class-view-page .monster-avatar {
-            width: 120px !important;
-            height: 120px !important;
+        .class-view-page .monster-avatar { width: 120px !important; height: 120px !important; }
+        .class-view-page .monster-hp-overlay {
+            position: absolute !important;
+            left: 8px !important;
+            right: 8px !important;
+            bottom: 4px !important;
+            z-index: 4 !important;
+        }
+        .class-view-page .monster-display { margin-bottom: 0 !important; }
+        .class-view-page .hp-bar {
+            height: 24px !important;
+            border-radius: 8px !important;
+            background: rgba(0,0,0,0.45) !important;
+        }
+        .class-view-page .hp-fill { z-index: 0 !important; }
+        .class-view-page .hp-bar-text {
+            position: relative !important;
+            z-index: 2 !important;
+            height: 24px !important;
+            color: #fff !important;
+        }
+        .class-view-page .students-section-header { background: #0d0d0f !important; padding: 2px 10px 2px !important; }
+        .class-view-page .students-section { background: #0d0d0f !important; padding: 2px 10px 6px !important; }
+        .class-view-page .cv-search-field {
+            padding: 8px 12px !important;
+            border-radius: 10px !important;
+            background: rgba(255,255,255,0.1) !important;
+            color: #f5f5f7 !important;
         }
         .class-view-page .class-view-footer.cv-footer-apple {
             display: flex !important;
             flex-direction: column !important;
-            align-items: stretch !important;
-            background: rgba(249, 249, 249, 0.94) !important;
-            border-top: 0.5px solid rgba(60, 60, 67, 0.18) !important;
-            padding: 0 !important;
+            background: rgba(28, 28, 30, 0.94) !important;
+            border-top: 0.5px solid rgba(255,255,255,0.12) !important;
+        }
+        .class-view-page .cv-footer-toggle { color: #0a84ff !important; }
+        .class-view-page .cv-footer-chevron {
+            border-right-color: #0a84ff !important;
+            border-bottom-color: #0a84ff !important;
         }
         .class-view-page .cv-footer-toggle {
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            gap: 6px !important;
             width: 100% !important;
-            padding: 10px 16px !important;
+            padding: 8px 12px !important;
             border: none !important;
             background: transparent !important;
-            color: #007aff !important;
             font-size: 15px !important;
             font-weight: 500 !important;
-            font-family: inherit !important;
             cursor: pointer !important;
         }
         .class-view-page .cv-footer-chevron {
             display: inline-block !important;
             width: 8px !important;
             height: 8px !important;
-            border-right: 2px solid #007aff !important;
-            border-bottom: 2px solid #007aff !important;
+            border-right: 2px solid #0a84ff !important;
+            border-bottom: 2px solid #0a84ff !important;
             transform: rotate(45deg) !important;
             margin-top: -4px !important;
         }
@@ -84,97 +118,48 @@
         .class-view-page .cv-footer-panel {
             display: flex !important;
             justify-content: center !important;
-            gap: 10px !important;
+            gap: 8px !important;
             flex-wrap: wrap !important;
-            padding: 0 16px 12px !important;
+            padding: 0 10px 8px !important;
         }
         .class-view-page .class-view-footer.cv-footer-collapsed .cv-footer-panel {
             display: none !important;
         }
         .class-view-page .cv-footer-btn {
             flex: 1 1 auto !important;
-            min-width: 0 !important;
             max-width: 120px !important;
-            padding: 10px 12px !important;
+            padding: 8px 10px !important;
             border-radius: 12px !important;
             border: none !important;
-            background: rgba(118, 118, 128, 0.12) !important;
-            color: #007aff !important;
+            background: rgba(255,255,255,0.12) !important;
+            color: #0a84ff !important;
             font-size: 15px !important;
             font-weight: 600 !important;
-            font-family: inherit !important;
             cursor: pointer !important;
         }
-        .class-view-page .cv-search-field {
-            width: 100% !important;
-            box-sizing: border-box !important;
-            padding: 10px 14px !important;
-            border-radius: 10px !important;
-            border: none !important;
-            background: rgba(118, 118, 128, 0.12) !important;
-            color: #1c1c1e !important;
-            font-size: 17px !important;
-            outline: none !important;
-        }
-        .class-view-page .hp-bar {
-            position: relative !important;
-            height: 28px !important;
-            border-radius: 8px !important;
-            background: rgba(60, 60, 67, 0.1) !important;
-            overflow: hidden !important;
-        }
-        .class-view-page .hp-fill {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            bottom: 0 !important;
-            z-index: 0 !important;
-            border-radius: 8px !important;
-            max-width: 100% !important;
-        }
-        .class-view-page .hp-bar-text {
-            position: relative !important;
-            z-index: 2 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            height: 28px !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-            font-variant-numeric: tabular-nums !important;
-            color: #ffffff !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55) !important;
-            pointer-events: none !important;
-        }
-        .class-view-page .progress-bar {
-            position: relative !important;
-            height: 24px !important;
-            border-radius: 8px !important;
-            background: rgba(60, 60, 67, 0.1) !important;
-            overflow: hidden !important;
-        }
-        .class-view-page .progress-fill {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            bottom: 0 !important;
-            z-index: 0 !important;
-            border-radius: 8px !important;
-        }
         .class-view-page .progress-bar-label {
-            position: relative !important;
-            z-index: 2 !important;
+            position: absolute !important;
+            left: 0 !important; right: 0 !important; top: 0 !important; bottom: 0 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            height: 24px !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-            font-variant-numeric: tabular-nums !important;
-            color: #ffffff !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45) !important;
+            z-index: 2 !important;
+            height: auto !important;
+        }
+        .class-view-page .class-student-card-badge-bg::before {
+            content: '' !important;
+            position: absolute !important;
+            inset: 0 !important;
+            border-radius: inherit !important;
+            background-image: var(--student-badge) !important;
+            background-repeat: no-repeat !important;
+            background-position: center center !important;
+            background-size: 56% auto !important;
+            opacity: 0.3 !important;
+            z-index: 0 !important;
             pointer-events: none !important;
         }
+        .class-view-page .class-student-card > * { position: relative !important; z-index: 1 !important; }
     </style>
 </head>
 <body class="class-view-page">
@@ -192,9 +177,11 @@
             <!-- Challenge Mode Section -->
             <div class="challenge-section" id="challengeSection">
                 <div class="challenge-header">
-                    <div class="challenge-level">
+                    <div class="challenge-header-inner">
                         <div class="level-info">
                             <div class="level-name" id="levelName">Level 1</div>
+                        </div>
+                        <div class="level-reward-wrap">
                             <div class="level-reward">+<span id="levelReward">10</span> points</div>
                         </div>
                     </div>
@@ -204,13 +191,12 @@
                         <div class="monster-image-slot">
                             <img class="monster-avatar" id="monsterAvatar" alt="">
                             <p class="monster-image-unavailable" id="monsterImageUnavailable" aria-live="polite"></p>
-                        </div>
-                        <div class="monster-name" id="monsterName">Slime</div>
-                    </div>
-                    <div class="hp-bar-container">
-                        <div class="hp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="200" aria-valuenow="200" id="hpBarTrack">
-                            <div class="hp-fill" id="hpFill" style="width: 100%"></div>
-                            <span class="hp-bar-text" id="hpBarText">200/200</span>
+                            <div class="monster-hp-overlay">
+                                <div class="hp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="200" aria-valuenow="200" id="hpBarTrack">
+                                    <div class="hp-fill" id="hpFill" style="width: 100%"></div>
+                                    <span class="hp-bar-text" id="hpBarText">200/200</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="attack-animation-area" id="attackAnimationArea"></div>
@@ -303,7 +289,7 @@
         </div>
     </div>
 
-    <script src="auth.js?v=cv20260403"></script>
+    <script src="auth.js?v=cv20260404"></script>
     <script>
         // Check authentication - Class View is for teachers
         window.addEventListener('DOMContentLoaded', () => {
@@ -312,6 +298,6 @@
             }
         });
     </script>
-    <script src="class-view.js?v=cv20260403"></script>
+    <script src="class-view.js?v=cv20260404"></script>
 </body>
 </html>

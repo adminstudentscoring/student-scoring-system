@@ -1,11 +1,11 @@
-/* Scoped to this page so shared styles.css cannot accidentally win on padding/layout */
+/* Apple-style dark gray theme (Class View only) */
 body.class-view-page {
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background: #f2f2f7;
+    background: #0d0d0f;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', sans-serif;
-    color: #1c1c1e;
+    color: #f5f5f7;
     -webkit-font-smoothing: antialiased;
 }
 
@@ -16,23 +16,23 @@ body.class-view-page {
     width: 100vw;
     max-width: min(100vw, 390px);
     margin: 0 auto;
-    background: #f2f2f7;
-    box-shadow: 0 0 0 1px rgba(60, 60, 67, 0.12);
+    background: #0d0d0f;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .class-view-titlebar {
-    background: rgba(249, 249, 249, 0.94);
+    background: rgba(28, 28, 30, 0.94);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
-    color: #1c1c1e;
-    padding: 10px 16px;
+    color: #f5f5f7;
+    padding: 8px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: move;
     user-select: none;
     -webkit-app-region: drag;
-    border-bottom: 0.5px solid rgba(60, 60, 67, 0.18);
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
 }
 
 .titlebar-left {
@@ -45,6 +45,7 @@ body.class-view-page {
     font-weight: 600;
     font-size: 17px;
     letter-spacing: -0.02em;
+    color: #f5f5f7;
 }
 
 .titlebar-buttons {
@@ -58,8 +59,8 @@ body.class-view-page {
     height: 30px;
     border: none;
     border-radius: 6px;
-    background: rgba(60, 60, 67, 0.08);
-    color: #1c1c1e;
+    background: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -69,11 +70,11 @@ body.class-view-page {
 }
 
 .titlebar-btn:hover {
-    background: rgba(60, 60, 67, 0.12);
+    background: rgba(255, 255, 255, 0.16);
 }
 
 .titlebar-btn.minimize:hover {
-    background: rgba(60, 60, 67, 0.12);
+    background: rgba(255, 255, 255, 0.16);
 }
 
 .titlebar-btn.close:hover {
@@ -85,7 +86,7 @@ body.class-view-page {
     flex: 1;
     overflow-y: auto;
     padding: 0;
-    background: #f2f2f7;
+    background: #0d0d0f;
     display: flex;
     flex-direction: column;
 }
@@ -95,7 +96,7 @@ body.class-view-page {
 .students-section,
 .students-grid-container {
     scrollbar-width: thin; /* Firefox */
-    scrollbar-color: rgba(60, 60, 67, 0.35) rgba(60, 60, 67, 0.08);
+    scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.06);
 }
 
 .class-view-content::-webkit-scrollbar,
@@ -108,14 +109,14 @@ body.class-view-page {
 .class-view-content::-webkit-scrollbar-track,
 .students-section::-webkit-scrollbar-track,
 .students-grid-container::-webkit-scrollbar-track {
-    background: rgba(60, 60, 67, 0.06);
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 999px;
 }
 
 .class-view-content::-webkit-scrollbar-thumb,
 .students-section::-webkit-scrollbar-thumb,
 .students-grid-container::-webkit-scrollbar-thumb {
-    background: rgba(60, 60, 67, 0.35);
+    background: rgba(255, 255, 255, 0.28);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: padding-box;
@@ -124,49 +125,55 @@ body.class-view-page {
 .class-view-content::-webkit-scrollbar-thumb:hover,
 .students-section::-webkit-scrollbar-thumb:hover,
 .students-grid-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(60, 60, 67, 0.5);
+    background: rgba(255, 255, 255, 0.4);
     background-clip: padding-box;
 }
 
-/* Challenge Section — Apple-style grouped card */
+/* Challenge — tight vertical rhythm */
 .challenge-section {
-    background: #f2f2f7;
-    padding: 12px 16px 16px;
+    background: #0d0d0f;
+    padding: 4px 10px 4px;
     flex-shrink: 0;
 }
 
 .challenge-header {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 2px;
 }
 
-.challenge-level {
+.challenge-header-inner {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 0;
+    justify-content: space-between;
     width: 100%;
+    gap: 8px;
 }
 
 .level-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
     align-items: flex-start;
+    min-width: 0;
+}
+
+.level-reward-wrap {
+    flex-shrink: 0;
+    text-align: right;
 }
 
 .level-name {
     font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.02em;
-    color: #1c1c1e;
+    color: #f5f5f7;
 }
 
 .level-reward {
     font-size: 15px;
     font-weight: 500;
-    color: #34c759;
+    color: #32d74b;
+    white-space: nowrap;
 }
 
 .btn-reset-challenge {
@@ -186,24 +193,39 @@ body.class-view-page {
 }
 
 .monster-hp-container {
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 16px;
+    background: #1c1c1e;
+    border-radius: 12px;
+    padding: 6px 8px 8px;
     position: relative;
-    min-height: 140px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+    min-height: 0;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
 }
 
 .monster-display {
     text-align: center;
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 
 .monster-image-slot {
-    min-height: 132px;
+    position: relative;
+    min-height: 140px;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.monster-hp-overlay {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 4px;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.monster-hp-overlay .hp-bar {
+    pointer-events: auto;
 }
 
 .monster-avatar {
@@ -217,7 +239,7 @@ body.class-view-page {
 .monster-image-unavailable {
     display: none;
     font-size: 13px;
-    color: #8e8e93;
+    color: #98989d;
     margin: 0;
     padding: 4px 8px;
     line-height: 1.3;
@@ -232,21 +254,10 @@ body.class-view-page {
     50% { transform: translateY(-8px); }
 }
 
-.monster-name {
-    font-size: 17px;
-    font-weight: 600;
-    margin-top: 8px;
-    color: #1c1c1e;
-}
-
-.hp-bar-container {
-    margin-top: 12px;
-}
-
 .hp-bar {
     width: 100%;
-    height: 28px;
-    background: rgba(60, 60, 67, 0.1);
+    height: 24px;
+    background: rgba(0, 0, 0, 0.45);
     border-radius: 8px;
     overflow: hidden;
     position: relative;
@@ -269,11 +280,11 @@ body.class-view-page {
 
 .hp-bar-text {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 28px;
+    height: 24px;
     font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -374,25 +385,25 @@ body.class-view-page {
 
 /* Search strip */
 .students-section-header {
-    padding: 8px 16px 10px;
-    background: #f2f2f7;
+    padding: 2px 10px 2px;
+    background: #0d0d0f;
     flex-shrink: 0;
 }
 
 .cv-search-field {
     width: 100%;
     box-sizing: border-box;
-    padding: 10px 14px;
+    padding: 8px 12px;
     border-radius: 10px;
     border: none;
-    background: rgba(118, 118, 128, 0.12);
-    color: #1c1c1e;
+    background: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
     font-size: 17px;
     outline: none;
 }
 
 .cv-search-field::placeholder {
-    color: rgba(60, 60, 67, 0.6);
+    color: rgba(235, 235, 245, 0.45);
 }
 
 /* Students Section */
@@ -400,18 +411,18 @@ body.class-view-page {
     flex: 1;
     overflow-y: auto;
     overflow-x: auto;
-    padding: 4px 16px 20px;
-    background: #f2f2f7;
+    padding: 2px 10px 6px;
+    background: #0d0d0f;
 }
 
 /* Bottom toolbar — collapsible, Apple-style */
 .class-view-footer.cv-footer-apple {
     flex: 0 0 auto;
     padding: 0;
-    background: rgba(249, 249, 249, 0.94);
+    background: rgba(28, 28, 30, 0.94);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-top: 0.5px solid rgba(60, 60, 67, 0.18);
+    border-top: 0.5px solid rgba(255, 255, 255, 0.12);
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -424,10 +435,10 @@ body.class-view-page {
     justify-content: center;
     gap: 6px;
     width: 100%;
-    padding: 10px 16px;
+    padding: 8px 12px;
     border: none;
     background: transparent;
-    color: #007aff;
+    color: #0a84ff;
     font-size: 15px;
     font-weight: 500;
     font-family: inherit;
@@ -443,8 +454,8 @@ body.class-view-page {
     display: inline-block;
     width: 8px;
     height: 8px;
-    border-right: 2px solid #007aff;
-    border-bottom: 2px solid #007aff;
+    border-right: 2px solid #0a84ff;
+    border-bottom: 2px solid #0a84ff;
     transform: rotate(45deg);
     margin-top: -4px;
     transition: transform 0.22s ease;
@@ -458,8 +469,8 @@ body.class-view-page {
 .cv-footer-panel {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    padding: 0 16px 12px;
+    gap: 8px;
+    padding: 0 10px 8px;
     flex-wrap: wrap;
 }
 
@@ -471,11 +482,11 @@ body.class-view-page {
     flex: 1 1 auto;
     min-width: 0;
     max-width: 120px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-radius: 12px;
     border: none;
-    background: rgba(118, 118, 128, 0.12);
-    color: #007aff;
+    background: rgba(255, 255, 255, 0.12);
+    color: #0a84ff;
     font-size: 15px;
     font-weight: 600;
     font-family: inherit;
@@ -484,7 +495,7 @@ body.class-view-page {
 }
 
 .cv-footer-btn:hover {
-    background: rgba(118, 118, 128, 0.18);
+    background: rgba(255, 255, 255, 0.18);
 }
 
 .cv-footer-btn:active {
@@ -492,22 +503,43 @@ body.class-view-page {
 }
 
 .class-student-card {
-    background: #ffffff;
-    color: #1c1c1e;
-    padding: 14px 16px;
-    border-radius: 14px;
-    margin-bottom: 10px;
+    background: #1c1c1e;
+    color: #f5f5f7;
+    padding: 10px 12px;
+    border-radius: 12px;
+    margin-bottom: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
+    gap: 8px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
     transition: transform 0.2s, box-shadow 0.2s;
     position: relative;
+    overflow: hidden;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     flex: 1 1 auto;
-    border: 0.5px solid rgba(60, 60, 67, 0.08);
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Rank badge as faint watermark (30% opacity) */
+.class-student-card-badge-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: var(--student-badge, none);
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: 56% auto;
+    opacity: 0.3;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.class-student-card > * {
+    position: relative;
+    z-index: 1;
 }
 
 /* Container for grid layout */
@@ -515,14 +547,14 @@ body.class-view-page {
     display: flex;
     flex-direction: column;
     flex-wrap: nowrap;
-    gap: 10px;
+    gap: 4px;
     justify-content: flex-start;
     align-content: flex-start;
 }
 
 .class-student-card:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
 .class-student-card.card-flash {
@@ -531,10 +563,10 @@ body.class-view-page {
 
 @keyframes cardFlash {
     0%, 100% {
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
     }
     50% {
-        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.35), 0 8px 24px rgba(0, 122, 255, 0.2);
+        box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.45), 0 8px 28px rgba(10, 132, 255, 0.2);
         transform: scale(1.01);
     }
 }
@@ -625,7 +657,7 @@ body.class-view-page {
 
 .class-student-name {
     margin: 0;
-    padding-right: 36px;
+    padding-right: 0;
     font-size: 17px;
     font-weight: 600;
     white-space: nowrap;
@@ -633,18 +665,6 @@ body.class-view-page {
     text-overflow: ellipsis;
     flex: 1;
     min-width: 0;
-}
-
-/* Level badge (top-right) */
-.class-student-card .level-badge {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-    pointer-events: none;
-    filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.16));
 }
 
 .class-student-rank {
@@ -662,7 +682,7 @@ body.class-view-page {
     position: relative;
     width: 100%;
     height: 24px;
-    background: rgba(60, 60, 67, 0.1);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -679,18 +699,21 @@ body.class-view-page {
 }
 
 .progress-bar-label {
-    position: relative;
-    z-index: 1;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 24px;
     font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
     color: #ffffff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 6px rgba(0, 0, 0, 0.2);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 8px rgba(0, 0, 0, 0.35);
     pointer-events: none;
 }
 
@@ -701,8 +724,8 @@ body.class-view-page {
     text-align: center;
     border: none;
     border-radius: 8px;
-    background: rgba(118, 118, 128, 0.12);
-    color: #1c1c1e;
+    background: rgba(255, 255, 255, 0.12);
+    color: #f5f5f7;
     font-weight: 600;
     font-size: 15px;
     flex-shrink: 0;
@@ -713,7 +736,7 @@ body.class-view-page {
     min-width: 52px;
     border: none;
     border-radius: 10px;
-    background: #007aff;
+    background: #0a84ff;
     color: #ffffff;
     cursor: pointer;
     font-size: 15px;
@@ -724,7 +747,7 @@ body.class-view-page {
 }
 
 .class-add-btn:hover {
-    background: #0066d6;
+    background: #409cff;
 }
 
 .class-add-btn:disabled {
@@ -740,20 +763,26 @@ body.class-view-page {
 
 .no-students {
     text-align: center;
-    color: #8e8e93;
-    padding: 40px 20px;
+    color: #98989d;
+    padding: 24px 16px;
     font-size: 15px;
 }
 
-/* Class View modals — lighter sheets (overrides shared styles.css when present) */
-body .modal-content {
+/* Modals — dark sheets on Class View page */
+body.class-view-page .modal-content {
     border-radius: 14px;
-    background: #ffffff;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    background: #2c2c2e;
+    color: #f5f5f7;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
 }
 
-body .modal-header h2 {
+body.class-view-page .modal-header h2 {
     font-size: 17px;
     font-weight: 600;
-    color: #1c1c1e;
+    color: #f5f5f7;
+}
+
+body.class-view-page .modal-body label {
+    color: #ebebf5;
 }

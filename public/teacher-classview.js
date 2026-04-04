@@ -138,12 +138,12 @@ function openClassView() {
             window.electronAPI.openClassView();
         } else {
             // Fallback to window.open if IPC not available
-            window.open('class-view.html?v=cv20260403', 'classView', 'width=390,height=820,resizable=yes');
+            window.open('class-view.html?v=cv20260404', 'classView', 'width=390,height=820,resizable=yes');
         }
     } else {
         // Browser environment - use window.open
         const classWindow = window.open(
-            'class-view.html?v=cv20260403',
+            'class-view.html?v=cv20260404',
             'classView',
             'width=390,height=820,resizable=yes,scrollbars=yes,alwaysRaised=yes'
         );

@@ -12,7 +12,7 @@ let windowStartSize = { width: 0, height: 0 };
 const _recordingInProgress = new Set();
 
 /** Bump with class-view.html ?v= when shipping UI fixes (smoke logs reference this). */
-const CLASS_VIEW_ASSETS_BUILD = 'cv20260403';
+const CLASS_VIEW_ASSETS_BUILD = 'cv20260404';
 
 /**
  * UI smoke test: stylesheets, footer buttons, HP label, search, collapsible panel, student bar labels.
@@ -105,6 +105,52 @@ function runClassViewUiSmokeTest(phase) {
     if (levelName) {
         log('Level title text', levelName.textContent);
     }
+
+    const rewardEl = document.querySelector('.level-reward');
+    if (rewardEl) {
+        const pr = rewardEl.getBoundingClientRect();
+        const hdr = document.querySelector('.challenge-header-inner');
+        const hr = hdr ? hdr.getBoundingClientRect() : null;
+        log('Reward position (expect right side of header)', {
+            rewardRight: pr.right,
+            headerRight: hr ? hr.right : null,
+            roughlyAlignedRight: hr ? Math.abs(pr.right - hr.right) < 24 : null
+        });
+    }
+
+    const overlay = document.querySelector('.monster-hp-overlay');
+    const slot = document.querySelector('.monster-image-slot');
+    log('Monster HP overlay', {
+        overlayExists: !!overlay,
+        slotExists: !!slot,
+        hpInsideSlot: overlay && slot ? slot.contains(overlay) : false
+    });
+
+    log('Legacy monster name node (should be gone)', {
+        monsterNameRemoved: !document.getElementById('monsterName')
+    });
+
+    const card = document.querySelector('.class-student-card');
+    if (card) {
+        const hasBgClass = card.classList.contains('class-student-card-badge-bg');
+        const hasVar = (card.getAttribute('style') || '').includes('--student-badge');
+        const hasImgBadge = !!card.querySelector('img.level-badge');
+        log('Student card badge treatment', {
+            hasBgClass,
+            hasCssVar: hasVar,
+            cornerImgBadgeGone: !hasImgBadge
+        });
+    }
+
+    const pb = document.querySelector('.class-student-progress .progress-bar');
+    const pl = document.querySelector('.progress-bar-label');
+    if (pb && pl) {
+        const csp = window.getComputedStyle(pl);
+        log('Progress label centering', { position: csp.position });
+    }
+
+    const bodyBg = document.body ? window.getComputedStyle(document.body).backgroundColor : '';
+    log('Theme (dark gray)', { bodyBackground: bodyBg });
 }
 
 window.runClassViewUiSmokeTest = runClassViewUiSmokeTest;
@@ -425,7 +471,7 @@ function renderClassView() {
         if (selectedStudents.length === 0) {
             container.innerHTML = '<div class="no-students">No students selected. Please select students from the main dashboard.</div>';
         } else {
-            gridContainer.innerHTML = '<div class="no-students" style="width:100%; text-align:center; padding:20px; color:#aaa;">No matching students found.</div>';
+            gridContainer.innerHTML = '<div class="no-students" style="width:100%; text-align:center; padding:16px; color:#98989d;">No matching students found.</div>';
         }
         return;
     }
@@ -433,14 +479,20 @@ function renderClassView() {
     // Render cards
     gridContainer.innerHTML = filteredStudents.map((student, index) => {
         const rankInfo = getRankInfo(student.score || 0);
-        const currentRank = rankInfo.rank;
         const currentRankIndex = rankInfo.rankIndex;
 
         const badgeSrc = levelBadgeSrcByRankIndex(currentRankIndex);
+        const cardClass =
+            badgeSrc != null && badgeSrc !== ''
+                ? 'class-student-card class-student-card-badge-bg'
+                : 'class-student-card';
+        const cardStyle =
+            badgeSrc != null && badgeSrc !== ''
+                ? ` style="--student-badge: url(&quot;${String(badgeSrc).replace(/&/g, '&amp;')}&quot;)"`
+                : '';
 
         return `
-            <div class="class-student-card" data-student-id="${student.id}">
-                ${badgeSrc ? `<img class="level-badge" src="${badgeSrc}" alt="${escapeHtml(currentRank)} badge" onerror="console.warn('[level-badge] failed', this.src); this.remove();">` : ''}
+            <div class="${cardClass}"${cardStyle} data-student-id="${student.id}">
                 <div class="class-student-row class-student-row-1">
                     <h3 class="class-student-name">${escapeHtml(student.name)}</h3>
                 </div>
@@ -646,7 +698,6 @@ function updateChallengeDisplay() {
     const levelReward = document.getElementById('levelReward');
     const monsterAvatar = document.getElementById('monsterAvatar');
     const monsterUnavailable = document.getElementById('monsterImageUnavailable');
-    const monsterName = document.getElementById('monsterName');
     const hpBarText = document.getElementById('hpBarText');
     const hpBarTrack = document.getElementById('hpBarTrack');
     const hpFill = document.getElementById('hpFill');
@@ -701,7 +752,6 @@ function updateChallengeDisplay() {
         }
     }
 
-    if (monsterName) monsterName.textContent = levelInfo.name;
     if (hpBarText) {
         hpBarText.textContent = `${challengeData.currentHP}/${levelInfo.maxHP}`;
     }
