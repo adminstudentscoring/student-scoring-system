@@ -3,7 +3,7 @@
 
 /** Bump when changing Setting / V.Chess UI (also used in org.html ?v= for cache-bust). */
 (function initCmCoreBuildTag() {
-  const BUILD = '2026-04-04-vchess2';
+  const BUILD = '2026-04-04-vchess4';
   window.__STUDENT_SCORING_CM_CORE__ = BUILD;
   console.log('[CourseManagement-core] script loaded, build:', BUILD);
 })();
