@@ -1,4 +1,5 @@
-body {
+/* Scoped to this page so shared styles.css cannot accidentally win on padding/layout */
+body.class-view-page {
     margin: 0;
     padding: 0;
     overflow: hidden;

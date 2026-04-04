@@ -11,6 +11,104 @@ let resizeStart = { x: 0, y: 0 };
 let windowStartSize = { width: 0, height: 0 };
 const _recordingInProgress = new Set();
 
+/** Bump with class-view.html ?v= when shipping UI fixes (smoke logs reference this). */
+const CLASS_VIEW_ASSETS_BUILD = 'cv20260403';
+
+/**
+ * UI smoke test: stylesheets, footer buttons, HP label, search, collapsible panel, student bar labels.
+ * Call from console: runClassViewUiSmokeTest('manual')
+ */
+function runClassViewUiSmokeTest(phase) {
+    const tag = `[ClassView UI Smoke / ${phase}]`;
+    const log = (msg, obj) => {
+        if (obj !== undefined) {
+            console.info(tag, msg, obj);
+        } else {
+            console.info(tag, msg);
+        }
+    };
+
+    log('build', CLASS_VIEW_ASSETS_BUILD);
+    log('href', window.location.href);
+
+    const sheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((l) => ({
+        href: l.href,
+        hasCssSheet: !!l.sheet
+    }));
+    log('stylesheet link count', sheets.length);
+    sheets.forEach((s, i) => log(`  sheet[${i}]`, s));
+
+    const saveBtn = document.getElementById('saveProgressBtn');
+    if (saveBtn) {
+        const cs = window.getComputedStyle(saveBtn);
+        log('Save button', {
+            className: saveBtn.className,
+            backgroundColor: cs.backgroundColor,
+            color: cs.color,
+            borderRadius: cs.borderRadius,
+            border: cs.border,
+            fontSize: cs.fontSize
+        });
+    } else {
+        console.warn(tag, 'saveProgressBtn MISSING');
+    }
+
+    const toolsBtn = document.getElementById('cvFooterToggle');
+    const footer = document.getElementById('classViewFooter');
+    const panel = document.getElementById('cvFooterPanel');
+    if (footer && panel && toolsBtn) {
+        const pcs = window.getComputedStyle(panel);
+        log('Footer toolbar', {
+            footerClasses: footer.className,
+            collapsed: footer.classList.contains('cv-footer-collapsed'),
+            panelDisplay: pcs.display,
+            toolsAriaExpanded: toolsBtn.getAttribute('aria-expanded')
+        });
+    } else {
+        console.warn(tag, 'footer DOM incomplete', { footer: !!footer, panel: !!panel, toolsBtn: !!toolsBtn });
+    }
+
+    const hpEl = document.getElementById('hpBarText');
+    if (hpEl) {
+        const r = hpEl.getBoundingClientRect();
+        const cs = window.getComputedStyle(hpEl);
+        log('HP bar text', {
+            textContent: hpEl.textContent,
+            rect: { w: r.width, h: r.height },
+            display: cs.display,
+            visibility: cs.visibility,
+            opacity: cs.opacity,
+            color: cs.color,
+            zIndex: cs.zIndex
+        });
+    } else {
+        console.warn(tag, 'hpBarText MISSING — old HTML?');
+    }
+
+    const search = document.getElementById('classViewSearch');
+    if (search) {
+        const cs = window.getComputedStyle(search);
+        log('Search field', {
+            className: search.className,
+            borderRadius: cs.borderRadius,
+            backgroundColor: cs.backgroundColor
+        });
+    }
+
+    const labels = document.querySelectorAll('.progress-bar-label');
+    log('Student progress-bar-label count', labels.length);
+    if (labels.length) {
+        log('First progress label sample', { text: labels[0].textContent });
+    }
+
+    const levelName = document.getElementById('levelName');
+    if (levelName) {
+        log('Level title text', levelName.textContent);
+    }
+}
+
+window.runClassViewUiSmokeTest = runClassViewUiSmokeTest;
+
 function classViewResolveAssetUrl(relativePath) {
     try {
         return new URL(relativePath, window.location.href).toString();
@@ -363,6 +461,11 @@ function renderClassView() {
             </div>
         `;
     }).join('');
+
+    if (filteredStudents.length > 0 && !window.__classViewSmokeLoggedStudentCards) {
+        window.__classViewSmokeLoggedStudentCards = true;
+        runClassViewUiSmokeTest('after-first-student-render');
+    }
 }
 
 // Record points (with per-student lock to prevent rapid duplicate requests)
@@ -617,6 +720,11 @@ function updateChallengeDisplay() {
         } else {
             hpFill.style.background = 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)';
         }
+    }
+
+    if (typeof window !== 'undefined' && !window.__classViewSmokeLoggedChallenge) {
+        window.__classViewSmokeLoggedChallenge = true;
+        runClassViewUiSmokeTest('after-updateChallengeDisplay');
     }
 }
 
@@ -1152,12 +1260,38 @@ if (window.navigator.userAgent.indexOf('Electron') === -1) {
 (function setupClassViewFooterToggle() {
     const footer = document.getElementById('classViewFooter');
     const toggle = document.getElementById('cvFooterToggle');
-    if (!footer || !toggle) return;
+    if (!footer || !toggle) {
+        console.warn('[ClassView UI Smoke] setupClassViewFooterToggle: missing #classViewFooter or #cvFooterToggle');
+        return;
+    }
     toggle.addEventListener('click', () => {
         const collapsed = footer.classList.toggle('cv-footer-collapsed');
         toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        console.info('[ClassView UI Smoke] Tools toggled', {
+            collapsed,
+            ariaExpanded: toggle.getAttribute('aria-expanded'),
+            panelHidden: footer.classList.contains('cv-footer-collapsed')
+        });
+    });
+    console.info('[ClassView UI Smoke] Footer toggle ready', {
+        build: CLASS_VIEW_ASSETS_BUILD,
+        panelChildButtons: document.getElementById('cvFooterPanel')?.querySelectorAll('button').length
     });
 })();
+
+runClassViewUiSmokeTest('script-parsed');
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => runClassViewUiSmokeTest('DOMContentLoaded'));
+} else {
+    runClassViewUiSmokeTest('DOM-already-ready');
+}
+
+window.addEventListener('load', () => {
+    runClassViewUiSmokeTest('window-load');
+});
+
+setTimeout(() => runClassViewUiSmokeTest('delayed-1.5s'), 1500);
 
 // Filter logic
 document.getElementById('classViewSearch')?.addEventListener('input', renderClassView);

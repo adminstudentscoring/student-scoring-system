@@ -5,10 +5,179 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:* https://cloudflareinsights.com https://*.cloudflareinsights.com;">
     <title>Class View - Student Scoring System</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="class-view.css">
+    <!-- Bump ?v= when changing class-view UI so CDN/browser pick up new CSS/JS -->
+    <link rel="stylesheet" href="styles.css?v=cv20260403">
+    <link rel="stylesheet" href="class-view.css?v=cv20260403">
+    <!-- Critical fallback if class-view.css is stale, blocked, or wrong path -->
+    <style id="class-view-critical-fallback">
+        body.class-view-page {
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #f2f2f7 !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif !important;
+        }
+        .class-view-page .class-view-titlebar {
+            background: rgba(249, 249, 249, 0.94) !important;
+            color: #1c1c1e !important;
+            border-bottom: 0.5px solid rgba(60, 60, 67, 0.18) !important;
+        }
+        .class-view-page .challenge-section {
+            background: #f2f2f7 !important;
+            border-bottom: none !important;
+        }
+        .class-view-page .level-name {
+            color: #1c1c1e !important;
+        }
+        .class-view-page .level-reward {
+            color: #34c759 !important;
+        }
+        .class-view-page .monster-hp-container {
+            background: #ffffff !important;
+        }
+        .class-view-page .monster-name {
+            color: #1c1c1e !important;
+        }
+        .class-view-page .monster-image-slot {
+            min-height: 132px !important;
+        }
+        .class-view-page .monster-avatar {
+            width: 120px !important;
+            height: 120px !important;
+        }
+        .class-view-page .class-view-footer.cv-footer-apple {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            background: rgba(249, 249, 249, 0.94) !important;
+            border-top: 0.5px solid rgba(60, 60, 67, 0.18) !important;
+            padding: 0 !important;
+        }
+        .class-view-page .cv-footer-toggle {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            width: 100% !important;
+            padding: 10px 16px !important;
+            border: none !important;
+            background: transparent !important;
+            color: #007aff !important;
+            font-size: 15px !important;
+            font-weight: 500 !important;
+            font-family: inherit !important;
+            cursor: pointer !important;
+        }
+        .class-view-page .cv-footer-chevron {
+            display: inline-block !important;
+            width: 8px !important;
+            height: 8px !important;
+            border-right: 2px solid #007aff !important;
+            border-bottom: 2px solid #007aff !important;
+            transform: rotate(45deg) !important;
+            margin-top: -4px !important;
+        }
+        .class-view-page .class-view-footer.cv-footer-collapsed .cv-footer-chevron {
+            transform: rotate(-135deg) !important;
+            margin-top: 2px !important;
+        }
+        .class-view-page .cv-footer-panel {
+            display: flex !important;
+            justify-content: center !important;
+            gap: 10px !important;
+            flex-wrap: wrap !important;
+            padding: 0 16px 12px !important;
+        }
+        .class-view-page .class-view-footer.cv-footer-collapsed .cv-footer-panel {
+            display: none !important;
+        }
+        .class-view-page .cv-footer-btn {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            max-width: 120px !important;
+            padding: 10px 12px !important;
+            border-radius: 12px !important;
+            border: none !important;
+            background: rgba(118, 118, 128, 0.12) !important;
+            color: #007aff !important;
+            font-size: 15px !important;
+            font-weight: 600 !important;
+            font-family: inherit !important;
+            cursor: pointer !important;
+        }
+        .class-view-page .cv-search-field {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 10px 14px !important;
+            border-radius: 10px !important;
+            border: none !important;
+            background: rgba(118, 118, 128, 0.12) !important;
+            color: #1c1c1e !important;
+            font-size: 17px !important;
+            outline: none !important;
+        }
+        .class-view-page .hp-bar {
+            position: relative !important;
+            height: 28px !important;
+            border-radius: 8px !important;
+            background: rgba(60, 60, 67, 0.1) !important;
+            overflow: hidden !important;
+        }
+        .class-view-page .hp-fill {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            z-index: 0 !important;
+            border-radius: 8px !important;
+            max-width: 100% !important;
+        }
+        .class-view-page .hp-bar-text {
+            position: relative !important;
+            z-index: 2 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 28px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            font-variant-numeric: tabular-nums !important;
+            color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55) !important;
+            pointer-events: none !important;
+        }
+        .class-view-page .progress-bar {
+            position: relative !important;
+            height: 24px !important;
+            border-radius: 8px !important;
+            background: rgba(60, 60, 67, 0.1) !important;
+            overflow: hidden !important;
+        }
+        .class-view-page .progress-fill {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            z-index: 0 !important;
+            border-radius: 8px !important;
+        }
+        .class-view-page .progress-bar-label {
+            position: relative !important;
+            z-index: 2 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 24px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            font-variant-numeric: tabular-nums !important;
+            color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45) !important;
+            pointer-events: none !important;
+        }
+    </style>
 </head>
-<body>
+<body class="class-view-page">
     <div class="class-view-container">
         <div class="class-view-titlebar" id="titlebar">
             <div class="titlebar-left">
@@ -134,7 +303,7 @@
         </div>
     </div>
 
-    <script src="auth.js"></script>
+    <script src="auth.js?v=cv20260403"></script>
     <script>
         // Check authentication - Class View is for teachers
         window.addEventListener('DOMContentLoaded', () => {
@@ -143,6 +312,6 @@
             }
         });
     </script>
-    <script src="class-view.js"></script>
+    <script src="class-view.js?v=cv20260403"></script>
 </body>
 </html>

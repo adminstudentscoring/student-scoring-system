@@ -138,14 +138,14 @@ function openClassView() {
             window.electronAPI.openClassView();
         } else {
             // Fallback to window.open if IPC not available
-            window.open('class-view.html', 'classView', 'width=350,height=800,resizable=yes');
+            window.open('class-view.html?v=cv20260403', 'classView', 'width=390,height=820,resizable=yes');
         }
     } else {
         // Browser environment - use window.open
         const classWindow = window.open(
-            'class-view.html',
+            'class-view.html?v=cv20260403',
             'classView',
-            'width=350,height=800,resizable=yes,scrollbars=yes,alwaysRaised=yes'
+            'width=390,height=820,resizable=yes,scrollbars=yes,alwaysRaised=yes'
         );
         
         if (!classWindow) {
@@ -155,7 +155,7 @@ function openClassView() {
         
         // Try to set window properties (browser-dependent)
         try {
-            classWindow.resizeTo(350, 800);
+            classWindow.resizeTo(390, 820);
         } catch (e) {
             // Ignore errors if we can't resize
         }
