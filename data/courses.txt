@@ -23,7 +23,31 @@
       "description": null,
       "createdAt": "2026-04-02T09:13:19.181Z",
       "updatedAt": "2026-04-02T09:13:27.236Z"
+    },
+    {
+      "id": "course_1775141613678",
+      "organizationId": "1775141597011",
+      "name": "Chess",
+      "price": 250,
+      "color": "#10b981",
+      "category": null,
+      "level": null,
+      "description": null,
+      "createdAt": "2026-04-02T14:53:33.678Z",
+      "updatedAt": "2026-04-02T14:53:50.511Z"
+    },
+    {
+      "id": "course_1775144824881",
+      "organizationId": "1775144796471",
+      "name": "Chess",
+      "price": 250,
+      "color": "#5ac8fa",
+      "category": null,
+      "level": null,
+      "description": null,
+      "createdAt": "2026-04-02T15:47:04.881Z",
+      "updatedAt": "2026-04-03T06:07:19.126Z"
     }
   ],
-  "lastUpdate": "2026-04-02T09:13:27.236Z"
+  "lastUpdate": "2026-04-03T06:07:19.126Z"
 }

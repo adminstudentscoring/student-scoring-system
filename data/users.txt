@@ -200,7 +200,59 @@
       "role": "organization",
       "organizationId": "1775118406019",
       "createdAt": "2026-04-02T08:26:46.020Z"
+    },
+    {
+      "id": "1775122601940",
+      "email": "vcvitow",
+      "username": "vcvitow",
+      "password": "$2b$10$y8iXxvEsZ8JKzebhERlpnO7mXy1zpiaBVhmnE0yMN5w0MnZPkSM32",
+      "name": "Vito",
+      "teacherId": "01",
+      "gender": "male",
+      "role": "teacher",
+      "organizationId": "1775118406019",
+      "createdAt": "2026-04-02T09:36:41.940Z",
+      "classViewStudents": [],
+      "assignedStudents": [
+        "1775122623205"
+      ]
+    },
+    {
+      "id": "1775141597013",
+      "email": "test123@gmail.com",
+      "password": "$2b$10$yQUW/dKUCQiF1Z.Z5yOBHunzWcDk3v3DIpK5L/Rig5CA4oGRJiQSq",
+      "name": "test123",
+      "role": "organization",
+      "organizationId": "1775141597011",
+      "createdAt": "2026-04-02T14:53:17.013Z"
+    },
+    {
+      "id": "1775144796473",
+      "email": "test1234@gmail.com",
+      "password": "$2b$10$ywbLDz4vziurBitPzRquzOcXpXR7zLFuEZFpivhwBamT8SyzOpWCu",
+      "name": "test1234",
+      "role": "organization",
+      "organizationId": "1775144796471",
+      "createdAt": "2026-04-02T15:46:36.473Z"
+    },
+    {
+      "id": "1775190690122",
+      "email": "quota_smoke_1775190690021_k8gc7s@example.com",
+      "password": "$2b$10$.E2jL0G9/pqhIcFvunwTs.ptMJ4Aqu/m9XK.r/aRxEaJNuhX2Mrkq",
+      "name": "QuotaSmokeOrg_1775190690021_k8gc7s",
+      "role": "organization",
+      "organizationId": "1775190690119",
+      "createdAt": "2026-04-03T04:31:30.122Z"
+    },
+    {
+      "id": "1775190746338",
+      "email": "quota_smoke_1775190746248_8yccwp@example.com",
+      "password": "$2b$10$fBnYaqMqHNuagk1.3WK8POszIhfg8gTmwkGZWpWYnI3pvgZ3lsX2C",
+      "name": "QuotaSmokeOrg_1775190746248_8yccwp",
+      "role": "organization",
+      "organizationId": "1775190746337",
+      "createdAt": "2026-04-03T04:32:26.338Z"
     }
   ],
-  "lastUpdate": "2026-04-02T08:26:46.020Z"
+  "lastUpdate": "2026-04-03T04:32:26.338Z"
 }

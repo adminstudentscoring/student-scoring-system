@@ -52,5 +52,2950 @@
     ],
     "totalAmount": 250,
     "createdBy": "1764824535504"
+  },
+  {
+    "id": "order_1775123426594_hju19uj1x",
+    "organizationId": "1775118406019",
+    "studentId": "1775122623205",
+    "date": "2026-04-02T09:50:26.594Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775123422237",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775121252491_bb0g3bt91",
+          "organizationId": "1775118406019",
+          "name": "2 months",
+          "courses": [
+            {
+              "courseId": "course_1775121199181",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T09:14:12.491Z",
+          "updatedAt": "2026-04-02T09:14:12.491Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T09:36:19.804Z"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775118406020"
+  },
+  {
+    "id": "order_1775126121019_e2z0yq2cu",
+    "organizationId": "1775118406019",
+    "studentId": "1775122623205",
+    "date": "2026-04-02T10:35:21.019Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775126118989",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775121252491_bb0g3bt91",
+          "organizationId": "1775118406019",
+          "name": "2 months",
+          "courses": [
+            {
+              "courseId": "course_1775121199181",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T09:14:12.491Z",
+          "updatedAt": "2026-04-02T09:14:12.491Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775118406020",
+    "updatedAt": "2026-04-02T10:35:27.424Z",
+    "updatedBy": "1775118406020"
+  },
+  {
+    "id": "order_1775126440158_fr3te90pq",
+    "organizationId": "1775118406019",
+    "studentId": "1775122623205",
+    "date": "2026-04-02T10:40:40.158Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775126436290",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775121252491_bb0g3bt91",
+          "organizationId": "1775118406019",
+          "name": "2 months",
+          "courses": [
+            {
+              "courseId": "course_1775121199181",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T09:14:12.491Z",
+          "updatedAt": "2026-04-02T09:14:12.491Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775118406020"
+  },
+  {
+    "id": "order_1775128253817_h6uy135km",
+    "organizationId": "1775118406019",
+    "studentId": "1775122623205",
+    "date": "2026-04-02T11:10:53.817Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775128250794",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775121252491_bb0g3bt91",
+          "organizationId": "1775118406019",
+          "name": "2 months",
+          "courses": [
+            {
+              "courseId": "course_1775121199181",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T09:14:12.491Z",
+          "updatedAt": "2026-04-02T09:14:12.491Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775118406020"
+  },
+  {
+    "id": "order_1775129255647_rca726q3m",
+    "organizationId": "1775118406019",
+    "studentId": "1775122623205",
+    "date": "2026-04-02T11:27:35.647Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775129252399",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775121252491_bb0g3bt91",
+          "organizationId": "1775118406019",
+          "name": "2 months",
+          "courses": [
+            {
+              "courseId": "course_1775121199181",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T09:14:12.491Z",
+          "updatedAt": "2026-04-02T09:14:12.491Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775118406020"
+  },
+  {
+    "id": "order_1775131063374_uczs95hpx",
+    "organizationId": "1775118406019",
+    "studentId": "1775122623205",
+    "date": "2026-04-02T11:57:43.374Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775131060144",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775121252491_bb0g3bt91",
+          "organizationId": "1775118406019",
+          "name": "2 months",
+          "courses": [
+            {
+              "courseId": "course_1775121199181",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T09:14:12.491Z",
+          "updatedAt": "2026-04-02T09:14:12.491Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775122579803_8wi0ql5js",
+              "organizationId": "1775118406019",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": "2026-04-02",
+              "endDate": null,
+              "courseIds": [
+                "course_1775121199181"
+              ],
+              "teacherIds": [
+                "1775122601940"
+              ],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T09:36:19.803Z",
+              "updatedAt": "2026-04-02T10:35:06.045Z",
+              "teacherName": "Vito"
+            },
+            "id": "timetable_1775122579803_8wi0ql5js_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775118406020"
+  },
+  {
+    "id": "order_1775141933450_hl75c7dfq",
+    "organizationId": "1775141597011",
+    "studentId": "1775141746247",
+    "date": "2026-04-02T14:58:53.450Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "cash",
+      "amount": 2025,
+      "balanceUsed": 0,
+      "remark": "",
+      "reference": "",
+      "bank": ""
+    },
+    "items": [
+      {
+        "id": "1775141927242",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775141731771_eos9va60m",
+          "organizationId": "1775141597011",
+          "name": "2 Month",
+          "courses": [
+            {
+              "courseId": "course_1775141613678",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T14:55:31.771Z",
+          "updatedAt": "2026-04-02T14:55:31.771Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-02",
+            "dateString": "2026-04-02",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1775059200000"
+          },
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775141910306_sjnc423ln",
+              "organizationId": "1775141597011",
+              "className": "Chess Class",
+              "startTime": "16:30",
+              "endTime": "17:30",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775141613678"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T14:58:30.306Z",
+              "updatedAt": "2026-04-02T14:58:30.306Z"
+            },
+            "id": "timetable_1775141910306_sjnc423ln_1779897600000"
+          }
+        ],
+        "price": 2025
+      }
+    ],
+    "totalAmount": 2025,
+    "createdBy": "1775141597013"
+  },
+  {
+    "id": "order_1775190030219_qsqz8z3kq",
+    "organizationId": "1775144796471",
+    "studentId": "1775144864681",
+    "date": "2026-04-03T04:20:30.219Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "lesson_quota",
+      "amount": 0,
+      "balanceUsed": 0,
+      "remark": "Paid with lesson quota"
+    },
+    "items": [
+      {
+        "id": "1775190023790",
+        "productType": "package",
+        "productData": {
+          "id": "package_1775144848206_ia9ntwiew",
+          "organizationId": "1775144796471",
+          "name": "Chess 2 month",
+          "courses": [
+            {
+              "courseId": "course_1775144824881",
+              "quantity": 1
+            }
+          ],
+          "priceStrategy": "monthly",
+          "fixedPrice": null,
+          "discountPercentage": null,
+          "customPrice": null,
+          "monthlyLessonPrice": 225,
+          "monthlyPeriod": 2,
+          "description": null,
+          "startDate": null,
+          "endDate": null,
+          "status": "active",
+          "createdAt": "2026-04-02T15:47:28.206Z",
+          "updatedAt": "2026-04-02T15:47:28.206Z"
+        },
+        "enrolledClasses": [
+          {
+            "date": "2026-04-09",
+            "dateString": "2026-04-09",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1775664000000"
+          },
+          {
+            "date": "2026-04-16",
+            "dateString": "2026-04-16",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1776268800000"
+          },
+          {
+            "date": "2026-04-23",
+            "dateString": "2026-04-23",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1776873600000"
+          },
+          {
+            "date": "2026-04-30",
+            "dateString": "2026-04-30",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1777478400000"
+          },
+          {
+            "date": "2026-05-07",
+            "dateString": "2026-05-07",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1778083200000"
+          },
+          {
+            "date": "2026-05-14",
+            "dateString": "2026-05-14",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1778688000000"
+          },
+          {
+            "date": "2026-05-21",
+            "dateString": "2026-05-21",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1779292800000"
+          },
+          {
+            "date": "2026-05-28",
+            "dateString": "2026-05-28",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1779897600000"
+          },
+          {
+            "date": "2026-04-15",
+            "dateString": "2026-04-15",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1776182400000"
+          },
+          {
+            "date": "2026-05-20",
+            "dateString": "2026-05-20",
+            "entry": {
+              "id": "timetable_1775144993852_79imyynvc",
+              "organizationId": "1775144796471",
+              "className": "Chess Class",
+              "startTime": "08:00",
+              "endTime": "09:00",
+              "isRecurring": true,
+              "dayOfWeek": [
+                "Wednesday",
+                "Thursday"
+              ],
+              "date": null,
+              "startDate": null,
+              "endDate": null,
+              "courseIds": [
+                "course_1775144824881"
+              ],
+              "teacherIds": [],
+              "classroom": null,
+              "studentIds": [],
+              "exceptions": [],
+              "createdAt": "2026-04-02T15:49:53.852Z",
+              "updatedAt": "2026-04-02T15:49:53.852Z"
+            },
+            "id": "timetable_1775144993852_79imyynvc_1779206400000"
+          }
+        ],
+        "price": 2250
+      }
+    ],
+    "totalAmount": 2250,
+    "amountPaid": 2250,
+    "createdBy": "1775144796473",
+    "updatedAt": "2026-04-03T05:52:32.305Z",
+    "updatedBy": "1775144796473"
+  },
+  {
+    "id": "order_1775190690165_wj3rpit2i",
+    "organizationId": "1775190690119",
+    "studentId": "1775190690133",
+    "date": "2026-04-03T04:31:30.165Z",
+    "status": "unpaid",
+    "paymentDetails": {
+      "method": "lesson_quota",
+      "amount": 0,
+      "balanceUsed": 0,
+      "remark": "smoke PATCH lesson_quota"
+    },
+    "items": [
+      {
+        "productType": "package",
+        "productData": {
+          "id": "pkg_smoke_1775190690021_k8gc7s",
+          "name": "Smoke package"
+        },
+        "price": 1800,
+        "enrolledClasses": [
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_0",
+            "dateString": "2026-06-10"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_1",
+            "dateString": "2026-06-11"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_2",
+            "dateString": "2026-06-12"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_3",
+            "dateString": "2026-06-13"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_4",
+            "dateString": "2026-06-14"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_5",
+            "dateString": "2026-06-15"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_6",
+            "dateString": "2026-06-16"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_7",
+            "dateString": "2026-06-17"
+          }
+        ]
+      }
+    ],
+    "totalAmount": 1800,
+    "amountPaid": 0,
+    "createdBy": "1775190690122",
+    "updatedAt": "2026-04-03T04:31:30.175Z",
+    "updatedBy": "1775190690122"
+  },
+  {
+    "id": "order_1775190690194_yj0b275l3",
+    "organizationId": "1775190690119",
+    "studentId": "1775190690143",
+    "date": "2026-04-03T04:31:30.194Z",
+    "status": "unpaid",
+    "paymentDetails": {
+      "method": "lesson_quota",
+      "amount": 0,
+      "balanceUsed": 0,
+      "remark": "smoke POST lesson_quota"
+    },
+    "items": [
+      {
+        "productType": "package",
+        "productData": {
+          "id": "pkg_smoke_1775190690021_k8gc7s",
+          "name": "Smoke package"
+        },
+        "price": 1800,
+        "enrolledClasses": [
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_0",
+            "dateString": "2026-06-10"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_1",
+            "dateString": "2026-06-11"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_2",
+            "dateString": "2026-06-12"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_3",
+            "dateString": "2026-06-13"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_4",
+            "dateString": "2026-06-14"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_5",
+            "dateString": "2026-06-15"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_6",
+            "dateString": "2026-06-16"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_7",
+            "dateString": "2026-06-17"
+          }
+        ]
+      }
+    ],
+    "totalAmount": 1800,
+    "amountPaid": 0,
+    "createdBy": "1775190690122"
+  },
+  {
+    "id": "order_1775190690215_v0zypkrks",
+    "organizationId": "1775190690119",
+    "studentId": "1775190690133",
+    "date": "2026-04-03T04:31:30.215Z",
+    "status": "unpaid",
+    "paymentDetails": {
+      "method": "lesson_quota",
+      "amount": 0,
+      "balanceUsed": 0,
+      "remark": "should fail"
+    },
+    "items": [
+      {
+        "productType": "package",
+        "productData": {
+          "id": "pkg_smoke_1775190690021_k8gc7s",
+          "name": "Smoke package"
+        },
+        "price": 1800,
+        "enrolledClasses": [
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_0",
+            "dateString": "2026-06-10"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_1",
+            "dateString": "2026-06-11"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_2",
+            "dateString": "2026-06-12"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_3",
+            "dateString": "2026-06-13"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_4",
+            "dateString": "2026-06-14"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_5",
+            "dateString": "2026-06-15"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_6",
+            "dateString": "2026-06-16"
+          },
+          {
+            "id": "smoke_tt_1775190690021_k8gc7s_7",
+            "dateString": "2026-06-17"
+          }
+        ]
+      }
+    ],
+    "totalAmount": 1800,
+    "amountPaid": 0,
+    "createdBy": "1775190690122",
+    "updatedAt": "2026-04-03T04:31:30.225Z",
+    "updatedBy": "1775190690122"
+  },
+  {
+    "id": "order_1775190746364_ftv16bt4r",
+    "organizationId": "1775190746337",
+    "studentId": "1775190746347",
+    "date": "2026-04-03T04:32:26.364Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "lesson_quota",
+      "amount": 0,
+      "balanceUsed": 0,
+      "remark": "smoke PATCH lesson_quota"
+    },
+    "items": [
+      {
+        "productType": "package",
+        "productData": {
+          "id": "pkg_smoke_1775190746248_8yccwp",
+          "name": "Smoke package"
+        },
+        "price": 1800,
+        "enrolledClasses": [
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_0",
+            "dateString": "2026-06-10"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_1",
+            "dateString": "2026-06-11"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_2",
+            "dateString": "2026-06-12"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_3",
+            "dateString": "2026-06-13"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_4",
+            "dateString": "2026-06-14"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_5",
+            "dateString": "2026-06-15"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_6",
+            "dateString": "2026-06-16"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_7",
+            "dateString": "2026-06-17"
+          }
+        ]
+      }
+    ],
+    "totalAmount": 1800,
+    "amountPaid": 1800,
+    "createdBy": "1775190746338",
+    "updatedAt": "2026-04-03T04:32:26.372Z",
+    "updatedBy": "1775190746338"
+  },
+  {
+    "id": "order_1775190746383_9yd70mnjc",
+    "organizationId": "1775190746337",
+    "studentId": "1775190746353",
+    "date": "2026-04-03T04:32:26.383Z",
+    "status": "paid",
+    "paymentDetails": {
+      "method": "lesson_quota",
+      "amount": 0,
+      "balanceUsed": 0,
+      "remark": "smoke POST lesson_quota"
+    },
+    "items": [
+      {
+        "productType": "package",
+        "productData": {
+          "id": "pkg_smoke_1775190746248_8yccwp",
+          "name": "Smoke package"
+        },
+        "price": 1800,
+        "enrolledClasses": [
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_0",
+            "dateString": "2026-06-10"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_1",
+            "dateString": "2026-06-11"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_2",
+            "dateString": "2026-06-12"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_3",
+            "dateString": "2026-06-13"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_4",
+            "dateString": "2026-06-14"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_5",
+            "dateString": "2026-06-15"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_6",
+            "dateString": "2026-06-16"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_7",
+            "dateString": "2026-06-17"
+          }
+        ]
+      }
+    ],
+    "totalAmount": 1800,
+    "amountPaid": 1800,
+    "createdBy": "1775190746338"
+  },
+  {
+    "id": "order_1775190746394_m3oaztead",
+    "organizationId": "1775190746337",
+    "studentId": "1775190746347",
+    "date": "2026-04-03T04:32:26.394Z",
+    "status": "unpaid",
+    "paymentDetails": null,
+    "items": [
+      {
+        "productType": "package",
+        "productData": {
+          "id": "pkg_smoke_1775190746248_8yccwp",
+          "name": "Smoke package"
+        },
+        "price": 1800,
+        "enrolledClasses": [
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_0",
+            "dateString": "2026-06-10"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_1",
+            "dateString": "2026-06-11"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_2",
+            "dateString": "2026-06-12"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_3",
+            "dateString": "2026-06-13"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_4",
+            "dateString": "2026-06-14"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_5",
+            "dateString": "2026-06-15"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_6",
+            "dateString": "2026-06-16"
+          },
+          {
+            "id": "smoke_tt_1775190746248_8yccwp_7",
+            "dateString": "2026-06-17"
+          }
+        ]
+      }
+    ],
+    "totalAmount": 1800,
+    "amountPaid": 0,
+    "createdBy": "1775190746338"
   }
 ]

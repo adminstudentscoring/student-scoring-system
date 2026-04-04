@@ -22,7 +22,53 @@
       "status": "active",
       "createdAt": "2026-04-02T09:14:12.491Z",
       "updatedAt": "2026-04-02T09:14:12.491Z"
+    },
+    {
+      "id": "package_1775141731771_eos9va60m",
+      "organizationId": "1775141597011",
+      "name": "2 Month",
+      "courses": [
+        {
+          "courseId": "course_1775141613678",
+          "quantity": 1
+        }
+      ],
+      "priceStrategy": "monthly",
+      "fixedPrice": null,
+      "discountPercentage": null,
+      "customPrice": null,
+      "monthlyLessonPrice": 225,
+      "monthlyPeriod": 2,
+      "description": null,
+      "startDate": null,
+      "endDate": null,
+      "status": "active",
+      "createdAt": "2026-04-02T14:55:31.771Z",
+      "updatedAt": "2026-04-02T14:55:31.771Z"
+    },
+    {
+      "id": "package_1775144848206_ia9ntwiew",
+      "organizationId": "1775144796471",
+      "name": "Chess 2 month",
+      "courses": [
+        {
+          "courseId": "course_1775144824881",
+          "quantity": 1
+        }
+      ],
+      "priceStrategy": "monthly",
+      "fixedPrice": null,
+      "discountPercentage": null,
+      "customPrice": null,
+      "monthlyLessonPrice": 225,
+      "monthlyPeriod": 2,
+      "description": null,
+      "startDate": null,
+      "endDate": null,
+      "status": "active",
+      "createdAt": "2026-04-02T15:47:28.206Z",
+      "updatedAt": "2026-04-02T15:47:28.206Z"
     }
   ],
-  "lastUpdate": "2026-04-02T09:14:12.491Z"
+  "lastUpdate": "2026-04-02T15:47:28.206Z"
 }
