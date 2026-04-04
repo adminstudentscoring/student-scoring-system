@@ -20,68 +20,6 @@ body.class-view-page {
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.class-view-titlebar {
-    background: rgba(28, 28, 30, 0.94);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    color: #f5f5f7;
-    padding: 8px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: move;
-    user-select: none;
-    -webkit-app-region: drag;
-    border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
-}
-
-.titlebar-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.titlebar-title {
-    font-weight: 600;
-    font-size: 17px;
-    letter-spacing: -0.02em;
-    color: #f5f5f7;
-}
-
-.titlebar-buttons {
-    display: flex;
-    gap: 8px;
-    -webkit-app-region: no-drag;
-}
-
-.titlebar-btn {
-    width: 30px;
-    height: 30px;
-    border: none;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #f5f5f7;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s;
-    font-size: 14px;
-}
-
-.titlebar-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.titlebar-btn.minimize:hover {
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.titlebar-btn.close:hover {
-    background: rgba(255, 59, 48, 0.15);
-    color: #ff3b30;
-}
-
 .class-view-content {
     flex: 1;
     overflow-y: auto;
@@ -438,7 +376,7 @@ body.class-view-page {
     padding: 8px 12px;
     border: none;
     background: transparent;
-    color: #0a84ff;
+    color: #f5f5f7;
     font-size: 15px;
     font-weight: 500;
     font-family: inherit;
@@ -454,8 +392,8 @@ body.class-view-page {
     display: inline-block;
     width: 8px;
     height: 8px;
-    border-right: 2px solid #0a84ff;
-    border-bottom: 2px solid #0a84ff;
+    border-right: 2px solid rgba(245, 245, 247, 0.9);
+    border-bottom: 2px solid rgba(245, 245, 247, 0.9);
     transform: rotate(45deg);
     margin-top: -4px;
     transition: transform 0.22s ease;
@@ -486,7 +424,7 @@ body.class-view-page {
     border-radius: 12px;
     border: none;
     background: rgba(255, 255, 255, 0.12);
-    color: #0a84ff;
+    color: #f5f5f7;
     font-size: 15px;
     font-weight: 600;
     font-family: inherit;
@@ -734,20 +672,21 @@ body.class-view-page {
 .class-add-btn {
     padding: 8px 14px;
     min-width: 52px;
-    border: none;
+    border: 0.5px solid rgba(255, 255, 255, 0.14);
     border-radius: 10px;
-    background: #0a84ff;
-    color: #ffffff;
+    background: rgba(28, 28, 30, 0.55);
+    color: #f5f5f7;
     cursor: pointer;
     font-size: 15px;
     font-weight: 600;
-    transition: opacity 0.2s, background 0.2s;
+    transition: opacity 0.2s, background 0.2s, border-color 0.2s;
     white-space: nowrap;
     flex-shrink: 0;
 }
 
 .class-add-btn:hover {
-    background: #409cff;
+    background: rgba(44, 44, 46, 0.65);
+    border-color: rgba(255, 255, 255, 0.22);
 }
 
 .class-add-btn:disabled {

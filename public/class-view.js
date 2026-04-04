@@ -12,7 +12,7 @@ let windowStartSize = { width: 0, height: 0 };
 const _recordingInProgress = new Set();
 
 /** Bump with class-view.html ?v= when shipping UI fixes (smoke logs reference this). */
-const CLASS_VIEW_ASSETS_BUILD = 'cv20260404';
+const CLASS_VIEW_ASSETS_BUILD = 'cv20260405';
 
 /**
  * UI smoke test: stylesheets, footer buttons, HP label, search, collapsible panel, student bar labels.
@@ -30,6 +30,7 @@ function runClassViewUiSmokeTest(phase) {
 
     log('build', CLASS_VIEW_ASSETS_BUILD);
     log('href', window.location.href);
+    log('titlebar removed', { titlebarPresent: !!document.getElementById('titlebar') });
 
     const sheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((l) => ({
         href: l.href,
@@ -633,22 +634,15 @@ function setupDragging() {
     });
 }
 
-// Window controls
-document.getElementById('closeBtn').addEventListener('click', () => {
+// Title bar removed — close/minimize hooks only if present (e.g. legacy embeds)
+document.getElementById('closeBtn')?.addEventListener('click', () => {
     window.close();
 });
 
-document.getElementById('minimizeBtn').addEventListener('click', () => {
-    // In Electron, minimize should work via window.blur() or window.focus()
-    // For browser, minimize is not directly possible
+document.getElementById('minimizeBtn')?.addEventListener('click', () => {
     if (window.navigator.userAgent.indexOf('Electron') !== -1) {
-        // In Electron, we can try to minimize using window methods
-        // However, since we're using frameless window, we need IPC
-        // For now, just close or do nothing
-        // TODO: Add IPC support for minimize in Electron
+        // Frameless Electron may need IPC to minimize
     }
-    // For browser, we can't truly minimize
-    // Optionally, we could post a message to parent window
 });
 
 // Escape HTML

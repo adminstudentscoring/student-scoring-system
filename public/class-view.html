@@ -6,8 +6,8 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:* ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:* https://cloudflareinsights.com https://*.cloudflareinsights.com;">
     <title>Class View - Student Scoring System</title>
     <!-- Bump ?v= when changing class-view UI so CDN/browser pick up new CSS/JS -->
-    <link rel="stylesheet" href="styles.css?v=cv20260404">
-    <link rel="stylesheet" href="class-view.css?v=cv20260404">
+    <link rel="stylesheet" href="styles.css?v=cv20260405">
+    <link rel="stylesheet" href="class-view.css?v=cv20260405">
     <!-- Critical fallback if class-view.css is stale, blocked, or wrong path -->
     <style id="class-view-critical-fallback">
         body.class-view-page {
@@ -20,12 +20,6 @@
         }
         .class-view-page .class-view-container { background: #0d0d0f !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.08) !important; }
         .class-view-page .class-view-content { background: #0d0d0f !important; }
-        .class-view-page .class-view-titlebar {
-            background: rgba(28, 28, 30, 0.94) !important;
-            color: #f5f5f7 !important;
-            border-bottom: 0.5px solid rgba(255, 255, 255, 0.12) !important;
-        }
-        .class-view-page .titlebar-btn { background: rgba(255,255,255,0.1) !important; color: #f5f5f7 !important; }
         .class-view-page .challenge-section {
             background: #0d0d0f !important;
             padding: 4px 10px 4px !important;
@@ -85,11 +79,6 @@
             background: rgba(28, 28, 30, 0.94) !important;
             border-top: 0.5px solid rgba(255,255,255,0.12) !important;
         }
-        .class-view-page .cv-footer-toggle { color: #0a84ff !important; }
-        .class-view-page .cv-footer-chevron {
-            border-right-color: #0a84ff !important;
-            border-bottom-color: #0a84ff !important;
-        }
         .class-view-page .cv-footer-toggle {
             display: flex !important;
             align-items: center !important;
@@ -98,6 +87,7 @@
             padding: 8px 12px !important;
             border: none !important;
             background: transparent !important;
+            color: #f5f5f7 !important;
             font-size: 15px !important;
             font-weight: 500 !important;
             cursor: pointer !important;
@@ -106,8 +96,8 @@
             display: inline-block !important;
             width: 8px !important;
             height: 8px !important;
-            border-right: 2px solid #0a84ff !important;
-            border-bottom: 2px solid #0a84ff !important;
+            border-right: 2px solid rgba(245, 245, 247, 0.9) !important;
+            border-bottom: 2px solid rgba(245, 245, 247, 0.9) !important;
             transform: rotate(45deg) !important;
             margin-top: -4px !important;
         }
@@ -132,10 +122,15 @@
             border-radius: 12px !important;
             border: none !important;
             background: rgba(255,255,255,0.12) !important;
-            color: #0a84ff !important;
+            color: #f5f5f7 !important;
             font-size: 15px !important;
             font-weight: 600 !important;
             cursor: pointer !important;
+        }
+        .class-view-page .class-add-btn {
+            background: rgba(28, 28, 30, 0.55) !important;
+            color: #f5f5f7 !important;
+            border: 0.5px solid rgba(255, 255, 255, 0.14) !important;
         }
         .class-view-page .progress-bar-label {
             position: absolute !important;
@@ -164,15 +159,6 @@
 </head>
 <body class="class-view-page">
     <div class="class-view-container">
-        <div class="class-view-titlebar" id="titlebar">
-            <div class="titlebar-left">
-                <span class="titlebar-title">Class View</span>
-            </div>
-            <div class="titlebar-buttons">
-                <button class="titlebar-btn minimize" id="minimizeBtn" title="Minimize">−</button>
-                <button class="titlebar-btn close" id="closeBtn" title="Close">×</button>
-            </div>
-        </div>
         <div class="class-view-content" id="classViewContent">
             <!-- Challenge Mode Section -->
             <div class="challenge-section" id="challengeSection">
@@ -289,7 +275,7 @@
         </div>
     </div>
 
-    <script src="auth.js?v=cv20260404"></script>
+    <script src="auth.js?v=cv20260405"></script>
     <script>
         // Check authentication - Class View is for teachers
         window.addEventListener('DOMContentLoaded', () => {
@@ -298,6 +284,6 @@
             }
         });
     </script>
-    <script src="class-view.js?v=cv20260404"></script>
+    <script src="class-view.js?v=cv20260405"></script>
 </body>
 </html>
