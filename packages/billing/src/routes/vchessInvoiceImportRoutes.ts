@@ -3,6 +3,9 @@
  */
 import type { Request, Response } from 'express';
 
+/** Set by authenticateUser (JWT payload); not on stock Express Request. */
+type AuthedRequest = Request & { user?: { id?: string; organizationId?: string; role?: string } };
+
 const MAX_ROWS = 5000;
 
 function sanitizeRows(rows: unknown): Record<string, unknown>[] {
@@ -37,7 +40,7 @@ function registerVchessInvoiceImportRoutes(app: any, deps: any): void {
     '/api/organizations/vchess-invoices/import',
     authenticateUser,
     authorizeRole('organization'),
-    async (req: Request, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       try {
         const users = await readUsers();
         const orgUser = users.find((u: any) => u.id === req.user?.id);
@@ -71,7 +74,7 @@ function registerVchessInvoiceImportRoutes(app: any, deps: any): void {
     '/api/organizations/vchess-invoices/import/:importId',
     authenticateUser,
     authorizeRole('organization'),
-    async (req: Request, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       try {
         const users = await readUsers();
         const orgUser = users.find((u: any) => u.id === req.user?.id);
@@ -98,7 +101,7 @@ function registerVchessInvoiceImportRoutes(app: any, deps: any): void {
     '/api/organizations/vchess-invoices/import',
     authenticateUser,
     authorizeRole('organization'),
-    async (req: Request, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       try {
         const users = await readUsers();
         const orgUser = users.find((u: any) => u.id === req.user?.id);
