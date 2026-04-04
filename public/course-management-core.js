@@ -1,6 +1,13 @@
 // Course Management Module
 // Handles all course-related functionality for organizations
 
+/** Bump when changing Setting / V.Chess UI (also used in org.html ?v= for cache-bust). */
+(function initCmCoreBuildTag() {
+  const BUILD = '2026-04-04-vchess2';
+  window.__STUDENT_SCORING_CM_CORE__ = BUILD;
+  console.log('[CourseManagement-core] script loaded, build:', BUILD);
+})();
+
 // Predefined colors — Apple system–style palette (iOS / macOS accent family)
 const PREDEFINED_COLORS = [
   '#007AFF', // Blue
@@ -197,9 +204,21 @@ function renderCourseManagement() {
       <div id="settingSubTabContent" class="course-sub-tab-content">
         <div style="padding: 18px;">
           <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:10px;">Course Management Settings</div>
-          <div style="color:#64748b; margin-bottom:16px;">These settings affect timetable scheduling and enrollments.</div>
+          <div style="color:#64748b; margin-bottom:16px;">Timetable / enrollments options below. <strong>V.Chess invoice Excel</strong> upload is the first card. · 發票 Excel 上傳在<strong>第一張卡片</strong>；假期設定在第二張。</div>
 
           <div style="display:grid; grid-template-columns: 1fr; gap:14px; max-width: 720px;">
+            <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
+              <div class="vchess-invoice-import-panel" aria-label="V.Chess invoice Excel import" id="vchessInvoiceImportSection">
+                <div class="vchess-invoice-import-title">V.Chess 發票表（Excel）</div>
+                <div class="vchess-invoice-import-row">
+                  <input type="file" id="vchessInvoiceXlsxInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="window.handleVchessInvoiceXlsxSelected(this)">
+                  <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('vchessInvoiceXlsxInput').click()">上傳 .xlsx</button>
+                  <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
+                </div>
+                <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
+                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後僅貴機構可讀；之後可用 API 依匯入批次 id 取回完整列。</p>
+              </div>
+            </div>
             <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px;">
                 <div style="font-weight:800; color:#0f172a;">Holidays / Closed Days</div>
@@ -210,18 +229,6 @@ function renderCourseManagement() {
               </div>
               <div style="color:#64748b; margin-bottom:10px;">Holidays will be skipped during class enrollment generation and auto-renew calculations.</div>
               <div id="cmHolidayRulesList" style="display:flex; flex-direction:column; gap:10px;"></div>
-            </div>
-            <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
-              <div class="vchess-invoice-import-panel" aria-label="V.Chess invoice Excel import">
-                <div class="vchess-invoice-import-title">V.Chess 發票表（Excel）</div>
-                <div class="vchess-invoice-import-row">
-                  <input type="file" id="vchessInvoiceXlsxInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="window.handleVchessInvoiceXlsxSelected(this)">
-                  <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('vchessInvoiceXlsxInput').click()">上傳 .xlsx</button>
-                  <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
-                </div>
-                <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
-                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後僅貴機構可讀；之後可用 API 依匯入批次 id 取回完整列。</p>
-              </div>
             </div>
           </div>
         </div>
@@ -241,7 +248,65 @@ function renderCourseManagement() {
   
   // Restore saved sub-tab
   switchSubTab(savedSubTab);
+
+  requestAnimationFrame(function logVchessImportDomProbe() {
+    const el = document.getElementById('vchessInvoiceImportSection');
+    const pane = document.getElementById('settingSubTabContent');
+    const cs = el ? window.getComputedStyle(el) : null;
+    const r = el ? el.getBoundingClientRect() : null;
+    console.log('[VChessImport][renderCourseManagement]', {
+      build: window.__STUDENT_SCORING_CM_CORE__,
+      savedSubTab: savedSubTab,
+      vchessSectionExists: !!el,
+      settingPaneExists: !!pane,
+      settingPaneHasActiveClass: pane ? pane.classList.contains('active') : false,
+      vchessDisplay: cs ? cs.display : null,
+      vchessVisibility: cs ? cs.visibility : null,
+      vchessHeight: cs ? cs.height : null,
+      boundingRect: r
+        ? { top: r.top, left: r.left, width: r.width, height: r.height }
+        : null
+    });
+    if (!el) {
+      console.warn(
+        '[VChessImport] #vchessInvoiceImportSection missing after render — likely OLD cached course-management-core.js. Hard-refresh (Cmd+Shift+R) or check Network tab for 304.'
+      );
+    }
+  });
 }
+
+/**
+ * Run in console: debugVChessImportUi()
+ * Dumps DOM / visibility for V.Chess block under Course → Setting.
+ */
+window.debugVChessImportUi = function debugVChessImportUi() {
+  const build = window.__STUDENT_SCORING_CM_CORE__ || '(unknown — core script not loaded or cached old file)';
+  const el = document.getElementById('vchessInvoiceImportSection');
+  const pane = document.getElementById('settingSubTabContent');
+  const container = document.getElementById('courseManagementContainer');
+  const settingHtmlHasVchessCopy =
+    pane && typeof pane.innerHTML === 'string' && pane.innerHTML.includes('V.Chess');
+  const out = {
+    build,
+    courseManagementContainer: !!container,
+    vchessInvoiceImportSection: !!el,
+    settingSubTabContent: !!pane,
+    settingActive: pane ? pane.classList.contains('active') : false,
+    settingHtmlIncludesVchessMarker: !!settingHtmlHasVchessCopy
+  };
+  if (el) {
+    const cs = window.getComputedStyle(el);
+    out.vchessComputed = {
+      display: cs.display,
+      visibility: cs.visibility,
+      opacity: cs.opacity,
+      height: cs.height
+    };
+    out.boundingRect = el.getBoundingClientRect();
+  }
+  console.log('[VChessImport][debugVChessImportUi]', out);
+  return out;
+};
 
 // Format price for display
 function formatPrice(price) {

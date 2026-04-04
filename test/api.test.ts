@@ -155,6 +155,15 @@ describe('API integration tests', () => {
     assert.strictEqual(res.status, 401);
   });
 
+  it('GET /api/organizations/vchess-invoices/import without auth returns 401 (route registered)', async () => {
+    const res = await request.get('/api/organizations/vchess-invoices/import');
+    assert.strictEqual(
+      res.status,
+      401,
+      '404 means the server process was started before this route existed — restart Node (pnpm start / pnpm dev)'
+    );
+  });
+
   it('POST /api/students without auth returns 401', async () => {
     const res = await request
       .post('/api/students')

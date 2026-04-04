@@ -48,6 +48,18 @@ function switchSubTab(subTab) {
     if (typeof window.refreshVchessInvoiceImportBanner === 'function') {
       window.refreshVchessInvoiceImportBanner();
     }
+    requestAnimationFrame(function logVchessOnSettingTab() {
+      const el = document.getElementById('vchessInvoiceImportSection');
+      const pane = document.getElementById('settingSubTabContent');
+      console.log('[VChessImport][switchSubTab setting]', {
+        build: window.__STUDENT_SCORING_CM_CORE__,
+        vchessSectionExists: !!el,
+        settingPaneActive: pane ? pane.classList.contains('active') : false,
+        hint: el
+          ? 'If card still invisible, run debugVChessImportUi() in console.'
+          : 'Missing #vchessInvoiceImportSection — hard-refresh or old JS cache.'
+      });
+    });
   }
 }
 

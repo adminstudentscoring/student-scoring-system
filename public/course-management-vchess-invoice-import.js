@@ -8,7 +8,16 @@
     if (!el || !window.authUtils || !window.authUtils.authenticatedFetch) return;
     try {
       const res = await window.authUtils.authenticatedFetch('/organizations/vchess-invoices/import');
-      if (!res || !res.ok) return;
+      if (!res) return;
+      if (res.status === 404) {
+        el.textContent =
+          'API 未註冊（請重啟伺服器：停止後再執行 pnpm start 或改用 pnpm dev）· Route missing — restart server (pnpm start / pnpm dev)';
+        console.warn(
+          '[VChessImport] GET /api/organizations/vchess-invoices/import returned 404 — server likely started before this route existed; restart the Node process.'
+        );
+        return;
+      }
+      if (!res.ok) return;
       const data = await res.json();
       const list = Array.isArray(data.imports) ? data.imports : [];
       if (list.length === 0) {
@@ -67,11 +76,16 @@
       }
       if (!resp.ok) {
         let msg = '上傳失敗';
-        try {
-          const err = await resp.json();
-          if (err.error) msg = err.error;
-        } catch (e) {
-          /* ignore */
+        if (resp.status === 404) {
+          msg =
+            'API 未註冊，請重啟伺服器（pnpm start / pnpm dev）· Server restart required (404)';
+        } else {
+          try {
+            const err = await resp.json();
+            if (err.error) msg = err.error;
+          } catch (e) {
+            /* ignore */
+          }
         }
         if (status) status.textContent = msg;
         if (window.showToast) window.showToast(msg, 'error');

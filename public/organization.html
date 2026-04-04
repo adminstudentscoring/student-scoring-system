@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="course-management-timetable.css">
     <script src="auth.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
-    <script src="course-management-core.js"></script>
+    <script src="course-management-core.js?v=20260404-vchess2"></script>
     <script src="course-management-courses.js"></script>
     <script src="course-management-packages.js"></script>
     <script src="course-management-enrollments.js"></script>
@@ -17,7 +17,7 @@
     <script src="course-management-sales-core.js"></script>
     <script src="course-management-sales-packages.js"></script>
     <script src="course-management-sales-orders.js"></script>
-    <script src="course-management-vchess-invoice-import.js"></script>
+    <script src="course-management-vchess-invoice-import.js?v=20260404-vchess3"></script>
     <script src="course-management-accounting.js"></script>
     <script src="course-management-statistics.js"></script>
     <style>
@@ -1222,7 +1222,8 @@
             }
         }
 
-        function switchTab(tab, element) {
+        // Expose on window so inline onclick (Safari / strict contexts) always resolves.
+        window.switchTab = function switchTab(tab, element) {
             document.querySelectorAll('.dash-nav-item').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => {
                 c.classList.remove('active');
@@ -1263,7 +1264,7 @@
             if (tab === 'subscription') {
                 loadOrganizationSubscription().catch(() => {});
             }
-        }
+        };
 
         function formatPricePerPeriod(amount, billingType) {
             const n = Number(amount || 0);
