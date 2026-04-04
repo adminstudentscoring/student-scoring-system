@@ -1576,7 +1576,16 @@ registerVchessInvoiceImportRoutes(app, {
   authorizeRole,
   readUsers,
   readVchessInvoiceImports,
-  writeVchessInvoiceImports
+  writeVchessInvoiceImports,
+  readOrganizations,
+  writeOrganizations,
+  readData,
+  writeData,
+  readTimetable,
+  writeTimetable,
+  readEnrollments,
+  writeEnrollments,
+  broadcast
 });
 
 // ===== My Own App routes (Admin utilities) =====

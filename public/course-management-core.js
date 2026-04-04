@@ -3,7 +3,7 @@
 
 /** Bump when changing Setting / V.Chess UI (also used in org.html ?v= for cache-bust). */
 (function initCmCoreBuildTag() {
-  const BUILD = '2026-04-04-vchess4';
+  const BUILD = '2026-04-04-vchess-apply1';
   window.__STUDENT_SCORING_CM_CORE__ = BUILD;
   console.log('[CourseManagement-core] script loaded, build:', BUILD);
 })();
@@ -216,7 +216,42 @@ function renderCourseManagement() {
                   <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
                 </div>
                 <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
-                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後僅貴機構可讀；之後可用 API 依匯入批次 id 取回完整列。</p>
+                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後可<strong>預覽並套用</strong>至學生與報名。若課表尚無對應時段，可勾選下方「自動建立課表」並填預設課程 ID（逗號分隔）。</p>
+                <div id="vchessImportApplyUi" class="vchess-import-apply-ui" style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px;">
+                  <div style="font-weight:700;margin-bottom:8px;color:#0f172a;">套用至學生／報名 · Apply (preview first)</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
+                    <label style="font-size:13px;">批次 batch <select id="vchessImportBatchSelect" class="search-input" style="min-width:200px;"></select></label>
+                    <label style="font-size:13px;">比對學生 By <select id="vchessStudentMatchField" class="search-input">
+                      <option value="chessComId">customer_id → chessComId</option>
+                      <option value="name">姓名 name</option>
+                      <option value="name_phone">姓名+電話 name+phone</option>
+                    </select></label>
+                  </div>
+                  <div id="vchessColumnMappingGrid" style="display:grid;grid-template-columns:140px 1fr;gap:6px 10px;font-size:13px;max-width:560px;"></div>
+                  <div style="margin-top:12px;padding:10px;background:#f1f5f9;border-radius:8px;font-size:12px;color:#334155;max-width:560px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;margin-bottom:8px;">
+                      <input type="checkbox" id="vchessCreateTimetableIfMissing" style="width:16px;height:16px;">
+                      無課表時自動建立時段 · Create timetable row if missing (Phase 2)
+                    </label>
+                    <div style="display:grid;grid-template-columns:1fr;gap:6px;">
+                      <label style="display:flex;flex-direction:column;gap:4px;">預設課程 ID（逗號）· default courseIds
+                        <input type="text" id="vchessDefaultCourseIds" class="search-input" placeholder="e.g. course_abc, course_xyz" autocomplete="off">
+                      </label>
+                      <label style="display:flex;flex-direction:column;gap:4px;">預設老師 ID（逗號）· default teacherIds
+                        <input type="text" id="vchessDefaultTeacherIds" class="search-input" placeholder="optional" autocomplete="off">
+                      </label>
+                      <label style="display:flex;flex-direction:column;gap:4px;">預設教室 · default classroom
+                        <input type="text" id="vchessDefaultClassroom" class="search-input" placeholder="optional" maxlength="50" autocomplete="off">
+                      </label>
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                    <button type="button" class="btn btn-secondary btn-small" id="vchessSaveApplyConfigBtn">儲存欄位對照 · Save mapping</button>
+                    <button type="button" class="btn btn-primary btn-small" id="vchessPreviewApplyBtn">預覽 · Preview</button>
+                    <button type="button" class="btn btn-primary btn-small" id="vchessApplyImportBtn" disabled>套用 · Apply</button>
+                  </div>
+                  <pre id="vchessImportPreviewOut" style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:8px;font-size:11px;max-height:220px;overflow:auto;white-space:pre-wrap;"></pre>
+                </div>
               </div>
             </div>
             <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">

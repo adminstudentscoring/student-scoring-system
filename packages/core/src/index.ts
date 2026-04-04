@@ -37,6 +37,13 @@ export {
   computePackagePrice
 } from './lib/dateUtils';
 
+// V.Chess invoice schedule date parsing (import apply + tooling)
+export {
+  extractDefaultYearFromInvoiceDate,
+  expandVchessScheduleDatesToYmd,
+  utcYmdToEnglishDow
+} from './lib/vchessScheduleDates';
+
 // Lib - Stats helpers
 export {
   getDateKey,

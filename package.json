@@ -22,6 +22,7 @@
     "test": "node --import tsx --test test/*.test.ts",
     "test:lesson-quota": "node --import tsx --test test/lesson-quota-api.test.ts",
     "invoice-parse-smoke": "node --import tsx --test test/invoice-pdf-parse-smoke.test.ts",
+    "test:vchess-apply": "node --import tsx --test test/vchess-import-apply-engine.test.ts",
     "invoice-pdf-to-xlsx": "tsx scripts/vchess-invoice-pdf-to-xlsx.ts"
   },
   "keywords": [

@@ -1,6 +1,12 @@
 /**
  * V.Chess invoice text → row fields. Used by CLI and tests; keep browser HTML in sync.
+ * Schedule date expansion lives in @student-scoring/core (single source of truth for import apply).
  */
+export {
+  expandVchessScheduleDatesToYmd,
+  extractDefaultYearFromInvoiceDate,
+  utcYmdToEnglishDow
+} from '@student-scoring/core';
 
 export type InvoiceRow = {
   source_file: string;
