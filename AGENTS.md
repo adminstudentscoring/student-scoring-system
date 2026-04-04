@@ -37,11 +37,11 @@ This is **StudentScoring** — a chess education and student management platform
 ### Running the application
 
 ```bash
-pnpm dev          # runs tsx watch server.ts on port 3000
+pnpm dev          # runs tsx watch server.ts on port 7001 (override with PORT)
 # or: pnpm start  (npx tsx server.ts)
 ```
 
-Server listens on `http://localhost:3000`. The Teacher Dashboard is at `/`, login at `/login.html`, admin at `/admin.html`, organization management at `/organization.html`.
+Server listens on `http://localhost:7001` by default (set `PORT` in `.env` to override). The Teacher Dashboard is at `/`, login at `/login.html`, admin at `/admin.html`, organization management at `/organization.html`.
 
 ### Monorepo structure
 
@@ -84,7 +84,7 @@ const paypal = require('@student-scoring/billing/src/paypal');
 ### Gotchas
 
 - **ESLint** is configured via flat config (`eslint.config.js`, ESLint 10+) for both `.js` and `.ts` files. `@typescript-eslint` is used for TypeScript-specific rules. Run `pnpm lint`. Most rules are set to warn. For type checking `.ts` files, also run `pnpm typecheck` (`tsc --noEmit`).
-- **Integration tests** use Node.js built-in test runner + supertest. Run `pnpm test`. Tests hit a running server on `http://localhost:3000`, so start the server first or the test helper will spawn one automatically.
+- **Integration tests** use Node.js built-in test runner + supertest. Run `pnpm test`. Tests hit a running server on `http://localhost:7001` by default (`TEST_BASE_URL` overrides), so start the server first or the test helper will spawn one automatically.
 - `GET /api/students` uses `optionalAuth` and returns 200 without a token — use `POST /api/students` to test auth-required student routes.
 - The server uses **file-based storage** (`data/` directory) for most entities (students, users, organizations, leaderboards). PostgreSQL is used for billing, blunders, tactics fighter, and migrations.
 - `billing/paypal.ts` requires `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `PAYPAL_WEBHOOK_ID` as environment variables at module load time. The server will crash without them.

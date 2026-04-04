@@ -14,7 +14,7 @@ const readline = require('readline');
 
 const STUDENTS_FILE: string = path.join(__dirname, '..', 'data/students.txt');
 const API_BASE: string = process.env.API_BASE || 'https://www.studentscoring.com/api';
-const LOCAL_API_BASE = 'http://localhost:3000/api';
+const LOCAL_API_BASE = process.env.LOCAL_API_BASE || 'http://localhost:7001/api';
 
 let USE_LOCAL: boolean = process.env.USE_LOCAL === 'true' || process.argv.includes('--local');
 let BASE_URL: string = USE_LOCAL ? LOCAL_API_BASE : API_BASE;

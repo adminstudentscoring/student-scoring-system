@@ -5,7 +5,7 @@ const net = require('net');
 
 let mainWindow = null;
 let serverProcess = null;
-const PORT = 3000;
+const PORT = 7001;
 
 // Check if port is in use
 function isPortInUse(port) {
@@ -94,7 +94,7 @@ async function startServer() {
       await new Promise(resolve => setTimeout(resolve, 2000));
     } else {
       console.warn(`⚠️  Warning: Could not free port ${PORT}. The server might fail to start.`);
-      console.warn('Please close any other instances of this application or processes using port 3000.');
+      console.warn('Please close any other instances of this application or processes using port 7001.');
       
       // Show dialog to user (after window is created)
       // We'll show this after the window is ready
@@ -104,7 +104,7 @@ async function startServer() {
             type: 'warning',
             title: 'Port Already in Use',
             message: `Port ${PORT} is already in use.`,
-            detail: 'The application will try to start anyway, but may fail. Please close any other instances using port 3000.',
+            detail: 'The application will try to start anyway, but may fail. Please close any other instances using port 7001.',
             buttons: ['OK']
           });
         }

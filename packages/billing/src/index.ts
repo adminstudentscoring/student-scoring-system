@@ -5,6 +5,7 @@ const paypal = require('./paypal');
 const paypalBillingService = require('./paypalBillingService');
 const paypalRoutes = require('./routes/paypalRoutes');
 const organizationsBillingRoutes = require('./routes/organizationsBillingRoutes');
+const vchessInvoiceImportRoutes = require('./routes/vchessInvoiceImportRoutes');
 const adminSubscriptionRoutes = require('./routes/adminSubscriptionRoutes');
 
 // Database
@@ -44,4 +45,5 @@ export const createPayPalBillingHelpers = paypalBillingService.createPayPalBilli
 // Routes
 export const registerPayPalRoutes = paypalRoutes.registerPayPalRoutes;
 export const registerOrganizationsBillingRoutes = organizationsBillingRoutes.registerOrganizationsBillingRoutes;
+export const registerVchessInvoiceImportRoutes = vchessInvoiceImportRoutes.registerVchessInvoiceImportRoutes;
 export const registerAdminSubscriptionRoutes = adminSubscriptionRoutes.registerAdminSubscriptionRoutes;

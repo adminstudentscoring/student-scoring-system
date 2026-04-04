@@ -20,7 +20,9 @@
     "blunders:import-db": "tsx scripts/blunders-import-to-db.ts",
     "lint": "eslint .",
     "test": "node --import tsx --test test/*.test.ts",
-    "test:lesson-quota": "node --import tsx --test test/lesson-quota-api.test.ts"
+    "test:lesson-quota": "node --import tsx --test test/lesson-quota-api.test.ts",
+    "invoice-parse-smoke": "node --import tsx --test test/invoice-pdf-parse-smoke.test.ts",
+    "invoice-pdf-to-xlsx": "tsx scripts/vchess-invoice-pdf-to-xlsx.ts"
   },
   "keywords": [
     "student",
@@ -34,19 +36,19 @@
     "node": "20.x"
   },
   "dependencies": {
-    "@student-scoring/core": "workspace:*",
-    "@student-scoring/application-chess": "workspace:*",
-    "@student-scoring/application-monster-fight": "workspace:*",
     "@student-scoring/application-blunders": "workspace:*",
+    "@student-scoring/application-chess": "workspace:*",
+    "@student-scoring/application-hope-mate": "workspace:*",
+    "@student-scoring/application-monster-fight": "workspace:*",
+    "@student-scoring/application-royal-exchange": "workspace:*",
+    "@student-scoring/application-running-queen": "workspace:*",
     "@student-scoring/application-tactics-fighter": "workspace:*",
     "@student-scoring/application-truceboard": "workspace:*",
-    "@student-scoring/application-running-queen": "workspace:*",
-    "@student-scoring/application-royal-exchange": "workspace:*",
-    "@student-scoring/application-hope-mate": "workspace:*",
-    "@student-scoring/vcp": "workspace:*",
     "@student-scoring/billing": "workspace:*",
     "@student-scoring/class-view": "workspace:*",
+    "@student-scoring/core": "workspace:*",
     "@student-scoring/platform": "workspace:*",
+    "@student-scoring/vcp": "workspace:*",
     "bcrypt": "^5.1.1",
     "chess.js": "^1.4.0",
     "cors": "^2.8.5",
@@ -84,9 +86,11 @@
     "electron": "^27.0.0",
     "eslint": "^10.0.3",
     "globals": "^17.4.0",
+    "pdf-parse": "^2.4.5",
     "supertest": "^7.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.1"
+    "typescript-eslint": "^8.57.1",
+    "xlsx": "^0.18.5"
   }
 }

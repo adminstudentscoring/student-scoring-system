@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>V.Chess 發票 PDF → Excel | Invoice PDF to XLSX</title>
+  <!-- PDF: pdf.js 3.x. Excel: SheetJS. Keep parse logic in sync with scripts/lib/vchess-invoice-parse.ts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4d;
+      --text: #e7edf5;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --accent-dim: #2563c9;
+      --ok: #34c759;
+      --err: #ff453a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 1.25rem;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.35rem; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .drop {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .drop:hover, .drop.drag { border-color: var(--accent); background: rgba(61, 139, 253, 0.06); }
+    .drop strong { display: block; margin-bottom: 0.35rem; }
+    .drop input[type="file"] { display: none; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.1rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
+    button:hover { background: var(--accent-dim); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.secondary { background: var(--border); color: var(--text); }
+    .list { font-size: 0.85rem; color: var(--muted); max-height: 18rem; overflow-y: auto; margin-top: 0.5rem; }
+    .list li { margin: 0.2rem 0; }
+    .status { font-size: 0.9rem; margin-top: 0.75rem; min-height: 1.4em; }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+    .bar {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+      display: none;
+    }
+    .bar.on { display: block; }
+    .bar > i { display: block; height: 100%; width: 0%; background: var(--accent); transition: width 0.12s ease; }
+    .note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    code { font-size: 0.82em; background: var(--bg); padding: 0.1em 0.35em; border-radius: 4px; }
+    .smoke-out {
+      margin-top: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 14rem;
+      overflow-y: auto;
+    }
+    .smoke-out.pass { color: var(--ok); border-color: rgba(52, 199, 89, 0.35); }
+    .smoke-out.fail { color: var(--err); border-color: rgba(255, 69, 58, 0.35); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>V.Chess 發票 PDF → Excel</h1>
+    <p class="sub">大量選取或拖放 PDF；支援<strong>一頁兩張發票</strong>（左右欄）。Excel 含學員顯示、發票號、課程／時段／日期、老師、金額等欄。<br />
+      Bulk PDFs; <strong>two invoices per page</strong> (side-by-side) supported via column + text splitting.</p>
+
+    <div class="panel">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="選擇 PDF 檔案">
+        <strong>點此選擇 PDF</strong>
+        <span>或將多個 PDF 拖放到此區域 · Click or drop multiple PDFs</span>
+        <input type="file" id="files" accept=".pdf,application/pdf" multiple />
+      </div>
+      <div class="row">
+        <button type="button" id="run" disabled>產生並下載 Excel · Build &amp; download XLSX</button>
+        <button type="button" id="clear" class="secondary" disabled>清除列表 · Clear</button>
+        <button type="button" id="smokeBtn" class="secondary">解析自檢 Smoke test</button>
+      </div>
+      <pre class="smoke-out" id="smokeOut" hidden></pre>
+      <ul class="list" id="fileList"></ul>
+      <div class="bar" id="bar"><i id="barFill"></i></div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="note">
+      <strong>注意 · Notes</strong><br />
+      僅支援<strong>內含可選取文字</strong>的 PDF。多頁檔逐頁處理；<strong>一頁兩張（左右欄）</strong>時會用座標分欄並以 <code>No.:</code> / <code>To:</code> 再切分。掃描圖需 OCR。<br />
+      Text PDFs. <strong>Two invoices per sheet</strong>: column split + <code>No.:</code> / <code>To:</code> segments. Scanned PDFs need OCR.<br />
+      請用本機伺服器開啟本頁（例如 <code>http://localhost:7001/vchess-invoice-pdf-to-xlsx.html</code>），勿用 <code>file://</code>，否則 PDF worker 可能無法載入。<br />
+      Open via your dev server, not <code>file://</code>, so the PDF.js worker loads correctly.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+
+      function pickBestPriceQtyTotalTriplet(head) {
+        var tripletRe = /\$\s*([\d,]+\.?\d*)\s+(\d+\.?\d*)\s+\$\s*([\d,]+\.?\d*)/gi;
+        var candidates = [];
+        var m;
+        while ((m = tripletRe.exec(head)) !== null) candidates.push(m);
+        if (candidates.length === 0) return null;
+        function score(c) {
+          var a = parseFloat(c[1].replace(/,/g, ''));
+          var b = parseFloat(c[2].replace(/,/g, ''));
+          var d = parseFloat(c[3].replace(/,/g, ''));
+          if (!isFinite(a) || !isFinite(b) || !isFinite(d)) return -1;
+          if (b < 0.5 || b > 500) return -1;
+          var expected = a * b;
+          var err = Math.abs(expected - d);
+          var rel = d > 0 ? err / d : err;
+          if (rel > 0.08 && err > 1) return -1;
+          return 1000 - rel * 100 + (c.index || 0) * 1e-6;
+        }
+        var best = null;
+        var bestScore = -1;
+        for (var i = 0; i < candidates.length; i++) {
+          var s = score(candidates[i]);
+          if (s > bestScore) {
+            bestScore = s;
+            best = candidates[i];
+          }
+        }
+        return best || candidates[candidates.length - 1];
+      }
+
+      function cleanItemDescriptionRaw(raw) {
+        var s = raw.replace(/\s+/g, ' ').trim();
+        s = s.replace(/^(?:.*?\bItem\s+Description\b\s*)+/i, '');
+        s = s.replace(/^(?:.*?\bPrice\b\s+\bQuantity\b\s+\bTotal\b\s*)+/i, '');
+        s = s.replace(/^(?:.*?\bTotal\s+Price\b\s*)+/i, '');
+        return s.trim();
+      }
+
+      function pageLooksLikeInvoice(text) {
+        var t = text || '';
+        if (!t.trim()) return false;
+        if (/\bINV-[\dA-Za-z-]+\b/.test(t)) return true;
+        if (/\bTo:\s*[\s\S]{0,240}\(\s*[A-Za-z]?\d{3,}\s*\)/i.test(t)) return true;
+        if (/\bChess\s+lesson\b/i.test(t) && /\bSubtotal\b/i.test(t)) return true;
+        return false;
+      }
+
+      function splitPageTextIntoInvoiceSegments(pageText) {
+        var t = String(pageText || '').replace(/\r\n/g, '\n');
+        if (!t.trim()) return [];
+        var noLineRe = /(?:^|\n)\s*No\.?\s*:\s*(INV-[\dA-Za-z-]+)/gim;
+        var starts = [];
+        var m;
+        while ((m = noLineRe.exec(t)) !== null) starts.push(m.index);
+        if (starts.length >= 2) {
+          var parts = [];
+          for (var i = 0; i < starts.length; i++) {
+            parts.push(t.slice(starts[i], starts[i + 1] !== undefined ? starts[i + 1] : t.length).trim());
+          }
+          return parts.filter(function (p) {
+            return p.length > 25;
+          });
+        }
+        var toRe = /(?:^|\n)\s*To:\s*/gim;
+        var toStarts = [];
+        while ((m = toRe.exec(t)) !== null) toStarts.push(m.index);
+        if (toStarts.length >= 2) {
+          var parts2 = [];
+          for (var j = 0; j < toStarts.length; j++) {
+            parts2.push(t.slice(toStarts[j], toStarts[j + 1] !== undefined ? toStarts[j + 1] : t.length).trim());
+          }
+          return parts2.filter(function (p) {
+            return p.length > 25;
+          });
+        }
+        return [t.trim()];
+      }
+
+      function sortItemsReadingOrder(items) {
+        var arr = items.slice();
+        arr.sort(function (a, b) {
+          var dy = b.transform[5] - a.transform[5];
+          if (Math.abs(dy) > 2.5) return dy;
+          return a.transform[4] - b.transform[4];
+        });
+        return arr
+          .map(function (i) {
+            return i.str;
+          })
+          .join(' ')
+          .trim();
+      }
+
+      /** Two-column sheet: split by largest x-gap, else fall back to No.: / To: text split. */
+      async function extractInvoiceChunksFromPdfPage(page) {
+        var content = await page.getTextContent();
+        var items = content.items.filter(function (it) {
+          return it && 'str' in it && it.str && String(it.str).trim();
+        });
+        if (items.length === 0) return [];
+
+        var xs = items.map(function (it) {
+          return it.transform[4];
+        });
+        var minX = Math.min.apply(null, xs);
+        var maxX = Math.max.apply(null, xs);
+        var span = maxX - minX || 1;
+
+        var sortedUniq = [];
+        var seen = Object.create(null);
+        for (var xi = 0; xi < xs.length; xi++) {
+          var vx = Math.round(xs[xi] * 50) / 50;
+          if (!seen[vx]) {
+            seen[vx] = true;
+            sortedUniq.push(xs[xi]);
+          }
+        }
+        sortedUniq.sort(function (a, b) {
+          return a - b;
+        });
+        var maxGap = 0;
+        var splitX = (minX + maxX) / 2;
+        for (var gi = 1; gi < sortedUniq.length; gi++) {
+          var gap = sortedUniq[gi] - sortedUniq[gi - 1];
+          if (gap > maxGap) {
+            maxGap = gap;
+            splitX = (sortedUniq[gi] + sortedUniq[gi - 1]) / 2;
+          }
+        }
+        if (maxGap < span * 0.07) splitX = (minX + maxX) / 2;
+
+        var left = [];
+        var right = [];
+        for (var ii = 0; ii < items.length; ii++) {
+          var it = items[ii];
+          var x = it.transform[4];
+          var w = typeof it.width === 'number' ? it.width : 0;
+          var cx = x + w * 0.35;
+          if (cx < splitX) left.push(it);
+          else right.push(it);
+        }
+
+        var leftText = sortItemsReadingOrder(left);
+        var rightText = sortItemsReadingOrder(right);
+
+        var leftOk =
+          leftText.length >= 40 &&
+          (pageLooksLikeInvoice(leftText) || /\bINV-[\dA-Za-z-]+\b/i.test(leftText));
+        var rightOk =
+          rightText.length >= 40 &&
+          (pageLooksLikeInvoice(rightText) || /\bINV-[\dA-Za-z-]+\b/i.test(rightText));
+
+        if (leftOk && rightOk) return [leftText, rightText];
+
+        var full = sortItemsReadingOrder(items);
+        return splitPageTextIntoInvoiceSegments(full);
+      }
+
+      /** @param {string|null} itemDescription @param {string|null} teacherFromDocument */
+      function parseDescriptionDetail(itemDescription, teacherFromDocument) {
+        var out = {
+          course_name: null,
+          schedule_time: null,
+          schedule_dates: null,
+          lesson_date_count: null,
+          teacher: teacherFromDocument
+        };
+        if (!itemDescription) return out;
+        var work = itemDescription.replace(/\s+/g, ' ').trim();
+        var teachEnd = work.match(/\bTeacher\s*:?\s*(.+)$/i);
+        if (teachEnd && teachEnd.index !== undefined) {
+          out.teacher = teachEnd[1].trim();
+          work = work.slice(0, teachEnd.index).trim();
+        }
+        var timeM = work.match(/(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})/);
+        if (timeM) out.schedule_time = timeM[1].replace(/\s/g, '');
+        var bestInner = null;
+        var bestN = 0;
+        var parenRe = /\(([^)]+)\)/g;
+        var pm;
+        while ((pm = parenRe.exec(work)) !== null) {
+          var inner = pm[1];
+          var dm = inner.match(/\d{1,2}\/\d{1,2}/g);
+          var n = dm ? dm.length : 0;
+          if (n > bestN || (n === bestN && n > 0 && inner.length > (bestInner ? bestInner.length : 0))) {
+            bestN = n;
+            bestInner = inner;
+          }
+        }
+        if (bestInner && bestN > 0) {
+          out.schedule_dates = bestInner;
+          out.lesson_date_count = bestN;
+        }
+        var course_name;
+        if (timeM && timeM.index !== undefined) {
+          course_name = work.slice(0, timeM.index).replace(/\s+/g, ' ').trim();
+        } else if (bestInner !== null) {
+          var idx = work.indexOf('(');
+          course_name = (idx >= 0 ? work.slice(0, idx) : work).replace(/\s+/g, ' ').trim();
+        } else {
+          course_name = work.trim();
+        }
+        course_name = course_name.replace(/^[\s\S]*?item\s+description\s*/i, '').replace(/\s+/g, ' ').trim();
+        out.course_name = course_name || null;
+        return out;
+      }
+
+      /** @param {string} fullRaw @param {string} sourceFile */
+      function parseInvoiceText(fullRaw, sourceFile) {
+        var full = fullRaw.replace(/\r\n/g, '\n');
+        var normalized = full.replace(/[ \t]+/g, ' ');
+
+        var invoiceNo =
+          (normalized.match(/\bNo\.?\s*:?\s*(INV-[\dA-Za-z-]+)\b/i) || [])[1] ||
+          (normalized.match(/\b(INV-[\dA-Za-z-]+)\b/) || [])[1] ||
+          null;
+
+        var invoiceDate =
+          (normalized.match(/\bDate\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})\b/i) || [])[1] || null;
+
+        var toMatch = full.match(/To:\s*([\s\S]*?)\s*\(\s*([^)]+?)\s*\)/i);
+        var customerName = toMatch
+          ? toMatch[1].replace(/\s+/g, ' ').trim()
+          : null;
+        var customerId = toMatch ? toMatch[2].trim() : null;
+        if (
+          customerName &&
+          (/^(total|price|quantity)$/i.test(customerName) ||
+            /\btotal\s+price\b/i.test(customerName) ||
+            /^price\b/i.test(customerName.trim()))
+        ) {
+          customerName = null;
+          customerId = null;
+        }
+
+        var teacherLineMatch = full.match(/Teacher\s*:?\s*([^\n]+)/i);
+        var teacherLine = teacherLineMatch ? teacherLineMatch[1].trim() : null;
+
+        var subtotalM = normalized.match(/\bSubtotal\s*:?\s*\$?\s*([\d,]+\.?\d*)\b/i);
+        var totalM = normalized.match(/\bTOTAL\s*:?\s*\$?\s*([\d,]+\.?\d*)\b/i);
+        var subtotal = subtotalM ? subtotalM[1] : null;
+        var total = totalM ? totalM[1] : null;
+
+        var amountPaidM = normalized.match(/\bLess\s+Amount\s+Paid\s*:?\s*\$?\s*([\d,]+\.?\d*)\b/i);
+        var amountDueM = normalized.match(/\bAMOUNT\s+DUE\s*:?\s*\$?\s*([\d,]+\.?\d*)\b/i);
+        var amount_paid = amountPaidM ? amountPaidM[1] : null;
+        var amount_due = amountDueM ? amountDueM[1] : null;
+
+        var fpsNumber =
+          (normalized.match(/FPS[^\d]{0,80}?(\d{7,12})\b/i) || [])[1] ||
+          (normalized.match(/\b(\d{8})\b[^\d]{0,40}Wong/i) || [])[1] ||
+          null;
+
+        var payeeName =
+          (function () {
+            var m1 = full.match(/Account Name\s*:?\s*([^\n]+)/i);
+            if (m1) return m1[1].trim();
+            var m2 = normalized.match(/Account Name\s*:?\s*([^.\n]+?)(?:\.|Tuition|$)/i);
+            return m2 ? m2[1].trim() : null;
+          })();
+
+        var subIdx = full.search(/\bsubtotal\b/i);
+        var head = subIdx >= 0 ? full.slice(0, subIdx) : full;
+        var last = pickBestPriceQtyTotalTriplet(head);
+        var unitPrice = null;
+        var quantity = null;
+        var lineTotal = null;
+        if (last) {
+          unitPrice = last[1];
+          quantity = last[2];
+          lineTotal = last[3];
+        }
+
+        var itemDescription = null;
+        var descStart = head.search(/item\s+description/i);
+        if (descStart >= 0 && last && last.index !== undefined) {
+          var afterHeader = head.slice(descStart);
+          var cutAt = afterHeader.lastIndexOf(last[0]);
+          var cut = cutAt >= 0 ? afterHeader.slice(0, cutAt) : afterHeader;
+          var cleaned = cleanItemDescriptionRaw(cut).slice(0, 4000);
+          itemDescription = cleaned || null;
+        }
+
+        var detail = parseDescriptionDetail(itemDescription, teacherLine);
+        var student_display =
+          customerName && customerId
+            ? customerName + ' (' + customerId + ')'
+            : customerName || customerId || null;
+
+        var quantity_vs_dates_note = null;
+        if (detail.lesson_date_count != null && quantity != null) {
+          var q = parseFloat(String(quantity).replace(/,/g, ''));
+          if (!isNaN(q) && Math.abs(q - detail.lesson_date_count) > 0.01) {
+            quantity_vs_dates_note =
+              '括號內日期數 ' +
+              detail.lesson_date_count +
+              ' 與 Quantity ' +
+              quantity +
+              ' 不一致 · date count vs qty mismatch';
+          }
+        }
+
+        var notes = [];
+        if (!invoiceNo) notes.push('missing invoice number');
+        if (!total && !subtotal) notes.push('missing totals');
+        if (!last) notes.push('no price/qty/line row matched — check PDF text order');
+
+        return {
+          source_file: sourceFile,
+          invoice_no: invoiceNo,
+          invoice_date: invoiceDate,
+          student_display: student_display,
+          customer_name: customerName,
+          customer_id: customerId,
+          course_name: detail.course_name,
+          schedule_time: detail.schedule_time,
+          schedule_dates: detail.schedule_dates,
+          lesson_date_count: detail.lesson_date_count,
+          teacher: detail.teacher,
+          item_description: itemDescription,
+          unit_price: unitPrice,
+          quantity: quantity,
+          line_total: lineTotal,
+          subtotal: subtotal,
+          total: total,
+          amount_paid: amount_paid,
+          amount_due: amount_due,
+          fps_number: fpsNumber,
+          payee_name: payeeName,
+          quantity_vs_dates_note: quantity_vs_dates_note,
+          parse_note: notes.length ? notes.join('; ') : null
+        };
+      }
+
+      var drop = document.getElementById('drop');
+      var input = document.getElementById('files');
+      var runBtn = document.getElementById('run');
+      var clearBtn = document.getElementById('clear');
+      var fileList = document.getElementById('fileList');
+      var statusEl = document.getElementById('status');
+      var bar = document.getElementById('bar');
+      var barFill = document.getElementById('barFill');
+      var smokeBtn = document.getElementById('smokeBtn');
+      var smokeOut = document.getElementById('smokeOut');
+
+      /** @type {File[]} */
+      var selected = [];
+
+      function emptyInvoiceRow(source, note) {
+        return {
+          source_file: source,
+          invoice_no: null,
+          invoice_date: null,
+          student_display: null,
+          customer_name: null,
+          customer_id: null,
+          course_name: null,
+          schedule_time: null,
+          schedule_dates: null,
+          lesson_date_count: null,
+          teacher: null,
+          item_description: null,
+          unit_price: null,
+          quantity: null,
+          line_total: null,
+          subtotal: null,
+          total: null,
+          amount_paid: null,
+          amount_due: null,
+          fps_number: null,
+          payee_name: null,
+          quantity_vs_dates_note: null,
+          parse_note: note
+        };
+      }
+
+      function renderList() {
+        fileList.innerHTML = '';
+        selected.forEach(function (f) {
+          var li = document.createElement('li');
+          li.textContent = f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
+          fileList.appendChild(li);
+        });
+        runBtn.disabled = selected.length === 0;
+        clearBtn.disabled = selected.length === 0;
+      }
+
+      function setStatus(msg, cls) {
+        statusEl.textContent = msg || '';
+        statusEl.className = 'status' + (cls ? ' ' + cls : '');
+      }
+
+      function addFiles(fileListLike) {
+        var arr = Array.prototype.slice.call(fileListLike || []);
+        arr.forEach(function (f) {
+          if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) selected.push(f);
+        });
+        renderList();
+        setStatus('');
+      }
+
+      drop.addEventListener('click', function () {
+        input.click();
+      });
+      drop.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          input.click();
+        }
+      });
+      input.addEventListener('change', function () {
+        addFiles(input.files);
+        input.value = '';
+      });
+      ['dragenter', 'dragover'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          drop.classList.add('drag');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          drop.classList.remove('drag');
+        });
+      });
+      drop.addEventListener('drop', function (e) {
+        addFiles(e.dataTransfer.files);
+      });
+
+      clearBtn.addEventListener('click', function () {
+        selected = [];
+        renderList();
+        setStatus('');
+        bar.classList.remove('on');
+        barFill.style.width = '0%';
+      });
+
+      runBtn.addEventListener('click', async function () {
+        if (typeof XLSX === 'undefined') {
+          setStatus('SheetJS 未載入，請檢查網路或 CDN。 · XLSX library failed to load.', 'err');
+          return;
+        }
+        if (typeof pdfjsLib === 'undefined') {
+          setStatus('PDF.js 未載入。 · pdf.js failed to load.', 'err');
+          return;
+        }
+
+        runBtn.disabled = true;
+        clearBtn.disabled = true;
+        bar.classList.add('on');
+        var rows = [];
+        var n = selected.length;
+
+        for (var i = 0; i < n; i++) {
+          var file = selected[i];
+          var pct = Math.round(((i + 0.5) / n) * 100);
+          barFill.style.width = pct + '%';
+          setStatus('處理中 ' + (i + 1) + '/' + n + ' · ' + file.name);
+
+          try {
+            var ab = await file.arrayBuffer();
+            var pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+            var added = 0;
+            for (var pi = 1; pi <= pdf.numPages; pi++) {
+              var page = await pdf.getPage(pi);
+              var chunks = await extractInvoiceChunksFromPdfPage(page);
+              for (var ci = 0; ci < chunks.length; ci++) {
+                var seg = chunks[ci];
+                if (!seg || seg.length < 25) continue;
+                if (!pageLooksLikeInvoice(seg) && !/\bINV-[\dA-Za-z-]+\b/i.test(seg)) continue;
+                var label =
+                  file.name + ' · p' + pi + (chunks.length > 1 ? '·' + (ci + 1) : '');
+                rows.push(parseInvoiceText(seg, label));
+                added++;
+              }
+            }
+            if (added === 0) {
+              var mergeParts = [];
+              for (var pi2 = 1; pi2 <= pdf.numPages; pi2++) {
+                var pg2 = await pdf.getPage(pi2);
+                var tc2 = await pg2.getTextContent();
+                var buf = '';
+                for (var ti = 0; ti < tc2.items.length; ti++) {
+                  var it2 = tc2.items[ti];
+                  if (it2 && typeof it2.str === 'string') buf += it2.str + ' ';
+                }
+                mergeParts.push(buf);
+              }
+              var merged = mergeParts.join('\n\n----\n\n').trim();
+              if (merged) {
+                rows.push(parseInvoiceText(merged, file.name));
+              } else {
+                rows.push(
+                  emptyInvoiceRow(
+                    file.name,
+                    'empty PDF text — likely scanned image; use OCR or export as text PDF'
+                  )
+                );
+              }
+            }
+          } catch (err) {
+            rows.push(
+              emptyInvoiceRow(
+                file.name,
+                'read error: ' + (err && err.message ? err.message : String(err))
+              )
+            );
+          }
+        }
+
+        barFill.style.width = '100%';
+        var ws = XLSX.utils.json_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+        var stamp = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, 'vchess-invoices-' + stamp + '.xlsx');
+
+        setStatus(
+          '完成：共 ' + rows.length + ' 列（多頁／雙欄已拆開）。 · Done: ' + rows.length + ' row(s).',
+          'ok'
+        );
+        runBtn.disabled = false;
+        clearBtn.disabled = selected.length === 0;
+      });
+
+      function runParseSmoke() {
+        var lines = [];
+        var ok = true;
+        function check(name, cond, detail) {
+          if (!cond) {
+            ok = false;
+            lines.push('FAIL ' + name + (detail !== undefined ? ': ' + detail : ''));
+          } else lines.push('PASS ' + name);
+        }
+        var head =
+          'Item Description Price Quantity Total\n' +
+          'x\n' +
+          '$1,575.0 7.0 $225.0\n' +
+          '$225.0 7.0 $1,575.0\n';
+        var tri = pickBestPriceQtyTotalTriplet(head);
+        check(
+          'triplet 225×7≈1575',
+          !!(tri && tri[1] === '225.0' && tri[2] === '7.0' && tri[3] === '1,575.0'),
+          tri ? String(tri[0]) : 'null'
+        );
+        check('pageLooks false', pageLooksLikeInvoice('memo') === false);
+        check('pageLooks INV', pageLooksLikeInvoice('INV-1-009') === true);
+        var twoUp =
+          'Invoice\nNo.: INV-A\nTo: A (C1)\n$1 1 $1\nSubtotal $1\nNo.: INV-B\nTo: B (C2)\n$2 1 $2\nSubtotal $2';
+        var segs = splitPageTextIntoInvoiceSegments(twoUp);
+        check('split 2 No.:', segs.length === 2, String(segs.length));
+        var inv =
+          'Invoice\nNo.: INV-1-001020\nDate: 07/12/2025\nTo: 葉鴻永 (C100127)\n' +
+          'Item Description Price Quantity Total\nChess lesson\n' +
+          '19:00-20:00 (23/09, 25/09, 02/10, 09/10, 16/10, 23/10, 30/10)\nTeacher: Duck Duck Sir\n' +
+          '$225.0 7.0 $1,575.0\nSubtotal $1,575.0\nTOTAL $1,575.0';
+        var row = parseInvoiceText(inv, 'smoke.pdf · p1');
+        check('invoice_no', row.invoice_no === 'INV-1-001020', row.invoice_no);
+        check('customer_id', row.customer_id === 'C100127', row.customer_id);
+        check('quantity', row.quantity === '7.0', row.quantity);
+        check('unit_price', row.unit_price === '225.0', row.unit_price);
+        smokeOut.hidden = false;
+        smokeOut.className = 'smoke-out ' + (ok ? 'pass' : 'fail');
+        smokeOut.textContent = lines.join('\n');
+        return ok;
+      }
+
+      smokeBtn.addEventListener('click', function () {
+        runParseSmoke();
+      });
+      if (/[?&]smoke=1(?:&|$)/.test(location.search)) {
+        setTimeout(runParseSmoke, 300);
+      }
+    })();
+  </script>
+</body>
+</html>

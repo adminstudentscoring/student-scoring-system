@@ -85,7 +85,7 @@ process.on('uncaughtException', (err) => {
 });
 
 // Environment variables with defaults
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 7001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const DATA_DIR = process.env.DATA_DIR || 'data';
 const DATA_FILE = path.join(__dirname, process.env.DATA_FILE || path.join(DATA_DIR, 'students.txt'));
@@ -136,6 +136,10 @@ const SUBSCRIPTION_PACKAGES_FILE = path.join(__dirname, process.env.SUBSCRIPTION
 const SUBSCRIPTION_AUDIT_FILE = path.join(__dirname, process.env.SUBSCRIPTION_AUDIT_FILE || path.join(DATA_DIR, 'subscription-audit.jsonl'));
 const TIMETABLE_FILE = path.join(__dirname, process.env.TIMETABLE_FILE || path.join(DATA_DIR, 'timetable.json'));
 const ORDERS_FILE = path.join(__dirname, process.env.ORDERS_FILE || path.join(DATA_DIR, 'orders.json'));
+const VCHESS_INVOICE_IMPORTS_FILE = path.join(
+  __dirname,
+  process.env.VCHESS_INVOICE_IMPORTS_FILE || path.join(DATA_DIR, 'vchess-invoice-imports.json')
+);
 const ENROLLMENTS_FILE = path.join(__dirname, process.env.ENROLLMENTS_FILE || path.join(DATA_DIR, 'enrollments.json'));
 const ATTENDANCE_FILE = path.join(__dirname, process.env.ATTENDANCE_FILE || path.join(DATA_DIR, 'attendance.json'));
 const TRANSACTIONS_FILE = path.join(__dirname, process.env.TRANSACTIONS_FILE || path.join(DATA_DIR, 'transactions.json'));
@@ -147,6 +151,7 @@ const { createJsonStore } = require('@student-scoring/core');
 
 // --- JSON stores for simple read/write pairs ---
 const ordersStore = createJsonStore(ORDERS_FILE, []);
+const vchessInvoiceImportsStore = createJsonStore(VCHESS_INVOICE_IMPORTS_FILE, { imports: [] });
 const enrollmentsStore = createJsonStore(ENROLLMENTS_FILE, []);
 const attendanceStore = createJsonStore(ATTENDANCE_FILE, []);
 const transactionsStore = createJsonStore(TRANSACTIONS_FILE, []);
@@ -1479,6 +1484,13 @@ app.post('/api/reset', authenticateUser, authorizeRole('admin'), async (req, res
 async function readOrders(): Promise<any> { return ordersStore.read(); }
 async function writeOrders(orders: any): Promise<boolean> { return ordersStore.write(orders); }
 
+async function readVchessInvoiceImports(): Promise<any> {
+  return vchessInvoiceImportsStore.read();
+}
+async function writeVchessInvoiceImports(data: any): Promise<boolean> {
+  return vchessInvoiceImportsStore.write(data);
+}
+
 // Read/write enrollments data (via jsonStore)
 async function readEnrollments(): Promise<any> { return enrollmentsStore.read(); }
 async function writeEnrollments(enrollments: any): Promise<boolean> { return enrollmentsStore.write(enrollments); }
@@ -1523,7 +1535,10 @@ async function readTransactions(): Promise<any> { return transactionsStore.read(
 async function writeTransactions(data: any): Promise<boolean> { return transactionsStore.write(data); }
 
 // ===== Organizations billing + finance routes (moved to server/routes/organizationsBillingRoutes.js) =====
-const { registerOrganizationsBillingRoutes } = require('@student-scoring/billing');
+const {
+  registerOrganizationsBillingRoutes,
+  registerVchessInvoiceImportRoutes
+} = require('@student-scoring/billing');
 registerOrganizationsBillingRoutes(app, {
   // middleware
   authenticateUser,
@@ -1554,6 +1569,14 @@ registerOrganizationsBillingRoutes(app, {
   writeEnrollments,
   readTimetable,
   writeTimetable
+});
+
+registerVchessInvoiceImportRoutes(app, {
+  authenticateUser,
+  authorizeRole,
+  readUsers,
+  readVchessInvoiceImports,
+  writeVchessInvoiceImports
 });
 
 // ===== My Own App routes (Admin utilities) =====

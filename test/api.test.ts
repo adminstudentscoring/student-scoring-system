@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import supertest from 'supertest';
 import { ChildProcess, spawn } from 'node:child_process';
 
-const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:7001';
 let serverProcess: ChildProcess | null = null;
 let request: ReturnType<typeof supertest>;
 

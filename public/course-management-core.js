@@ -186,6 +186,16 @@ function renderCourseManagement() {
               </div>
             </div>
             
+            <div class="vchess-invoice-import-panel" aria-label="V.Chess invoice Excel import">
+              <div class="vchess-invoice-import-title">V.Chess 發票表（Excel）</div>
+              <div class="vchess-invoice-import-row">
+                <input type="file" id="vchessInvoiceXlsxInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="window.handleVchessInvoiceXlsxSelected(this)">
+                <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('vchessInvoiceXlsxInput').click()">上傳 .xlsx</button>
+                <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
+              </div>
+              <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
+              <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後僅貴機構可讀；之後可用 API 依匯入批次 id 取回完整列。</p>
+            </div>
             <!-- Footer Actions -->
             <div class="sales-footer-actions">
               <button class="btn btn-secondary" onclick="resetSales()">Reset</button>
@@ -1286,6 +1296,49 @@ style.textContent = `
     min-height: 0;
     padding: 0;
     margin: 0;
+  }
+
+  .vchess-invoice-import-panel {
+    margin: 10px 12px 0;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    font-size: 13px;
+    color: #334155;
+  }
+  .vchess-invoice-import-title {
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #0f172a;
+  }
+  .vchess-invoice-import-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .vchess-invoice-import-status {
+    font-size: 12px;
+    color: #64748b;
+  }
+  .vchess-invoice-import-banner {
+    font-size: 12px;
+    color: #475569;
+    margin-bottom: 6px;
+  }
+  .vchess-invoice-import-hint {
+    margin: 0;
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .vchess-invoice-import-hint code {
+    font-size: 10px;
+    background: #e2e8f0;
+    padding: 1px 4px;
+    border-radius: 4px;
   }
   
   .sales-footer-actions {
