@@ -1,7 +1,48 @@
-window.showStudentDropdown = function() {
+/**
+ * Console: runSalesStudentSearchDropdownSmokeTest('manual')
+ * Enable auto-log on open: localStorage.setItem('salesDropdownSmoke','1')
+ */
+window.runSalesStudentSearchDropdownSmokeTest = function (reason) {
+  const tag = `[SalesStudentDropdown UI Smoke / ${reason || 'check'}]`;
+  const drop = document.getElementById('salesStudentDropdown');
+  const wrap = document.querySelector('.student-search-wrapper');
+  const input = document.getElementById('salesStudentSearch');
+  if (!drop || !wrap || !input) {
+    console.warn(tag, 'missing DOM', { dropdown: !!drop, wrapper: !!wrap, input: !!input });
+    return { ok: false };
+  }
+  const inside = wrap.contains(drop);
+  const ir = input.getBoundingClientRect();
+  const dr = drop.getBoundingClientRect();
+  const visible = drop.style.display !== 'none' && dr.height > 0;
+  const gap = visible ? dr.top - ir.bottom : null;
+  const attached = inside && visible && gap != null && gap >= -4 && gap <= 12;
+  console.info(tag, {
+    dropdownInsideSearchWrapper: inside,
+    inputBottom: Math.round(ir.bottom),
+    dropdownTop: visible ? Math.round(dr.top) : null,
+    gapPx: gap != null ? Math.round(gap * 10) / 10 : null,
+    looksAttachedUnderInput: attached
+  });
+  return { ok: attached, inside, gapPx: gap };
+};
+
+window.showStudentDropdown = function () {
   const dropdown = document.getElementById('salesStudentDropdown');
   if (dropdown) dropdown.style.display = 'block';
-  handleSalesStudentSearch(); 
+  handleSalesStudentSearch();
+  try {
+    if (
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem('salesDropdownSmoke') === '1'
+    ) {
+      requestAnimationFrame(() =>
+        window.runSalesStudentSearchDropdownSmokeTest('showStudentDropdown')
+      );
+    }
+  } catch (e) {
+    /* ignore */
+  }
 };
 
 function hideStudentDropdown() {

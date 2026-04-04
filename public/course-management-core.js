@@ -160,10 +160,9 @@ function renderCourseManagement() {
                 <div class="search-icon">👤</div>
                 <input type="text" id="salesStudentSearch" placeholder="Search a student to enroll*" onfocus="showStudentDropdown()" oninput="handleSalesStudentSearch()">
                 <div class="dropdown-arrow">▼</div>
-              </div>
-              
-              <div id="salesStudentDropdown" class="student-dropdown-list" style="display: none;">
-                <!-- Student search results will appear here -->
+                <!-- Must stay inside wrapper: absolute top:100% anchors to the input row, not the whole sales-student-section -->
+                <div id="salesStudentDropdown" class="student-dropdown-list" style="display: none;" role="listbox" aria-label="Student matches">
+                </div>
               </div>
               
               <div class="sales-student-below-search">
@@ -947,6 +946,7 @@ style.textContent = `
     border-bottom: 1px solid #e0e0e0;
     background: #f8f9fa;
     position: relative;
+    z-index: 5;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -998,19 +998,18 @@ style.textContent = `
     margin-left: 8px;
   }
   
-  .student-dropdown-list {
+  .student-search-wrapper .student-dropdown-list {
     position: absolute;
-    top: 100%;
-    left: 12px;
-    right: 12px;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
     background: #fff;
     border: 1px solid #e0e0e0;
-    border-radius: 0 0 6px 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 100;
-    max-height: 300px;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 200;
+    max-height: min(300px, 40vh);
     overflow-y: auto;
-    margin-top: 2px;
   }
   
   .dropdown-item {
