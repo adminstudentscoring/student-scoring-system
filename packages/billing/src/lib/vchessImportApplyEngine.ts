@@ -660,16 +660,37 @@ export function applyVchessImportFromVerifiedPreview(input: {
   const roles = applyConfig.columnRoles;
   const extForRow = (idx: number) =>
     strVal((rows[idx] as Record<string, unknown>)?.[roles.externalId || ''] ?? '');
+  const nameForRow = (idx: number) =>
+    strVal((rows[idx] as Record<string, unknown>)?.[roles.studentName || ''] ?? '');
+  const phoneForRow = (idx: number) =>
+    strVal((rows[idx] as Record<string, unknown>)?.[roles.contactPhone || ''] ?? '');
+
+  function createDedupKey(rowIndex: number): string {
+    const mf = applyConfig.studentMatchField;
+    if (mf === 'chessComId') return `cid:${extForRow(rowIndex)}`;
+    if (mf === 'name') return `name:${nameForRow(rowIndex).toLowerCase()}`;
+    return `nameph:${nameForRow(rowIndex).toLowerCase()}|${phoneForRow(rowIndex)}`;
+  }
+
+  /** Same customer on multiple invoice lines → one student, many enrollments. */
+  const createKeyToStudentId = new Map<string, string>();
 
   for (const pr of fresh.rows) {
     if (pr.errors.length > 0) continue;
     if (pr.studentAction === 'create' && pr.proposedStudentName) {
+      const dedupKey = createDedupKey(pr.index);
+      const reuseId = createKeyToStudentId.get(dedupKey);
+      if (reuseId) {
+        rowIndexToStudentId.set(pr.index, reuseId);
+        continue;
+      }
       const ext = extForRow(pr.index);
       const stu = newStudentRecord(organizationId, pr.proposedStudentName, ext, nowBase, seq++);
       data.students.push(stu);
       if (!Array.isArray(org.students)) org.students = [];
-      org.students.push(stu.id);
+      if (!org.students.includes(stu.id)) org.students.push(stu.id);
       createdStudents.push(stu);
+      createKeyToStudentId.set(dedupKey, stu.id);
       rowIndexToStudentId.set(pr.index, stu.id);
     } else if (pr.studentAction === 'match' && pr.existingStudentId) {
       rowIndexToStudentId.set(pr.index, pr.existingStudentId);

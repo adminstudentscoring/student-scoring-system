@@ -18,17 +18,31 @@ export function extractDefaultYearFromInvoiceDate(invoiceDate: string | null | u
 }
 
 /**
- * Extract d/m(/y) tokens from a freeform string (parentheses content, comma-separated, etc.).
- * Interprets as day/month (HK-style). Omits invalid calendar dates.
+ * Extract calendar dates from a freeform string (comma-separated, parentheses, etc.):
+ * - ISO `YYYY-MM-DD` (e.g. Settings → Sales Excel "Enrolled Dates")
+ * - HK-style `d/m` or `d/m/y` (V.Chess invoice PDF / classic import columns)
  */
 export function expandVchessScheduleDatesToYmd(
   scheduleDatesRaw: string | null | undefined,
   defaultYear: number
 ): string[] {
   if (!scheduleDatesRaw || typeof scheduleDatesRaw !== 'string') return [];
-  const re = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g;
   const seen = new Set<string>();
   let m: RegExpExecArray | null;
+
+  const isoRe = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+  while ((m = isoRe.exec(scheduleDatesRaw)) !== null) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    const day = parseInt(m[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) continue;
+    const ms = Date.UTC(year, month - 1, day);
+    const d = new Date(ms);
+    if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) continue;
+    seen.add(`${year}-${pad2(month)}-${pad2(day)}`);
+  }
+
+  const re = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g;
   while ((m = re.exec(scheduleDatesRaw)) !== null) {
     const day = parseInt(m[1], 10);
     const month = parseInt(m[2], 10);

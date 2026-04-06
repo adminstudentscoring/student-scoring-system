@@ -176,6 +176,8 @@ function inferOrderIdForEnrollmentDisplay(enrollment, studentId, orders) {
   return '';
 }
 
+window.inferOrderIdForEnrollmentDisplay = inferOrderIdForEnrollmentDisplay;
+
 /**
  * UI smoke: refresh timetable + orders, log table of orderId vs inferred, re-render lists.
  * Run in console: await smokeTestClassHistoryUI()

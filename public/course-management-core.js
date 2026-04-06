@@ -204,7 +204,7 @@ function renderCourseManagement() {
       <div id="settingSubTabContent" class="course-sub-tab-content">
         <div style="padding: 18px;">
           <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:10px;">Course Management Settings</div>
-          <div style="color:#64748b; margin-bottom:16px;">Timetable / enrollments options below. <strong>V.Chess invoice Excel</strong> upload is the first card. · 發票 Excel 上傳在<strong>第一張卡片</strong>；假期設定在第二張。</div>
+          <div style="color:#64748b; margin-bottom:16px;">Timetable / enrollments options below. <strong>V.Chess invoice Excel</strong> is the first card; <strong>Sales Excel export</strong> second; holidays third. · 發票、Sales 匯出、假期順序如下。</div>
 
           <div style="display:grid; grid-template-columns: 1fr; gap:14px; max-width: 720px;">
             <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
@@ -216,7 +216,7 @@ function renderCourseManagement() {
                   <span id="vchessInvoiceImportStatus" class="vchess-invoice-import-status"></span>
                 </div>
                 <div id="vchessInvoiceImportBanner" class="vchess-invoice-import-banner">—</div>
-                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 產生的欄位格式。上傳後可<strong>預覽並套用</strong>至學生與報名。若課表尚無對應時段，可勾選下方「自動建立課表」並填預設課程 ID（逗號分隔）。</p>
+                <p class="vchess-invoice-import-hint">請使用 PDF 轉 Excel 或 Sales 匯出之欄位；日期可為 <code>d/m</code> 或 <code>YYYY-MM-DD</code>。上傳後務必<strong>預覽</strong>：錯誤列不會寫入。套用僅建立<strong>學生＋課表（可選）＋報名</strong>，不會建立 Sales 訂單。無課表時段時勾選「自動建立課表」並填預設課程 ID。 · Map columns, preview first; import does not create POS orders.</p>
                 <div id="vchessImportApplyUi" class="vchess-import-apply-ui" style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px;">
                   <div style="font-weight:700;margin-bottom:8px;color:#0f172a;">套用至學生／報名 · Apply (preview first)</div>
                   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
@@ -255,6 +255,20 @@ function renderCourseManagement() {
               </div>
             </div>
             <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
+              <div style="font-weight:800; color:#0f172a; margin-bottom:6px;">Sales enrollment export (Excel)</div>
+              <div style="color:#64748b; margin-bottom:12px; font-size:13px; line-height:1.45;">
+                多選學生下載 .xlsx，欄位對齊 Sales 右側學生／課堂／上課日（姓名、學號、餘額、Quota、班名、時段、老師、上課日、訂單）。<br>
+                Multi-select students; columns mirror the Sales sidebar (name, ID, balance, quota, class, time, teacher, enrolled dates, order).
+              </div>
+              <input type="text" id="salesExportStudentFilter" class="search-input" placeholder="Filter by name or student ID…" style="max-width:100%; margin-bottom:8px;" autocomplete="off">
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; align-items:center;">
+                <button type="button" class="btn btn-secondary btn-small" id="salesExportSelectAllBtn">Select all (filtered)</button>
+                <button type="button" class="btn btn-secondary btn-small" id="salesExportClearBtn">Clear selection</button>
+                <button type="button" class="btn btn-primary btn-small" id="salesExportDownloadBtn">Download Excel</button>
+              </div>
+              <div id="salesExportStudentList" style="max-height:240px; overflow:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#f8fafc; font-size:13px;"></div>
+            </div>
+            <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px; background:#fff;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px;">
                 <div style="font-weight:800; color:#0f172a;">Holidays / Closed Days</div>
                 <div style="display:flex; gap:10px;">
@@ -264,6 +278,14 @@ function renderCourseManagement() {
               </div>
               <div style="color:#64748b; margin-bottom:10px;">Holidays will be skipped during class enrollment generation and auto-renew calculations.</div>
               <div id="cmHolidayRulesList" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+            <div style="border:1px solid #fecaca; border-radius:12px; padding:14px; background:#fef2f2;">
+              <div style="font-weight:800; color:#991b1b; margin-bottom:6px;">Danger zone · 危險操作</div>
+              <div style="color:#7f1d1d; margin-bottom:12px; font-size:13px; line-height:1.45;">
+                一鍵刪除<strong>本機構</strong>全部學生，並移除其報名、課表名單中的學員、訂單、帳務交易與點名紀錄。<strong>無法復原。</strong><br>
+                Permanently deletes <strong>all students in this organization</strong> and related enrollments, timetable student lists, orders, transactions, and attendance. <strong>Cannot be undone.</strong>
+              </div>
+              <button type="button" class="btn btn-danger" id="purgeAllOrgStudentsBtn" onclick="window.confirmPurgeAllOrganizationStudents && window.confirmPurgeAllOrganizationStudents()">移除所有學生資料 · Remove all students</button>
             </div>
           </div>
         </div>

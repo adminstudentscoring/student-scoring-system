@@ -164,6 +164,14 @@ describe('API integration tests', () => {
     );
   });
 
+  it('POST /api/organizations/students/purge-all without auth returns 401', async () => {
+    const res = await request
+      .post('/api/organizations/students/purge-all')
+      .send({ confirm: 'DELETE_ALL_STUDENTS' })
+      .set('Content-Type', 'application/json');
+    assert.strictEqual(res.status, 401);
+  });
+
   it('POST /api/students without auth returns 401', async () => {
     const res = await request
       .post('/api/students')

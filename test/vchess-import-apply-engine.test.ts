@@ -24,6 +24,11 @@ describe('vchessScheduleDates (core)', () => {
     assert.ok(dates.includes('2026-10-17'));
     assert.ok(dates.includes('2026-03-03'));
   });
+
+  it('expands ISO YYYY-MM-DD (Sales enrollment Excel export)', () => {
+    const dates = expandVchessScheduleDatesToYmd('2026-04-02, 2026-04-09', 2025);
+    assert.deepStrictEqual(dates, ['2026-04-02', '2026-04-09']);
+  });
 });
 
 describe('vchessImportApplyEngine', () => {
@@ -166,6 +171,49 @@ describe('vchessImportApplyEngine', () => {
     assert.strictEqual(r.ok, false);
   });
 
+  it('preview accepts sales-export column names + ISO enrolled dates', () => {
+    const orgId = 'org_salesfmt';
+    const applyConfig = {
+      ...DEFAULT_VCHESS_IMPORT_APPLY_CONFIG,
+      createTimetableIfMissing: true,
+      defaultCourseIds: ['course_x'],
+      columnRoles: {
+        studentName: 'Student Name',
+        externalId: 'Student ID',
+        className: 'Class Name',
+        timeRange: 'Time Slot',
+        lessonDates: 'Enrolled Dates',
+        invoiceDate: 'Order ID'
+      },
+      studentMatchField: 'chessComId' as const
+    };
+    const students = [{ id: 's1', organizationId: orgId, name: 'Tuby', chessComId: 'vc001' }];
+    const timetableEntries: any[] = [];
+    const enrollments: any[] = [];
+    const rows = [
+      {
+        'Student Name': 'Tuby',
+        'Student ID': 'vc001',
+        'Class Name': 'Chess Class',
+        'Time Slot': '16:30 - 17:30',
+        'Enrolled Dates': '2026-04-02, 2026-04-09',
+        'Order ID': 'INV-1'
+      }
+    ];
+    const preview = buildVchessImportPreview({
+      importBatchId: 'imp_iso',
+      organizationId: orgId,
+      applyConfig,
+      rows,
+      students,
+      timetableEntries,
+      enrollments
+    });
+    assert.strictEqual(preview.rows[0].errors.length, 0, preview.rows[0].errors.join('; '));
+    assert.ok(preview.rows[0].lessonDatesYmd.length >= 1);
+    assert.ok(preview.summary.proposedEnrollments >= 1);
+  });
+
   it('Phase 2: creates timetable + enrollments when no match and flag on', () => {
     const orgId = 'org_p2';
     const applyConfig = {
@@ -238,6 +286,80 @@ describe('vchessImportApplyEngine', () => {
       assert.strictEqual(timetableData.entries.length, 1);
       assert.strictEqual(timetableData.entries[0].className, 'New Class');
       assert.strictEqual(timetableData.entries[0].courseIds[0], 'course_x');
+    }
+  });
+
+  it('apply dedupes new students by chessComId when multiple rows same customer', () => {
+    const orgId = 'org_dedup';
+    const applyConfig = {
+      ...DEFAULT_VCHESS_IMPORT_APPLY_CONFIG,
+      createTimetableIfMissing: true,
+      defaultCourseIds: ['course_x'],
+      columnRoles: {
+        studentName: 'Student Name',
+        externalId: 'Student ID',
+        className: 'Class Name',
+        timeRange: 'Time Slot',
+        lessonDates: 'Enrolled Dates',
+        invoiceDate: 'Order ID'
+      },
+      studentMatchField: 'chessComId' as const
+    };
+    const rows = [
+      {
+        'Student Name': 'Same Kid',
+        'Student ID': 'C999',
+        'Class Name': 'Morning',
+        'Time Slot': '10:00 - 11:00',
+        'Enrolled Dates': '2026-06-01, 2026-06-08',
+        'Order ID': ''
+      },
+      {
+        'Student Name': 'Same Kid',
+        'Student ID': 'C999',
+        'Class Name': 'Afternoon',
+        'Time Slot': '14:00 - 15:00',
+        'Enrolled Dates': '2026-06-02',
+        'Order ID': ''
+      }
+    ];
+    const preview = buildVchessImportPreview({
+      importBatchId: 'imp_dd',
+      organizationId: orgId,
+      applyConfig,
+      rows,
+      students: [],
+      timetableEntries: [],
+      enrollments: []
+    });
+    assert.strictEqual(preview.rows[0].errors.length, 0);
+    assert.strictEqual(preview.rows[1].errors.length, 0);
+
+    const data = { students: [] as any[], lastUpdate: '' };
+    const organizations = [{ id: orgId, students: [] as string[] }];
+    const enr: any[] = [];
+    const timetableData = {
+      entries: [] as any[],
+      metadata: { classNames: [] as string[], classrooms: [] as string[] }
+    };
+
+    const applied = applyVchessImportFromVerifiedPreview({
+      previewDigest: preview.digest,
+      importBatchId: 'imp_dd',
+      organizationId: orgId,
+      applyConfig,
+      rows,
+      data,
+      organizations,
+      enrollments: enr,
+      timetableEntries: [],
+      timetableData
+    });
+    assert.strictEqual(applied.ok, true);
+    if (applied.ok) {
+      assert.strictEqual(applied.result.studentsCreated, 1);
+      assert.strictEqual(applied.result.enrollmentsCreated, 3);
+      assert.strictEqual(applied.result.timetablesCreated, 2);
     }
   });
 });

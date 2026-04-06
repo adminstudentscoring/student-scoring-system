@@ -45,6 +45,9 @@ function switchSubTab(subTab) {
   // Settings
   if (subTab === 'setting') {
     reloadCourseManagementHolidays();
+    if (typeof window.initSalesEnrollmentExcelExportUi === 'function') {
+      window.initSalesEnrollmentExcelExportUi().catch(function () {});
+    }
     if (typeof window.initVchessImportApplyUi === 'function') {
       window.initVchessImportApplyUi().catch(function () {});
     } else if (typeof window.refreshVchessInvoiceImportBanner === 'function') {
@@ -83,6 +86,73 @@ window.reloadCourseManagementHolidays = async function() {
     const list = document.getElementById('cmHolidayRulesList');
     if (list) list.innerHTML = '';
     if (window.showToast) window.showToast('Failed to load holidays', 'error');
+  }
+};
+
+window.confirmPurgeAllOrganizationStudents = async function confirmPurgeAllOrganizationStudents() {
+  if (!window.authUtils || !window.authUtils.authenticatedFetch) {
+    alert('Not signed in.');
+    return;
+  }
+  if (!window.authUtils.hasRole || !window.authUtils.hasRole('organization')) {
+    alert('僅限機構帳號使用 · Organization account only.');
+    return;
+  }
+  const warn =
+    '將永久刪除本機構「全部」學生，以及其報名、課表內學員名單、訂單、交易與點名紀錄。無法復原。\n\n' +
+    'This permanently deletes ALL students in your organization and related data. Continue?';
+  if (!window.confirm(warn)) return;
+  const phrase = window.prompt('請輸入 DELETE_ALL_STUDENTS 以確認 · Type DELETE_ALL_STUDENTS to confirm:');
+  if (phrase !== 'DELETE_ALL_STUDENTS') {
+    if (phrase !== null) alert('確認文字不符 · Confirmation did not match.');
+    return;
+  }
+  const btn = document.getElementById('purgeAllOrgStudentsBtn');
+  if (btn) {
+    btn.disabled = true;
+  }
+  try {
+    const res = await window.authUtils.authenticatedFetch('/organizations/students/purge-all', {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'DELETE_ALL_STUDENTS' })
+    });
+    if (!res || !res.ok) {
+      let msg = 'Purge failed';
+      try {
+        const e = await res.json();
+        if (e.error) msg = e.error;
+      } catch (e2) {
+        /* ignore */
+      }
+      alert(msg);
+      return;
+    }
+    const data = await res.json();
+    window.students = [];
+    if (window.showToast) {
+      window.showToast(
+        '已移除 ' + (data.removedStudents || 0) + ' 位學生 · Removed ' + (data.removedStudents || 0) + ' students',
+        'success'
+      );
+    } else {
+      alert(
+        '完成：移除學生 ' +
+          (data.removedStudents || 0) +
+          '、報名 ' +
+          (data.removedEnrollments || 0) +
+          '、訂單 ' +
+          (data.removedOrders || 0) +
+          '。請重新整理頁面。'
+      );
+    }
+    if (typeof window.loadStudents === 'function') {
+      await window.loadStudents();
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Request error · 請稍後再試');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 };
 
