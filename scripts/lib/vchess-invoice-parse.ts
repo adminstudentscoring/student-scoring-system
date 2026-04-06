@@ -34,40 +34,234 @@ export type InvoiceRow = {
   parse_note: string | null;
 };
 
-/** Prefer table row where unit × qty ≈ line total (avoids wrong $ triplets from PDF text order). */
-export function pickBestPriceQtyTotalTriplet(head: string): RegExpExecArray | null {
-  const tripletRe = /\$\s*([\d,]+\.?\d*)\s+(\d+\.?\d*)\s+\$\s*([\d,]+\.?\d*)/gi;
-  const candidates: RegExpExecArray[] = [];
+/** Columns written to PDF→Excel only (11 fields); parsing still fills full `InvoiceRow`. */
+export type InvoiceXlsxExportRow = {
+  student_name: string | null;
+  student_id: string | null;
+  teacher: string | null;
+  course_name: string | null;
+  schedule_time: string | null;
+  schedule_dates: string | null;
+  unit_price: string | null;
+  quantity: string | null;
+  line_total: string | null;
+  invoice_no: string | null;
+  invoice_date: string | null;
+};
+
+export function toInvoiceXlsxExportRow(row: InvoiceRow): InvoiceXlsxExportRow {
+  return {
+    student_name: row.customer_name,
+    student_id: row.customer_id,
+    teacher: row.teacher,
+    course_name: row.course_name,
+    schedule_time: row.schedule_time,
+    schedule_dates: row.schedule_dates,
+    unit_price: row.unit_price,
+    quantity: row.quantity,
+    line_total: row.line_total,
+    invoice_no: row.invoice_no,
+    invoice_date: row.invoice_date
+  };
+}
+
+export type InvoiceMoneyTriplet = {
+  /** Matched substring (for slicing item description). */
+  raw: string;
+  index: number;
+  unitPrice: string;
+  quantity: string;
+  lineTotal: string;
+};
+
+function scoreUnitQtyTotal(unit: number, qty: number, total: number): number {
+  if (!Number.isFinite(unit) || !Number.isFinite(qty) || !Number.isFinite(total)) return -1;
+  if (qty < 0 || qty > 500) return -1;
+  if (unit < 0 || unit > 1e7) return -1;
+  const expected = unit * qty;
+  const err = Math.abs(expected - total);
+  const rel = total !== 0 ? err / Math.abs(total) : err;
+  if (rel > 0.08 && err > 1) return -1;
+  return 1000 - rel * 100;
+}
+
+/** After-discount lines: total ≤ unit×qty (e.g. 1×1000 with 10% off → 900). */
+function scoreUnitQtyTotalDiscounted(unit: number, qty: number, total: number): number {
+  if (!Number.isFinite(unit) || !Number.isFinite(qty) || !Number.isFinite(total)) return -1;
+  if (qty < 0 || qty > 500 || unit < 0 || total < 0) return -1;
+  if (total > unit * qty + 0.05) return -1;
+  const expected = unit * qty;
+  if (expected < 1e-6) return total < 0.01 ? 400 : -1;
+  const rel = Math.abs(expected - total) / expected;
+  if (rel > 0.55) return -1;
+  return 550 - rel * 100;
+}
+
+/**
+ * PDF table row is either `$unit qty $total` or `qty $unit $total` (common in V.Chess exports).
+ * Picks the match where unit × qty ≈ line total.
+ */
+function collectMoneyTriplets(
+  head: string,
+  scoreFn: (u: number, q: number, t: number) => number
+): InvoiceMoneyTriplet[] {
+  const out: InvoiceMoneyTriplet[] = [];
+  const rePriceFirst = /\$\s*([\d,]+\.?\d*)\s+(\d+\.?\d*)\s+\$\s*([\d,]+\.?\d*)/g;
   let m: RegExpExecArray | null;
-  while ((m = tripletRe.exec(head)) !== null) {
-    candidates.push(m);
+  while ((m = rePriceFirst.exec(head)) !== null) {
+    const unit = parseFloat(m[1].replace(/,/g, ''));
+    const qty = parseFloat(m[2].replace(/,/g, ''));
+    const total = parseFloat(m[3].replace(/,/g, ''));
+    if (scoreFn(unit, qty, total) < 0) continue;
+    out.push({
+      raw: m[0],
+      index: m.index,
+      unitPrice: m[1],
+      quantity: m[2],
+      lineTotal: m[3]
+    });
+  }
+  const reQtyFirst = /(\d+\.?\d*)\s+\$\s*([\d,]+\.?\d*)\s+\$\s*([\d,]+\.?\d*)/g;
+  while ((m = reQtyFirst.exec(head)) !== null) {
+    const qty = parseFloat(m[1].replace(/,/g, ''));
+    const unit = parseFloat(m[2].replace(/,/g, ''));
+    const total = parseFloat(m[3].replace(/,/g, ''));
+    if (scoreFn(unit, qty, total) < 0) continue;
+    out.push({
+      raw: m[0],
+      index: m.index,
+      unitPrice: m[2],
+      quantity: m[1],
+      lineTotal: m[3]
+    });
+  }
+  return out;
+}
+
+export function pickBestInvoiceMoneyTriplet(head: string): InvoiceMoneyTriplet | null {
+  let candidates = collectMoneyTriplets(head, scoreUnitQtyTotal);
+  if (candidates.length === 0) {
+    candidates = collectMoneyTriplets(head, scoreUnitQtyTotalDiscounted);
   }
   if (candidates.length === 0) return null;
 
-  function score(c: RegExpExecArray): number {
-    const a = parseFloat(c[1].replace(/,/g, ''));
-    const b = parseFloat(c[2].replace(/,/g, ''));
-    const d = parseFloat(c[3].replace(/,/g, ''));
-    if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(d)) return -1;
-    if (b < 0.5 || b > 500) return -1;
-    const expected = a * b;
-    const err = Math.abs(expected - d);
-    const rel = d > 0 ? err / d : err;
-    if (rel > 0.08 && err > 1) return -1;
-    const positionBonus = (c.index ?? 0) * 1e-6;
-    return 1000 - rel * 100 + positionBonus;
+  function rank(c: InvoiceMoneyTriplet): number {
+    const u = parseFloat(c.unitPrice.replace(/,/g, ''));
+    const q = parseFloat(c.quantity.replace(/,/g, ''));
+    const t = parseFloat(c.lineTotal.replace(/,/g, ''));
+    let sc = scoreUnitQtyTotal(u, q, t);
+    if (sc < 0) sc = scoreUnitQtyTotalDiscounted(u, q, t);
+    return sc + c.index * 1e-6;
   }
 
-  let best: RegExpExecArray | null = null;
-  let bestScore = -1;
-  for (const c of candidates) {
-    const s = score(c);
-    if (s > bestScore) {
-      bestScore = s;
-      best = c;
+  let best = candidates[0];
+  let bestScore = rank(best);
+  for (let i = 1; i < candidates.length; i++) {
+    const sc = rank(candidates[i]);
+    if (sc > bestScore) {
+      bestScore = sc;
+      best = candidates[i];
     }
   }
-  return best ?? candidates[candidates.length - 1];
+  return best;
+}
+
+/**
+ * @deprecated Prefer pickBestInvoiceMoneyTriplet — kept for tests; returns exec array [full, unit, qty, total].
+ */
+export function pickBestPriceQtyTotalTriplet(head: string): RegExpExecArray | null {
+  const t = pickBestInvoiceMoneyTriplet(head);
+  if (!t) return null;
+  const fake = [t.raw, t.unitPrice, t.quantity, t.lineTotal] as unknown as RegExpExecArray;
+  fake.index = t.index;
+  return fake;
+}
+
+/** Last index of money triplet in PDF text (tabs/newlines vs spaces differ from triplet.raw). */
+export function findLastMoneyTripletSliceIndex(haystack: string, tripletRaw: string): number {
+  const direct = haystack.lastIndexOf(tripletRaw);
+  if (direct >= 0) return direct;
+  const tokens = tripletRaw.trim().match(/\S+/g);
+  if (!tokens || tokens.length < 3) return -1;
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = tokens.map(esc).join('\\s+');
+  const re = new RegExp(pattern, 'gi');
+  let last = -1;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(haystack)) !== null) {
+    last = m.index;
+  }
+  return last;
+}
+
+/** Extract customer name + id when `To:` is empty and name is on the line after `Date:`. */
+export function extractInvoiceCustomer(full: string): {
+  customerName: string | null;
+  customerId: string | null;
+} {
+  let customerName: string | null = null;
+  let customerId: string | null = null;
+
+  const toLine = full.match(/(?:^|\n)\s*To:\s*([^\n]*)/im);
+  if (toLine) {
+    const rest = (toLine[1] || '').trim();
+    if (rest.length > 0) {
+      const paren = rest.match(/^(.+?)\s*\(\s*([^)]+?)\s*\)\s*$/);
+      if (paren) {
+        customerName = paren[1].replace(/\s+/g, ' ').trim();
+        customerId = paren[2].trim();
+      }
+    }
+  }
+
+  if (!customerName || !customerId) {
+    const afterDate = full.match(
+      /\bDate\s*:\s*\d{1,2}\/\d{1,2}\/\d{4}\s*\r?\n\s*([^\n(]+?)\s*\(\s*([A-Za-z]?\d{3,})\s*\)/im
+    );
+    if (afterDate) {
+      customerName = afterDate[1].replace(/\s+/g, ' ').trim();
+      customerId = afterDate[2].trim();
+    }
+  }
+
+  if (!customerName || !customerId) {
+    const oneLine = full.replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ');
+    const inline = oneLine.match(
+      /\bDate\s*:\s*\d{1,2}\/\d{1,2}\/\d{4}\s+(.{1,120}?)\s*\(\s*([A-Za-z]?\d{3,})\s*\)/i
+    );
+    if (inline) {
+      customerName = inline[1].replace(/\s+/g, ' ').trim();
+      customerId = inline[2].trim();
+    }
+  }
+
+  if (!customerName || !customerId) {
+    const legacy = full.match(/To:\s*([\s\S]*?)\s*\(\s*([^)]+?)\s*\)/i);
+    if (legacy) {
+      const candName = legacy[1]?.replace(/\s+/g, ' ').trim() ?? '';
+      if (
+        candName &&
+        candName.length <= 120 &&
+        !/\bTotal\s+Price\b/i.test(candName) &&
+        !/\bItem\s+Description\b/i.test(candName) &&
+        !/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(candName)
+      ) {
+        customerName = candName;
+        customerId = legacy[2].trim();
+      }
+    }
+  }
+
+  if (customerName && /^(total|price|quantity)$/i.test(customerName)) {
+    customerName = null;
+    customerId = null;
+  }
+  if (customerName && (/\btotal\s+price\b/i.test(customerName) || /^price\b/i.test(customerName.trim()))) {
+    customerName = null;
+    customerId = null;
+  }
+
+  return { customerName, customerId };
 }
 
 function cleanItemDescriptionRaw(raw: string): string {
@@ -75,6 +269,8 @@ function cleanItemDescriptionRaw(raw: string): string {
   s = s.replace(/^(?:.*?\bItem\s+Description\b\s*)+/i, '');
   s = s.replace(/^(?:.*?\bPrice\b\s+\bQuantity\b\s+\bTotal\b\s*)+/i, '');
   s = s.replace(/^(?:.*?\bTotal\s+Price\b\s*)+/i, '');
+  s = s.replace(/^\s*Quantity\s+/i, '');
+  s = s.replace(/^\s*Total\s+Price\s+/i, '');
   return s.trim();
 }
 
@@ -95,14 +291,41 @@ export function parseDescriptionDetail(
     lesson_date_count: null as number | null,
     teacher: teacherFromDocument
   };
-  if (!itemDescription) return out;
+  if (!itemDescription) {
+    if (
+      teacherFromDocument &&
+      teacherFromDocument.length > 40 &&
+      /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(teacherFromDocument)
+    ) {
+      return parseDescriptionDetail(teacherFromDocument, null);
+    }
+    return out;
+  }
 
   let work = itemDescription.replace(/\s+/g, ' ').trim();
 
-  const teachEnd = work.match(/\bTeacher\s*:?\s*(.+)$/i);
-  if (teachEnd && teachEnd.index !== undefined) {
-    out.teacher = teachEnd[1].trim();
-    work = work.slice(0, teachEnd.index).trim();
+  /**
+   * PDFs often emit "Teacher: Duck Duck Sir Elite Class 19:00-20:30 (...)" on one line.
+   * A trailing-only Teacher regex would put the entire string in teacher and clear work.
+   */
+  if (/^\s*Teacher\s*:?\s*/i.test(work)) {
+    work = work.replace(/^\s*Teacher\s*:?\s*/i, '');
+    const stopRe =
+      /\b(?:Chess|Elite|Beginner|Advanced|Private|Primary|Intermediate|Group|December|lesson|class)\b|[\u4e00-\u9fff]{2,}|\d{1,2}:\d{1,2}|-\s*(?:Old\s+Student|Discount)/i;
+    const stop = work.search(stopRe);
+    if (stop > 0) {
+      out.teacher = work.slice(0, stop).trim();
+      work = work.slice(stop).trim();
+    } else if (work.length > 0 && work.length <= 80) {
+      out.teacher = work.trim();
+      work = '';
+    }
+  } else {
+    const teachEnd = work.match(/\bTeacher\s*:?\s*(.+)$/i);
+    if (teachEnd && teachEnd.index !== undefined && teachEnd.index > 0) {
+      out.teacher = teachEnd[1].trim();
+      work = work.slice(0, teachEnd.index).trim();
+    }
   }
 
   const timeM = work.match(/(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})/);
@@ -140,6 +363,8 @@ export function parseDescriptionDetail(
 
   course_name = course_name
     .replace(/^[\s\S]*?item\s+description\s*/i, '')
+    .replace(/^\s*quantity\s+/i, '')
+    .replace(/^\s*total\s+price\s+/i, '')
     .replace(/\s+/g, ' ')
     .trim();
   out.course_name = course_name || null;
@@ -204,21 +429,15 @@ export function parseInvoiceText(fullRaw: string, sourceFile: string): InvoiceRo
     normalized.match(/\b(INV-[\dA-Za-z-]+)\b/)?.[1] ??
     null;
 
+  const oneLineForDate = full.replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ');
   const invoiceDate =
-    normalized.match(/\bDate\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ?? null;
+    normalized.match(/\bDate\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ??
+    oneLineForDate.match(/\bDate\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ??
+    null;
 
-  const toMatch = full.match(/To:\s*([\s\S]*?)\s*\(\s*([^)]+?)\s*\)/i);
-  let customerName = toMatch?.[1]?.replace(/\s+/g, ' ').trim() ?? null;
-  let customerId = toMatch?.[2]?.trim() ?? null;
-  if (
-    customerName &&
-    (/^(total|price|quantity)$/i.test(customerName) ||
-      /\btotal\s+price\b/i.test(customerName) ||
-      /^price\b/i.test(customerName.trim()))
-  ) {
-    customerName = null;
-    customerId = null;
-  }
+  const { customerName: cn, customerId: cid } = extractInvoiceCustomer(full);
+  let customerName = cn;
+  let customerId = cid;
 
   const teacherLine = full.match(/Teacher\s*:?\s*([^\n]+)/i)?.[1]?.trim() ?? null;
 
@@ -244,23 +463,26 @@ export function parseInvoiceText(fullRaw: string, sourceFile: string): InvoiceRo
 
   const subIdx = full.search(/\bsubtotal\b/i);
   const head = subIdx >= 0 ? full.slice(0, subIdx) : full;
-  const last = pickBestPriceQtyTotalTriplet(head);
+  const triplet = pickBestInvoiceMoneyTriplet(head);
 
   let unitPrice: string | null = null;
   let quantity: string | null = null;
   let lineTotal: string | null = null;
-  if (last) {
-    unitPrice = last[1];
-    quantity = last[2];
-    lineTotal = last[3];
+  if (triplet) {
+    unitPrice = triplet.unitPrice;
+    quantity = triplet.quantity;
+    lineTotal = triplet.lineTotal;
   }
 
   let itemDescription: string | null = null;
   const descStart = head.search(/item\s+description/i);
-  if (descStart >= 0 && last && last.index !== undefined) {
+  if (descStart >= 0) {
     const afterHeader = head.slice(descStart);
-    const cutAt = afterHeader.lastIndexOf(last[0]);
-    const cut = cutAt >= 0 ? afterHeader.slice(0, cutAt) : afterHeader;
+    let cut = afterHeader;
+    if (triplet) {
+      const cutAt = findLastMoneyTripletSliceIndex(afterHeader, triplet.raw);
+      if (cutAt >= 0) cut = afterHeader.slice(0, cutAt);
+    }
     itemDescription = cleanItemDescriptionRaw(cut).slice(0, 4000) || null;
   }
 
@@ -282,7 +504,7 @@ export function parseInvoiceText(fullRaw: string, sourceFile: string): InvoiceRo
   const notes: string[] = [];
   if (!invoiceNo) notes.push('missing invoice number');
   if (!total && !subtotal) notes.push('missing totals');
-  if (!last) notes.push('no price/qty/line row matched — check PDF text order');
+  if (!triplet) notes.push('no price/qty/line row matched — check PDF text order');
 
   return {
     source_file: sourceFile,

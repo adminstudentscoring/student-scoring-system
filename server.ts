@@ -1588,6 +1588,9 @@ registerVchessInvoiceImportRoutes(app, {
   broadcast
 });
 
+const { registerVchessInvoiceLlmRoutes } = require('@student-scoring/platform');
+registerVchessInvoiceLlmRoutes(app);
+
 // ===== My Own App routes (Admin utilities) =====
 const { registerMyOwnAppRoutes } = require('@student-scoring/platform');
 registerMyOwnAppRoutes(app, {

@@ -375,6 +375,49 @@
         .edit-student-form-group {
             margin-bottom: 15px;
         }
+        .student-csv-map-grid {
+            display: grid;
+            grid-template-columns: minmax(200px, 1fr) minmax(220px, 1.2fr);
+            gap: 10px 16px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .student-csv-map-grid label {
+            font-weight: 600;
+            color: #333;
+        }
+        .student-csv-map-grid select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            color: #333;
+            background: #fff;
+        }
+        .student-csv-preview-wrap {
+            margin-top: 12px;
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .student-csv-preview-wrap table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .student-csv-preview-wrap th,
+        .student-csv-preview-wrap td {
+            border: 1px solid #e5e7eb;
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .student-csv-preview-wrap th {
+            background: #eef2ff;
+            color: #1e293b;
+        }
         .edit-student-form-group label {
             display: block;
             margin-bottom: 5px;
@@ -825,9 +868,10 @@
                 <div class="search-bar">
                     <input type="text" id="orgStudentSearch" placeholder="Search students...">
                 </div>
-                <div class="csv-actions" style="margin-bottom: 15px; display: flex; gap: 10px;">
-                    <button class="btn btn-info btn-small" onclick="document.getElementById('csvUploadInput').click()">📤 Upload CSV</button>
-                    <input type="file" id="csvUploadInput" accept=".csv" style="display: none;" onchange="handleCSVUpload(this)">
+                <div class="csv-actions" style="margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                    <button class="btn btn-info btn-small" onclick="document.getElementById('csvUploadInput').click()">📤 Upload CSV / Excel</button>
+                    <input type="file" id="csvUploadInput" accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style="display: none;" onchange="handleStudentImportUpload(this)">
+                    <span style="font-size: 0.85rem; color: rgba(255,255,255,0.85);">支援 CSV、XLSX（讀第一個工作表）· Map columns after choose file</span>
                     <button class="btn btn-secondary btn-small" onclick="downloadCSV()">📥 Download CSV</button>
                     <button class="btn btn-secondary btn-small" onclick="downloadTemplate()">📄 Template</button>
                 </div>
@@ -1011,6 +1055,32 @@
                         <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student CSV import: column mapping -->
+    <div id="studentCsvImportModal" class="edit-student-modal" role="dialog" aria-modal="true" aria-labelledby="studentCsvImportTitle" onclick="if(event.target===this) closeStudentCsvImportModal()">
+        <div class="edit-student-modal-content" onclick="event.stopPropagation()" style="max-width: 920px;">
+            <div class="edit-student-modal-header">
+                <h2 id="studentCsvImportTitle">匯入學生 CSV / Excel · Import students (column mapping)</h2>
+                <button type="button" class="org-modal-close-x" onclick="closeStudentCsvImportModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="edit-student-modal-body">
+                <p style="margin:0 0 12px; color:#555; font-size:0.95rem;">
+                    將左側系統欄位對應到右側試算表<strong>第一列</strong>（標題列）。Excel 使用<strong>第一個工作表</strong>。姓名為必填。<br />
+                    Map each field to a column from the <strong>first row</strong> (header). For .xlsx, the <strong>first sheet</strong> is used. <strong>Student name</strong> is required.
+                </p>
+                <div id="studentCsvMapGrid" class="student-csv-map-grid"></div>
+                <div id="studentCsvMapWarning" style="display:none; color:#b45309; font-size:0.9rem; margin-bottom:8px;"></div>
+                <div>
+                    <strong style="color:#333;">預覽（前 5 列）· Preview (first 5 rows)</strong>
+                    <div class="student-csv-preview-wrap" id="studentCsvPreviewWrap"></div>
+                </div>
+                <div class="edit-student-modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeStudentCsvImportModal()">取消 · Cancel</button>
+                    <button type="button" class="btn btn-primary" id="studentCsvImportConfirmBtn" onclick="confirmStudentCsvImport()">匯入 · Import</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2993,85 +3063,373 @@
             document.body.removeChild(link);
         }
 
-        async function handleCSVUpload(input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const text = e.target.result;
-                // Simple CSV parsing (handles basic quotes)
-                const rows = text.split("\n").map(row => {
-                    const result = [];
-                    let cell = '';
-                    let inQuotes = false;
-                    for (let i = 0; i < row.length; i++) {
-                        const char = row[i];
-                        if (char === '"') {
-                            inQuotes = !inQuotes;
-                        } else if (char === ',' && !inQuotes) {
-                            result.push(cell);
-                            cell = '';
-                        } else {
-                            cell += char;
-                        }
-                    }
-                    result.push(cell);
-                    return result;
-                });
-                
-                const students = [];
-                // Start from 1 to skip header
-                for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i];
-                    if (row.length < 2) continue; 
-                    const clean = (val) => val ? val.trim().replace(/^"|"$/g, '') : '';
-                    
-                    const name = clean(row[0]);
-                    if (!name) continue; 
-                    
-                    students.push({
-                        name: name,
-                        chessComId: clean(row[1]),
-                        gender: clean(row[2]),
-                        dateOfBirth: clean(row[3]),
-                        contactPhone: clean(row[4]),
-                        contactEmail: clean(row[5]),
-                        emergencyContactName: clean(row[6]),
-                        emergencyContactRelation: clean(row[7]),
-                        emergencyContactNumber: clean(row[8])
-                    });
-                }
-                
-                if (students.length === 0) {
-                    alert('No valid students found in CSV');
-                    return;
-                }
-                
-                try {
-                    const response = await window.authUtils.authenticatedFetch('/organizations/students/bulk', {
-                        method: 'POST',
-                        body: JSON.stringify(students)
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        alert(`Successfully imported ${result.createdCount} students.`);
-                        if (result.errors && result.errors.length > 0) {
-                            console.warn('Import errors:', result.errors);
-                            alert(`Some students failed to import. Check console.`);
-                        }
-                        loadStudents();
+        var __studentCsvState = {
+            fileInput: null,
+            headerRow: [],
+            dataRows: []
+        };
+
+        var STUDENT_CSV_MAP_FIELDS = [
+            { key: 'name', label: 'Student name · 姓名', required: true },
+            { key: 'chessComId', label: 'chess.com ID · 棋網 ID', required: false },
+            { key: 'gender', label: 'Gender · 性別', required: false },
+            { key: 'dateOfBirth', label: 'DOB · 出生日期', required: false },
+            { key: 'contactPhone', label: 'Contact no. · 電話', required: false },
+            { key: 'contactEmail', label: 'Email · 電郵', required: false },
+            { key: 'emergencyContactName', label: 'Emergency contact name · 緊急聯絡人', required: false },
+            { key: 'emergencyContactRelation', label: 'Emergency relation · 關係', required: false },
+            { key: 'emergencyContactNumber', label: 'Emergency contact no. · 緊急電話', required: false }
+        ];
+
+        function parseCSVRowsFromText(text) {
+            return text.split('\n').map(function (row) {
+                var result = [];
+                var cell = '';
+                var inQuotes = false;
+                for (var i = 0; i < row.length; i++) {
+                    var char = row[i];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(cell);
+                        cell = '';
                     } else {
-                        const err = await response.json();
-                        alert('Import failed: ' + (err.error || 'Unknown error'));
+                        cell += char;
                     }
-                } catch (error) {
-                    console.error(error);
-                    alert('Import error');
                 }
-                
-                input.value = ''; 
+                result.push(cell);
+                return result;
+            });
+        }
+
+        /** First sheet only; each cell as string (SheetJS must be loaded). */
+        function parseXlsxToRows(arrayBuffer) {
+            if (typeof XLSX === 'undefined') {
+                throw new Error('SheetJS (XLSX) not loaded');
+            }
+            var wb = XLSX.read(arrayBuffer, { type: 'array' });
+            if (!wb.SheetNames || wb.SheetNames.length === 0) {
+                return [];
+            }
+            var ws = wb.Sheets[wb.SheetNames[0]];
+            var raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+            return raw.map(function (row) {
+                if (!Array.isArray(row)) return [];
+                return row.map(function (cell) {
+                    if (cell === null || cell === undefined) return '';
+                    return String(cell).trim();
+                });
+            });
+        }
+
+        function studentImportRowsFromParsed(rows, input) {
+            if (!rows.length || rows[0].length === 0) {
+                alert('檔案無內容。 · Empty file');
+                input.value = '';
+                return;
+            }
+            var headerRow = rows[0].map(function (c) {
+                return cleanCsvCell(c);
+            });
+            var dataRows = [];
+            for (var ri = 1; ri < rows.length; ri++) {
+                var r = rows[ri];
+                if (!r.some(function (c) {
+                    return cleanCsvCell(c) !== '';
+                })) continue;
+                dataRows.push(r);
+            }
+            if (dataRows.length === 0) {
+                alert('沒有資料列（僅標題？）。 · No data rows');
+                input.value = '';
+                return;
+            }
+            __studentCsvState.fileInput = input;
+            __studentCsvState.headerRow = headerRow;
+            __studentCsvState.dataRows = dataRows;
+            ensureStudentCsvMapGridBuilt();
+            var guess = guessStudentCsvColumnIndices(headerRow);
+            fillStudentCsvMapSelects(headerRow, guess);
+            openStudentCsvImportModal();
+        }
+
+        function cleanCsvCell(val) {
+            if (!val) return '';
+            return String(val).trim().replace(/^"|"$/g, '');
+        }
+
+        function normalizeHeaderForGuess(h) {
+            return String(h || '')
+                .toLowerCase()
+                .replace(/\s+/g, '')
+                .replace(/[._\-（）()]/g, '')
+                .replace(/chess\.com/gi, 'chesscom');
+        }
+
+        function guessStudentCsvColumnIndices(headers) {
+            var norm = headers.map(function (h) {
+                return normalizeHeaderForGuess(h);
+            });
+            var rules = [
+                { key: 'name', candidates: ['studentname', 'name', '姓名', '學生姓名', 'fullname', '學生名稱', 'displayname'] },
+                { key: 'chessComId', candidates: ['chesscomid', 'chessid', '棋網', '棋網id', 'studentid', '學生編號'] },
+                { key: 'gender', candidates: ['gender', '性別', 'sex'] },
+                { key: 'dateOfBirth', candidates: ['dob', 'dateofbirth', 'birth', '出生日期', '生日'] },
+                { key: 'contactPhone', candidates: ['contactno', 'phone', 'mobile', 'tel', '電話', '聯絡電話', '手機'] },
+                { key: 'contactEmail', candidates: ['email', 'e-mail', '郵箱', '電郵', '電子郵件'] },
+                { key: 'emergencyContactName', candidates: ['emergencycontactname', '緊急聯絡人', '緊急聯絡人姓名'] },
+                { key: 'emergencyContactRelation', candidates: ['emergencycontactrelation', 'relation', '關係', '緊急聯絡人關係'] },
+                { key: 'emergencyContactNumber', candidates: ['emergencycontactno', '緊急電話', '緊急聯絡電話'] }
+            ];
+            var out = {};
+            rules.forEach(function (r) {
+                out[r.key] = '';
+                for (var ci = 0; ci < norm.length; ci++) {
+                    var n = norm[ci];
+                    var hit = r.candidates.some(function (c) {
+                        return n === c || n.indexOf(c) >= 0;
+                    });
+                    if (hit) {
+                        out[r.key] = String(ci);
+                        break;
+                    }
+                }
+            });
+            if (!out.name && headers.length > 0) out.name = '0';
+            return out;
+        }
+
+        function fillStudentCsvMapSelects(headers, guess) {
+            STUDENT_CSV_MAP_FIELDS.forEach(function (f) {
+                var sel = document.getElementById('studentCsvMap_' + f.key);
+                if (!sel) return;
+                var cur = guess && guess[f.key] !== undefined ? guess[f.key] : '';
+                sel.innerHTML = '<option value="">— 略過 · Skip —</option>';
+                headers.forEach(function (h, idx) {
+                    var o = document.createElement('option');
+                    o.value = String(idx);
+                    o.textContent = (h === '' ? '(empty)' : h) + ' [' + idx + ']';
+                    sel.appendChild(o);
+                });
+                if (cur !== '' && parseInt(cur, 10) >= 0 && parseInt(cur, 10) < headers.length) sel.value = cur;
+            });
+        }
+
+        function buildStudentCsvMappingFromForm() {
+            var m = {};
+            STUDENT_CSV_MAP_FIELDS.forEach(function (f) {
+                var sel = document.getElementById('studentCsvMap_' + f.key);
+                m[f.key] = sel && sel.value !== '' ? sel.value : '';
+            });
+            return m;
+        }
+
+        function escapeHtmlAttr(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function refreshStudentCsvImportPreview() {
+            var warnEl = document.getElementById('studentCsvMapWarning');
+            var wrap = document.getElementById('studentCsvPreviewWrap');
+            if (!wrap) return;
+            var map = buildStudentCsvMappingFromForm();
+            var used = {};
+            var dup = false;
+            Object.keys(map).forEach(function (k) {
+                var v = map[k];
+                if (v === '') return;
+                if (used[v]) dup = true;
+                used[v] = true;
+            });
+            if (warnEl) {
+                if (dup) {
+                    warnEl.style.display = 'block';
+                    warnEl.textContent =
+                        '部分欄位對應到同一 CSV 欄，請確認是否正確。 · Multiple fields map to the same column.';
+                } else {
+                    warnEl.style.display = 'none';
+                    warnEl.textContent = '';
+                }
+            }
+            var nameIdx = map.name === '' ? -1 : parseInt(map.name, 10);
+            var rows = __studentCsvState.dataRows.slice(0, 5);
+            var thead = '<tr><th>#</th>';
+            STUDENT_CSV_MAP_FIELDS.forEach(function (f) {
+                thead += '<th>' + escapeHtmlAttr(f.label.split(' · ')[0]) + '</th>';
+            });
+            thead += '</tr>';
+            var tbody = '';
+            rows.forEach(function (row, ri) {
+                tbody += '<tr><td>' + (ri + 1) + '</td>';
+                STUDENT_CSV_MAP_FIELDS.forEach(function (f) {
+                    var ix = map[f.key] === '' ? -1 : parseInt(map[f.key], 10);
+                    if (f.key === 'name' && nameIdx < 0) {
+                        tbody += '<td><span style="color:#dc2626">(選擇姓名欄 · Pick name column)</span></td>';
+                    } else if (ix < 0 || row[ix] === undefined) {
+                        tbody += '<td>—</td>';
+                    } else {
+                        var cell = cleanCsvCell(row[ix]);
+                        tbody += '<td>' + (cell ? escapeHtmlAttr(cell) : '—') + '</td>';
+                    }
+                });
+                tbody += '</tr>';
+            });
+            if (rows.length === 0) {
+                wrap.innerHTML = '<p style="padding:12px;color:#64748b;">無資料列 · No data rows</p>';
+                return;
+            }
+            wrap.innerHTML = '<table><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+        }
+
+        function ensureStudentCsvMapGridBuilt() {
+            var grid = document.getElementById('studentCsvMapGrid');
+            if (!grid || grid.dataset.built === '1') return;
+            grid.dataset.built = '1';
+            grid.innerHTML = '';
+            STUDENT_CSV_MAP_FIELDS.forEach(function (f) {
+                var lab = document.createElement('label');
+                lab.setAttribute('for', 'studentCsvMap_' + f.key);
+                lab.textContent = f.label + (f.required ? ' *' : '');
+                var sel = document.createElement('select');
+                sel.id = 'studentCsvMap_' + f.key;
+                sel.innerHTML = '<option value="">—</option>';
+                sel.addEventListener('change', refreshStudentCsvImportPreview);
+                grid.appendChild(lab);
+                grid.appendChild(sel);
+            });
+        }
+
+        function openStudentCsvImportModal() {
+            var modal = document.getElementById('studentCsvImportModal');
+            if (modal) modal.classList.add('show');
+            refreshStudentCsvImportPreview();
+        }
+
+        function closeStudentCsvImportModal() {
+            var modal = document.getElementById('studentCsvImportModal');
+            if (modal) modal.classList.remove('show');
+            if (__studentCsvState.fileInput) __studentCsvState.fileInput.value = '';
+            __studentCsvState.fileInput = null;
+            __studentCsvState.headerRow = [];
+            __studentCsvState.dataRows = [];
+        }
+
+        async function confirmStudentCsvImport() {
+            var map = buildStudentCsvMappingFromForm();
+            if (!map.name || map.name === '') {
+                alert('請對應「姓名」欄位。 · Please map the Student name column.');
+                return;
+            }
+            var nameIdx = parseInt(map.name, 10);
+            var students = [];
+            for (var i = 0; i < __studentCsvState.dataRows.length; i++) {
+                var row = __studentCsvState.dataRows[i];
+                if (!row || row.length === 0) continue;
+                var name = cleanCsvCell(row[nameIdx]);
+                if (!name) continue;
+                function val(key) {
+                    var ix = map[key] === '' ? -1 : parseInt(map[key], 10);
+                    if (ix < 0 || row[ix] === undefined) return '';
+                    return cleanCsvCell(row[ix]);
+                }
+                students.push({
+                    name: name,
+                    chessComId: val('chessComId'),
+                    gender: val('gender'),
+                    dateOfBirth: val('dateOfBirth'),
+                    contactPhone: val('contactPhone'),
+                    contactEmail: val('contactEmail'),
+                    emergencyContactName: val('emergencyContactName'),
+                    emergencyContactRelation: val('emergencyContactRelation'),
+                    emergencyContactNumber: val('emergencyContactNumber')
+                });
+            }
+            if (students.length === 0) {
+                alert('沒有可匯入的學生（請檢查姓名欄是否有值）。 · No students to import.');
+                return;
+            }
+            var btn = document.getElementById('studentCsvImportConfirmBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '匯入中… · Importing…';
+            }
+            try {
+                var response = await window.authUtils.authenticatedFetch('/organizations/students/bulk', {
+                    method: 'POST',
+                    body: JSON.stringify(students)
+                });
+                if (response.ok) {
+                    var result = await response.json();
+                    alert('成功匯入 ' + result.createdCount + ' 位學生。 · Successfully imported ' + result.createdCount + ' students.');
+                    if (result.errors && result.errors.length > 0) {
+                        console.warn('Import errors:', result.errors);
+                        alert('部分列失敗，請查看主控台。 · Some rows failed. Check console.');
+                    }
+                    closeStudentCsvImportModal();
+                    loadStudents();
+                } else {
+                    var err = await response.json().catch(function () {
+                        return {};
+                    });
+                    alert('匯入失敗：' + (err.error || 'Unknown') + ' · Import failed');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('匯入錯誤 · Import error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '匯入 · Import';
+                }
+            }
+        }
+
+        function handleStudentImportUpload(input) {
+            var file = input.files[0];
+            if (!file) return;
+            var lower = (file.name || '').toLowerCase();
+            var isXlsx =
+                lower.endsWith('.xlsx') ||
+                (file.type &&
+                    file.type.indexOf('spreadsheetml') >= 0);
+
+            if (isXlsx) {
+                var readerX = new FileReader();
+                readerX.onload = function (e) {
+                    try {
+                        var rows = parseXlsxToRows(e.target.result);
+                        studentImportRowsFromParsed(rows, input);
+                    } catch (err) {
+                        console.error(err);
+                        alert(
+                            '無法讀取 Excel：' +
+                                (err && err.message ? err.message : String(err)) +
+                                ' · Failed to read .xlsx'
+                        );
+                        input.value = '';
+                    }
+                };
+                readerX.onerror = function () {
+                    alert('讀取檔案失敗。 · File read failed');
+                    input.value = '';
+                };
+                readerX.readAsArrayBuffer(file);
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                var text = e.target.result;
+                var rows = parseCSVRowsFromText(text);
+                studentImportRowsFromParsed(rows, input);
+            };
+            reader.onerror = function () {
+                alert('讀取檔案失敗。 · File read failed');
+                input.value = '';
             };
             reader.readAsText(file);
         }

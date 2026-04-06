@@ -10,6 +10,7 @@ const adminOrganizationsRoutes = require('./routes/adminOrganizationsRoutes');
 const chessComTeacherRoutes = require('./routes/chesscomTeacherRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const myOwnAppRoutes = require('./routes/myOwnAppRoutes');
+const vchessInvoiceLlmRoutes = require('./routes/vchessInvoiceLlmRoutes');
 const autoRenew = require('./services/autoRenew');
 const openAi = require('./ai/openai');
 
@@ -25,6 +26,7 @@ export const registerAdminOrganizationsRoutes = adminOrganizationsRoutes.registe
 export const registerChessComTeacherRoutes = chessComTeacherRoutes.registerChessComTeacherRoutes;
 export const registerAttendanceRoutes = attendanceRoutes.registerAttendanceRoutes;
 export const registerMyOwnAppRoutes = myOwnAppRoutes.registerMyOwnAppRoutes;
+export const registerVchessInvoiceLlmRoutes = vchessInvoiceLlmRoutes.registerVchessInvoiceLlmRoutes;
 
 // Services
 export const createAutoRenew = autoRenew.createAutoRenew;

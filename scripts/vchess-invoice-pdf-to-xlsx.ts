@@ -14,6 +14,7 @@ import {
   parseInvoiceText,
   pageLooksLikeInvoice,
   splitPageTextIntoInvoiceSegments,
+  toInvoiceXlsxExportRow,
   type InvoiceRow
 } from './lib/vchess-invoice-parse';
 
@@ -140,17 +141,18 @@ async function main() {
     }
   }
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const exportRows = rows.map(toInvoiceXlsxExportRow);
+  const ws = XLSX.utils.json_to_sheet(exportRows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
   const outAbs = path.resolve(outPath);
   XLSX.writeFile(wb, outAbs);
-  console.log(`Wrote ${rows.length} row(s) → ${outAbs}`);
+  console.log(`Wrote ${rows.length} row(s) (11 columns) → ${outAbs}`);
 
   if (process.env.INVOICE_CONVERT_SMOKE === '1' && rows[0]) {
     console.log('[invoice-pdf-to-xlsx smoke]', {
       sample: rows[0].invoice_no,
-      hasTotal: !!rows[0].total,
+      hasLineTotal: !!rows[0].line_total,
       hasCustomer: !!rows[0].customer_id
     });
   }
