@@ -8,7 +8,6 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { PDFParse } from 'pdf-parse';
 import * as XLSX from 'xlsx';
 import {
   parseInvoiceText,
@@ -17,23 +16,9 @@ import {
   toInvoiceXlsxExportRow,
   type InvoiceRow
 } from './lib/vchess-invoice-parse';
+import { readPdfPageTexts } from './lib/readPdfPageTexts';
 
 export type { InvoiceRow };
-
-async function readPdfPageTexts(filePath: string): Promise<string[]> {
-  const buf = fs.readFileSync(filePath);
-  const parser = new PDFParse({ data: buf });
-  try {
-    const result = await parser.getText();
-    const pages = result.pages;
-    if (pages && pages.length > 0) {
-      return pages.map((p) => String(p.text || ''));
-    }
-    return [String(result.text || '')];
-  } finally {
-    await parser.destroy();
-  }
-}
 
 function emptyRow(source: string, note: string): InvoiceRow {
   return {

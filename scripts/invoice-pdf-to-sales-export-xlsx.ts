@@ -1,41 +1,30 @@
 /**
- * V.Chess invoice PDF(s) → Excel in the same shape as Settings → Sales enrollment export
- * (see `sales-enrollment-export-*.xlsx`: 10 columns, sheet "Sales export").
+ * V.Chess invoice PDF(s) → Excel matching Settings → Sales enrollment export (11 columns).
+ *
+ * Output workbook:
+ *   - "Sales export" — rows that pass validation (sorted: file, student id, invoice no)
+ *   - "Needs review" — parse warnings / PDF read placeholders (+ source_file, parse_note)
+ *
+ * Damaged PDFs: pdf-parse may fail; install `pip3 install --user pypdf` for Python fallback.
  *
  * Usage:
  *   pnpm invoice-pdf-to-sales-xlsx <output.xlsx> <a.pdf> [b.pdf ...]
- *   pnpm invoice-pdf-to-sales-xlsx <output.xlsx>   (reads all .pdf from cwd — rarely useful)
- *
- * Example:
- *   pnpm invoice-pdf-to-sales-xlsx ./out.xlsx ~/Desktop/Invoices_20260406_sV.pdf
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { PDFParse } from 'pdf-parse';
 import * as XLSX from 'xlsx';
 import {
-  parseInvoiceText,
-  pageLooksLikeInvoice,
-  splitPageTextIntoInvoiceSegments,
+  compareInvoiceRowsNeat,
+  isCleanInvoiceRow,
   invoiceRowToSalesEnrollmentExportRow,
+  pageLooksLikeInvoice,
+  parseInvoiceText,
   SALES_ENROLLMENT_EXPORT_HEADERS,
+  SALES_EXPORT_ISSUE_EXTRA_HEADERS,
+  splitPageTextIntoInvoiceSegments,
   type InvoiceRow
 } from './lib/vchess-invoice-parse';
-
-async function readPdfPageTexts(filePath: string): Promise<string[]> {
-  const buf = fs.readFileSync(filePath);
-  const parser = new PDFParse({ data: buf });
-  try {
-    const result = await parser.getText();
-    const pages = result.pages;
-    if (pages && pages.length > 0) {
-      return pages.map((p) => String(p.text || ''));
-    }
-    return [String(result.text || '')];
-  } finally {
-    await parser.destroy();
-  }
-}
+import { readPdfPageTexts } from './lib/readPdfPageTexts';
 
 function emptyInvoiceRow(source: string, note: string): InvoiceRow {
   return {
@@ -104,12 +93,28 @@ async function parsePdfToInvoiceRows(pdfPath: string): Promise<InvoiceRow[]> {
   return rows;
 }
 
+const COL_WIDTHS = [
+  { wch: 18 },
+  { wch: 14 },
+  { wch: 14 },
+  { wch: 12 },
+  { wch: 24 },
+  { wch: 22 },
+  { wch: 14 },
+  { wch: 18 },
+  { wch: 44 },
+  { wch: 8 },
+  { wch: 24 },
+  { wch: 28 },
+  { wch: 56 }
+];
+
 async function main() {
   const argv = process.argv.slice(2).filter((a) => a !== '--');
   if (argv.length < 2) {
     console.error(
       'Usage: pnpm invoice-pdf-to-sales-xlsx <output.xlsx> <invoice1.pdf> [invoice2.pdf ...]\n' +
-        '  Produces one sheet "Sales export" with the same 10 columns as the browser export.'
+        '  Sheets: "Sales export" (clean rows), "Needs review" (issues + diagnostics).'
     );
     process.exit(1);
   }
@@ -131,37 +136,54 @@ async function main() {
       console.error(`Missing file: ${pdf}`);
       process.exit(1);
     }
-    const part = await parsePdfToInvoiceRows(pdf);
-    invoiceRows.push(...part);
+    try {
+      const part = await parsePdfToInvoiceRows(pdf);
+      invoiceRows.push(...part);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`PDF skipped (read error): ${pdf}\n  ${msg}`);
+      invoiceRows.push(emptyInvoiceRow(path.basename(pdf), `PDF read failed: ${msg}`));
+    }
   }
 
-  const dataRows = invoiceRows.map(invoiceRowToSalesEnrollmentExportRow);
-  const aoa: (string | number)[][] = [[...SALES_ENROLLMENT_EXPORT_HEADERS], ...dataRows];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 24 },
-    { wch: 22 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 44 },
-    { wch: 8 },
-    { wch: 24 }
+  const sortedAll = [...invoiceRows].sort(compareInvoiceRowsNeat);
+  const cleanRows = sortedAll.filter(isCleanInvoiceRow);
+  const issueRows = sortedAll.filter((r) => !isCleanInvoiceRow(r));
+
+  const cleanAoa: (string | number)[][] = [
+    [...SALES_ENROLLMENT_EXPORT_HEADERS],
+    ...cleanRows.map(invoiceRowToSalesEnrollmentExportRow)
   ];
+  const issueAoa: (string | number)[][] = [
+    [...SALES_ENROLLMENT_EXPORT_HEADERS, ...SALES_EXPORT_ISSUE_EXTRA_HEADERS],
+    ...issueRows.map((r) => [
+      ...invoiceRowToSalesEnrollmentExportRow(r),
+      r.source_file,
+      r.parse_note || ''
+    ])
+  ];
+
+  const wsClean = XLSX.utils.aoa_to_sheet(cleanAoa);
+  wsClean['!cols'] = COL_WIDTHS.slice(0, 11);
+  const wsIssues = XLSX.utils.aoa_to_sheet(issueAoa);
+  wsIssues['!cols'] = COL_WIDTHS;
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Sales export');
+  XLSX.utils.book_append_sheet(wb, wsClean, 'Sales export');
+  XLSX.utils.book_append_sheet(wb, wsIssues, 'Needs review');
   XLSX.writeFile(wb, outPath);
 
   console.log(
-    `Wrote ${dataRows.length} data row(s) from ${pdfs.length} PDF(s) → ${outPath}`
+    `Wrote "${path.basename(outPath)}": ${cleanRows.length} clean row(s), ${issueRows.length} need review (from ${invoiceRows.length} parsed, ${pdfs.length} PDF(s))`
   );
-  for (let i = 0; i < invoiceRows.length; i++) {
-    const r = invoiceRows[i];
-    if (r.parse_note) {
-      console.warn(`  row ${i + 1} [${r.source_file}]: ${r.parse_note}`);
+  if (issueRows.length > 0 && issueRows.length <= 30) {
+    for (const r of issueRows) {
+      if (r.parse_note) {
+        console.warn(`  [${r.source_file}] ${r.parse_note}`);
+      }
     }
+  } else if (issueRows.length > 30) {
+    console.warn(`  (${issueRows.length} issue rows — see "Needs review" sheet)`);
   }
 }
 

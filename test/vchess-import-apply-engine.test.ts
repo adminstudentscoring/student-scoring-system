@@ -362,4 +362,72 @@ describe('vchessImportApplyEngine', () => {
       assert.strictEqual(applied.result.timetablesCreated, 2);
     }
   });
+
+  it('apply writes localName from mapped column when creating student', () => {
+    const orgId = 'org_local';
+    const applyConfig = {
+      ...DEFAULT_VCHESS_IMPORT_APPLY_CONFIG,
+      createTimetableIfMissing: true,
+      defaultCourseIds: ['course_x'],
+      columnRoles: {
+        studentName: 'Student Name',
+        localName: 'Local name',
+        externalId: 'Student ID',
+        className: 'Class Name',
+        timeRange: 'Time Slot',
+        lessonDates: 'Enrolled Dates',
+        invoiceDate: 'Order ID'
+      },
+      studentMatchField: 'chessComId' as const
+    };
+    const rows = [
+      {
+        'Student Name': 'Amy Chan',
+        'Local name': '陳小美',
+        'Student ID': 'VC-LOCAL-1',
+        'Class Name': 'Chess Class',
+        'Time Slot': '10:00 - 11:00',
+        'Enrolled Dates': '2026-06-01',
+        'Order ID': ''
+      }
+    ];
+    const preview = buildVchessImportPreview({
+      importBatchId: 'imp_loc',
+      organizationId: orgId,
+      applyConfig,
+      rows,
+      students: [],
+      timetableEntries: [],
+      enrollments: []
+    });
+    assert.strictEqual(preview.rows[0].errors.length, 0, preview.rows[0].errors.join('; '));
+
+    const data = { students: [] as any[], lastUpdate: '' };
+    const organizations = [{ id: orgId, students: [] as string[] }];
+    const enr: any[] = [];
+    const timetableData = {
+      entries: [] as any[],
+      metadata: { classNames: [] as string[], classrooms: [] as string[] }
+    };
+
+    const applied = applyVchessImportFromVerifiedPreview({
+      previewDigest: preview.digest,
+      importBatchId: 'imp_loc',
+      organizationId: orgId,
+      applyConfig,
+      rows,
+      data,
+      organizations,
+      enrollments: enr,
+      timetableEntries: [],
+      timetableData
+    });
+    assert.strictEqual(applied.ok, true);
+    if (applied.ok) {
+      assert.strictEqual(applied.result.studentsCreated, 1);
+      const stu = data.students[0];
+      assert.ok(stu);
+      assert.strictEqual(stu.localName, '陳小美');
+    }
+  });
 });

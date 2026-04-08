@@ -15,10 +15,10 @@
     <script src="course-management-timetable.js?v=20260404-vchess4"></script>
     <script src="course-management-timetable-modal.js?v=20260404-vchess4"></script>
     <script src="course-management-sales-core.js?v=20260404-vchess4"></script>
-    <script src="course-management-sales-packages.js?v=20260404-vchess4"></script>
+    <script src="course-management-sales-packages.js?v=20260408-enrollYmd"></script>
     <script src="course-management-sales-orders.js?v=20260406-salesxlsx1"></script>
     <script src="course-management-sales-excel-export.js?v=20260406-salesxlsx1"></script>
-    <script src="course-management-vchess-invoice-import.js?v=20260404-vchess6"></script>
+    <script src="course-management-vchess-invoice-import.js?v=20260407-vchess7"></script>
     <script src="course-management-accounting.js?v=20260404-vchess4"></script>
     <script src="course-management-statistics.js?v=20260404-vchess4"></script>
     <style>
@@ -1927,6 +1927,7 @@
 
             const filteredStudents = allStudents.filter(student =>
                 (student.name && student.name.toLowerCase().includes(searchTerm)) ||
+                (student.localName && String(student.localName).toLowerCase().includes(searchTerm)) ||
                 (student.chessComId && student.chessComId.toLowerCase().includes(searchTerm))
             );
 
@@ -1960,6 +1961,7 @@
                                 ${isIncomplete ? '<span class="org-card-incomplete-dot" title="Incomplete profile"></span>' : ''}
                             </div>
                             <dl class="org-card-meta">
+                                <dt>Local name</dt><dd>${escapeHtml(student.localName || '—')}</dd>
                                 <dt>chess.com ID</dt><dd>${escapeHtml(student.chessComId || '—')}</dd>
                                 <dt>Score</dt><dd><span id="score-${student.id}">${student.score || 0}</span></dd>
                                 <dt>Level</dt><dd>${student.level || 1}</dd>
@@ -3027,7 +3029,7 @@
 
         // CSV Functions
         function downloadTemplate() {
-            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'Local name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             const csvContent = "data:text/csv;charset=utf-8," + headers.join(",");
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
@@ -3039,9 +3041,10 @@
         }
 
         function downloadCSV() {
-            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'Local name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             const rows = allStudents.map(s => [
                 s.name,
+                s.localName || '',
                 s.chessComId || '',
                 s.gender || '',
                 s.dateOfBirth || '',
@@ -3072,6 +3075,7 @@
 
         var STUDENT_CSV_MAP_FIELDS = [
             { key: 'name', label: 'Student name · 姓名', required: true },
+            { key: 'localName', label: 'Local name · 本地名稱', required: false },
             { key: 'chessComId', label: 'chess.com ID · 棋網 ID', required: false },
             { key: 'gender', label: 'Gender · 性別', required: false },
             { key: 'dateOfBirth', label: 'DOB · 出生日期', required: false },
@@ -3173,6 +3177,7 @@
             });
             var rules = [
                 { key: 'name', candidates: ['studentname', 'name', '姓名', '學生姓名', 'fullname', '學生名稱', 'displayname'] },
+                { key: 'localName', candidates: ['localname', '本地名', '本地名稱', '中文名', 'nickname', '別名'] },
                 { key: 'chessComId', candidates: ['chesscomid', 'chessid', '棋網', '棋網id', 'studentid', '學生編號'] },
                 { key: 'gender', candidates: ['gender', '性別', 'sex'] },
                 { key: 'dateOfBirth', candidates: ['dob', 'dateofbirth', 'birth', '出生日期', '生日'] },
@@ -3339,6 +3344,7 @@
                 }
                 students.push({
                     name: name,
+                    localName: val('localName'),
                     chessComId: val('chessComId'),
                     gender: val('gender'),
                     dateOfBirth: val('dateOfBirth'),
@@ -3437,8 +3443,8 @@
 
         // CSV Functions
         function downloadTemplate() {
-            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
-            const csvContent = '\uFEFF' + headers.join(',') + '\n' + 'John Doe,S12345,M,2010-01-01,12345678,john@example.com,Jane Doe,Parent,87654321';
+            const headers = ['Student Name', 'Local name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const csvContent = '\uFEFF' + headers.join(',') + '\n' + 'John Doe,,S12345,M,2010-01-01,12345678,john@example.com,Jane Doe,Parent,87654321';
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
@@ -3447,12 +3453,13 @@
         }
 
         function downloadCSV() {
-            const headers = ['Student Name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
+            const headers = ['Student Name', 'Local name', 'chess.com ID', 'Gender', 'DOB', 'Contact no.', 'Email Address', 'Emergency Contact Name', 'Emergency Contact Relation', 'Emergency Contact No.'];
             let csvContent = '\uFEFF' + headers.join(',') + '\n';
             
             allStudents.forEach(s => {
                 const row = [
                     s.name || '',
+                    s.localName || '',
                     s.chessComId || '',
                     s.gender || '',
                     s.dateOfBirth || '',

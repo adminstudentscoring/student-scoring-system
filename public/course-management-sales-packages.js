@@ -786,6 +786,14 @@ function formatDateForCompare(date) {
   return `${year}-${month}-${day}`;
 }
 
+/** Match enrollment `date` to calendar day (handles plain YYYY-MM-DD or ISO strings). */
+function enrollmentDateYmd(dateVal) {
+  if (dateVal == null || dateVal === '') return '';
+  const s = String(dateVal);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s;
+}
+
 // --- Calendar UI Logic ---
 
 window.changeCalendarMonth = function(delta) {
@@ -1158,7 +1166,8 @@ function updateDaySchedule() {
   let enrolledClasses = [];
   if (studentId) {
       enrolledClasses = (window.timetableEnrollments || []).filter(
-        (e) => String(e.studentId) === String(studentId) && e.date === selectedStr
+        (e) =>
+          String(e.studentId) === String(studentId) && enrollmentDateYmd(e.date) === selectedStr
       );
   }
 

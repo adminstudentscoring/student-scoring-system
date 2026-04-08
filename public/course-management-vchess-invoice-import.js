@@ -5,6 +5,7 @@
 (function () {
   const MAP_KEYS = [
     ['studentName', '學生 / student_display'],
+    ['localName', '本地名稱 / Local name · localName'],
     ['externalId', '客戶編號 customer_id'],
     ['className', '班名 course_name'],
     ['timeRange', '時段 schedule_time'],

@@ -12,6 +12,7 @@ export type StudentMatchField = 'chessComId' | 'name' | 'name_phone';
 
 export type VchessColumnRoles = {
   studentName?: string;
+  localName?: string;
   externalId?: string;
   className?: string;
   timeRange?: string;
@@ -48,6 +49,7 @@ export type VchessImportApplyConfig = {
 export const DEFAULT_VCHESS_IMPORT_APPLY_CONFIG: VchessImportApplyConfig = {
   columnRoles: {
     studentName: 'student_display',
+    localName: 'Local name',
     externalId: 'customer_id',
     className: 'course_name',
     timeRange: 'schedule_time',
@@ -574,12 +576,19 @@ export type ApplyVchessImportResult = {
   timetablesCreated: number;
 };
 
-function newStudentRecord(organizationId: string, name: string, externalId: string, nowBase: number, seq: number): any {
+function newStudentRecord(
+  organizationId: string,
+  name: string,
+  externalId: string,
+  localName: string,
+  nowBase: number,
+  seq: number
+): any {
   const id = `${nowBase + seq}_${Math.random().toString(36).slice(2, 8)}`;
   return {
     id,
     name: name.trim(),
-    localName: '',
+    localName: String(localName || '').trim(),
     chessComId: String(externalId || '').trim(),
     gender: '',
     dateOfBirth: '',
@@ -664,6 +673,8 @@ export function applyVchessImportFromVerifiedPreview(input: {
     strVal((rows[idx] as Record<string, unknown>)?.[roles.studentName || ''] ?? '');
   const phoneForRow = (idx: number) =>
     strVal((rows[idx] as Record<string, unknown>)?.[roles.contactPhone || ''] ?? '');
+  const localForRow = (idx: number) =>
+    getMapped(rows[idx] as Record<string, unknown>, roles, 'localName');
 
   function createDedupKey(rowIndex: number): string {
     const mf = applyConfig.studentMatchField;
@@ -681,11 +692,23 @@ export function applyVchessImportFromVerifiedPreview(input: {
       const dedupKey = createDedupKey(pr.index);
       const reuseId = createKeyToStudentId.get(dedupKey);
       if (reuseId) {
+        const loc = localForRow(pr.index);
+        if (loc) {
+          const stu = data.students.find((s: any) => String(s?.id) === reuseId);
+          if (stu && !String(stu.localName || '').trim()) stu.localName = loc;
+        }
         rowIndexToStudentId.set(pr.index, reuseId);
         continue;
       }
       const ext = extForRow(pr.index);
-      const stu = newStudentRecord(organizationId, pr.proposedStudentName, ext, nowBase, seq++);
+      const stu = newStudentRecord(
+        organizationId,
+        pr.proposedStudentName,
+        ext,
+        localForRow(pr.index),
+        nowBase,
+        seq++
+      );
       data.students.push(stu);
       if (!Array.isArray(org.students)) org.students = [];
       if (!org.students.includes(stu.id)) org.students.push(stu.id);

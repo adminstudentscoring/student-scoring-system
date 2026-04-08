@@ -93,14 +93,2712 @@
       "exceptions": [],
       "createdAt": "2026-04-02T15:49:53.852Z",
       "updatedAt": "2026-04-02T15:49:53.852Z"
+    },
+    {
+      "id": "timetable_1775466497551_kl0gruzil",
+      "organizationId": "1775118406019",
+      "className": "Chess class",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:08:17.551Z",
+      "updatedAt": "2026-04-06T09:08:17.551Z"
+    },
+    {
+      "id": "timetable_1775468494446_0_tgh37td",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-09-04",
+      "endDate": "2026-10-30",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_1_hvocg0w",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-11-05",
+      "endDate": "2026-11-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_2_4k7ojo7",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson (4 lessons)",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2025-12-01",
+      "endDate": "2025-12-29",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_3_wnhbdkz",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": false,
+      "dayOfWeek": null,
+      "date": "2025-12-02",
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_4_73l874p",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2025-01-05",
+      "endDate": "2025-02-23",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_5_ywnjwwp",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2025-01-05",
+      "endDate": "2025-02-23",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_6_ymg4eye",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2025-01-03",
+      "endDate": "2025-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_7_x2e17ei",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2025-01-03",
+      "endDate": "2025-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_8_zskhps0",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2025-01-07",
+      "endDate": "2025-01-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_9_d7u6032",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "12:00",
+      "endTime": "13:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2025-01-03",
+      "endDate": "2025-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_10_yty5zyy",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2025-01-04",
+      "endDate": "2025-02-22",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_11_e6n3zbo",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2025-01-04",
+      "endDate": "2025-02-22",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_12_m8h8aji",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2025-01-03",
+      "endDate": "2025-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_13_vsu3nq0",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2025-10-16",
+      "endDate": "2025-11-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_14_i2fnyfs",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2025-12-04",
+      "endDate": "2025-12-18",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_15_3m3p9s9",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "15:00",
+      "endTime": "16:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2025-11-08",
+      "endDate": "2025-12-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_16_9jtv5m1",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "15:00",
+      "endTime": "16:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2025-01-03",
+      "endDate": "2025-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_17_hwzwfu1",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2025-11-02",
+      "endDate": "2025-12-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_18_aa3bv72",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-01-11",
+      "endDate": "2026-02-22",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_19_t6heilo",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-02-02",
+      "endDate": "2026-03-30",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_20_7lrpwy8",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-02-01",
+      "endDate": "2026-03-29",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_21_5e29n4b",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-02-07",
+      "endDate": "2026-03-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_22_6dem6dd",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-02-04",
+      "endDate": "2026-03-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_23_ct0qjrw",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "15:00",
+      "endTime": "16:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-01-03",
+      "endDate": "2026-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_24_9o89982",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-01-10",
+      "endDate": "2026-02-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_25_j6rxg0u",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-01-05",
+      "endDate": "2026-01-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_26_e3cdxih",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-01-06",
+      "endDate": "2026-02-24",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_27_etbd2eb",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-01-06",
+      "endDate": "2026-02-24",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_28_9cnv677",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-11-05",
+      "endDate": "2026-12-31",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_29_rg4rk9u",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-01-07",
+      "endDate": "2026-02-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_30_vvsr1pa",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-02-04",
+      "endDate": "2026-02-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_31_gy86202",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-02-05",
+      "endDate": "2026-03-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_32_7ckh2at",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-01-08",
+      "endDate": "2026-02-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_33_1e4tqie",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": false,
+      "dayOfWeek": null,
+      "date": "2026-01-01",
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_34_5dbnlwf",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-11-06",
+      "endDate": "2026-12-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_35_6jt2orc",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-01-01",
+      "endDate": "2026-02-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_36_p51nvl5",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:30",
+      "endTime": "19:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-01-02",
+      "endDate": "2026-02-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_37_x06xphe",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-01-06",
+      "endDate": "2026-02-10",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_38_1tl24sy",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-12-03",
+      "endDate": "2026-12-31",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_39_29dzcys",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-01-05",
+      "endDate": "2026-02-23",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_40_6pgdkxs",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-02-08",
+      "endDate": "2026-03-29",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_41_0nyi2el",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-03-01",
+      "endDate": "2026-04-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_42_og4l0g3",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-03-02",
+      "endDate": "2026-04-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_43_2xdzeb3",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-03-03",
+      "endDate": "2026-04-28",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:10.150Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_44_cgnaz5y",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-03-05",
+      "endDate": "2026-04-30",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:23.730Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_45_t26vcq6",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-03-07",
+      "endDate": "2026-04-25",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:51.112Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_46_x67m53m",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-03-01",
+      "endDate": "2026-04-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_47_ak5wdrs",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-03-04",
+      "endDate": "2026-04-29",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_48_v9u5yus",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-03-07",
+      "endDate": "2026-04-25",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:54.777Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_49_2fefuyk",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-03-04",
+      "endDate": "2026-03-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_50_l45oew4",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "15:00",
+      "endTime": "16:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-03-07",
+      "endDate": "2026-04-25",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:43.704Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_51_up2lsdu",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "16:30",
+      "endTime": "17:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-03-05",
+      "endDate": "2026-04-30",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:33.120Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_52_bh1pdwv",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-03-05",
+      "endDate": "2026-04-30",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_53_5djlg0u",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:30",
+      "endTime": "19:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-03-06",
+      "endDate": "2026-04-24",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_54_uyo9a8k",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-03-07",
+      "endDate": "2026-04-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_55_tyfd7ca",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-03-05",
+      "endDate": "2026-04-30",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:29.828Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_56_4lwnxzr",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:30",
+      "endTime": "19:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-01-09",
+      "endDate": "2026-02-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_57_2pmmvxc",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-02-03",
+      "endDate": "2026-03-31",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_59_r0krvnu",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-03-09",
+      "endDate": "2026-04-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_60_od6sq2u",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-04-01",
+      "endDate": "2026-04-29",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:19.794Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_61_s4hjpql",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-04-05",
+      "endDate": "2026-05-31",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:58.216Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_62_e4ymrwt",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-04-01",
+      "endDate": "2026-05-27",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:16.505Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_63_4nghh9x",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-04-03",
+      "endDate": "2026-05-29",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:39.232Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_64_m1japc4",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-04-06",
+      "endDate": "2026-05-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_65_m63x1k7",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-04-07",
+      "endDate": "2026-05-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_66_nhqwkz6",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-03-10",
+      "endDate": "2026-03-31",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_69_w06mbrp",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-03-07",
+      "endDate": "2026-03-14",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_70_9arvfok",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-03-03",
+      "endDate": "2026-03-24",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_71_l81w2wd",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-04-02",
+      "endDate": "2026-05-28",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:26.921Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_72_pp55dun",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-04-04",
+      "endDate": "2026-05-30",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:47.345Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_73_mhyu3ot",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-04-05",
+      "endDate": "2026-05-31",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:36:01.800Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_74_340lsct",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:30",
+      "endTime": "19:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-04-03",
+      "endDate": "2026-05-29",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:36.496Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_75_37wz5u4",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-04-06",
+      "endDate": "2026-05-25",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:02.989Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_76_ptrreze",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-04-28",
+      "endDate": "2026-05-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_77_shxyj92",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": false,
+      "dayOfWeek": null,
+      "date": "2026-02-27",
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_78_l42x0kf",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-03-23",
+      "endDate": "2026-04-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T10:29:31.008Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_79_hhfp38u",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": false,
+      "dayOfWeek": null,
+      "date": "2026-03-17",
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_80_41rp9nk",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-03-24",
+      "endDate": "2026-04-21",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-07T14:35:06.417Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_81_6ky4exb",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-05-03",
+      "endDate": "2026-06-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_82_g7bwisg",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:30",
+      "endTime": "19:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Friday"
+      ],
+      "date": null,
+      "startDate": "2026-05-01",
+      "endDate": "2026-06-26",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_83_1oonrss",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-05-04",
+      "endDate": "2026-06-29",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_84_n6v8is9",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "15:00",
+      "endTime": "16:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-05-02",
+      "endDate": "2026-06-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_85_ruxv3x5",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "10:00",
+      "endTime": "11:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-05-02",
+      "endDate": "2026-06-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_86_8o7qnbu",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Sunday"
+      ],
+      "date": null,
+      "startDate": "2026-05-03",
+      "endDate": "2026-06-28",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_87_s14bwny",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-05-02",
+      "endDate": "2026-06-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_88_c0x1jmv",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "12:00",
+      "endTime": "13:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-05-02",
+      "endDate": "2026-06-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_89_wbfzbya",
+      "organizationId": "1775118406019",
+      "className": "Elite Class",
+      "startTime": "19:00",
+      "endTime": "20:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-05-06",
+      "endDate": "2026-05-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_90_zr1yzhj",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-05-02",
+      "endDate": "2026-06-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_91_kz7fm9c",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-05-04",
+      "endDate": "2026-06-29",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_92_1e1r194",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-05-07",
+      "endDate": "2026-06-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_93_frcd34t",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-05-07",
+      "endDate": "2026-06-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_94_6ik3q91",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-05-07",
+      "endDate": "2026-06-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_95_1o17mb9",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-05-05",
+      "endDate": "2026-06-30",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_96_r6jfjdc",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": "2026-05-05",
+      "endDate": "2026-06-30",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_97_a7ltn42",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": "2026-05-02",
+      "endDate": "2026-06-27",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_98_4ib96tu",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "16:30",
+      "endTime": "17:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Thursday"
+      ],
+      "date": null,
+      "startDate": "2026-05-07",
+      "endDate": "2026-06-25",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775468494446_99_g0vl9ag",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Wednesday"
+      ],
+      "date": null,
+      "startDate": "2026-05-06",
+      "endDate": "2026-06-24",
+      "courseIds": [],
+      "teacherIds": [
+        "vwongpt"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T09:41:34.446Z",
+      "updatedAt": "2026-04-06T09:41:34.446Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775471386521_0_a3nsgea",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson (4 lessons)",
+      "startTime": "17:30",
+      "endTime": "18:30",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": "2026-03-23",
+      "endDate": "2026-04-27",
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "vwongpt",
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-06T10:29:46.521Z",
+      "updatedAt": "2026-04-07T14:35:00.388Z",
+      "meta": {
+        "vchessImportAutoCreated": true
+      }
+    },
+    {
+      "id": "timetable_1775572286826_w600e4rpt",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Monday"
+      ],
+      "date": null,
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-07T14:31:26.826Z",
+      "updatedAt": "2026-04-07T14:31:26.826Z"
+    },
+    {
+      "id": "timetable_1775572444300_dq0iyfac2",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Tuesday"
+      ],
+      "date": null,
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-07T14:34:04.300Z",
+      "updatedAt": "2026-04-07T14:35:12.651Z"
+    },
+    {
+      "id": "timetable_1775572488590_yc4vkz30x",
+      "organizationId": "1775118406019",
+      "className": "Chess lesson",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "isRecurring": true,
+      "dayOfWeek": [
+        "Saturday"
+      ],
+      "date": null,
+      "startDate": null,
+      "endDate": null,
+      "courseIds": [
+        "course_1775121199181"
+      ],
+      "teacherIds": [
+        "1775122601940"
+      ],
+      "classroom": null,
+      "studentIds": [],
+      "exceptions": [],
+      "createdAt": "2026-04-07T14:34:48.590Z",
+      "updatedAt": "2026-04-07T14:34:48.590Z"
     }
   ],
   "metadata": {
     "classNames": [
       "Testing Class",
-      "Chess Class"
+      "Chess Class",
+      "Chess class",
+      "Chess lesson",
+      "Elite Class",
+      "Chess lesson (4 lessons)"
     ],
     "classrooms": [],
-    "lastUpdate": "2026-04-02T15:49:53.853Z"
+    "lastUpdate": "2026-04-07T16:55:08.552Z"
   }
 }

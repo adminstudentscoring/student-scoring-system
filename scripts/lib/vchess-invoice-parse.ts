@@ -70,6 +70,7 @@ export function toInvoiceXlsxExportRow(row: InvoiceRow): InvoiceXlsxExportRow {
 /** Same column order as browser Settings → Sales enrollment Excel export. */
 export const SALES_ENROLLMENT_EXPORT_HEADERS = [
   'Student Name',
+  'Local name',
   'Student ID',
   'Account Balance',
   'Lesson Quota',
@@ -113,6 +114,7 @@ export function invoiceRowToSalesEnrollmentExportRow(row: InvoiceRow): (string |
 
   return [
     name,
+    '',
     sid,
     balance,
     'No quota credit',
@@ -183,6 +185,21 @@ function collectMoneyTriplets(
   }
   const reQtyFirst = /(\d+\.?\d*)\s+\$\s*([\d,]+\.?\d*)\s+\$\s*([\d,]+\.?\d*)/g;
   while ((m = reQtyFirst.exec(head)) !== null) {
+    const qty = parseFloat(m[1].replace(/,/g, ''));
+    const unit = parseFloat(m[2].replace(/,/g, ''));
+    const total = parseFloat(m[3].replace(/,/g, ''));
+    if (scoreFn(unit, qty, total) < 0) continue;
+    out.push({
+      raw: m[0],
+      index: m.index,
+      unitPrice: m[2],
+      quantity: m[1],
+      lineTotal: m[3]
+    });
+  }
+  /** e.g. pypdf line `9.0$225.0 $2,025.0` (no space before first $) */
+  const reQtyGluedToPrice = /(\d+\.?\d*)\$\s*([\d,]+\.?\d*)\s+\$\s*([\d,]+\.?\d*)/g;
+  while ((m = reQtyGluedToPrice.exec(head)) !== null) {
     const qty = parseFloat(m[1].replace(/,/g, ''));
     const unit = parseFloat(m[2].replace(/,/g, ''));
     const total = parseFloat(m[3].replace(/,/g, ''));
@@ -592,3 +609,27 @@ export function parseInvoiceText(fullRaw: string, sourceFile: string): InvoiceRo
     parse_note: notes.length ? notes.join('; ') : null
   };
 }
+
+/** Row ready for Sales / V.Chess apply: student id + class/time/dates signal, no parse warnings. */
+export function isCleanInvoiceRow(r: InvoiceRow): boolean {
+  if (r.parse_note) return false;
+  if (!String(r.customer_id || '').trim()) return false;
+  const hasSchedule =
+    String(r.course_name || '').trim() ||
+    String(r.schedule_time || '').trim() ||
+    String(r.schedule_dates || '').trim();
+  if (!hasSchedule) return false;
+  return true;
+}
+
+export function compareInvoiceRowsNeat(a: InvoiceRow, b: InvoiceRow): number {
+  const sfile = (a.source_file || '').localeCompare(b.source_file || '');
+  if (sfile !== 0) return sfile;
+  const cid = (a.customer_id || '').localeCompare(b.customer_id || '');
+  if (cid !== 0) return cid;
+  const inv = (a.invoice_no || '').localeCompare(b.invoice_no || '');
+  if (inv !== 0) return inv;
+  return String(a.invoice_date || '').localeCompare(String(b.invoice_date || ''));
+}
+
+export const SALES_EXPORT_ISSUE_EXTRA_HEADERS = ['source_file', 'parse_note'] as const;

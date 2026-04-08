@@ -5,12 +5,12 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { PDFParse } from 'pdf-parse';
 import {
   parseInvoiceText,
   pageLooksLikeInvoice,
   splitPageTextIntoInvoiceSegments
 } from './lib/vchess-invoice-parse';
+import { readPdfPageTexts } from './lib/readPdfPageTexts';
 
 function defaultPdfPath(): string {
   const env = process.env.INVOICE_PDF_SMOKE_PATH;
@@ -18,21 +18,6 @@ function defaultPdfPath(): string {
   const desktop = path.join(process.env.HOME || '', 'Desktop', 'Invoices_20260404_mR.pdf');
   if (fs.existsSync(desktop)) return desktop;
   return '';
-}
-
-async function readPdfPageTexts(filePath: string): Promise<string[]> {
-  const buf = fs.readFileSync(filePath);
-  const parser = new PDFParse({ data: buf });
-  try {
-    const result = await parser.getText();
-    const pages = result.pages;
-    if (pages && pages.length > 0) {
-      return pages.map((p) => String(p.text || ''));
-    }
-    return [String(result.text || '')];
-  } finally {
-    await parser.destroy();
-  }
 }
 
 async function main() {

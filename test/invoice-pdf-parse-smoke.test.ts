@@ -103,6 +103,26 @@ $900.0	TOTAL
     assert.strictEqual(row.lesson_date_count, 4);
   });
 
+  it('parses qty glued to unit price (pypdf / broken-spacing layout)', () => {
+    const text = `
+No.: INV-1-001072
+Date: 03/11/2025
+曾德壎 (C100037)
+Invoice
+To:
+TotalPriceItem Description Quantity Chess lesson
+19:00-20:00 (03/11)
+Teacher: Duck Duck Sir
+9.0$225.0 $2,025.0
+Subtotal $2,025.0
+`.trim();
+    const row = parseInvoiceText(text, 'jo.pdf · p1');
+    assert.strictEqual(row.customer_id, 'C100037');
+    assert.strictEqual(row.quantity, '9.0');
+    assert.strictEqual(row.unit_price, '225.0');
+    assert.strictEqual(row.line_total, '2,025.0');
+  });
+
   it('parses typical one-page invoice blob', () => {
     const text = `
 Invoice

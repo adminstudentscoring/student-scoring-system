@@ -20,6 +20,7 @@
     return all.filter(
       (s) =>
         (s.name && String(s.name).toLowerCase().includes(t)) ||
+        (s.localName && String(s.localName).toLowerCase().includes(t)) ||
         (s.chessComId && String(s.chessComId).toLowerCase().includes(t))
     );
   }
@@ -58,7 +59,7 @@
         <input type="checkbox" class="sales-export-stu-cb" data-student-id=${JSON.stringify(id)}${checked}>
         <span style="flex:1;min-width:0;">
           <span style="font-weight:600;color:#0f172a;">${escapeHtml(s.name || '')}</span>
-          <span style="color:#64748b;margin-left:8px;">${escapeHtml(s.chessComId || '')}</span>
+          <span style="color:#64748b;margin-left:8px;">${escapeHtml([s.localName, s.chessComId].filter(Boolean).join(' · ') || '')}</span>
         </span>
       </label>`;
       })
@@ -185,6 +186,7 @@
 
       const headers = [
         'Student Name',
+        'Local name',
         'Student ID',
         'Account Balance',
         'Lesson Quota',
@@ -200,6 +202,7 @@
       for (const sid of ids) {
         const student = (window.students || []).find((s) => String(s.id) === String(sid));
         const name = student ? String(student.name || '') : '';
+        const localName = student ? String(student.localName || '') : '';
         const chessId = student ? String(student.chessComId || '') : '';
         const balRaw = student && student.balance != null ? Number(student.balance) : 0;
         const balanceStr = Number.isFinite(balRaw) ? balRaw.toFixed(2) : '0.00';
@@ -217,7 +220,7 @@
         }
 
         if (byEntry.size === 0) {
-          rows.push([name, chessId, balanceStr, quotaLine, '', '', '', '', 0, '']);
+          rows.push([name, localName, chessId, balanceStr, quotaLine, '', '', '', '', 0, '']);
           continue;
         }
 
@@ -240,6 +243,7 @@
 
           rows.push([
             name,
+            localName,
             chessId,
             balanceStr,
             quotaLine,
@@ -256,6 +260,7 @@
       const ws = XLSX.utils.aoa_to_sheet(rows);
       ws['!cols'] = [
         { wch: 18 },
+        { wch: 14 },
         { wch: 14 },
         { wch: 12 },
         { wch: 24 },

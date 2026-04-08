@@ -148,82 +148,6 @@ function registerOrgStudentsRoutes(app: any, deps: any): void {
   // Bulk create students
   app.post('/api/organizations/students/bulk', authenticateUser, authorizeRole('organization'), async (req, res) => {
     try {
-      const studentsList = req.body;
-      if (!Array.isArray(studentsList)) {
-        return res.status(400).json({ error: 'Expected array of students' });
-      }
-
-      const users = await readUsers();
-      const orgUser = users.find(u => u.id === req.user.id);
-      if (!orgUser || !orgUser.organizationId) return res.status(403).json({ error: 'Organization not found' });
-
-      const data = await readData();
-      const organizations = await readOrganizations();
-      const organization = organizations.find(o => o.id === orgUser.organizationId);
-
-      let createdCount = 0;
-      const errors = [];
-
-      for (const s of studentsList) {
-        if (!s.name) {
-          errors.push({ student: s, error: 'Name missing' });
-          continue;
-        }
-
-        const chessId = (s.chessComId ?? s.studentId ?? '');
-        if (chessId && String(chessId).trim() !== '') {
-          const exists = data.students.find(ex => ex.organizationId === orgUser.organizationId && String(ex.chessComId || '') === String(chessId));
-          if (exists) {
-            errors.push({ student: s, error: `chess.com ID ${chessId} already exists` });
-            continue;
-          }
-        }
-
-        const newStudent = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-          name: s.name,
-          chessComId: (s.chessComId ?? s.studentId ?? '') || '',
-          gender: s.gender || '',
-          dateOfBirth: s.dateOfBirth || '',
-          contactPhone: s.contactPhone || '',
-          contactEmail: s.contactEmail || '',
-          emergencyContactName: s.emergencyContactName || '',
-          emergencyContactRelation: s.emergencyContactRelation || '',
-          emergencyContactNumber: s.emergencyContactNumber || '',
-          organizationId: orgUser.organizationId,
-          answerCount: 0,
-          totalAnswers: 0,
-          correctAnswers: 0,
-          level: 1,
-          rank: 'Wood',
-          rankIndex: 0,
-          experience: 0,
-          score: 0,
-          createdAt: new Date().toISOString(),
-          stats: { daily: {}, weekly: {}, monthly: {}, yearly: {} }
-        };
-
-        data.students.push(newStudent);
-        organization.students.push(newStudent.id);
-        createdCount++;
-      }
-
-      if (createdCount > 0) {
-        data.lastUpdate = new Date().toISOString();
-        await writeData(data);
-        await writeOrganizations(organizations);
-      }
-
-      res.json({ createdCount, errors });
-    } catch (error) {
-      console.error('Bulk import error:', error);
-      res.status(500).json({ error: 'Bulk import failed' });
-    }
-  });
-
-  // Bulk create students
-  app.post('/api/organizations/students/bulk', authenticateUser, authorizeRole('organization'), async (req, res) => {
-    try {
       const studentsData = req.body; // Array of students
       if (!Array.isArray(studentsData)) {
         return res.status(400).json({ error: 'Expected an array of students' });
@@ -262,6 +186,7 @@ function registerOrgStudentsRoutes(app: any, deps: any): void {
         const newStudent = {
           id: `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           name: s.name,
+          localName: s.localName || '',
           chessComId: (s.chessComId ?? s.studentId ?? '') || '',
           gender: s.gender || '',
           dateOfBirth: s.dateOfBirth || '',

@@ -324,6 +324,7 @@ window.handleSalesStudentSearch = async function() {
   
   const filtered = studentsList.filter(s => 
     (s.name && s.name.toLowerCase().includes(term)) || 
+    (s.localName && String(s.localName).toLowerCase().includes(term)) ||
     (s.chessComId && s.chessComId.toLowerCase().includes(term))
   );
   
@@ -337,7 +338,7 @@ window.handleSalesStudentSearch = async function() {
       <div class="student-avatar-small">${s.name.charAt(0).toUpperCase()}</div>
       <div class="student-info">
         <div class="student-name">${escapeHtml(s.name)}</div>
-        <div class="student-id">${escapeHtml(s.chessComId || '')}</div>
+        <div class="student-id">${escapeHtml([s.localName, s.chessComId].filter(Boolean).join(' · ') || '')}</div>
       </div>
     </div>
   `).join('');
