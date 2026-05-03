@@ -93,6 +93,20 @@ const paypal = require('@student-scoring/billing/src/paypal');
 - The `middleware/auth.ts` and `middleware/dataIsolation.ts` (in `packages/core/src/`) import `@student-scoring/billing/src/access`. This creates a runtime circular dependency (core ↔ billing), which works because of Node.js CJS module caching but is a known code smell.
 - SQL migrations live in `packages/core/src/db/migrations/`. The `db/migrate.ts` module uses `__dirname` to find them.
 
+### Starting services in Cloud Agent VMs
+
+1. **PostgreSQL**: `pg_ctlcluster 16 main start` (the update script starts it automatically; verify with `pg_isready`).
+2. **Dev server**: `pnpm dev` in a tmux session (uses `tsx watch`, auto-reloads on file changes).
+3. **Node.js version**: nvm is at `/home/ubuntu/.nvm`; always source it and run `nvm use 20` before any Node/pnpm command if the shell hasn't loaded `.bashrc`.
+
+### Non-obvious Cloud Agent caveats
+
+- The `env.example` does **not** include `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, or `PAYPAL_WEBHOOK_ID` (they're required at load time but not in the template). These must be manually added to `.env` with placeholder values.
+- `pnpm lint` exits non-zero due to 7 pre-existing errors in the codebase (all warnings + a few `prefer-const`/`no-useless-assignment`). This is expected; do not treat lint exit code 1 as a setup failure.
+- `pnpm test` requires the dev server to be running on `http://localhost:7001` (or set `TEST_BASE_URL`).
+- Registration endpoint is `POST /api/auth/register` with fields `{organizationName, email, phone, password}` (not name/role).
+- The `data/` directory already contains seeded students/users from the repo; `pnpm init-admin` will fail if an admin user already exists.
+
 ### Useful scripts (see `package.json`)
 
 | Script | Purpose |
