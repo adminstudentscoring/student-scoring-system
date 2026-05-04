@@ -92,6 +92,21 @@
     };
     const cfg = await loadConfigOnce();
 
+    /** Set ?tfDebug=1 on application-window URL to log teacher Practice / tree payloads (verbose). */
+    function tfDbgTeacherPracticeEnabled() {
+      try {
+        return new URLSearchParams(window.location.search).get('tfDebug') === '1';
+      } catch {
+        return false;
+      }
+    }
+    function tfDbgTeacherPractice(label, payload) {
+      if (!tfDbgTeacherPracticeEnabled()) return;
+      try {
+        console.log('[tactics-fighter:teacher-practice]', label, payload);
+      } catch (_) {}
+    }
+
     const ui = {
       tfSettings: {
         stockfishDepthCap: 14
@@ -2422,8 +2437,26 @@
 
     async function teacherFetchTree(bucket) {
       const b = normalizeBucketKey(bucket);
+      tfDbgTeacherPractice('teacherFetchTree:request', { bucket: b });
       const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/tree?bucket=${encodeURIComponent(b)}`, { method: 'GET' });
-      return await tfJson(resp);
+      const data = await tfJson(resp);
+      tfDbgTeacherPractice('teacherFetchTree:response', {
+        bucket: b,
+        categoryCount: Array.isArray(data?.categories) ? data.categories.length : 0,
+        firstSubtopicSample: (() => {
+          try {
+            const c0 = data?.categories?.[0];
+            const t0 = c0?.topics?.[0];
+            const s0 = t0?.subtopics?.[0];
+            return s0
+              ? { id: s0.id, name: s0.name, puzzleCount: s0.puzzleCount, keys: Object.keys(s0) }
+              : null;
+          } catch {
+            return null;
+          }
+        })()
+      });
+      return data;
     }
 
     async function teacherShowCategories(bucket) {
@@ -2432,6 +2465,18 @@
         ui.teacher.bucket = normalizeBucketKey(bucket);
         try { localStorage.setItem('tacticsFighterPracticeBucket', ui.teacher.bucket); } catch {}
         const data = await teacherFetchTree(ui.teacher.bucket);
+        tfDbgTeacherPractice('teacherShowCategories:afterFetch', {
+          bucket: ui.teacher.bucket,
+          rawFirstSubtopic: (() => {
+            try {
+              const c0 = data?.categories?.[0];
+              const t0 = c0?.topics?.[0];
+              return t0?.subtopics?.[0] ?? null;
+            } catch {
+              return null;
+            }
+          })()
+        });
         ui.teacher.tree = { categories: Array.isArray(data?.categories) ? data.categories : [] };
         ui.teacher.view = 'categories';
         ui.teacher.categoryId = null;
@@ -2495,6 +2540,17 @@
 
     function renderTeacherSubtopics(category, topic) {
       const subs = Array.isArray(topic?.subtopics) ? topic.subtopics : [];
+      tfDbgTeacherPractice('renderTeacherSubtopics', {
+        categoryId: category?.id,
+        topicId: topic?.id,
+        subCount: subs.length,
+        rows: subs.map((s) => ({
+          id: s?.id,
+          name: s?.name,
+          puzzleCount: s?.puzzleCount,
+          renderedCount: Number(s?.puzzleCount || 0)
+        }))
+      });
       return `
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
           <div>
@@ -2564,6 +2620,10 @@
       toastShow('loading', 'Loading puzzles...');
       try {
         const data = await builderFetchPuzzles(ui.teacher.subtopicId);
+        tfDbgTeacherPractice('teacherOpenSubtopic:builderFetchPuzzles', {
+          subtopicId: ui.teacher.subtopicId,
+          puzzleLen: Array.isArray(data?.puzzles) ? data.puzzles.length : 0
+        });
         ui.teacher.puzzlesAll = Array.isArray(data?.puzzles) ? data.puzzles : [];
         toastHide();
         const cat = teacherFindCategoryById(ui.teacher.categoryId);

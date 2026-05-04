@@ -26,6 +26,7 @@
     "vchess-llm-smoke": "tsx scripts/vchess-invoice-llm-smoke.ts",
     "test:vchess-apply": "node --import tsx --test test/vchess-import-apply-engine.test.ts",
     "test:vchess-xlsx-smoke": "node --import tsx --test test/vchess-sales-xlsx-download-smoke.test.ts",
+    "test:tactics-fighter-tree": "node --import tsx --test test/tactics-fighter-teacher-tree-puzzlecount-smoke.test.ts",
     "invoice-pdf-to-xlsx": "tsx scripts/vchess-invoice-pdf-to-xlsx.ts",
     "invoice-pdf-to-sales-xlsx": "tsx scripts/invoice-pdf-to-sales-export-xlsx.ts",
     "invoice-sales-xlsx-smoke": "node --import tsx --test test/invoice-sales-xlsx-smoke.test.ts"

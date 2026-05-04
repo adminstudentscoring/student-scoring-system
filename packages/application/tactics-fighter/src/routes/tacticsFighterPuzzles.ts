@@ -187,6 +187,20 @@ function registerTacticsFighterPuzzlesRoutes(app: any, deps: any, shared: any): 
             [orgId, topicIds]
           ) : { rows: [] };
 
+          const subtopicIds = (subs.rows || []).map((s) => Number(s.id)).filter((n) => Number.isFinite(n));
+          const countsRes = subtopicIds.length
+            ? await pool.query(
+                `SELECT subtopic_id, COUNT(*)::int AS cnt
+                 FROM tactics_fighter_puzzles
+                 WHERE org_id = $1 AND subtopic_id = ANY($2::bigint[])
+                 GROUP BY subtopic_id`,
+                [orgId, subtopicIds]
+              )
+            : { rows: [] };
+          const cntBySub = new Map(
+            (countsRes.rows || []).map((r) => [String(r.subtopic_id), Number(r.cnt || 0)])
+          );
+
           const topicsByCat = new Map();
           for (const t of topics.rows || []) {
             const cid = String(t.category_id);
@@ -207,6 +221,7 @@ function registerTacticsFighterPuzzlesRoutes(app: any, deps: any, shared: any): 
               id: String(s.id),
               name: String(s.name || ''),
               message: s.message == null ? '' : String(s.message),
+              puzzleCount: cntBySub.get(String(s.id)) || 0,
               createdAt: s.created_at ? new Date(s.created_at).toISOString() : null,
               updatedAt: s.updated_at ? new Date(s.updated_at).toISOString() : null
             });
