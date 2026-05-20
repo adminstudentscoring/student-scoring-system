@@ -293,4 +293,3 @@ function registerBlundersPublicChallengeRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersPublicChallengeRoutes };
-export {};

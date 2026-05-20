@@ -225,4 +225,3 @@ function registerBlundersTeacherSettingsRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersTeacherSettingsRoutes };
-export {};

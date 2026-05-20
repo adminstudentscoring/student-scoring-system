@@ -328,4 +328,3 @@ function registerBlundersPublicListRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersPublicListRoutes };
-export {};

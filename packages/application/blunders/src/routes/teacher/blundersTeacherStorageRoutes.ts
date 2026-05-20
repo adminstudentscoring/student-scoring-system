@@ -90,4 +90,3 @@ function registerBlundersTeacherStorageRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersTeacherStorageRoutes };
-export {};

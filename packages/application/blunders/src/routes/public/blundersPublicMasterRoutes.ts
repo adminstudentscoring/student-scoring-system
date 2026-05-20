@@ -287,4 +287,3 @@ function registerBlundersPublicMasterRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersPublicMasterRoutes };
-export {};

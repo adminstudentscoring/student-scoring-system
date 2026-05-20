@@ -184,4 +184,3 @@ function registerBlundersTeacherJobRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersTeacherJobRoutes };
-export {};

@@ -216,4 +216,3 @@ function registerBlundersPublicAttemptRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersPublicAttemptRoutes };
-export {};

@@ -113,4 +113,3 @@ function registerBlundersTeacherSummaryRoutes(app: any, deps: any): void {
 }
 
 module.exports = { registerBlundersTeacherSummaryRoutes };
-export {};
