@@ -11,9 +11,9 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 2 organizationsBillingRoutes | done | `packages/billing/src/routes/organizationsBillingRoutes.ts` | `packages/billing/src/routes/org/*` | `pnpm test:orders` + `pnpm test:lesson-quota` |
 | 3 server.ts wiring | done | `server.ts` | `server/*.ts` | `pnpm test` |
 | 4 platform routes | done | studentsRoutes, adminOrganizationsRoutes, orgSettingsRoutes | students/, admin/, settings/ | `pnpm test:students`, `pnpm test:settings-holiday` |
-| 5 public course-management | pending | `public/course-management-*.js` | split scripts | `pnpm test:static-scripts` |
-| 6 eslint max-lines | pending | — | `eslint.config.js` | `pnpm lint` |
-| 7 application games | optional | `application/*` | bundler TBD | per-game smoke |
+| 5 public course-management | done | `public/course-management-sales-orders.js` | `course-management-sales-orders-*.js` | `pnpm test:static-scripts` |
+| 6 eslint max-lines | done | — | `eslint.config.js` | `pnpm lint` |
+| 7 application games | deferred | `application/*` | See `docs/refactor-phase4-games.md` | bundler TBD |
 
 ## Workflow per step
 

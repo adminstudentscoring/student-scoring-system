@@ -90,6 +90,14 @@ module.exports = [
     },
   },
 
+  // Modularization guard: warn on large backend modules (Phase 4 application/* excluded)
+  {
+    files: ['packages/**/*.ts', 'server/**/*.ts', 'server.ts'],
+    rules: {
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
   // Ignored paths
   {
     ignores: [
