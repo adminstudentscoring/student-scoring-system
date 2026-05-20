@@ -26,6 +26,7 @@
     "test:students": "node --import tsx --test test/students-api-smoke.test.ts",
     "test:settings-holiday": "node --import tsx --test test/settings-holiday-smoke.test.ts",
     "test:static-scripts": "node --import tsx --test test/static-scripts-smoke.test.ts",
+    "test:blunders": "node --import tsx --test test/blunders-public-smoke.test.ts",
     "test:vcp": "node --import tsx --test test/vcp-health-smoke.test.ts",
     "invoice-parse-smoke": "node --import tsx --test test/invoice-pdf-parse-smoke.test.ts",
     "invoice-pdf-smoke": "tsx scripts/invoice-pdf-convert-smoke.ts",
