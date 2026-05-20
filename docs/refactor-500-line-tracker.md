@@ -10,7 +10,7 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 1 orgCrudRoutes | done | `packages/platform/src/routes/orgCrudRoutes.ts` | `packages/platform/src/routes/org/*` | `pnpm test:timetable` |
 | 2 organizationsBillingRoutes | done | `packages/billing/src/routes/organizationsBillingRoutes.ts` | `packages/billing/src/routes/org/*` | `pnpm test:orders` + `pnpm test:lesson-quota` |
 | 3 server.ts wiring | done | `server.ts` | `server/*.ts` | `pnpm test` |
-| 4 platform routes | pending | studentsRoutes, adminOrganizationsRoutes, orgSettingsRoutes | TBD | `pnpm test` + domain smokes |
+| 4 platform routes | done | studentsRoutes, adminOrganizationsRoutes, orgSettingsRoutes | students/, admin/, settings/ | `pnpm test:students`, `pnpm test:settings-holiday` |
 | 5 public course-management | pending | `public/course-management-*.js` | split scripts | `pnpm test:static-scripts` |
 | 6 eslint max-lines | pending | — | `eslint.config.js` | `pnpm lint` |
 | 7 application games | optional | `application/*` | bundler TBD | per-game smoke |
