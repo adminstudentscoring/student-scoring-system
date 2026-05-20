@@ -1,538 +1,507 @@
-// Chess Works main (teacher + student)
-(function () {
-  "use strict";
-  const CW = window.__ChessWorksCore;
-  if (!CW) {
-    console.error("[chess-works] Missing core.js (window.__ChessWorksCore).");
-    return;
-  }
-
-  const {
-    escapeHtml,
-    getUrlMode,
-    setUrlMode,
-    normalizeMode,
-    getPublicStudentPassword,
-    apiRequest,
-    cwJson,
-    renderShell
-  } = CW;
-
-  const PIECE_TYPES = ["K", "Q", "R", "B", "N", "P"];
-  const PIECE_NAME = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn" };
-
-  function isPieceType(t) {
-    return PIECE_TYPES.includes(String(t || "").toUpperCase());
-  }
-
-  function pieceImgSrc(color, type) {
-    const c = String(color || "").toLowerCase() === "b" ? "black" : "white";
-    const t = String(type || "").toUpperCase();
-    const nm = PIECE_NAME[t] || "";
-    if (!nm) return "";
-    return `/application/chess-works/pieces/${c}_${nm}.png`;
-  }
-
-  function setUrlParam(key, value) {
-    try {
-      const url = new URL(window.location.href);
-      if (value == null || String(value).trim() === "") url.searchParams.delete(key);
-      else url.searchParams.set(key, String(value));
-      window.history.replaceState({}, "", url.toString());
-    } catch {}
-  }
-
-  function getUrlParam(key) {
-    try {
-      const url = new URL(window.location.href);
-      return String(url.searchParams.get(key) || "");
-    } catch {}
-    return "";
-  }
-
-  function inBounds(r, c, rows, cols) {
-    return r >= 0 && c >= 0 && r < rows && c < cols;
-  }
-
-  function keyOf(rc) {
-    return `${Number(rc.r)}:${Number(rc.c)}`;
-  }
-
-  function computeCellPx({ rows, cols, targetPx = 520, gapPx = 2, padPx = 2 }) {
-    const r = Math.max(1, Number(rows) || 1);
-    const c = Math.max(1, Number(cols) || 1);
-    const availW = targetPx - (padPx * 2) - (gapPx * Math.max(0, c - 1));
-    const availH = targetPx - (padPx * 2) - (gapPx * Math.max(0, r - 1));
-    const cellW = Math.floor(availW / c);
-    const cellH = Math.floor(availH / r);
-    return Math.max(12, Math.min(cellW, cellH));
-  }
-
-  function normalizeItem(raw) {
-    const it = raw && typeof raw === "object" ? raw : {};
-    const boardEnabled = it.boardEnabled !== false;
-    const rows = Math.max(1, Number(it?.board?.rows || 8) || 8);
-    const cols = Math.max(1, Number(it?.board?.cols || 8) || 8);
-    const pieces = Array.isArray(it.pieces)
-      ? it.pieces
-          .map((p) => ({
-            color: String(p?.color || "w").toLowerCase() === "b" ? "b" : "w",
-            type: String(p?.type || "").toUpperCase(),
-            r: Number(p?.r),
-            c: Number(p?.c)
-          }))
-          .filter((p) => isPieceType(p.type) && Number.isFinite(p.r) && Number.isFinite(p.c) && inBounds(p.r, p.c, rows, cols))
-      : [];
-    const turnRaw = String(it.turn || "").toLowerCase();
-    const turn = turnRaw === "w" || turnRaw === "b" ? turnRaw : ""; // "" => N/A
-    const pvPlies = Math.max(1, Number(it.pvPlies || 1) || 1);
-    return {
-      prompt: String(it.prompt || ""),
-      boardEnabled,
-      board: { rows, cols },
-      pieces,
-      turn,
-      pvEnabled: !!it.pvEnabled,
-      pvPlies,
-      textEnabled: !!it.textEnabled,
-      // teacher does not store correct text answer here
-      text: ""
-    };
-  }
-
-  function defaultItem() {
-    return normalizeItem({
-      prompt: "",
-      boardEnabled: true,
-      board: { rows: 8, cols: 8 },
-      pieces: [],
-      turn: "",
-      pvEnabled: false,
-      pvPlies: 1,
-      textEnabled: false,
-      text: ""
-    });
-  }
-
-  function normalizeWork(raw) {
-    const w = raw && typeof raw === "object" ? raw : {};
-    const items = Array.isArray(w.items) ? w.items.map(normalizeItem) : [];
-    return {
-      id: String(w.id || ""),
-      folderId: String(w.folderId || ""),
-      title: String(w.title || ""),
-      items: items.length ? items : [defaultItem()]
-    };
-  }
-
-  function piecesByCell(pieces) {
-    const m = new Map();
-    for (const p of (Array.isArray(pieces) ? pieces : [])) m.set(`${Number(p.r)}:${Number(p.c)}`, p);
-    return m;
-  }
-
-  function applyPvMovesToPieces({ basePieces, moves, step }) {
-    let pieces = JSON.parse(JSON.stringify(Array.isArray(basePieces) ? basePieces : []));
-    const list = Array.isArray(moves) ? moves : [];
-    const n = Math.max(0, Math.min(list.length, Number(step) || 0));
-    for (let i = 0; i < n; i++) {
-      const mv = list[i] || {};
-      const [frs, fcs] = String(mv.from || "").split(":");
-      const [trs, tcs] = String(mv.to || "").split(":");
-      const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
-      if (!Number.isFinite(fr) || !Number.isFinite(fc) || !Number.isFinite(tr) || !Number.isFinite(tc)) continue;
-      let moverIdx = pieces.findIndex((p) => Number(p.r) === fr && Number(p.c) === fc);
-      if (moverIdx < 0) continue;
-      // capture any piece on destination (if present)
-      pieces = pieces.filter((p, pi) => pi === moverIdx || !(Number(p.r) === tr && Number(p.c) === tc));
-      moverIdx = pieces.findIndex((p) => Number(p.r) === fr && Number(p.c) === fc);
-      if (moverIdx < 0) continue;
-      pieces[moverIdx].r = tr;
-      pieces[moverIdx].c = tc;
+(() => {
+  // application/chess-works/src/game-legacy.js
+  (function() {
+    "use strict";
+    const CW = window.__ChessWorksCore;
+    if (!CW) {
+      console.error("[chess-works] Missing core.js (window.__ChessWorksCore).");
+      return;
     }
-    return pieces;
-  }
-
-  function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false, selectedCell = "", lastMove = null, targetPx = 520 }) {
-    const cellPx = computeCellPx({ rows, cols, targetPx: Number(targetPx) || 520, gapPx: 2, padPx: 2 });
-    const colsCss = `repeat(${cols}, var(--cw-cell, ${cellPx}px))`;
-    const m = piecesByCell(pieces);
-    const cells = [];
-    const sel = String(selectedCell || "");
-    const lmFrom = String(lastMove?.from || "");
-    const lmTo = String(lastMove?.to || "");
-    const toModel = (vr, vc) => {
-      if (!flip) return { r: vr, c: vc };
-      return { r: (rows - 1 - vr), c: (cols - 1 - vc) };
-    };
-    for (let vr = 0; vr < rows; vr++) {
-      for (let vc = 0; vc < cols; vc++) {
-        const { r, c } = toModel(vr, vc);
-        const dark = (vr + vc) % 2 === 1;
-        const key = `${r}:${c}`;
-        const p = m.get(key) || null;
-        const inner = p
-          ? `<img src="${escapeHtml(pieceImgSrc(p.color, p.type))}" alt="${escapeHtml(p.color)} ${escapeHtml(p.type)}">`
-          : "";
-        const isSel = !!sel && key === sel;
-        const isLast = (!!lmFrom && key === lmFrom) || (!!lmTo && key === lmTo);
-        const cls = ["cw-cell", dark ? "is-dark" : "", isLast ? "is-lastmove" : "", isSel ? "is-selected" : ""].filter(Boolean).join(" ");
-        if (interactive) {
-          cells.push(`<button type="button" class="${cls}" data-cw-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
-        } else {
-          cells.push(`<div class="${cls}" aria-label="Cell ${r + 1},${c + 1}" style="cursor:default;">${inner}</div>`);
-        }
+    const {
+      escapeHtml,
+      getUrlMode,
+      setUrlMode,
+      normalizeMode,
+      getPublicStudentPassword,
+      apiRequest,
+      cwJson,
+      renderShell
+    } = CW;
+    const PIECE_TYPES = ["K", "Q", "R", "B", "N", "P"];
+    const PIECE_NAME = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn" };
+    function isPieceType(t) {
+      return PIECE_TYPES.includes(String(t || "").toUpperCase());
+    }
+    function pieceImgSrc(color, type) {
+      const c = String(color || "").toLowerCase() === "b" ? "black" : "white";
+      const t = String(type || "").toUpperCase();
+      const nm = PIECE_NAME[t] || "";
+      if (!nm) return "";
+      return `/application/chess-works/pieces/${c}_${nm}.png`;
+    }
+    function setUrlParam(key, value) {
+      try {
+        const url = new URL(window.location.href);
+        if (value == null || String(value).trim() === "") url.searchParams.delete(key);
+        else url.searchParams.set(key, String(value));
+        window.history.replaceState({}, "", url.toString());
+      } catch {
       }
     }
-    return `
+    function getUrlParam(key) {
+      try {
+        const url = new URL(window.location.href);
+        return String(url.searchParams.get(key) || "");
+      } catch {
+      }
+      return "";
+    }
+    function inBounds(r, c, rows, cols) {
+      return r >= 0 && c >= 0 && r < rows && c < cols;
+    }
+    function keyOf(rc) {
+      return `${Number(rc.r)}:${Number(rc.c)}`;
+    }
+    function computeCellPx({ rows, cols, targetPx = 520, gapPx = 2, padPx = 2 }) {
+      const r = Math.max(1, Number(rows) || 1);
+      const c = Math.max(1, Number(cols) || 1);
+      const availW = targetPx - padPx * 2 - gapPx * Math.max(0, c - 1);
+      const availH = targetPx - padPx * 2 - gapPx * Math.max(0, r - 1);
+      const cellW = Math.floor(availW / c);
+      const cellH = Math.floor(availH / r);
+      return Math.max(12, Math.min(cellW, cellH));
+    }
+    function normalizeItem(raw) {
+      const it = raw && typeof raw === "object" ? raw : {};
+      const boardEnabled = it.boardEnabled !== false;
+      const rows = Math.max(1, Number(it?.board?.rows || 8) || 8);
+      const cols = Math.max(1, Number(it?.board?.cols || 8) || 8);
+      const pieces = Array.isArray(it.pieces) ? it.pieces.map((p) => ({
+        color: String(p?.color || "w").toLowerCase() === "b" ? "b" : "w",
+        type: String(p?.type || "").toUpperCase(),
+        r: Number(p?.r),
+        c: Number(p?.c)
+      })).filter((p) => isPieceType(p.type) && Number.isFinite(p.r) && Number.isFinite(p.c) && inBounds(p.r, p.c, rows, cols)) : [];
+      const turnRaw = String(it.turn || "").toLowerCase();
+      const turn = turnRaw === "w" || turnRaw === "b" ? turnRaw : "";
+      const pvPlies = Math.max(1, Number(it.pvPlies || 1) || 1);
+      return {
+        prompt: String(it.prompt || ""),
+        boardEnabled,
+        board: { rows, cols },
+        pieces,
+        turn,
+        pvEnabled: !!it.pvEnabled,
+        pvPlies,
+        textEnabled: !!it.textEnabled,
+        // teacher does not store correct text answer here
+        text: ""
+      };
+    }
+    function defaultItem() {
+      return normalizeItem({
+        prompt: "",
+        boardEnabled: true,
+        board: { rows: 8, cols: 8 },
+        pieces: [],
+        turn: "",
+        pvEnabled: false,
+        pvPlies: 1,
+        textEnabled: false,
+        text: ""
+      });
+    }
+    function normalizeWork(raw) {
+      const w = raw && typeof raw === "object" ? raw : {};
+      const items = Array.isArray(w.items) ? w.items.map(normalizeItem) : [];
+      return {
+        id: String(w.id || ""),
+        folderId: String(w.folderId || ""),
+        title: String(w.title || ""),
+        items: items.length ? items : [defaultItem()]
+      };
+    }
+    function piecesByCell(pieces) {
+      const m = /* @__PURE__ */ new Map();
+      for (const p of Array.isArray(pieces) ? pieces : []) m.set(`${Number(p.r)}:${Number(p.c)}`, p);
+      return m;
+    }
+    function applyPvMovesToPieces({ basePieces, moves, step }) {
+      let pieces = JSON.parse(JSON.stringify(Array.isArray(basePieces) ? basePieces : []));
+      const list = Array.isArray(moves) ? moves : [];
+      const n = Math.max(0, Math.min(list.length, Number(step) || 0));
+      for (let i = 0; i < n; i++) {
+        const mv = list[i] || {};
+        const [frs, fcs] = String(mv.from || "").split(":");
+        const [trs, tcs] = String(mv.to || "").split(":");
+        const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+        if (!Number.isFinite(fr) || !Number.isFinite(fc) || !Number.isFinite(tr) || !Number.isFinite(tc)) continue;
+        let moverIdx = pieces.findIndex((p) => Number(p.r) === fr && Number(p.c) === fc);
+        if (moverIdx < 0) continue;
+        pieces = pieces.filter((p, pi) => pi === moverIdx || !(Number(p.r) === tr && Number(p.c) === tc));
+        moverIdx = pieces.findIndex((p) => Number(p.r) === fr && Number(p.c) === fc);
+        if (moverIdx < 0) continue;
+        pieces[moverIdx].r = tr;
+        pieces[moverIdx].c = tc;
+      }
+      return pieces;
+    }
+    function renderBoardHtml({ rows, cols, pieces, interactive = false, flip = false, selectedCell = "", lastMove = null, targetPx = 520 }) {
+      const cellPx = computeCellPx({ rows, cols, targetPx: Number(targetPx) || 520, gapPx: 2, padPx: 2 });
+      const colsCss = `repeat(${cols}, var(--cw-cell, ${cellPx}px))`;
+      const m = piecesByCell(pieces);
+      const cells = [];
+      const sel = String(selectedCell || "");
+      const lmFrom = String(lastMove?.from || "");
+      const lmTo = String(lastMove?.to || "");
+      const toModel = (vr, vc) => {
+        if (!flip) return { r: vr, c: vc };
+        return { r: rows - 1 - vr, c: cols - 1 - vc };
+      };
+      for (let vr = 0; vr < rows; vr++) {
+        for (let vc = 0; vc < cols; vc++) {
+          const { r, c } = toModel(vr, vc);
+          const dark = (vr + vc) % 2 === 1;
+          const key = `${r}:${c}`;
+          const p = m.get(key) || null;
+          const inner = p ? `<img src="${escapeHtml(pieceImgSrc(p.color, p.type))}" alt="${escapeHtml(p.color)} ${escapeHtml(p.type)}">` : "";
+          const isSel = !!sel && key === sel;
+          const isLast = !!lmFrom && key === lmFrom || !!lmTo && key === lmTo;
+          const cls = ["cw-cell", dark ? "is-dark" : "", isLast ? "is-lastmove" : "", isSel ? "is-selected" : ""].filter(Boolean).join(" ");
+          if (interactive) {
+            cells.push(`<button type="button" class="${cls}" data-cw-cell="${r}:${c}" aria-label="Cell ${r + 1},${c + 1}">${inner}</button>`);
+          } else {
+            cells.push(`<div class="${cls}" aria-label="Cell ${r + 1},${c + 1}" style="cursor:default;">${inner}</div>`);
+          }
+        }
+      }
+      return `
       <div class="cw-board-wrap-520">
         <div class="cw-board" style="--cw-cell:${cellPx}px; --cw-gap:2px; --cw-pad:2px; grid-template-columns:${colsCss};">
           ${cells.join("")}
         </div>
       </div>
     `;
-  }
-
-  function turnLabel(turn) {
-    if (turn === "w") return "White to move";
-    if (turn === "b") return "Black to move";
-    return "";
-  }
-
-  function moveLabel(n) {
-    const k = Math.max(1, Number(n) || 1);
-    return `${k} move${k === 1 ? "" : "s"}`;
-  }
-
-  function copyToClipboard(text) {
-    const s = String(text ?? "");
-    if (!s) return Promise.resolve(false);
-    if (navigator?.clipboard?.writeText) {
-      return navigator.clipboard.writeText(s).then(() => true).catch(() => false);
     }
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = s;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      ta.style.top = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand("copy");
-      ta.remove();
-      return Promise.resolve(!!ok);
-    } catch {
-      return Promise.resolve(false);
+    function turnLabel(turn) {
+      if (turn === "w") return "White to move";
+      if (turn === "b") return "Black to move";
+      return "";
     }
-  }
-
-  function openContextMenu({ root, x, y, items = [] }) {
-    const host = document.createElement("div");
-    host.className = "cw-contextmenu";
-    host.style.left = `${Math.max(8, Number(x) || 8)}px`;
-    host.style.top = `${Math.max(8, Number(y) || 8)}px`;
-    host.innerHTML = `
+    function moveLabel(n) {
+      const k = Math.max(1, Number(n) || 1);
+      return `${k} move${k === 1 ? "" : "s"}`;
+    }
+    function copyToClipboard(text) {
+      const s = String(text ?? "");
+      if (!s) return Promise.resolve(false);
+      if (navigator?.clipboard?.writeText) {
+        return navigator.clipboard.writeText(s).then(() => true).catch(() => false);
+      }
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = s;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        return Promise.resolve(!!ok);
+      } catch {
+        return Promise.resolve(false);
+      }
+    }
+    function openContextMenu({ root, x, y, items = [] }) {
+      const host = document.createElement("div");
+      host.className = "cw-contextmenu";
+      host.style.left = `${Math.max(8, Number(x) || 8)}px`;
+      host.style.top = `${Math.max(8, Number(y) || 8)}px`;
+      host.innerHTML = `
       <div class="cw-contextmenu-inner">
         ${items.map((it, i) => `<button type="button" class="cw-contextmenu-item" data-cw-cm="${i}">${escapeHtml(it.label || "")}</button>`).join("")}
       </div>
     `;
-    root.appendChild(host);
-    const close = () => { try { host.remove(); } catch {} };
-    const onDoc = (e) => {
-      const t = e.target;
-      if (t && host.contains(t)) return;
-      close();
-      document.removeEventListener("click", onDoc, true);
-      document.removeEventListener("contextmenu", onDoc, true);
-      document.removeEventListener("keydown", onKey, true);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") onDoc(e);
-    };
-    document.addEventListener("click", onDoc, true);
-    document.addEventListener("contextmenu", onDoc, true);
-    document.addEventListener("keydown", onKey, true);
-    host.querySelectorAll("[data-cw-cm]")?.forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const i = Number(btn.getAttribute("data-cw-cm"));
-        const fn = items[i]?.onClick;
+      root.appendChild(host);
+      const close = () => {
+        try {
+          host.remove();
+        } catch {
+        }
+      };
+      const onDoc = (e) => {
+        const t = e.target;
+        if (t && host.contains(t)) return;
         close();
-        if (typeof fn === "function") await fn();
+        document.removeEventListener("click", onDoc, true);
+        document.removeEventListener("contextmenu", onDoc, true);
+        document.removeEventListener("keydown", onKey, true);
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") onDoc(e);
+      };
+      document.addEventListener("click", onDoc, true);
+      document.addEventListener("contextmenu", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+      host.querySelectorAll("[data-cw-cm]")?.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const i = Number(btn.getAttribute("data-cw-cm"));
+          const fn = items[i]?.onClick;
+          close();
+          if (typeof fn === "function") await fn();
+        });
       });
-    });
-    return host;
-  }
-
-  // ===== FEN helpers =====
-  function fenChar(p) {
-    const t = String(p?.type || "").toUpperCase();
-    const c = String(p?.color || "w").toLowerCase() === "b" ? "b" : "w";
-    const ch = t === "N" ? "N" : t;
-    return c === "b" ? ch.toLowerCase() : ch;
-  }
-
-  function buildFen8({ pieces, turn }) {
-    const rows = 8, cols = 8;
-    const m = piecesByCell(pieces);
-    const parts = [];
-    for (let r = 0; r < rows; r++) {
-      let empty = 0;
-      let s = "";
-      for (let c = 0; c < cols; c++) {
-        const p = m.get(`${r}:${c}`);
-        if (!p) {
-          empty += 1;
-        } else {
-          if (empty) { s += String(empty); empty = 0; }
-          s += fenChar(p);
+      return host;
+    }
+    function fenChar(p) {
+      const t = String(p?.type || "").toUpperCase();
+      const c = String(p?.color || "w").toLowerCase() === "b" ? "b" : "w";
+      const ch = t === "N" ? "N" : t;
+      return c === "b" ? ch.toLowerCase() : ch;
+    }
+    function buildFen8({ pieces, turn }) {
+      const rows = 8, cols = 8;
+      const m = piecesByCell(pieces);
+      const parts = [];
+      for (let r = 0; r < rows; r++) {
+        let empty = 0;
+        let s = "";
+        for (let c = 0; c < cols; c++) {
+          const p = m.get(`${r}:${c}`);
+          if (!p) {
+            empty += 1;
+          } else {
+            if (empty) {
+              s += String(empty);
+              empty = 0;
+            }
+            s += fenChar(p);
+          }
         }
+        if (empty) s += String(empty);
+        parts.push(s || "8");
       }
-      if (empty) s += String(empty);
-      parts.push(s || "8");
+      const placement = parts.join("/");
+      const t = turn === "w" || turn === "b" ? turn : "-";
+      return `${placement} ${t} - - 0 1`;
     }
-    const placement = parts.join("/");
-    const t = (turn === "w" || turn === "b") ? turn : "-";
-    return `${placement} ${t} - - 0 1`;
-  }
-
-  function parseFen8(fen) {
-    const txt = String(fen || "").trim();
-    const [placement, turn] = txt.split(/\s+/);
-    if (!placement) return null;
-    const rows = placement.split("/");
-    if (rows.length !== 8) return null;
-    const pieces = [];
-    for (let r = 0; r < 8; r++) {
-      const row = rows[r];
-      let c = 0;
-      for (const ch of row) {
-        if (/\d/.test(ch)) {
-          c += Number(ch);
-          continue;
+    function parseFen8(fen) {
+      const txt = String(fen || "").trim();
+      const [placement, turn] = txt.split(/\s+/);
+      if (!placement) return null;
+      const rows = placement.split("/");
+      if (rows.length !== 8) return null;
+      const pieces = [];
+      for (let r = 0; r < 8; r++) {
+        const row = rows[r];
+        let c = 0;
+        for (const ch of row) {
+          if (/\d/.test(ch)) {
+            c += Number(ch);
+            continue;
+          }
+          const isBlack = ch === ch.toLowerCase();
+          const up = ch.toUpperCase();
+          const type = up === "N" ? "N" : up;
+          if (!isPieceType(type)) return null;
+          if (c >= 8) return null;
+          pieces.push({ color: isBlack ? "b" : "w", type, r, c });
+          c += 1;
         }
-        const isBlack = ch === ch.toLowerCase();
-        const up = ch.toUpperCase();
-        const type = up === "N" ? "N" : up;
-        if (!isPieceType(type)) return null;
-        if (c >= 8) return null;
-        pieces.push({ color: isBlack ? "b" : "w", type, r, c });
-        c += 1;
+        if (c !== 8) return null;
       }
-      if (c !== 8) return null;
+      const t = String(turn || "").toLowerCase();
+      return { rows: 8, cols: 8, turn: t === "w" || t === "b" ? t : "", pieces };
     }
-    const t = String(turn || "").toLowerCase();
-    return { rows: 8, cols: 8, turn: (t === "w" || t === "b") ? t : "", pieces };
-  }
-
-  function buildCwFen({ rows, cols, pieces, turn }) {
-    const t = (turn === "w" || turn === "b") ? turn : "-";
-    const enc = (Array.isArray(pieces) ? pieces : [])
-      .map((p) => `${String(p.color || "w").toLowerCase() === "b" ? "b" : "w"}${String(p.type || "").toUpperCase()}@${Number(p.r) + 1},${Number(p.c) + 1}`)
-      .join(";");
-    return `CW:${rows}x${cols}:${t}:${enc}`;
-  }
-
-  function parseCwFen(txt) {
-    const s = String(txt || "").trim();
-    if (!s.startsWith("CW:")) return null;
-    // CW:RxC:turn:piece;piece...
-    const rest = s.slice(3);
-    const parts = rest.split(":");
-    if (parts.length < 3) return null;
-    const size = parts[0] || "";
-    const turnRaw = String(parts[1] || "").trim().toLowerCase();
-    const piecesRaw = parts.slice(2).join(":");
-    const [rs, cs] = size.split("x");
-    const rows = Math.max(1, Number(rs) || 1);
-    const cols = Math.max(1, Number(cs) || 1);
-    const turn = (turnRaw === "w" || turnRaw === "b") ? turnRaw : "";
-    const pieces = [];
-    const items = piecesRaw ? piecesRaw.split(";").map((x) => x.trim()).filter(Boolean) : [];
-    for (const it of items) {
-      // wQ@1,1
-      const [pc, pos] = it.split("@");
-      if (!pc || !pos) continue;
-      const color = String(pc[0] || "w").toLowerCase() === "b" ? "b" : "w";
-      const type = String(pc.slice(1) || "").toUpperCase();
-      if (!isPieceType(type)) continue;
-      const [r1, c1] = pos.split(",").map((x) => Number(x));
-      const r = Number(r1) - 1;
-      const c = Number(c1) - 1;
-      if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
-      if (!inBounds(r, c, rows, cols)) continue;
-      pieces.push({ color, type, r, c });
+    function buildCwFen({ rows, cols, pieces, turn }) {
+      const t = turn === "w" || turn === "b" ? turn : "-";
+      const enc = (Array.isArray(pieces) ? pieces : []).map((p) => `${String(p.color || "w").toLowerCase() === "b" ? "b" : "w"}${String(p.type || "").toUpperCase()}@${Number(p.r) + 1},${Number(p.c) + 1}`).join(";");
+      return `CW:${rows}x${cols}:${t}:${enc}`;
     }
-    return { rows, cols, turn, pieces };
-  }
-
-  function fenForItem(item) {
-    const it = normalizeItem(item);
-    if (!it.boardEnabled) return "";
-    const rows = Number(it.board.rows), cols = Number(it.board.cols);
-    if (rows === 8 && cols === 8) return buildFen8({ pieces: it.pieces, turn: it.turn });
-    return buildCwFen({ rows, cols, pieces: it.pieces, turn: it.turn });
-  }
-
-  // ===== API wrappers =====
-  async function tGet(path) {
-    const resp = await apiRequest(path, { method: "GET" });
-    return await cwJson(resp);
-  }
-  async function tPost(path, body) {
-    const resp = await apiRequest(path, { method: "POST", body: JSON.stringify(body || {}) });
-    return await cwJson(resp);
-  }
-  async function tPatch(path, body) {
-    const resp = await apiRequest(path, { method: "PATCH", body: JSON.stringify(body || {}) });
-    return await cwJson(resp);
-  }
-  async function tDelete(path) {
-    const resp = await apiRequest(path, { method: "DELETE" });
-    return await cwJson(resp);
-  }
-
-  function getPublicStudentIdFromPlayers() {
-    try {
-      const players = Array.isArray(window.chessWorksPlayers) ? window.chessWorksPlayers : [];
-      return String(players?.[0]?.id || "").trim();
-    } catch {}
-    return "";
-  }
-
-  async function sGet(path) {
-    const sid = getPublicStudentIdFromPlayers();
-    const pwd = getPublicStudentPassword();
-    const qp = new URLSearchParams();
-    if (pwd) qp.set("password", pwd);
-    const url = `${path}${path.includes("?") ? "&" : "?"}${qp.toString()}`;
-    const resp = await apiRequest(url, { method: "GET" });
-    return await cwJson(resp);
-  }
-  async function sPatch(path, body) {
-    const sid = getPublicStudentIdFromPlayers();
-    const pwd = getPublicStudentPassword();
-    const qp = new URLSearchParams();
-    if (pwd) qp.set("password", pwd);
-    const url = `${path}${path.includes("?") ? "&" : "?"}${qp.toString()}`;
-    const resp = await apiRequest(url, { method: "PATCH", body: JSON.stringify(body || {}) });
-    return await cwJson(resp);
-  }
-
-  // ===== UI =====
-  window.initChessWorks = async function initChessWorks() {
-    const root = document.getElementById("chessWorksRoot");
-    if (!root) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const role = String(params.get("role") || "");
-    const isTeacher = role.toLowerCase() === "teacher";
-    const isStudent = !isTeacher;
-
-    const ui = {
-      mode: normalizeMode(getUrlMode() || "home", isTeacher),
-      builder: {
-        folderId: getUrlParam("folderId") || "all",
-        folders: [],
-        works: []
-      },
-      teacherWorks: {
-        view: "list", // list | detail | do | students | review
-        works: [],
-        work: null,
-        studentId: "",
-        studentStatus: [],
-        submission: null,
-        review: null
-      },
-      studentWorks: {
-        view: "list", // list | do
-        works: [],
-        work: null,
-        submission: null,
-        answers: { items: [] },
-        idx: 0
-      },
-      history: {
-        items: []
-      },
-      settings: {
-        groups: [],
-        students: []
+    function parseCwFen(txt) {
+      const s = String(txt || "").trim();
+      if (!s.startsWith("CW:")) return null;
+      const rest = s.slice(3);
+      const parts = rest.split(":");
+      if (parts.length < 3) return null;
+      const size = parts[0] || "";
+      const turnRaw = String(parts[1] || "").trim().toLowerCase();
+      const piecesRaw = parts.slice(2).join(":");
+      const [rs, cs] = size.split("x");
+      const rows = Math.max(1, Number(rs) || 1);
+      const cols = Math.max(1, Number(cs) || 1);
+      const turn = turnRaw === "w" || turnRaw === "b" ? turnRaw : "";
+      const pieces = [];
+      const items = piecesRaw ? piecesRaw.split(";").map((x) => x.trim()).filter(Boolean) : [];
+      for (const it of items) {
+        const [pc, pos] = it.split("@");
+        if (!pc || !pos) continue;
+        const color = String(pc[0] || "w").toLowerCase() === "b" ? "b" : "w";
+        const type = String(pc.slice(1) || "").toUpperCase();
+        if (!isPieceType(type)) continue;
+        const [r1, c1] = pos.split(",").map((x) => Number(x));
+        const r = Number(r1) - 1;
+        const c = Number(c1) - 1;
+        if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+        if (!inBounds(r, c, rows, cols)) continue;
+        pieces.push({ color, type, r, c });
       }
-    };
-
-    root.innerHTML = renderShell({ role, mode: ui.mode });
-
-    let mainRenderToken = 0;
-    const setMain = (html) => {
-      const el = document.getElementById("cwMain");
-      if (!el) return Promise.resolve();
-      const token = ++mainRenderToken;
-      el.classList.add("cw-fade", "is-out");
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          if (token !== mainRenderToken) return resolve();
-          try { el.innerHTML = html; } catch {}
-          requestAnimationFrame(() => {
-            if (token !== mainRenderToken) return resolve();
-            try { el.classList.remove("is-out"); } catch {}
-            setTimeout(resolve, 260);
-          });
-        }, 120);
-      });
-    };
-
-    const computeFenForStudentPv = ({ it, st }) => {
+      return { rows, cols, turn, pieces };
+    }
+    function fenForItem(item) {
+      const it = normalizeItem(item);
+      if (!it.boardEnabled) return "";
+      const rows = Number(it.board.rows), cols = Number(it.board.cols);
+      if (rows === 8 && cols === 8) return buildFen8({ pieces: it.pieces, turn: it.turn });
+      return buildCwFen({ rows, cols, pieces: it.pieces, turn: it.turn });
+    }
+    async function tGet(path) {
+      const resp = await apiRequest(path, { method: "GET" });
+      return await cwJson(resp);
+    }
+    async function tPost(path, body) {
+      const resp = await apiRequest(path, { method: "POST", body: JSON.stringify(body || {}) });
+      return await cwJson(resp);
+    }
+    async function tPatch(path, body) {
+      const resp = await apiRequest(path, { method: "PATCH", body: JSON.stringify(body || {}) });
+      return await cwJson(resp);
+    }
+    async function tDelete(path) {
+      const resp = await apiRequest(path, { method: "DELETE" });
+      return await cwJson(resp);
+    }
+    function getPublicStudentIdFromPlayers() {
       try {
-        if (!it?.boardEnabled) return "";
-        const rows = Number(it.board?.rows), cols = Number(it.board?.cols);
-        const pieces = (st && Array.isArray(st.pieces)) ? st.pieces : (it.pieces || []);
-        const movesLen = (st && Array.isArray(st.moves)) ? st.moves.length : 0;
-        const pvTurn = (() => {
-          if (it.turn !== "w" && it.turn !== "b") return "";
-          return (movesLen % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
-        })();
-        const turn = it.pvEnabled ? pvTurn : it.turn;
-        if (rows === 8 && cols === 8) return buildFen8({ pieces, turn });
-        return buildCwFen({ rows, cols, pieces, turn });
-      } catch {}
+        const players = Array.isArray(window.chessWorksPlayers) ? window.chessWorksPlayers : [];
+        return String(players?.[0]?.id || "").trim();
+      } catch {
+      }
       return "";
-    };
-
-    const rerenderStudentPvOnly = () => {
-      const main = root.querySelector("#cwMain");
-      if (!main) return;
-      const host = main.querySelector("#cwPvBoardHost");
-      if (!host) return;
-      const work = normalizeWork(ui.studentWorks.work || {});
-      const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
-      const it = work.items[idx];
-      if (!it?.boardEnabled || !it?.pvEnabled) return;
-      const flip = it.turn === "b";
-      const st = ui.studentWorks.pvState?.[idx] || null;
-      const pieces = (st && Array.isArray(st.pieces)) ? st.pieces : (it.pieces || []);
-      host.innerHTML = renderBoardHtml({
-        rows: it.board.rows,
-        cols: it.board.cols,
-        pieces,
-        interactive: true,
-        flip,
-        selectedCell: String(st?.selected || ""),
-        lastMove: st?.lastMove || null
-      });
-      const fen = computeFenForStudentPv({ it, st });
-      const fenEl = main.querySelector("#cwFenHidden");
-      if (fenEl) fenEl.value = String(fen || "");
-    };
-
-    const rerenderShell = () => {
+    }
+    async function sGet(path) {
+      const sid = getPublicStudentIdFromPlayers();
+      const pwd = getPublicStudentPassword();
+      const qp = new URLSearchParams();
+      if (pwd) qp.set("password", pwd);
+      const url = `${path}${path.includes("?") ? "&" : "?"}${qp.toString()}`;
+      const resp = await apiRequest(url, { method: "GET" });
+      return await cwJson(resp);
+    }
+    async function sPatch(path, body) {
+      const sid = getPublicStudentIdFromPlayers();
+      const pwd = getPublicStudentPassword();
+      const qp = new URLSearchParams();
+      if (pwd) qp.set("password", pwd);
+      const url = `${path}${path.includes("?") ? "&" : "?"}${qp.toString()}`;
+      const resp = await apiRequest(url, { method: "PATCH", body: JSON.stringify(body || {}) });
+      return await cwJson(resp);
+    }
+    window.initChessWorks = async function initChessWorks() {
+      const root = document.getElementById("chessWorksRoot");
+      if (!root) return;
+      const params = new URLSearchParams(window.location.search);
+      const role = String(params.get("role") || "");
+      const isTeacher = role.toLowerCase() === "teacher";
+      const isStudent = !isTeacher;
+      const ui = {
+        mode: normalizeMode(getUrlMode() || "home", isTeacher),
+        builder: {
+          folderId: getUrlParam("folderId") || "all",
+          folders: [],
+          works: []
+        },
+        teacherWorks: {
+          view: "list",
+          // list | detail | do | students | review
+          works: [],
+          work: null,
+          studentId: "",
+          studentStatus: [],
+          submission: null,
+          review: null
+        },
+        studentWorks: {
+          view: "list",
+          // list | do
+          works: [],
+          work: null,
+          submission: null,
+          answers: { items: [] },
+          idx: 0
+        },
+        history: {
+          items: []
+        },
+        settings: {
+          groups: [],
+          students: []
+        }
+      };
       root.innerHTML = renderShell({ role, mode: ui.mode });
-      bindNav();
-    };
-
-    // ===== Renderers =====
-    function renderHome() {
-      return `
+      let mainRenderToken = 0;
+      const setMain = (html) => {
+        const el = document.getElementById("cwMain");
+        if (!el) return Promise.resolve();
+        const token = ++mainRenderToken;
+        el.classList.add("cw-fade", "is-out");
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            if (token !== mainRenderToken) return resolve();
+            try {
+              el.innerHTML = html;
+            } catch {
+            }
+            requestAnimationFrame(() => {
+              if (token !== mainRenderToken) return resolve();
+              try {
+                el.classList.remove("is-out");
+              } catch {
+              }
+              setTimeout(resolve, 260);
+            });
+          }, 120);
+        });
+      };
+      const computeFenForStudentPv = ({ it, st }) => {
+        try {
+          if (!it?.boardEnabled) return "";
+          const rows = Number(it.board?.rows), cols = Number(it.board?.cols);
+          const pieces = st && Array.isArray(st.pieces) ? st.pieces : it.pieces || [];
+          const movesLen = st && Array.isArray(st.moves) ? st.moves.length : 0;
+          const pvTurn = (() => {
+            if (it.turn !== "w" && it.turn !== "b") return "";
+            return movesLen % 2 === 0 ? it.turn : it.turn === "w" ? "b" : "w";
+          })();
+          const turn = it.pvEnabled ? pvTurn : it.turn;
+          if (rows === 8 && cols === 8) return buildFen8({ pieces, turn });
+          return buildCwFen({ rows, cols, pieces, turn });
+        } catch {
+        }
+        return "";
+      };
+      const rerenderStudentPvOnly = () => {
+        const main = root.querySelector("#cwMain");
+        if (!main) return;
+        const host = main.querySelector("#cwPvBoardHost");
+        if (!host) return;
+        const work = normalizeWork(ui.studentWorks.work || {});
+        const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+        const it = work.items[idx];
+        if (!it?.boardEnabled || !it?.pvEnabled) return;
+        const flip = it.turn === "b";
+        const st = ui.studentWorks.pvState?.[idx] || null;
+        const pieces = st && Array.isArray(st.pieces) ? st.pieces : it.pieces || [];
+        host.innerHTML = renderBoardHtml({
+          rows: it.board.rows,
+          cols: it.board.cols,
+          pieces,
+          interactive: true,
+          flip,
+          selectedCell: String(st?.selected || ""),
+          lastMove: st?.lastMove || null
+        });
+        const fen = computeFenForStudentPv({ it, st });
+        const fenEl = main.querySelector("#cwFenHidden");
+        if (fenEl) fenEl.value = String(fen || "");
+      };
+      const rerenderShell = () => {
+        root.innerHTML = renderShell({ role, mode: ui.mode });
+        bindNav();
+      };
+      function renderHome() {
+        return `
         <div style="font-weight:1000; color:var(--cw-ink);">Chess Works</div>
         <div class="cw-muted" style="margin-top:8px; line-height:1.7;">
           Teacher creates works (board puzzles or text questions) and assigns them to specific students or groups.
@@ -541,10 +510,9 @@
           <button type="button" class="cw-btn primary" data-cw-go-works="1">Start</button>
         </div>
       `;
-    }
-
-    function renderStudentWorksList() {
-      return `
+      }
+      function renderStudentWorksList() {
+        return `
         <div class="cw-toolbar">
           <div class="cw-badge">Works</div>
           <button type="button" class="cw-btn" data-cw-refresh="1">Refresh</button>
@@ -558,40 +526,39 @@
           `).join("")}
         </div>
       `;
-    }
-
-    function renderStudentDoWork() {
-      const w = ui.studentWorks.work;
-      if (!w) return `<div class="cw-muted">Work not found.</div>`;
-      const work = normalizeWork(w);
-      const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
-      const it = work.items[idx];
-      const fenBase = fenForItem(it);
-      const ans = (ui.studentWorks.answers?.items?.[idx]) || {};
-      const pvMoves = Array.isArray(ans.pvMoves) ? ans.pvMoves : [];
-      const text = String(ans.text || "");
-      const pvState = ui.studentWorks.pvState?.[idx] || null;
-      const flip = it.turn === "b";
-      const pvTurn = (() => {
-        if (it.turn !== "w" && it.turn !== "b") return "";
-        const n = (pvState && Array.isArray(pvState.moves)) ? pvState.moves.length : pvMoves.length;
-        return (n % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
-      })();
-      const fenNow = (() => {
-        if (!it.boardEnabled) return "";
-        const pieces = (pvState && Array.isArray(pvState.pieces)) ? pvState.pieces : it.pieces;
-        const rows = Number(it.board.rows), cols = Number(it.board.cols);
-        const turn = it.pvEnabled ? pvTurn : it.turn;
-        if (rows === 8 && cols === 8) return buildFen8({ pieces, turn });
-        return buildCwFen({ rows, cols, pieces, turn });
-      })();
-      return `
+      }
+      function renderStudentDoWork() {
+        const w = ui.studentWorks.work;
+        if (!w) return `<div class="cw-muted">Work not found.</div>`;
+        const work = normalizeWork(w);
+        const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+        const it = work.items[idx];
+        const fenBase = fenForItem(it);
+        const ans = ui.studentWorks.answers?.items?.[idx] || {};
+        const pvMoves = Array.isArray(ans.pvMoves) ? ans.pvMoves : [];
+        const text = String(ans.text || "");
+        const pvState = ui.studentWorks.pvState?.[idx] || null;
+        const flip = it.turn === "b";
+        const pvTurn = (() => {
+          if (it.turn !== "w" && it.turn !== "b") return "";
+          const n = pvState && Array.isArray(pvState.moves) ? pvState.moves.length : pvMoves.length;
+          return n % 2 === 0 ? it.turn : it.turn === "w" ? "b" : "w";
+        })();
+        const fenNow = (() => {
+          if (!it.boardEnabled) return "";
+          const pieces = pvState && Array.isArray(pvState.pieces) ? pvState.pieces : it.pieces;
+          const rows = Number(it.board.rows), cols = Number(it.board.cols);
+          const turn = it.pvEnabled ? pvTurn : it.turn;
+          if (rows === 8 && cols === 8) return buildFen8({ pieces, turn });
+          return buildCwFen({ rows, cols, pieces, turn });
+        })();
+        return `
         <div class="cw-toolbar">
           <button type="button" class="cw-btn" data-cw-back="1">Back</button>
-          <div class="cw-badge">${escapeHtml(work.title || "(Untitled)")} · ${escapeHtml(String(idx + 1))}/${escapeHtml(String(work.items.length))}</div>
+          <div class="cw-badge">${escapeHtml(work.title || "(Untitled)")} \xB7 ${escapeHtml(String(idx + 1))}/${escapeHtml(String(work.items.length))}</div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="cw-btn" data-cw-prev="1">←</button>
-            <button type="button" class="cw-btn" data-cw-next="1">→</button>
+            <button type="button" class="cw-btn" data-cw-prev="1">\u2190</button>
+            <button type="button" class="cw-btn" data-cw-next="1">\u2192</button>
             <button type="button" class="cw-btn" data-cw-cancel="1">Cancel</button>
             <button type="button" class="cw-btn primary" data-cw-save="1">Save</button>
           </div>
@@ -615,14 +582,14 @@
                   ${it.pvEnabled ? `
                     <div id="cwPvBoardHost">
                       ${renderBoardHtml({
-                        rows: it.board.rows,
-                        cols: it.board.cols,
-                        pieces: (pvState?.pieces || it.pieces),
-                        interactive: true,
-                        flip,
-                        selectedCell: String(pvState?.selected || ""),
-                        lastMove: pvState?.lastMove || null
-                      })}
+          rows: it.board.rows,
+          cols: it.board.cols,
+          pieces: pvState?.pieces || it.pieces,
+          interactive: true,
+          flip,
+          selectedCell: String(pvState?.selected || ""),
+          lastMove: pvState?.lastMove || null
+        })}
                     </div>
                   ` : `
                   ${renderBoardHtml({ rows: it.board.rows, cols: it.board.cols, pieces: it.pieces, interactive: false, flip })}
@@ -649,10 +616,9 @@
         ` : ``}
         <div id="cwSaveHint" class="cw-muted" style="margin-top:10px;"></div>
       `;
-    }
-
-    function renderStudentHistory() {
-      return `
+      }
+      function renderStudentHistory() {
+        return `
         <div class="cw-toolbar">
           <div class="cw-badge">History</div>
           <button type="button" class="cw-btn" data-cw-refresh-history="1">Refresh</button>
@@ -666,10 +632,9 @@
           `).join("")}
         </div>
       `;
-    }
-
-    function renderTeacherWorksList() {
-      return `
+      }
+      function renderTeacherWorksList() {
+        return `
         <div class="cw-toolbar">
           <div class="cw-badge">My Works</div>
           <button type="button" class="cw-btn" data-cw-refresh-teacher-works="1">Refresh</button>
@@ -683,12 +648,11 @@
           `).join("")}
         </div>
       `;
-    }
-
-    function renderTeacherWorkDetail() {
-      const w = ui.teacherWorks.work;
-      if (!w) return `<div class="cw-muted">Work not found.</div>`;
-      return `
+      }
+      function renderTeacherWorkDetail() {
+        const w = ui.teacherWorks.work;
+        if (!w) return `<div class="cw-muted">Work not found.</div>`;
+        return `
         <div class="cw-toolbar">
           <button type="button" class="cw-btn" data-cw-teacher-back="1">Back</button>
           <div class="cw-badge">${escapeHtml(w.title || "(Untitled)")}</div>
@@ -707,50 +671,48 @@
           </div>
         </div>
       `;
-    }
-
-    function renderTeacherStudentsForWork() {
-      const w = ui.teacherWorks.work;
-      if (!w) return `<div class="cw-muted">Work not found.</div>`;
-      return `
+      }
+      function renderTeacherStudentsForWork() {
+        const w = ui.teacherWorks.work;
+        if (!w) return `<div class="cw-muted">Work not found.</div>`;
+        return `
         <div class="cw-toolbar">
           <button type="button" class="cw-btn" data-cw-teacher-back-detail="1">Back</button>
-          <div class="cw-badge">Students · ${escapeHtml(w.title || "(Untitled)")}</div>
+          <div class="cw-badge">Students \xB7 ${escapeHtml(w.title || "(Untitled)")}</div>
           <button type="button" class="cw-btn" data-cw-teacher-refresh-students="1">Refresh</button>
         </div>
         <div style="display:grid; gap:10px;">
           ${(ui.teacherWorks.studentStatus || []).map((s) => {
-            const needs = !!s.hasSubmission && !s.review?.finished;
-            return `
+          const needs = !!s.hasSubmission && !s.review?.finished;
+          return `
               <div class="cw-review-row ${needs ? "is-needs-review" : ""}" data-cw-review-student="${escapeHtml(String(s.id))}">
                 <div>
                   <div style="font-weight:1000; color:var(--cw-ink);">${escapeHtml(s.name || s.id)}</div>
                   <div class="cw-muted" style="margin-top:2px;">
-                    ${s.hasSubmission ? `Submitted (saved)` : `No submission yet`} · ${s.review?.finished ? "Reviewed" : "Not reviewed"}
+                    ${s.hasSubmission ? `Submitted (saved)` : `No submission yet`} \xB7 ${s.review?.finished ? "Reviewed" : "Not reviewed"}
                   </div>
                 </div>
                 <button type="button" class="cw-btn primary">Open</button>
               </div>
             `;
-          }).join("")}
-          ${(!ui.teacherWorks.studentStatus || !ui.teacherWorks.studentStatus.length) ? `<div class="cw-muted">No assigned students yet.</div>` : ``}
+        }).join("")}
+          ${!ui.teacherWorks.studentStatus || !ui.teacherWorks.studentStatus.length ? `<div class="cw-muted">No assigned students yet.</div>` : ``}
         </div>
       `;
-    }
-
-    function renderTeacherReviewStudent() {
-      const w = ui.teacherWorks.work;
-      const sid = String(ui.teacherWorks.studentId || "");
-      if (!w || !sid) return `<div class="cw-muted">Missing context.</div>`;
-      const work = normalizeWork(w);
-      const submission = ui.teacherWorks.submission?.answers || {};
-      const answers = Array.isArray(submission?.items) ? submission.items : [];
-      const marks = Array.isArray(ui.teacherWorks.review?.marks) ? ui.teacherWorks.review.marks : [];
-      const finished = !!ui.teacherWorks.review?.finished;
-      return `
+      }
+      function renderTeacherReviewStudent() {
+        const w = ui.teacherWorks.work;
+        const sid = String(ui.teacherWorks.studentId || "");
+        if (!w || !sid) return `<div class="cw-muted">Missing context.</div>`;
+        const work = normalizeWork(w);
+        const submission = ui.teacherWorks.submission?.answers || {};
+        const answers = Array.isArray(submission?.items) ? submission.items : [];
+        const marks = Array.isArray(ui.teacherWorks.review?.marks) ? ui.teacherWorks.review.marks : [];
+        const finished = !!ui.teacherWorks.review?.finished;
+        return `
         <div class="cw-toolbar">
           <button type="button" class="cw-btn" data-cw-review-back="1">Back</button>
-          <div class="cw-badge">Review · ${escapeHtml(String(sid))}</div>
+          <div class="cw-badge">Review \xB7 ${escapeHtml(String(sid))}</div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button type="button" class="cw-btn" data-cw-review-save="1">Save</button>
             <button type="button" class="cw-btn primary" data-cw-review-finish="1">Finish review</button>
@@ -764,7 +726,7 @@
           const pvStepRaw = ui.teacherWorks.reviewPvStep && Object.prototype.hasOwnProperty.call(ui.teacherWorks.reviewPvStep, idx) ? ui.teacherWorks.reviewPvStep[idx] : 0;
           const pvStep = Math.max(0, Math.min(pvMoves.length, Number(pvStepRaw) || 0));
           const pvPieces = it.pvEnabled ? applyPvMovesToPieces({ basePieces: it.pieces, moves: pvMoves, step: pvStep }) : [];
-          const pvLast = (it.pvEnabled && pvStep > 0) ? pvMoves[pvStep - 1] : null;
+          const pvLast = it.pvEnabled && pvStep > 0 ? pvMoves[pvStep - 1] : null;
           const pill = (k, label) => `<button type="button" class="cw-pill ${mk === k ? "is-active" : ""}" data-cw-mark="${escapeHtml(String(idx))}:${escapeHtml(k)}">${escapeHtml(label)}</button>`;
           return `
             <div class="cw-card" style="margin-top:12px;">
@@ -781,50 +743,49 @@
                 <div class="cw-muted" style="margin-top:10px;">PV moves (${escapeHtml(String(pvMoves.length))} / ${escapeHtml(String(it.pvPlies || 1))})</div>
                 <div class="cw-card" style="margin-top:10px; padding:10px;">
                   <div style="display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;">
-                    <button type="button" class="cw-btn" style="padding:8px 10px;" data-cw-pv-prev="${escapeHtml(String(idx))}">←</button>
+                    <button type="button" class="cw-btn" style="padding:8px 10px;" data-cw-pv-prev="${escapeHtml(String(idx))}">\u2190</button>
                     <div class="cw-muted" data-cw-pv-mini-label="${escapeHtml(String(idx))}">${escapeHtml(String(pvStep))}/${escapeHtml(String(pvMoves.length))}</div>
-                    <button type="button" class="cw-btn" style="padding:8px 10px;" data-cw-pv-next="${escapeHtml(String(idx))}">→</button>
+                    <button type="button" class="cw-btn" style="padding:8px 10px;" data-cw-pv-next="${escapeHtml(String(idx))}">\u2192</button>
                   </div>
                   <div style="margin-top:10px;" data-cw-pv-mini-board="${escapeHtml(String(idx))}">
                     ${renderBoardHtml({
-                      rows: it.board.rows,
-                      cols: it.board.cols,
-                      pieces: pvPieces,
-                      interactive: false,
-                      flip: (it.turn === "b"),
-                      lastMove: pvLast,
-                      targetPx: 240
-                    })}
+            rows: it.board.rows,
+            cols: it.board.cols,
+            pieces: pvPieces,
+            interactive: false,
+            flip: it.turn === "b",
+            lastMove: pvLast,
+            targetPx: 240
+          })}
                   </div>
                 </div>
                 <div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(
-                  pvMoves.map((m, i) => `${i + 1}. ${String(m.color || "")}${String(m.type || "")} ${String(m.from || "")}→${String(m.to || "")}`).join("\n")
-                )}</div>
+            pvMoves.map((m, i) => `${i + 1}. ${String(m.color || "")}${String(m.type || "")} ${String(m.from || "")}\u2192${String(m.to || "")}`).join("\n")
+          )}</div>
               ` : ``}
               ${it.textEnabled ? `<div class="cw-muted" style="margin-top:10px;">Text</div><div style="margin-top:6px; font-weight:900; white-space:pre-wrap;">${escapeHtml(String(a.text || ""))}</div>` : ``}
-              ${(!it.pvEnabled && !it.textEnabled) ? `<div class="cw-muted" style="margin-top:10px;">No answer fields enabled.</div>` : ``}
+              ${!it.pvEnabled && !it.textEnabled ? `<div class="cw-muted" style="margin-top:10px;">No answer fields enabled.</div>` : ``}
             </div>
           `;
         }).join("")}
 
         <div class="cw-muted" style="margin-top:10px;">Status: ${finished ? "Finished" : "Not finished"}</div>
       `;
-    }
-
-    function renderBuilder() {
-      const folders = ui.builder.folders || [];
-      const works = ui.builder.works || [];
-      const active = String(ui.builder.folderId || "all");
-      const folderBtn = (id, label) => {
-        const canDel = id !== "all" && id !== "unfiled";
-        return `
+      }
+      function renderBuilder() {
+        const folders = ui.builder.folders || [];
+        const works = ui.builder.works || [];
+        const active = String(ui.builder.folderId || "all");
+        const folderBtn = (id, label) => {
+          const canDel = id !== "all" && id !== "unfiled";
+          return `
           <button type="button" class="cw-folder-btn ${active === id ? "is-active" : ""}" data-cw-folder="${escapeHtml(id)}">
             <span class="cw-folder-label">${escapeHtml(label)}</span>
-            ${canDel ? `<span class="cw-folder-x" data-cw-folder-del="${escapeHtml(id)}" aria-label="Delete folder">×</span>` : ``}
+            ${canDel ? `<span class="cw-folder-x" data-cw-folder-del="${escapeHtml(id)}" aria-label="Delete folder">\xD7</span>` : ``}
           </button>
         `;
-      };
-      return `
+        };
+        return `
         <div class="cw-toolbar">
           <div class="cw-badge">Builder</div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -847,7 +808,7 @@
             <div class="cw-grid">
               ${works.map((w) => `
                 <div class="cw-work-card" draggable="true" data-cw-work-card="${escapeHtml(String(w.id))}">
-                  <button type="button" class="cw-work-x" data-cw-work-del="${escapeHtml(String(w.id))}" aria-label="Delete work">×</button>
+                  <button type="button" class="cw-work-x" data-cw-work-del="${escapeHtml(String(w.id))}" aria-label="Delete work">\xD7</button>
                   <div class="cw-work-title">${escapeHtml(w.title || "(Untitled)")}</div>
                   <div class="cw-work-actions">
                     <button type="button" class="cw-btn" data-cw-edit="${escapeHtml(String(w.id))}">Edit</button>
@@ -856,28 +817,26 @@
                   </div>
                 </div>
               `).join("")}
-              ${(!works.length) ? `<div class="cw-muted">No works yet. Click Create → Create Works.</div>` : ``}
+              ${!works.length ? `<div class="cw-muted">No works yet. Click Create \u2192 Create Works.</div>` : ``}
             </div>
           </div>
         </div>
       `;
-    }
-
-    function openMoveWorkModal(workId) {
-      const wid = String(workId || "").trim();
-      if (!wid) return;
-      const folders = ui.builder.folders || [];
-      const works = ui.builder.works || [];
-      const w = (works || []).find((x) => String(x.id) === wid) || null;
-      const current = w ? String(w.folderId || "") : "";
-
-      const host = document.createElement("div");
-      host.innerHTML = `
+      }
+      function openMoveWorkModal(workId) {
+        const wid = String(workId || "").trim();
+        if (!wid) return;
+        const folders = ui.builder.folders || [];
+        const works = ui.builder.works || [];
+        const w = (works || []).find((x) => String(x.id) === wid) || null;
+        const current = w ? String(w.folderId || "") : "";
+        const host = document.createElement("div");
+        host.innerHTML = `
         <div class="vcp-modal-backdrop" id="cwMoveWorkBackdrop" role="presentation">
           <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Move work" style="width: calc(100vw - 40px); max-width: 720px;">
             <div class="vcp-modal-header">
               <div class="vcp-modal-title">Move</div>
-              <button id="cwMoveWorkClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              <button id="cwMoveWorkClose" class="vcp-modal-close" type="button" aria-label="Close">\xD7</button>
             </div>
             <div class="vcp-modal-body">
               <div style="font-weight:1000; color:var(--cw-ink);">Destination folder</div>
@@ -894,35 +853,38 @@
           </div>
         </div>
       `;
-      root.appendChild(host);
-      const close = () => { try { host.remove(); } catch {} };
-      host.querySelector("#cwMoveWorkClose")?.addEventListener("click", close);
-      host.querySelector("#cwMoveWorkCancel")?.addEventListener("click", close);
-      host.querySelector("#cwMoveWorkBackdrop")?.addEventListener("click", (e) => {
-        if (e.target && e.target.id === "cwMoveWorkBackdrop") close();
-      });
-      host.querySelector("#cwMoveWorkOk")?.addEventListener("click", async () => {
-        const folderId = String(host.querySelector("#cwMoveWorkSelect")?.value || "");
-        const hint = host.querySelector("#cwMoveWorkHint");
-        try {
-          await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`, { folderId });
-          close();
-          await loadBuilder();
-        } catch (e) {
-          if (hint) hint.textContent = String(e?.message || e);
-        }
-      });
-    }
-
-    // ===== Modals =====
-    function openCreatePickerModal() {
-      const host = document.createElement("div");
-      host.innerHTML = `
+        root.appendChild(host);
+        const close = () => {
+          try {
+            host.remove();
+          } catch {
+          }
+        };
+        host.querySelector("#cwMoveWorkClose")?.addEventListener("click", close);
+        host.querySelector("#cwMoveWorkCancel")?.addEventListener("click", close);
+        host.querySelector("#cwMoveWorkBackdrop")?.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "cwMoveWorkBackdrop") close();
+        });
+        host.querySelector("#cwMoveWorkOk")?.addEventListener("click", async () => {
+          const folderId = String(host.querySelector("#cwMoveWorkSelect")?.value || "");
+          const hint = host.querySelector("#cwMoveWorkHint");
+          try {
+            await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`, { folderId });
+            close();
+            await loadBuilder();
+          } catch (e) {
+            if (hint) hint.textContent = String(e?.message || e);
+          }
+        });
+      }
+      function openCreatePickerModal() {
+        const host = document.createElement("div");
+        host.innerHTML = `
         <div class="vcp-modal-backdrop" id="cwCreatePickBackdrop" role="presentation">
           <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Create" style="width: calc(100vw - 40px); max-width: 720px;">
             <div class="vcp-modal-header">
               <div class="vcp-modal-title">Create</div>
-              <button id="cwCreatePickClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              <button id="cwCreatePickClose" class="vcp-modal-close" type="button" aria-label="Close">\xD7</button>
             </div>
             <div class="vcp-modal-body">
               <div class="cw-grid" style="grid-template-columns: 1fr 1fr;">
@@ -946,35 +908,39 @@
           </div>
         </div>
       `;
-      root.appendChild(host);
-      const close = () => { try { host.remove(); } catch {} };
-      host.querySelector("#cwCreatePickClose")?.addEventListener("click", close);
-      host.querySelector("#cwCreatePickCancel")?.addEventListener("click", close);
-      host.querySelector("#cwCreatePickBackdrop")?.addEventListener("click", (e) => {
-        if (e.target && e.target.id === "cwCreatePickBackdrop") close();
-      });
-      host.querySelector("[data-cw-create-folder]")?.addEventListener("click", () => {
-        close();
-        openCreateFolderModal();
-      });
-      host.querySelector("[data-cw-create-work]")?.addEventListener("click", () => {
-        close();
-        openCreateWorkModal();
-      });
-      host.querySelector("[data-cw-create-file]")?.addEventListener("click", () => {
-        close();
-        openCreateFileModal();
-      });
-    }
-
-    function openCreateFolderModal() {
-      const host = document.createElement("div");
-      host.innerHTML = `
+        root.appendChild(host);
+        const close = () => {
+          try {
+            host.remove();
+          } catch {
+          }
+        };
+        host.querySelector("#cwCreatePickClose")?.addEventListener("click", close);
+        host.querySelector("#cwCreatePickCancel")?.addEventListener("click", close);
+        host.querySelector("#cwCreatePickBackdrop")?.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "cwCreatePickBackdrop") close();
+        });
+        host.querySelector("[data-cw-create-folder]")?.addEventListener("click", () => {
+          close();
+          openCreateFolderModal();
+        });
+        host.querySelector("[data-cw-create-work]")?.addEventListener("click", () => {
+          close();
+          openCreateWorkModal();
+        });
+        host.querySelector("[data-cw-create-file]")?.addEventListener("click", () => {
+          close();
+          openCreateFileModal();
+        });
+      }
+      function openCreateFolderModal() {
+        const host = document.createElement("div");
+        host.innerHTML = `
         <div class="vcp-modal-backdrop" id="cwCreateFolderBackdrop" role="presentation">
           <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Create folder" style="width: calc(100vw - 40px); max-width: 720px;">
             <div class="vcp-modal-header">
               <div class="vcp-modal-title">Create Folder</div>
-              <button id="cwCreateFolderClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              <button id="cwCreateFolderClose" class="vcp-modal-close" type="button" aria-label="Close">\xD7</button>
             </div>
             <div class="vcp-modal-body">
               <div style="font-weight:1000; color:var(--cw-ink);">Folder name</div>
@@ -988,72 +954,77 @@
           </div>
         </div>
       `;
-      root.appendChild(host);
-      const close = () => { try { host.remove(); } catch {} };
-      host.querySelector("#cwCreateFolderClose")?.addEventListener("click", close);
-      host.querySelector("#cwCreateFolderCancel")?.addEventListener("click", close);
-      host.querySelector("#cwCreateFolderBackdrop")?.addEventListener("click", (e) => {
-        if (e.target && e.target.id === "cwCreateFolderBackdrop") close();
-      });
-      host.querySelector("#cwCreateFolderOk")?.addEventListener("click", async () => {
-        const name = String(host.querySelector("#cwFolderName")?.value || "").trim();
-        const hint = host.querySelector("#cwCreateFolderHint");
-        if (!name) { if (hint) hint.textContent = "Please enter a name."; return; }
+        root.appendChild(host);
+        const close = () => {
+          try {
+            host.remove();
+          } catch {
+          }
+        };
+        host.querySelector("#cwCreateFolderClose")?.addEventListener("click", close);
+        host.querySelector("#cwCreateFolderCancel")?.addEventListener("click", close);
+        host.querySelector("#cwCreateFolderBackdrop")?.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "cwCreateFolderBackdrop") close();
+        });
+        host.querySelector("#cwCreateFolderOk")?.addEventListener("click", async () => {
+          const name = String(host.querySelector("#cwFolderName")?.value || "").trim();
+          const hint = host.querySelector("#cwCreateFolderHint");
+          if (!name) {
+            if (hint) hint.textContent = "Please enter a name.";
+            return;
+          }
+          try {
+            await tPost("/api/teachers/chess-works/folders", { name });
+            close();
+            await loadBuilder();
+          } catch (e) {
+            if (hint) hint.textContent = String(e?.message || e);
+          }
+        });
+      }
+      async function openCreateWorkModal() {
         try {
-          await tPost("/api/teachers/chess-works/folders", { name });
-          close();
+          const created = await tPost("/api/teachers/chess-works/works", { title: "New Works", items: [defaultItem()] });
+          const work = normalizeWork(created?.work || {});
           await loadBuilder();
+          openWorkEditorModal(work.id);
         } catch (e) {
-          if (hint) hint.textContent = String(e?.message || e);
+          alert(String(e?.message || e));
         }
-      });
-    }
-
-    async function openCreateWorkModal() {
-      try {
-        const created = await tPost("/api/teachers/chess-works/works", { title: "New Works", items: [defaultItem()] });
-        const work = normalizeWork(created?.work || {});
-        await loadBuilder();
-        openWorkEditorModal(work.id);
-      } catch (e) {
-        alert(String(e?.message || e));
       }
-    }
-
-    async function openCreateFileModal() {
-      // A "file" is stored as a work with 1 text-only item (board disabled).
-      const fileItem = normalizeItem({ prompt: "", boardEnabled: false, pvEnabled: false, textEnabled: false });
-      try {
-        const created = await tPost("/api/teachers/chess-works/works", { title: "New File", items: [fileItem] });
-        const work = normalizeWork(created?.work || {});
-        await loadBuilder();
-        openWorkEditorModal(work.id);
-      } catch (e) {
-        alert(String(e?.message || e));
+      async function openCreateFileModal() {
+        const fileItem = normalizeItem({ prompt: "", boardEnabled: false, pvEnabled: false, textEnabled: false });
+        try {
+          const created = await tPost("/api/teachers/chess-works/works", { title: "New File", items: [fileItem] });
+          const work = normalizeWork(created?.work || {});
+          await loadBuilder();
+          openWorkEditorModal(work.id);
+        } catch (e) {
+          alert(String(e?.message || e));
+        }
       }
-    }
-
-    async function openAssignModal(workId) {
-      const wid = String(workId || "").trim();
-      if (!wid) return;
-      let students = [];
-      let groups = [];
-      try {
-        const s = await tGet("/api/teachers/chess-works/students");
-        students = Array.isArray(s?.students) ? s.students : [];
-      } catch {}
-      try {
-        const g = await tGet("/api/teachers/chess-works/groups");
-        groups = Array.isArray(g?.groups) ? g.groups : [];
-      } catch {}
-
-      const host = document.createElement("div");
-      host.innerHTML = `
+      async function openAssignModal(workId) {
+        const wid = String(workId || "").trim();
+        if (!wid) return;
+        let students = [];
+        let groups = [];
+        try {
+          const s = await tGet("/api/teachers/chess-works/students");
+          students = Array.isArray(s?.students) ? s.students : [];
+        } catch {
+        }
+        try {
+          const g = await tGet("/api/teachers/chess-works/groups");
+          groups = Array.isArray(g?.groups) ? g.groups : [];
+        } catch {
+        }
+        const host = document.createElement("div");
+        host.innerHTML = `
         <div class="vcp-modal-backdrop" id="cwAssignBackdrop" role="presentation">
           <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Assign" style="width: calc(100vw - 40px); max-width: 980px;">
             <div class="vcp-modal-header">
               <div class="vcp-modal-title">Assign</div>
-              <button id="cwAssignClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+              <button id="cwAssignClose" class="vcp-modal-close" type="button" aria-label="Close">\xD7</button>
             </div>
             <div class="vcp-modal-body">
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start;">
@@ -1076,114 +1047,119 @@
           </div>
         </div>
       `;
-      root.appendChild(host);
-      const close = () => { try { host.remove(); } catch {} };
-      host.querySelector("#cwAssignClose")?.addEventListener("click", close);
-      host.querySelector("#cwAssignCancel")?.addEventListener("click", close);
-      host.querySelector("#cwAssignBackdrop")?.addEventListener("click", (e) => {
-        if (e.target && e.target.id === "cwAssignBackdrop") close();
-      });
-
-      const selStudents = new Set();
-      const selGroups = new Set();
-      const studentsEl = host.querySelector("#cwAssignStudents");
-      const groupsEl = host.querySelector("#cwAssignGroups");
-      const renderLists = (q) => {
-        const query = String(q || "").trim().toLowerCase();
-        const shown = students.filter((s) => {
-          if (!query) return true;
-          return String(s.name || "").toLowerCase().includes(query) || String(s.id || "").toLowerCase().includes(query);
+        root.appendChild(host);
+        const close = () => {
+          try {
+            host.remove();
+          } catch {
+          }
+        };
+        host.querySelector("#cwAssignClose")?.addEventListener("click", close);
+        host.querySelector("#cwAssignCancel")?.addEventListener("click", close);
+        host.querySelector("#cwAssignBackdrop")?.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "cwAssignBackdrop") close();
         });
-        if (studentsEl) {
-          studentsEl.innerHTML = shown.map((s) => `
+        const selStudents = /* @__PURE__ */ new Set();
+        const selGroups = /* @__PURE__ */ new Set();
+        const studentsEl = host.querySelector("#cwAssignStudents");
+        const groupsEl = host.querySelector("#cwAssignGroups");
+        const renderLists = (q) => {
+          const query = String(q || "").trim().toLowerCase();
+          const shown = students.filter((s) => {
+            if (!query) return true;
+            return String(s.name || "").toLowerCase().includes(query) || String(s.id || "").toLowerCase().includes(query);
+          });
+          if (studentsEl) {
+            studentsEl.innerHTML = shown.map((s) => `
             <label style="display:flex; gap:10px; align-items:center; padding:8px 10px; border:1px solid var(--cw-border); border-radius:12px; background:#fff; cursor:pointer;">
               <input type="checkbox" data-cw-student="${escapeHtml(String(s.id))}">
               <span style="font-weight:900; color:var(--cw-ink);">${escapeHtml(s.name || s.id)}</span>
             </label>
           `).join("");
-          studentsEl.querySelectorAll("input[data-cw-student]").forEach((cb) => {
-            const id = String(cb.getAttribute("data-cw-student") || "");
-            cb.checked = selStudents.has(id);
-            cb.addEventListener("change", () => {
-              if (cb.checked) selStudents.add(id); else selStudents.delete(id);
+            studentsEl.querySelectorAll("input[data-cw-student]").forEach((cb) => {
+              const id = String(cb.getAttribute("data-cw-student") || "");
+              cb.checked = selStudents.has(id);
+              cb.addEventListener("change", () => {
+                if (cb.checked) selStudents.add(id);
+                else selStudents.delete(id);
+              });
             });
-          });
-        }
-        if (groupsEl) {
-          groupsEl.innerHTML = (groups || []).map((g) => `
+          }
+          if (groupsEl) {
+            groupsEl.innerHTML = (groups || []).map((g) => `
             <label style="display:flex; gap:10px; align-items:center; padding:8px 10px; border:1px solid var(--cw-border); border-radius:12px; background:#fff; cursor:pointer;">
               <input type="checkbox" data-cw-group="${escapeHtml(String(g.id))}">
               <span style="font-weight:900; color:var(--cw-ink);">${escapeHtml(g.name || g.id)}</span>
             </label>
           `).join("");
-          groupsEl.querySelectorAll("input[data-cw-group]").forEach((cb) => {
-            const id = String(cb.getAttribute("data-cw-group") || "");
-            cb.checked = selGroups.has(id);
-            cb.addEventListener("change", () => {
-              if (cb.checked) selGroups.add(id); else selGroups.delete(id);
+            groupsEl.querySelectorAll("input[data-cw-group]").forEach((cb) => {
+              const id = String(cb.getAttribute("data-cw-group") || "");
+              cb.checked = selGroups.has(id);
+              cb.addEventListener("change", () => {
+                if (cb.checked) selGroups.add(id);
+                else selGroups.delete(id);
+              });
             });
-          });
-        }
-      };
-      renderLists("");
-      host.querySelector("#cwAssignSearch")?.addEventListener("input", (e) => renderLists(e.target.value));
-
-      host.querySelector("#cwAssignOk")?.addEventListener("click", async () => {
-        const hint = host.querySelector("#cwAssignHint");
-        try {
-          await tPost(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}/assign`, {
-            studentIds: Array.from(selStudents),
-            groupIds: Array.from(selGroups)
-          });
-          if (hint) hint.textContent = "Assigned.";
-          setTimeout(close, 300);
-        } catch (e) {
-          if (hint) hint.textContent = String(e?.message || e);
-        }
-      });
-    }
-
-    async function openWorkEditorModal(workId) {
-      const wid = String(workId || "").trim();
-      if (!wid) return;
-      let data = null;
-      try {
-        data = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`);
-      } catch (e) {
-        alert(String(e?.message || e));
-        return;
+          }
+        };
+        renderLists("");
+        host.querySelector("#cwAssignSearch")?.addEventListener("input", (e) => renderLists(e.target.value));
+        host.querySelector("#cwAssignOk")?.addEventListener("click", async () => {
+          const hint = host.querySelector("#cwAssignHint");
+          try {
+            await tPost(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}/assign`, {
+              studentIds: Array.from(selStudents),
+              groupIds: Array.from(selGroups)
+            });
+            if (hint) hint.textContent = "Assigned.";
+            setTimeout(close, 300);
+          } catch (e) {
+            if (hint) hint.textContent = String(e?.message || e);
+          }
+        });
       }
-      let work = normalizeWork(data?.work || {});
-      let idx = 0;
-      let tool = { kind: "piece", color: "w", type: "Q" }; // or {kind:'erase'}
-
-      const host = document.createElement("div");
-      root.appendChild(host);
-
-      const close = () => { try { host.remove(); } catch {} };
-
-      const clamp = () => {
-        work = normalizeWork(work);
-        idx = Math.max(0, Math.min(work.items.length - 1, idx));
-      };
-
-      const render = () => {
-        clamp();
-        const it = work.items[idx];
-        const fen = fenForItem(it);
-        const pieceBtn = (color, t) => {
-          const active = tool.kind === "piece" && tool.color === color && tool.type === t;
-          return `<button type="button" class="cw-piece-btn ${active ? "is-active" : ""}" data-cw-pick="${escapeHtml(color)}:${escapeHtml(t)}" aria-label="${escapeHtml(color)} ${escapeHtml(t)}">
+      async function openWorkEditorModal(workId) {
+        const wid = String(workId || "").trim();
+        if (!wid) return;
+        let data = null;
+        try {
+          data = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`);
+        } catch (e) {
+          alert(String(e?.message || e));
+          return;
+        }
+        let work = normalizeWork(data?.work || {});
+        let idx = 0;
+        let tool = { kind: "piece", color: "w", type: "Q" };
+        const host = document.createElement("div");
+        root.appendChild(host);
+        const close = () => {
+          try {
+            host.remove();
+          } catch {
+          }
+        };
+        const clamp = () => {
+          work = normalizeWork(work);
+          idx = Math.max(0, Math.min(work.items.length - 1, idx));
+        };
+        const render = () => {
+          clamp();
+          const it = work.items[idx];
+          const fen = fenForItem(it);
+          const pieceBtn = (color, t) => {
+            const active = tool.kind === "piece" && tool.color === color && tool.type === t;
+            return `<button type="button" class="cw-piece-btn ${active ? "is-active" : ""}" data-cw-pick="${escapeHtml(color)}:${escapeHtml(t)}" aria-label="${escapeHtml(color)} ${escapeHtml(t)}">
             <img src="${escapeHtml(pieceImgSrc(color, t))}" alt="${escapeHtml(color)} ${escapeHtml(t)}">
             <span style="display:none; font-weight:1000; color:var(--cw-ink);">${escapeHtml(color)} ${escapeHtml(t)}</span>
           </button>`;
-        };
-        return `
+          };
+          return `
           <div class="vcp-modal-backdrop" id="cwEditBackdrop" role="presentation">
             <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Edit works" style="width: calc(100vw - 40px); max-width: 1300px;">
               <div class="vcp-modal-header">
                 <div class="vcp-modal-title">Edit Works</div>
-                <button id="cwEditClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+                <button id="cwEditClose" class="vcp-modal-close" type="button" aria-label="Close">\xD7</button>
               </div>
               <div class="vcp-modal-body">
                 <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
@@ -1192,9 +1168,9 @@
                     <input id="cwWorkTitle" type="text" value="${escapeHtml(work.title)}" style="width:100%; margin-top:10px; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900;">
                   </div>
                   <div style="display:flex; gap:10px; align-items:center;">
-                    <button type="button" class="cw-btn" data-cw-item-prev="1">←</button>
+                    <button type="button" class="cw-btn" data-cw-item-prev="1">\u2190</button>
                     <div class="cw-badge">Item ${escapeHtml(String(idx + 1))} / ${escapeHtml(String(work.items.length))}</div>
-                    <button type="button" class="cw-btn" data-cw-item-next="1">→</button>
+                    <button type="button" class="cw-btn" data-cw-item-next="1">\u2192</button>
                   </div>
                 </div>
 
@@ -1291,359 +1267,377 @@
             </div>
           </div>
         `;
-      };
-
-      const rerender = () => { host.innerHTML = render(); bind(); };
-
-      const readFromDom = () => {
-        const titleEl = host.querySelector("#cwWorkTitle");
-        if (titleEl) work.title = String(titleEl.value || "");
-        const it = work.items[idx];
-        const promptEl = host.querySelector("#cwPrompt");
-        if (promptEl) it.prompt = String(promptEl.value || "");
-        const be = host.querySelector("#cwBoardEnabled");
-        if (be) it.boardEnabled = !!be.checked;
-        if (it.boardEnabled) {
-          const rEl = host.querySelector("#cwRows");
-          const cEl = host.querySelector("#cwCols");
-          it.board.rows = Math.max(1, Number(rEl?.value || it.board.rows) || it.board.rows);
-          it.board.cols = Math.max(1, Number(cEl?.value || it.board.cols) || it.board.cols);
-          // clamp pieces
-          it.pieces = (it.pieces || []).filter((p) => inBounds(p.r, p.c, it.board.rows, it.board.cols));
-          const turnEl = host.querySelector("#cwTurn");
-          const tv = String(turnEl?.value || "");
-          it.turn = (tv === "w" || tv === "b") ? tv : "";
-        } else {
-          it.turn = "";
-        }
-        const pvEn = host.querySelector("#cwPvEnabled");
-        it.pvEnabled = !!pvEn?.checked;
-        const pvPliesEl = host.querySelector("#cwPvPlies");
-        it.pvPlies = it.pvEnabled ? Math.max(1, Number(pvPliesEl?.value || 1) || 1) : 1;
-        const txEn = host.querySelector("#cwTextEnabled");
-        it.textEnabled = !!txEn?.checked;
-        it.text = "";
-      };
-
-      const bind = () => {
-        host.querySelector("#cwEditClose")?.addEventListener("click", close);
-        host.querySelector("#cwEditBackdrop")?.addEventListener("click", (e) => {
-          if (e.target && e.target.id === "cwEditBackdrop") close();
-        });
-        host.querySelector("[data-cw-cancel]")?.addEventListener("click", close);
-
-        host.querySelector("[data-cw-item-prev]")?.addEventListener("click", () => { readFromDom(); idx = Math.max(0, idx - 1); rerender(); });
-        host.querySelector("[data-cw-item-next]")?.addEventListener("click", () => { readFromDom(); idx = Math.min(work.items.length - 1, idx + 1); rerender(); });
-        host.querySelector("[data-cw-add-item]")?.addEventListener("click", () => { readFromDom(); work.items.push(defaultItem()); idx = work.items.length - 1; rerender(); });
-        host.querySelector("[data-cw-del-item]")?.addEventListener("click", () => {
-          readFromDom();
-          const ok = confirm("Delete this item?");
-          if (!ok) return;
-          work = normalizeWork(work);
-          if (!Array.isArray(work.items)) work.items = [defaultItem()];
-          if (work.items.length <= 1) {
-            // keep at least 1 item
-            work.items = [defaultItem()];
-            idx = 0;
-            rerender();
-            return;
+        };
+        const rerender = () => {
+          host.innerHTML = render();
+          bind();
+        };
+        const readFromDom = () => {
+          const titleEl = host.querySelector("#cwWorkTitle");
+          if (titleEl) work.title = String(titleEl.value || "");
+          const it = work.items[idx];
+          const promptEl = host.querySelector("#cwPrompt");
+          if (promptEl) it.prompt = String(promptEl.value || "");
+          const be = host.querySelector("#cwBoardEnabled");
+          if (be) it.boardEnabled = !!be.checked;
+          if (it.boardEnabled) {
+            const rEl = host.querySelector("#cwRows");
+            const cEl = host.querySelector("#cwCols");
+            it.board.rows = Math.max(1, Number(rEl?.value || it.board.rows) || it.board.rows);
+            it.board.cols = Math.max(1, Number(cEl?.value || it.board.cols) || it.board.cols);
+            it.pieces = (it.pieces || []).filter((p) => inBounds(p.r, p.c, it.board.rows, it.board.cols));
+            const turnEl = host.querySelector("#cwTurn");
+            const tv = String(turnEl?.value || "");
+            it.turn = tv === "w" || tv === "b" ? tv : "";
+          } else {
+            it.turn = "";
           }
-          work.items.splice(idx, 1);
-          idx = Math.max(0, Math.min(work.items.length - 1, idx));
-          rerender();
-        });
-
-        host.querySelector("#cwWorkTitle")?.addEventListener("input", () => readFromDom());
-        host.querySelector("#cwPrompt")?.addEventListener("input", () => readFromDom());
-        host.querySelector("#cwBoardEnabled")?.addEventListener("change", () => { readFromDom(); rerender(); });
-        host.querySelector("#cwRows")?.addEventListener("input", () => { readFromDom(); rerender(); });
-        host.querySelector("#cwCols")?.addEventListener("input", () => { readFromDom(); rerender(); });
-        host.querySelector("#cwTurn")?.addEventListener("change", () => { readFromDom(); rerender(); });
-        host.querySelector("#cwPvEnabled")?.addEventListener("change", () => { readFromDom(); rerender(); });
-        host.querySelector("#cwTextEnabled")?.addEventListener("change", () => { readFromDom(); rerender(); });
-        host.querySelector("#cwPvPlies")?.addEventListener("input", () => { readFromDom(); });
-
-        host.querySelectorAll("[data-cw-pick]")?.forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const [c, t] = String(btn.getAttribute("data-cw-pick") || "").split(":");
-            if (!c || !t) return;
-            tool = { kind: "piece", color: c === "b" ? "b" : "w", type: String(t).toUpperCase() };
+          const pvEn = host.querySelector("#cwPvEnabled");
+          it.pvEnabled = !!pvEn?.checked;
+          const pvPliesEl = host.querySelector("#cwPvPlies");
+          it.pvPlies = it.pvEnabled ? Math.max(1, Number(pvPliesEl?.value || 1) || 1) : 1;
+          const txEn = host.querySelector("#cwTextEnabled");
+          it.textEnabled = !!txEn?.checked;
+          it.text = "";
+        };
+        const bind = () => {
+          host.querySelector("#cwEditClose")?.addEventListener("click", close);
+          host.querySelector("#cwEditBackdrop")?.addEventListener("click", (e) => {
+            if (e.target && e.target.id === "cwEditBackdrop") close();
+          });
+          host.querySelector("[data-cw-cancel]")?.addEventListener("click", close);
+          host.querySelector("[data-cw-item-prev]")?.addEventListener("click", () => {
+            readFromDom();
+            idx = Math.max(0, idx - 1);
             rerender();
           });
-        });
-        host.querySelector("[data-cw-erase]")?.addEventListener("click", () => {
-          tool = { kind: "erase" };
-          rerender();
-        });
-
-        // interactive board placement
-        host.querySelectorAll("[data-cw-cell]")?.forEach((cell) => {
-          cell.addEventListener("click", () => {
+          host.querySelector("[data-cw-item-next]")?.addEventListener("click", () => {
             readFromDom();
-            const it = work.items[idx];
-            if (!it.boardEnabled) return;
-            const v = String(cell.getAttribute("data-cw-cell") || "");
-            const [rs, cs] = v.split(":");
-            const r = Number(rs), c = Number(cs);
-            if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
-            const existingIdx = (it.pieces || []).findIndex((p) => p.r === r && p.c === c);
-            if (tool.kind === "erase") {
-              if (existingIdx >= 0) it.pieces.splice(existingIdx, 1);
+            idx = Math.min(work.items.length - 1, idx + 1);
+            rerender();
+          });
+          host.querySelector("[data-cw-add-item]")?.addEventListener("click", () => {
+            readFromDom();
+            work.items.push(defaultItem());
+            idx = work.items.length - 1;
+            rerender();
+          });
+          host.querySelector("[data-cw-del-item]")?.addEventListener("click", () => {
+            readFromDom();
+            const ok = confirm("Delete this item?");
+            if (!ok) return;
+            work = normalizeWork(work);
+            if (!Array.isArray(work.items)) work.items = [defaultItem()];
+            if (work.items.length <= 1) {
+              work.items = [defaultItem()];
+              idx = 0;
               rerender();
               return;
             }
-            if (tool.kind === "piece") {
-              const np = { color: tool.color, type: tool.type, r, c };
-              if (existingIdx >= 0) {
-                const ex = it.pieces[existingIdx];
-                const same = ex && ex.color === np.color && ex.type === np.type;
-                if (same) it.pieces.splice(existingIdx, 1);
-                else it.pieces[existingIdx] = np;
-              } else {
-                it.pieces.push(np);
-              }
+            work.items.splice(idx, 1);
+            idx = Math.max(0, Math.min(work.items.length - 1, idx));
+            rerender();
+          });
+          host.querySelector("#cwWorkTitle")?.addEventListener("input", () => readFromDom());
+          host.querySelector("#cwPrompt")?.addEventListener("input", () => readFromDom());
+          host.querySelector("#cwBoardEnabled")?.addEventListener("change", () => {
+            readFromDom();
+            rerender();
+          });
+          host.querySelector("#cwRows")?.addEventListener("input", () => {
+            readFromDom();
+            rerender();
+          });
+          host.querySelector("#cwCols")?.addEventListener("input", () => {
+            readFromDom();
+            rerender();
+          });
+          host.querySelector("#cwTurn")?.addEventListener("change", () => {
+            readFromDom();
+            rerender();
+          });
+          host.querySelector("#cwPvEnabled")?.addEventListener("change", () => {
+            readFromDom();
+            rerender();
+          });
+          host.querySelector("#cwTextEnabled")?.addEventListener("change", () => {
+            readFromDom();
+            rerender();
+          });
+          host.querySelector("#cwPvPlies")?.addEventListener("input", () => {
+            readFromDom();
+          });
+          host.querySelectorAll("[data-cw-pick]")?.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const [c, t] = String(btn.getAttribute("data-cw-pick") || "").split(":");
+              if (!c || !t) return;
+              tool = { kind: "piece", color: c === "b" ? "b" : "w", type: String(t).toUpperCase() };
               rerender();
+            });
+          });
+          host.querySelector("[data-cw-erase]")?.addEventListener("click", () => {
+            tool = { kind: "erase" };
+            rerender();
+          });
+          host.querySelectorAll("[data-cw-cell]")?.forEach((cell) => {
+            cell.addEventListener("click", () => {
+              readFromDom();
+              const it = work.items[idx];
+              if (!it.boardEnabled) return;
+              const v = String(cell.getAttribute("data-cw-cell") || "");
+              const [rs, cs] = v.split(":");
+              const r = Number(rs), c = Number(cs);
+              if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
+              const existingIdx = (it.pieces || []).findIndex((p) => p.r === r && p.c === c);
+              if (tool.kind === "erase") {
+                if (existingIdx >= 0) it.pieces.splice(existingIdx, 1);
+                rerender();
+                return;
+              }
+              if (tool.kind === "piece") {
+                const np = { color: tool.color, type: tool.type, r, c };
+                if (existingIdx >= 0) {
+                  const ex = it.pieces[existingIdx];
+                  const same = ex && ex.color === np.color && ex.type === np.type;
+                  if (same) it.pieces.splice(existingIdx, 1);
+                  else it.pieces[existingIdx] = np;
+                } else {
+                  it.pieces.push(np);
+                }
+                rerender();
+              }
+            });
+          });
+          host.querySelector("#cwFen")?.addEventListener("change", () => {
+            readFromDom();
+            const it = work.items[idx];
+            if (!it.boardEnabled) return;
+            const txt = String(host.querySelector("#cwFen")?.value || "").trim();
+            const parsed = parseCwFen(txt) || parseFen8(txt);
+            if (!parsed) return;
+            it.board.rows = parsed.rows;
+            it.board.cols = parsed.cols;
+            it.turn = parsed.turn || "";
+            it.pieces = parsed.pieces || [];
+            rerender();
+          });
+          host.querySelector("[data-cw-save]")?.addEventListener("click", async () => {
+            readFromDom();
+            const hint = host.querySelector("#cwEditHint");
+            try {
+              await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`, {
+                title: work.title,
+                items: work.items
+              });
+              if (hint) hint.textContent = "Saved.";
+              await loadBuilder();
+              setTimeout(close, 250);
+            } catch (e) {
+              if (hint) hint.textContent = String(e?.message || e);
             }
           });
-        });
-
-        host.querySelector("#cwFen")?.addEventListener("change", () => {
-          readFromDom();
-          const it = work.items[idx];
-          if (!it.boardEnabled) return;
-          const txt = String(host.querySelector("#cwFen")?.value || "").trim();
-          const parsed = parseCwFen(txt) || parseFen8(txt);
-          if (!parsed) return;
-          it.board.rows = parsed.rows;
-          it.board.cols = parsed.cols;
-          it.turn = parsed.turn || "";
-          it.pieces = parsed.pieces || [];
-          rerender();
-        });
-
-        host.querySelector("[data-cw-save]")?.addEventListener("click", async () => {
-          readFromDom();
-          const hint = host.querySelector("#cwEditHint");
-          try {
-            await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`, {
-              title: work.title,
-              items: work.items
-            });
-            if (hint) hint.textContent = "Saved.";
-            await loadBuilder();
-            setTimeout(close, 250);
-          } catch (e) {
-            if (hint) hint.textContent = String(e?.message || e);
-          }
-        });
-      };
-
-      rerender();
-    }
-
-    // ===== Loaders =====
-    async function loadBuilder() {
-      ui.builder.folders = [];
-      ui.builder.works = [];
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const f = await tGet("/api/teachers/chess-works/folders");
-        ui.builder.folders = Array.isArray(f?.folders) ? f.folders : [];
-      } catch {}
-      try {
-        const folderId = String(ui.builder.folderId || "all");
-        let q = "";
-        if (folderId !== "all") {
-          if (folderId === "unfiled") q = "?folderId=";
-          else q = `?folderId=${encodeURIComponent(folderId)}`;
-        }
-        const w = await tGet(`/api/teachers/chess-works/works${q}`);
-        ui.builder.works = Array.isArray(w?.works) ? w.works : [];
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-        return;
+        };
+        rerender();
       }
-      await setMain(renderBuilder());
-      bindBuilderHandlers();
-    }
-
-    async function loadTeacherWorksList() {
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const w = await tGet("/api/teachers/chess-works/works");
-        ui.teacherWorks.works = Array.isArray(w?.works) ? w.works : [];
-        ui.teacherWorks.view = "list";
-        ui.teacherWorks.work = null;
-        await setMain(renderTeacherWorksList());
-        bindTeacherWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-      }
-    }
-
-    async function openTeacherWork(workId) {
-      const id = String(workId || "").trim();
-      if (!id) return;
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const w = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(id)}`);
-        ui.teacherWorks.work = normalizeWork(w?.work || {});
-        ui.teacherWorks.view = "detail";
-        await setMain(renderTeacherWorkDetail());
-        bindTeacherWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-      }
-    }
-
-    async function loadTeacherStudentsForWork() {
-      const w = ui.teacherWorks.work;
-      if (!w?.id) return;
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const data = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(w.id)}/students`);
-        ui.teacherWorks.studentStatus = Array.isArray(data?.students) ? data.students : [];
-        ui.teacherWorks.view = "students";
-        await setMain(renderTeacherStudentsForWork());
-        bindTeacherWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-      }
-    }
-
-    async function openTeacherReviewStudent(studentId) {
-      const w = ui.teacherWorks.work;
-      const sid = String(studentId || "").trim();
-      if (!w?.id || !sid) return;
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const data = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(w.id)}/submissions/${encodeURIComponent(sid)}`);
-        ui.teacherWorks.studentId = sid;
-        ui.teacherWorks.submission = data?.submission || null;
-        ui.teacherWorks.review = data?.review || null;
-      ui.teacherWorks.reviewPvStep = {};
-      try {
-        const work = normalizeWork(ui.teacherWorks.work || {});
-        for (let i = 0; i < (work.items || []).length; i++) ui.teacherWorks.reviewPvStep[i] = 0;
-      } catch {}
-        ui.teacherWorks.view = "review";
-        await setMain(renderTeacherReviewStudent());
-        bindTeacherWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-      }
-    }
-
-    async function loadStudentWorksList() {
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      const sid = getPublicStudentIdFromPlayers();
-      if (!sid) {
-        await setMain(`<div class="cw-muted">Missing student identity.</div>`);
-        return;
-      }
-      try {
-        const data = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works`);
-        ui.studentWorks.works = Array.isArray(data?.works) ? data.works : [];
-        ui.studentWorks.view = "list";
-        await setMain(renderStudentWorksList());
-        bindStudentWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-      }
-    }
-
-    async function openStudentWork(workId) {
-      const sid = getPublicStudentIdFromPlayers();
-      const wid = String(workId || "").trim();
-      if (!sid || !wid) return;
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const data = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works/${encodeURIComponent(wid)}`);
-        ui.studentWorks.work = normalizeWork(data?.work || {});
-        ui.studentWorks.idx = 0;
-        const sub = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works/${encodeURIComponent(wid)}/submission`);
-        ui.studentWorks.submission = sub?.submission || null;
-        ui.studentWorks.answers = (sub?.submission?.answers && typeof sub.submission.answers === "object") ? sub.submission.answers : { items: [] };
-        if (!Array.isArray(ui.studentWorks.answers.items)) ui.studentWorks.answers.items = [];
-        // PV state per item (replay pvMoves onto initial pieces)
-        ui.studentWorks.pvState = {};
+      async function loadBuilder() {
+        ui.builder.folders = [];
+        ui.builder.works = [];
+        await setMain(`<div class="cw-muted">Loading...</div>`);
         try {
-          const work = normalizeWork(ui.studentWorks.work || {});
-          for (let i = 0; i < work.items.length; i++) {
-            const it = work.items[i];
-            if (!it.boardEnabled || !it.pvEnabled) continue;
-            const a = ui.studentWorks.answers.items[i] || {};
-            const moves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
-            const base = JSON.parse(JSON.stringify(it.pieces || []));
-            const apply = (mv) => {
-              const [frs, fcs] = String(mv.from || "").split(":");
-              const [trs, tcs] = String(mv.to || "").split(":");
-              const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
-              if (![fr, fc, tr, tc].every(Number.isFinite)) return;
-              const pi = base.findIndex((p) => p.r === fr && p.c === fc);
-              if (pi < 0) return;
-              const cap = base.findIndex((p) => p.r === tr && p.c === tc);
-              if (cap >= 0) base.splice(cap, 1);
-              base[pi].r = tr;
-              base[pi].c = tc;
-            };
-            moves.slice(0, it.pvPlies || 1).forEach(apply);
-            ui.studentWorks.pvState[i] = { selected: "", moves: moves.slice(0, it.pvPlies || 1), pieces: base };
+          const f = await tGet("/api/teachers/chess-works/folders");
+          ui.builder.folders = Array.isArray(f?.folders) ? f.folders : [];
+        } catch {
+        }
+        try {
+          const folderId = String(ui.builder.folderId || "all");
+          let q = "";
+          if (folderId !== "all") {
+            if (folderId === "unfiled") q = "?folderId=";
+            else q = `?folderId=${encodeURIComponent(folderId)}`;
           }
-        } catch {}
-        ui.studentWorks.view = "do";
-        await setMain(renderStudentDoWork());
-        bindStudentWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+          const w = await tGet(`/api/teachers/chess-works/works${q}`);
+          ui.builder.works = Array.isArray(w?.works) ? w.works : [];
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+          return;
+        }
+        await setMain(renderBuilder());
+        bindBuilderHandlers();
       }
-    }
-
-    async function loadStudentHistory() {
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      const sid = getPublicStudentIdFromPlayers();
-      if (!sid) { await setMain(`<div class="cw-muted">Missing student identity.</div>`); return; }
-      try {
-        const data = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/history`);
-        ui.history.items = Array.isArray(data?.items) ? data.items : [];
-        await setMain(renderStudentHistory());
-        bindStudentWorksHandlers();
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+      async function loadTeacherWorksList() {
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        try {
+          const w = await tGet("/api/teachers/chess-works/works");
+          ui.teacherWorks.works = Array.isArray(w?.works) ? w.works : [];
+          ui.teacherWorks.view = "list";
+          ui.teacherWorks.work = null;
+          await setMain(renderTeacherWorksList());
+          bindTeacherWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
       }
-    }
-
-    async function loadSettings() {
-      if (!isTeacher) {
-        await setMain(`<div class="cw-muted">No settings available.</div>`);
-        return;
+      async function openTeacherWork(workId) {
+        const id = String(workId || "").trim();
+        if (!id) return;
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        try {
+          const w = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(id)}`);
+          ui.teacherWorks.work = normalizeWork(w?.work || {});
+          ui.teacherWorks.view = "detail";
+          await setMain(renderTeacherWorkDetail());
+          bindTeacherWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
       }
-      await setMain(`<div class="cw-muted">Loading...</div>`);
-      try {
-        const s = await tGet("/api/teachers/chess-works/students");
-        ui.settings.students = Array.isArray(s?.students) ? s.students : [];
-      } catch {}
-      try {
-        const g = await tGet("/api/teachers/chess-works/groups");
-        ui.settings.groups = Array.isArray(g?.groups) ? g.groups : [];
-      } catch (e) {
-        await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
-        return;
+      async function loadTeacherStudentsForWork() {
+        const w = ui.teacherWorks.work;
+        if (!w?.id) return;
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        try {
+          const data = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(w.id)}/students`);
+          ui.teacherWorks.studentStatus = Array.isArray(data?.students) ? data.students : [];
+          ui.teacherWorks.view = "students";
+          await setMain(renderTeacherStudentsForWork());
+          bindTeacherWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
       }
-      await setMain(renderSettings());
-      bindSettingsHandlers();
-    }
-
-    function renderSettings() {
-      const groups = ui.settings.groups || [];
-      const students = ui.settings.students || [];
-      const nameOf = (id) => {
-        const s = students.find((x) => String(x.id) === String(id));
-        return s ? String(s.name || s.id) : String(id);
-      };
-      return `
+      async function openTeacherReviewStudent(studentId) {
+        const w = ui.teacherWorks.work;
+        const sid = String(studentId || "").trim();
+        if (!w?.id || !sid) return;
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        try {
+          const data = await tGet(`/api/teachers/chess-works/works/${encodeURIComponent(w.id)}/submissions/${encodeURIComponent(sid)}`);
+          ui.teacherWorks.studentId = sid;
+          ui.teacherWorks.submission = data?.submission || null;
+          ui.teacherWorks.review = data?.review || null;
+          ui.teacherWorks.reviewPvStep = {};
+          try {
+            const work = normalizeWork(ui.teacherWorks.work || {});
+            for (let i = 0; i < (work.items || []).length; i++) ui.teacherWorks.reviewPvStep[i] = 0;
+          } catch {
+          }
+          ui.teacherWorks.view = "review";
+          await setMain(renderTeacherReviewStudent());
+          bindTeacherWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      }
+      async function loadStudentWorksList() {
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        const sid = getPublicStudentIdFromPlayers();
+        if (!sid) {
+          await setMain(`<div class="cw-muted">Missing student identity.</div>`);
+          return;
+        }
+        try {
+          const data = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works`);
+          ui.studentWorks.works = Array.isArray(data?.works) ? data.works : [];
+          ui.studentWorks.view = "list";
+          await setMain(renderStudentWorksList());
+          bindStudentWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      }
+      async function openStudentWork(workId) {
+        const sid = getPublicStudentIdFromPlayers();
+        const wid = String(workId || "").trim();
+        if (!sid || !wid) return;
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        try {
+          const data = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works/${encodeURIComponent(wid)}`);
+          ui.studentWorks.work = normalizeWork(data?.work || {});
+          ui.studentWorks.idx = 0;
+          const sub = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works/${encodeURIComponent(wid)}/submission`);
+          ui.studentWorks.submission = sub?.submission || null;
+          ui.studentWorks.answers = sub?.submission?.answers && typeof sub.submission.answers === "object" ? sub.submission.answers : { items: [] };
+          if (!Array.isArray(ui.studentWorks.answers.items)) ui.studentWorks.answers.items = [];
+          ui.studentWorks.pvState = {};
+          try {
+            const work = normalizeWork(ui.studentWorks.work || {});
+            for (let i = 0; i < work.items.length; i++) {
+              const it = work.items[i];
+              if (!it.boardEnabled || !it.pvEnabled) continue;
+              const a = ui.studentWorks.answers.items[i] || {};
+              const moves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
+              const base = JSON.parse(JSON.stringify(it.pieces || []));
+              const apply = (mv) => {
+                const [frs, fcs] = String(mv.from || "").split(":");
+                const [trs, tcs] = String(mv.to || "").split(":");
+                const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+                if (![fr, fc, tr, tc].every(Number.isFinite)) return;
+                const pi = base.findIndex((p) => p.r === fr && p.c === fc);
+                if (pi < 0) return;
+                const cap = base.findIndex((p) => p.r === tr && p.c === tc);
+                if (cap >= 0) base.splice(cap, 1);
+                base[pi].r = tr;
+                base[pi].c = tc;
+              };
+              moves.slice(0, it.pvPlies || 1).forEach(apply);
+              ui.studentWorks.pvState[i] = { selected: "", moves: moves.slice(0, it.pvPlies || 1), pieces: base };
+            }
+          } catch {
+          }
+          ui.studentWorks.view = "do";
+          await setMain(renderStudentDoWork());
+          bindStudentWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      }
+      async function loadStudentHistory() {
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        const sid = getPublicStudentIdFromPlayers();
+        if (!sid) {
+          await setMain(`<div class="cw-muted">Missing student identity.</div>`);
+          return;
+        }
+        try {
+          const data = await sGet(`/api/public/students/${encodeURIComponent(sid)}/chess-works/history`);
+          ui.history.items = Array.isArray(data?.items) ? data.items : [];
+          await setMain(renderStudentHistory());
+          bindStudentWorksHandlers();
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+        }
+      }
+      async function loadSettings() {
+        if (!isTeacher) {
+          await setMain(`<div class="cw-muted">No settings available.</div>`);
+          return;
+        }
+        await setMain(`<div class="cw-muted">Loading...</div>`);
+        try {
+          const s = await tGet("/api/teachers/chess-works/students");
+          ui.settings.students = Array.isArray(s?.students) ? s.students : [];
+        } catch {
+        }
+        try {
+          const g = await tGet("/api/teachers/chess-works/groups");
+          ui.settings.groups = Array.isArray(g?.groups) ? g.groups : [];
+        } catch (e) {
+          await setMain(`<div class="cw-muted">${escapeHtml(e?.message || String(e))}</div>`);
+          return;
+        }
+        await setMain(renderSettings());
+        bindSettingsHandlers();
+      }
+      function renderSettings() {
+        const groups = ui.settings.groups || [];
+        const students = ui.settings.students || [];
+        const nameOf = (id) => {
+          const s = students.find((x) => String(x.id) === String(id));
+          return s ? String(s.name || s.id) : String(id);
+        };
+        return `
         <div class="cw-toolbar">
-          <div class="cw-badge">Setting · Groups</div>
+          <div class="cw-badge">Setting \xB7 Groups</div>
           <button type="button" class="cw-btn primary" data-cw-create-group="1">Create Group</button>
         </div>
         <div style="display:grid; gap:10px;">
@@ -1651,7 +1645,7 @@
             <div class="cw-review-row" data-cw-group-row="${escapeHtml(String(g.id))}" style="cursor:pointer;">
               <div>
                 <div style="font-weight:1000; color:var(--cw-ink);">${escapeHtml(g.name || "")}</div>
-                <div class="cw-muted" style="margin-top:2px;">Members: ${(Array.isArray(g.members) ? g.members.length : 0)}</div>
+                <div class="cw-muted" style="margin-top:2px;">Members: ${Array.isArray(g.members) ? g.members.length : 0}</div>
                 <div class="cw-muted" data-cw-group-members="${escapeHtml(String(g.id))}" style="margin-top:6px; display:none;">
                   ${escapeHtml((Array.isArray(g.members) ? g.members : []).map(nameOf).join(", "))}
                 </div>
@@ -1659,24 +1653,28 @@
               <button type="button" class="cw-btn" data-cw-manage-group="${escapeHtml(String(g.id))}">Manage</button>
             </div>
           `).join("")}
-          ${(!groups.length) ? `<div class="cw-muted">No groups yet.</div>` : ``}
+          ${!groups.length ? `<div class="cw-muted">No groups yet.</div>` : ``}
         </div>
       `;
-    }
-
-    function openGroupManageModal(groupId) {
-      const gid = String(groupId || "").trim();
-      const g = (ui.settings.groups || []).find((x) => String(x.id) === gid) || null;
-      if (!g) return;
-      const host = document.createElement("div");
-      root.appendChild(host);
-      const close = () => { try { host.remove(); } catch {} };
-      const hostHtml = `
+      }
+      function openGroupManageModal(groupId) {
+        const gid = String(groupId || "").trim();
+        const g = (ui.settings.groups || []).find((x) => String(x.id) === gid) || null;
+        if (!g) return;
+        const host = document.createElement("div");
+        root.appendChild(host);
+        const close = () => {
+          try {
+            host.remove();
+          } catch {
+          }
+        };
+        const hostHtml = `
           <div class="vcp-modal-backdrop" id="cwGroupBackdrop" role="presentation">
             <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Group" style="width: calc(100vw - 40px); max-width: 980px;">
               <div class="vcp-modal-header">
                 <div class="vcp-modal-title">Group: ${escapeHtml(g.name || "")}</div>
-                <button id="cwGroupClose" class="vcp-modal-close" type="button" aria-label="Close">×</button>
+                <button id="cwGroupClose" class="vcp-modal-close" type="button" aria-label="Close">\xD7</button>
               </div>
               <div class="vcp-modal-body">
                 <input id="cwGroupSearch" type="text" placeholder="Search students..." style="width:100%; padding:10px; border:1px solid var(--cw-border); border-radius:12px; font-weight:900;">
@@ -1686,20 +1684,19 @@
             </div>
           </div>
       `;
-      host.innerHTML = hostHtml;
-
-      const renderStudents = (q) => {
-        const query = String(q || "").trim().toLowerCase();
-        const members = new Set(Array.isArray(g.members) ? g.members.map(String) : []);
-        const list = host.querySelector("#cwGroupStudents");
-        if (!list) return;
-        const shown = (ui.settings.students || []).filter((s) => {
-          if (!query) return true;
-          return String(s.name || "").toLowerCase().includes(query) || String(s.id || "").toLowerCase().includes(query);
-        });
-        list.innerHTML = shown.map((s) => {
-          const inG = members.has(String(s.id));
-          return `
+        host.innerHTML = hostHtml;
+        const renderStudents = (q) => {
+          const query = String(q || "").trim().toLowerCase();
+          const members = new Set(Array.isArray(g.members) ? g.members.map(String) : []);
+          const list = host.querySelector("#cwGroupStudents");
+          if (!list) return;
+          const shown = (ui.settings.students || []).filter((s) => {
+            if (!query) return true;
+            return String(s.name || "").toLowerCase().includes(query) || String(s.id || "").toLowerCase().includes(query);
+          });
+          list.innerHTML = shown.map((s) => {
+            const inG = members.has(String(s.id));
+            return `
             <div class="cw-review-row">
               <div style="font-weight:900; color:var(--cw-ink);">${escapeHtml(s.name || s.id)}</div>
               <button type="button" class="cw-btn ${inG ? "" : "primary"}" data-cw-toggle-member="${escapeHtml(String(s.id))}">
@@ -1707,573 +1704,551 @@
               </button>
             </div>
           `;
-        }).join("");
-        list.querySelectorAll("[data-cw-toggle-member]")?.forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const sid = String(btn.getAttribute("data-cw-toggle-member") || "");
-            const hint = host.querySelector("#cwGroupHint");
-            try {
-              if ((g.members || []).map(String).includes(String(sid))) {
-                await tDelete(`/api/teachers/chess-works/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}`);
-              } else {
-                await tPost(`/api/teachers/chess-works/groups/${encodeURIComponent(gid)}/members`, { studentIds: [sid] });
+          }).join("");
+          list.querySelectorAll("[data-cw-toggle-member]")?.forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const sid = String(btn.getAttribute("data-cw-toggle-member") || "");
+              const hint = host.querySelector("#cwGroupHint");
+              try {
+                if ((g.members || []).map(String).includes(String(sid))) {
+                  await tDelete(`/api/teachers/chess-works/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}`);
+                } else {
+                  await tPost(`/api/teachers/chess-works/groups/${encodeURIComponent(gid)}/members`, { studentIds: [sid] });
+                }
+                const data = await tGet("/api/teachers/chess-works/groups");
+                ui.settings.groups = Array.isArray(data?.groups) ? data.groups : [];
+                const fresh = ui.settings.groups.find((x) => String(x.id) === gid);
+                if (fresh) Object.assign(g, fresh);
+                if (hint) hint.textContent = "Updated.";
+                renderStudents(host.querySelector("#cwGroupSearch")?.value || "");
+              } catch (e) {
+                if (hint) hint.textContent = String(e?.message || e);
               }
-              const data = await tGet("/api/teachers/chess-works/groups");
-              ui.settings.groups = Array.isArray(data?.groups) ? data.groups : [];
-              const fresh = ui.settings.groups.find((x) => String(x.id) === gid);
-              if (fresh) Object.assign(g, fresh);
-              if (hint) hint.textContent = "Updated.";
-              renderStudents(host.querySelector("#cwGroupSearch")?.value || "");
-            } catch (e) {
-              if (hint) hint.textContent = String(e?.message || e);
-            }
+            });
+          });
+        };
+        const bind = () => {
+          host.querySelector("#cwGroupClose")?.addEventListener("click", close);
+          host.querySelector("#cwGroupBackdrop")?.addEventListener("click", (e) => {
+            if (e.target && e.target.id === "cwGroupBackdrop") close();
+          });
+          host.querySelector("#cwGroupSearch")?.addEventListener("input", (e) => renderStudents(e.target.value));
+        };
+        bind();
+        renderStudents("");
+      }
+      function bindNav() {
+        root.querySelectorAll(".cw-nav-btn[data-cw-mode]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const next = String(btn.getAttribute("data-cw-mode") || "").trim().toLowerCase();
+            const normalized = normalizeMode(next, isTeacher);
+            if (normalized === ui.mode) return;
+            ui.mode = normalized;
+            setUrlMode(ui.mode);
+            rerenderShell();
+            void rerenderMain();
           });
         });
-      };
-
-      const bind = () => {
-        host.querySelector("#cwGroupClose")?.addEventListener("click", close);
-        host.querySelector("#cwGroupBackdrop")?.addEventListener("click", (e) => {
-          if (e.target && e.target.id === "cwGroupBackdrop") close();
-        });
-        host.querySelector("#cwGroupSearch")?.addEventListener("input", (e) => renderStudents(e.target.value));
-      };
-      bind();
-      renderStudents("");
-    }
-
-    // ===== Handlers =====
-    function bindNav() {
-      root.querySelectorAll(".cw-nav-btn[data-cw-mode]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const next = String(btn.getAttribute("data-cw-mode") || "").trim().toLowerCase();
-          const normalized = normalizeMode(next, isTeacher);
-          if (normalized === ui.mode) return;
-          ui.mode = normalized;
+      }
+      function bindHomeHandlers() {
+        root.querySelector("[data-cw-go-works]")?.addEventListener("click", () => {
+          ui.mode = "works";
           setUrlMode(ui.mode);
           rerenderShell();
           void rerenderMain();
-        });
-      });
-    }
-
-    function bindHomeHandlers() {
-      root.querySelector("[data-cw-go-works]")?.addEventListener("click", () => {
-        ui.mode = "works";
-        setUrlMode(ui.mode);
-        rerenderShell();
-        void rerenderMain();
-      }, { once: true });
-    }
-
-    function bindBuilderHandlers() {
-      const main = root.querySelector("#cwMain");
-      if (!main) return;
-      main.querySelector("[data-cw-create]")?.addEventListener("click", openCreatePickerModal);
-      main.querySelector("[data-cw-refresh-builder]")?.addEventListener("click", () => loadBuilder());
-      main.querySelectorAll("[data-cw-folder]")?.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          ui.builder.folderId = String(btn.getAttribute("data-cw-folder") || "all");
-          setUrlParam("folderId", ui.builder.folderId);
-          loadBuilder();
-        });
-
-        // drag-drop target for work cards
-        btn.addEventListener("dragover", (e) => { e.preventDefault(); btn.classList.add("is-drop"); });
-        btn.addEventListener("dragleave", () => btn.classList.remove("is-drop"));
-        btn.addEventListener("drop", async (e) => {
-          e.preventDefault();
-          btn.classList.remove("is-drop");
-          const workId = String(e.dataTransfer?.getData("text/cw-work-id") || "").trim();
-          if (!workId) return;
-          const fid = String(btn.getAttribute("data-cw-folder") || "all");
-          if (fid === "all") return;
-          const folderId = fid === "unfiled" ? "" : fid;
-          try {
-            await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(workId)}`, { folderId });
-            await loadBuilder();
-          } catch (err) {
-            alert(String(err?.message || err));
-          }
-        });
-      });
-      main.querySelectorAll("[data-cw-folder-del]")?.forEach((x) => {
-        x.addEventListener("click", async (e) => {
-          try { e.preventDefault(); } catch {}
-          try { e.stopPropagation(); } catch {}
-          const fid = String(x.getAttribute("data-cw-folder-del") || "").trim();
-          if (!fid || fid === "all" || fid === "unfiled") return;
-          const ok = confirm("Delete this folder and all works inside?");
-          if (!ok) return;
-          try {
-            await tDelete(`/api/teachers/chess-works/folders/${encodeURIComponent(fid)}`);
-            if (String(ui.builder.folderId || "all") === fid) {
-              ui.builder.folderId = "all";
-              setUrlParam("folderId", ui.builder.folderId);
+        }, { once: true });
+      }
+      function bindBuilderHandlers() {
+        const main = root.querySelector("#cwMain");
+        if (!main) return;
+        main.querySelector("[data-cw-create]")?.addEventListener("click", openCreatePickerModal);
+        main.querySelector("[data-cw-refresh-builder]")?.addEventListener("click", () => loadBuilder());
+        main.querySelectorAll("[data-cw-folder]")?.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            ui.builder.folderId = String(btn.getAttribute("data-cw-folder") || "all");
+            setUrlParam("folderId", ui.builder.folderId);
+            loadBuilder();
+          });
+          btn.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            btn.classList.add("is-drop");
+          });
+          btn.addEventListener("dragleave", () => btn.classList.remove("is-drop"));
+          btn.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            btn.classList.remove("is-drop");
+            const workId = String(e.dataTransfer?.getData("text/cw-work-id") || "").trim();
+            if (!workId) return;
+            const fid = String(btn.getAttribute("data-cw-folder") || "all");
+            if (fid === "all") return;
+            const folderId = fid === "unfiled" ? "" : fid;
+            try {
+              await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(workId)}`, { folderId });
+              await loadBuilder();
+            } catch (err) {
+              alert(String(err?.message || err));
             }
-            await loadBuilder();
-          } catch (err) {
-            alert(String(err?.message || err));
-          }
-        });
-      });
-      main.querySelectorAll("[data-cw-work-card]")?.forEach((card) => {
-        card.addEventListener("dragstart", (e) => {
-          const id = String(card.getAttribute("data-cw-work-card") || "");
-          try {
-            e.dataTransfer.setData("text/cw-work-id", id);
-          } catch {}
-        });
-      });
-      main.querySelectorAll("[data-cw-edit]")?.forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openWorkEditorModal(String(btn.getAttribute("data-cw-edit") || ""));
-        });
-      });
-      main.querySelectorAll("[data-cw-assign]")?.forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openAssignModal(String(btn.getAttribute("data-cw-assign") || ""));
-        });
-      });
-      main.querySelectorAll("[data-cw-work-move]")?.forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openMoveWorkModal(String(btn.getAttribute("data-cw-work-move") || ""));
-        });
-      });
-      main.querySelectorAll("[data-cw-work-del]")?.forEach((btn) => {
-        btn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          const wid = String(btn.getAttribute("data-cw-work-del") || "").trim();
-          if (!wid) return;
-          const ok = confirm("Delete this work?");
-          if (!ok) return;
-          try {
-            await tDelete(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`);
-            await loadBuilder();
-          } catch (err) {
-            alert(String(err?.message || err));
-          }
-        });
-      });
-    }
-
-    function bindStudentWorksHandlers() {
-      const main = root.querySelector("#cwMain");
-      if (!main) return;
-      // Ensure state objects always exist (teacher "View Works" uses same renderer)
-      if (!ui.studentWorks || typeof ui.studentWorks !== "object") ui.studentWorks = {};
-      if (!ui.studentWorks.answers || typeof ui.studentWorks.answers !== "object") ui.studentWorks.answers = { items: [] };
-      if (!Array.isArray(ui.studentWorks.answers.items)) ui.studentWorks.answers.items = [];
-      if (!ui.studentWorks.pvState || typeof ui.studentWorks.pvState !== "object") ui.studentWorks.pvState = {};
-
-      main.querySelector("[data-cw-refresh]")?.addEventListener("click", () => loadStudentWorksList());
-      main.querySelectorAll("[data-cw-open-work]")?.forEach((card) => {
-        card.addEventListener("click", () => openStudentWork(String(card.getAttribute("data-cw-open-work") || "")));
-      });
-      main.querySelector("[data-cw-refresh-history]")?.addEventListener("click", () => loadStudentHistory());
-      main.querySelectorAll("[data-cw-history-detail]")?.forEach((card) => {
-        card.addEventListener("click", () => {
-          const workId = String(card.getAttribute("data-cw-history-detail") || "");
-          const item = (ui.history.items || []).find((x) => String(x.workId) === workId);
-          if (!item) return;
-          alert(`Marks:\n${JSON.stringify(item.marks || [], null, 2)}`);
-        });
-      });
-
-      // do-work handlers
-      main.querySelector("[data-cw-back]")?.addEventListener("click", () => loadStudentWorksList());
-      main.querySelector("[data-cw-cancel]")?.addEventListener("click", () => loadStudentWorksList());
-      main.querySelector("[data-cw-prev]")?.addEventListener("click", () => {
-        ui.studentWorks.idx = Math.max(0, Number(ui.studentWorks.idx || 0) - 1);
-        setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
-      });
-      main.querySelector("[data-cw-next]")?.addEventListener("click", () => {
-        const work = normalizeWork(ui.studentWorks.work || {});
-        ui.studentWorks.idx = Math.min(work.items.length - 1, Number(ui.studentWorks.idx || 0) + 1);
-        setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
-      });
-      main.querySelector("[data-cw-save]")?.addEventListener("click", async () => {
-        const work = normalizeWork(ui.studentWorks.work || {});
-        const wid = String(work.id || "");
-        const sid = getPublicStudentIdFromPlayers();
-        if (!wid || !sid) return;
-        const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
-        const it = work.items[idx];
-        const txEl = main.querySelector("#cwAnsText");
-        const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
-        if (it.pvEnabled) {
-          const st = ui.studentWorks.pvState?.[idx] || null;
-          a.pvMoves = Array.isArray(st?.moves) ? st.moves.slice(0, it.pvPlies || 1) : [];
-        }
-        if (it.textEnabled) a.text = String(txEl?.value || "");
-        ui.studentWorks.answers.items[idx] = a;
-        try {
-          await sPatch(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works/${encodeURIComponent(wid)}/submission`, {
-            answers: ui.studentWorks.answers
-          });
-          const hint = main.querySelector("#cwSaveHint");
-          if (hint) hint.textContent = "Saved.";
-        } catch (e) {
-          const hint = main.querySelector("#cwSaveHint");
-          if (hint) hint.textContent = String(e?.message || e);
-        }
-      });
-
-      // Right-click board to copy FEN
-      // (delegated below)
-
-      // PV interaction (student move recorder)
-      // PV + contextmenu handlers (delegated, bind once)
-      if (!main.__cwDelegatedBound) {
-        main.__cwDelegatedBound = true;
-
-        main.addEventListener("contextmenu", (e) => {
-          const board = e.target?.closest?.(".cw-board");
-          if (!board) return;
-          try { e.preventDefault(); } catch {}
-          const fen = String(main.querySelector("#cwFenHidden")?.value || "").trim();
-          if (!fen) return;
-          openContextMenu({
-            root,
-            x: e.clientX,
-            y: e.clientY,
-            items: [{ label: "Copy FEN", onClick: async () => { await copyToClipboard(fen); } }]
           });
         });
-
-        main.addEventListener("click", (e) => {
-          const t = e.target;
-          const undoBtn = t?.closest?.("[data-cw-pv-undo]");
-          const resetBtn = t?.closest?.("[data-cw-pv-reset]");
-          const cellBtn = t?.closest?.("[data-cw-cell]");
-
+        main.querySelectorAll("[data-cw-folder-del]")?.forEach((x) => {
+          x.addEventListener("click", async (e) => {
+            try {
+              e.preventDefault();
+            } catch {
+            }
+            try {
+              e.stopPropagation();
+            } catch {
+            }
+            const fid = String(x.getAttribute("data-cw-folder-del") || "").trim();
+            if (!fid || fid === "all" || fid === "unfiled") return;
+            const ok = confirm("Delete this folder and all works inside?");
+            if (!ok) return;
+            try {
+              await tDelete(`/api/teachers/chess-works/folders/${encodeURIComponent(fid)}`);
+              if (String(ui.builder.folderId || "all") === fid) {
+                ui.builder.folderId = "all";
+                setUrlParam("folderId", ui.builder.folderId);
+              }
+              await loadBuilder();
+            } catch (err) {
+              alert(String(err?.message || err));
+            }
+          });
+        });
+        main.querySelectorAll("[data-cw-work-card]")?.forEach((card) => {
+          card.addEventListener("dragstart", (e) => {
+            const id = String(card.getAttribute("data-cw-work-card") || "");
+            try {
+              e.dataTransfer.setData("text/cw-work-id", id);
+            } catch {
+            }
+          });
+        });
+        main.querySelectorAll("[data-cw-edit]")?.forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openWorkEditorModal(String(btn.getAttribute("data-cw-edit") || ""));
+          });
+        });
+        main.querySelectorAll("[data-cw-assign]")?.forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openAssignModal(String(btn.getAttribute("data-cw-assign") || ""));
+          });
+        });
+        main.querySelectorAll("[data-cw-work-move]")?.forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openMoveWorkModal(String(btn.getAttribute("data-cw-work-move") || ""));
+          });
+        });
+        main.querySelectorAll("[data-cw-work-del]")?.forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const wid = String(btn.getAttribute("data-cw-work-del") || "").trim();
+            if (!wid) return;
+            const ok = confirm("Delete this work?");
+            if (!ok) return;
+            try {
+              await tDelete(`/api/teachers/chess-works/works/${encodeURIComponent(wid)}`);
+              await loadBuilder();
+            } catch (err) {
+              alert(String(err?.message || err));
+            }
+          });
+        });
+      }
+      function bindStudentWorksHandlers() {
+        const main = root.querySelector("#cwMain");
+        if (!main) return;
+        if (!ui.studentWorks || typeof ui.studentWorks !== "object") ui.studentWorks = {};
+        if (!ui.studentWorks.answers || typeof ui.studentWorks.answers !== "object") ui.studentWorks.answers = { items: [] };
+        if (!Array.isArray(ui.studentWorks.answers.items)) ui.studentWorks.answers.items = [];
+        if (!ui.studentWorks.pvState || typeof ui.studentWorks.pvState !== "object") ui.studentWorks.pvState = {};
+        main.querySelector("[data-cw-refresh]")?.addEventListener("click", () => loadStudentWorksList());
+        main.querySelectorAll("[data-cw-open-work]")?.forEach((card) => {
+          card.addEventListener("click", () => openStudentWork(String(card.getAttribute("data-cw-open-work") || "")));
+        });
+        main.querySelector("[data-cw-refresh-history]")?.addEventListener("click", () => loadStudentHistory());
+        main.querySelectorAll("[data-cw-history-detail]")?.forEach((card) => {
+          card.addEventListener("click", () => {
+            const workId = String(card.getAttribute("data-cw-history-detail") || "");
+            const item = (ui.history.items || []).find((x) => String(x.workId) === workId);
+            if (!item) return;
+            alert(`Marks:
+${JSON.stringify(item.marks || [], null, 2)}`);
+          });
+        });
+        main.querySelector("[data-cw-back]")?.addEventListener("click", () => loadStudentWorksList());
+        main.querySelector("[data-cw-cancel]")?.addEventListener("click", () => loadStudentWorksList());
+        main.querySelector("[data-cw-prev]")?.addEventListener("click", () => {
+          ui.studentWorks.idx = Math.max(0, Number(ui.studentWorks.idx || 0) - 1);
+          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+        });
+        main.querySelector("[data-cw-next]")?.addEventListener("click", () => {
           const work = normalizeWork(ui.studentWorks.work || {});
+          ui.studentWorks.idx = Math.min(work.items.length - 1, Number(ui.studentWorks.idx || 0) + 1);
+          setMain(renderStudentDoWork()).then(bindStudentWorksHandlers);
+        });
+        main.querySelector("[data-cw-save]")?.addEventListener("click", async () => {
+          const work = normalizeWork(ui.studentWorks.work || {});
+          const wid = String(work.id || "");
+          const sid = getPublicStudentIdFromPlayers();
+          if (!wid || !sid) return;
           const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
           const it = work.items[idx];
-          if (!it?.boardEnabled) return;
-
-          if (undoBtn) {
-            if (!it.pvEnabled) return;
-            const st = ui.studentWorks.pvState?.[idx];
-            if (!st || !Array.isArray(st.moves) || !st.moves.length) return;
-            st.moves.pop();
-            st.lastMove = st.moves.length ? { from: String(st.moves[st.moves.length - 1]?.from || ""), to: String(st.moves[st.moves.length - 1]?.to || "") } : null;
-            // rebuild pieces from initial
-            const base = JSON.parse(JSON.stringify(it.pieces || []));
-            for (const mv of st.moves) {
-              const [frs, fcs] = String(mv.from || "").split(":");
-              const [trs, tcs] = String(mv.to || "").split(":");
-              const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
-              const pi = base.findIndex((p) => p.r === fr && p.c === fc);
-              if (pi < 0) continue;
-              const cap = base.findIndex((p) => p.r === tr && p.c === tc);
-              if (cap >= 0) base.splice(cap, 1);
-              base[pi].r = tr;
-              base[pi].c = tc;
+          const txEl = main.querySelector("#cwAnsText");
+          const a = ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object" ? ui.studentWorks.answers.items[idx] : {};
+          if (it.pvEnabled) {
+            const st = ui.studentWorks.pvState?.[idx] || null;
+            a.pvMoves = Array.isArray(st?.moves) ? st.moves.slice(0, it.pvPlies || 1) : [];
+          }
+          if (it.textEnabled) a.text = String(txEl?.value || "");
+          ui.studentWorks.answers.items[idx] = a;
+          try {
+            await sPatch(`/api/public/students/${encodeURIComponent(sid)}/chess-works/works/${encodeURIComponent(wid)}/submission`, {
+              answers: ui.studentWorks.answers
+            });
+            const hint = main.querySelector("#cwSaveHint");
+            if (hint) hint.textContent = "Saved.";
+          } catch (e) {
+            const hint = main.querySelector("#cwSaveHint");
+            if (hint) hint.textContent = String(e?.message || e);
+          }
+        });
+        if (!main.__cwDelegatedBound) {
+          main.__cwDelegatedBound = true;
+          main.addEventListener("contextmenu", (e) => {
+            const board = e.target?.closest?.(".cw-board");
+            if (!board) return;
+            try {
+              e.preventDefault();
+            } catch {
             }
-            st.pieces = base;
-            st.selected = "";
-            rerenderStudentPvOnly();
-            return;
-          }
-
-          if (resetBtn) {
-            if (!it.pvEnabled) return;
-            ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])), lastMove: null };
-            rerenderStudentPvOnly();
-            return;
-          }
-
-          if (cellBtn) {
-            // Only handle PV board cells
-            if (!cellBtn.closest("#cwPvBoardHost")) return;
-            if (!it.pvEnabled) return;
-
-            const plyLimit = Number(it.pvPlies || 1);
-            const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])), lastMove: null };
-            ui.studentWorks.pvState[idx] = st;
-            st.moves = Array.isArray(st.moves) ? st.moves : [];
-            st.pieces = Array.isArray(st.pieces) ? st.pieces : [];
-            st.lastMove = st.lastMove || null;
-
-            const cell = String(cellBtn.getAttribute("data-cw-cell") || "");
-            const [rs, cs] = cell.split(":");
-            const r = Number(rs), c = Number(cs);
-            if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
-            if (st.moves.length >= plyLimit) return;
-
-            const pieces = st.pieces;
-            const occ = new Map(pieces.map((p) => [`${p.r}:${p.c}`, p]));
-            const at = occ.get(`${r}:${c}`) || null;
-
-            const currentTurn = (() => {
-              if (it.turn !== "w" && it.turn !== "b") return "";
-              return (st.moves.length % 2 === 0) ? it.turn : (it.turn === "w" ? "b" : "w");
-            })();
-
-            if (!st.selected) {
-              if (!at) return;
-              if (currentTurn && at.color !== currentTurn) return;
-              st.selected = `${r}:${c}`;
+            const fen = String(main.querySelector("#cwFenHidden")?.value || "").trim();
+            if (!fen) return;
+            openContextMenu({
+              root,
+              x: e.clientX,
+              y: e.clientY,
+              items: [{ label: "Copy FEN", onClick: async () => {
+                await copyToClipboard(fen);
+              } }]
+            });
+          });
+          main.addEventListener("click", (e) => {
+            const t = e.target;
+            const undoBtn = t?.closest?.("[data-cw-pv-undo]");
+            const resetBtn = t?.closest?.("[data-cw-pv-reset]");
+            const cellBtn = t?.closest?.("[data-cw-cell]");
+            const work = normalizeWork(ui.studentWorks.work || {});
+            const idx = Math.max(0, Math.min(work.items.length - 1, Number(ui.studentWorks.idx) || 0));
+            const it = work.items[idx];
+            if (!it?.boardEnabled) return;
+            if (undoBtn) {
+              if (!it.pvEnabled) return;
+              const st = ui.studentWorks.pvState?.[idx];
+              if (!st || !Array.isArray(st.moves) || !st.moves.length) return;
+              st.moves.pop();
+              st.lastMove = st.moves.length ? { from: String(st.moves[st.moves.length - 1]?.from || ""), to: String(st.moves[st.moves.length - 1]?.to || "") } : null;
+              const base = JSON.parse(JSON.stringify(it.pieces || []));
+              for (const mv of st.moves) {
+                const [frs, fcs] = String(mv.from || "").split(":");
+                const [trs, tcs] = String(mv.to || "").split(":");
+                const fr = Number(frs), fc = Number(fcs), tr = Number(trs), tc = Number(tcs);
+                const pi = base.findIndex((p) => p.r === fr && p.c === fc);
+                if (pi < 0) continue;
+                const cap = base.findIndex((p) => p.r === tr && p.c === tc);
+                if (cap >= 0) base.splice(cap, 1);
+                base[pi].r = tr;
+                base[pi].c = tc;
+              }
+              st.pieces = base;
+              st.selected = "";
               rerenderStudentPvOnly();
               return;
             }
-
-            const [frs, fcs] = String(st.selected).split(":");
-            const fr = Number(frs), fc = Number(fcs);
-            const mover = occ.get(`${fr}:${fc}`) || null;
-            if (!mover) { st.selected = ""; rerenderStudentPvOnly(); return; }
-            if (currentTurn && mover.color !== currentTurn) { st.selected = ""; rerenderStudentPvOnly(); return; }
-            if (fr === r && fc === c) { st.selected = ""; rerenderStudentPvOnly(); return; }
-
-            const dest = at;
-            if (dest && dest.color === mover.color) {
-              st.selected = `${r}:${c}`;
+            if (resetBtn) {
+              if (!it.pvEnabled) return;
+              ui.studentWorks.pvState[idx] = { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])), lastMove: null };
               rerenderStudentPvOnly();
               return;
             }
-
-            const dr = r - fr;
-            const dc = c - fc;
-            const abs = (x) => Math.abs(x);
-            const sign = (x) => (x === 0 ? 0 : x > 0 ? 1 : -1);
-            const clearRay = (sdr, sdc) => {
-              let rr = fr + sdr, cc = fc + sdc;
-              while (rr !== r || cc !== c) {
-                if (occ.get(`${rr}:${cc}`)) return false;
-                rr += sdr;
-                cc += sdc;
+            if (cellBtn) {
+              if (!cellBtn.closest("#cwPvBoardHost")) return;
+              if (!it.pvEnabled) return;
+              const plyLimit = Number(it.pvPlies || 1);
+              const st = ui.studentWorks.pvState?.[idx] || { selected: "", moves: [], pieces: JSON.parse(JSON.stringify(it.pieces || [])), lastMove: null };
+              ui.studentWorks.pvState[idx] = st;
+              st.moves = Array.isArray(st.moves) ? st.moves : [];
+              st.pieces = Array.isArray(st.pieces) ? st.pieces : [];
+              st.lastMove = st.lastMove || null;
+              const cell = String(cellBtn.getAttribute("data-cw-cell") || "");
+              const [rs, cs] = cell.split(":");
+              const r = Number(rs), c = Number(cs);
+              if (!inBounds(r, c, it.board.rows, it.board.cols)) return;
+              if (st.moves.length >= plyLimit) return;
+              const pieces = st.pieces;
+              const occ = new Map(pieces.map((p) => [`${p.r}:${p.c}`, p]));
+              const at = occ.get(`${r}:${c}`) || null;
+              const currentTurn = (() => {
+                if (it.turn !== "w" && it.turn !== "b") return "";
+                return st.moves.length % 2 === 0 ? it.turn : it.turn === "w" ? "b" : "w";
+              })();
+              if (!st.selected) {
+                if (!at) return;
+                if (currentTurn && at.color !== currentTurn) return;
+                st.selected = `${r}:${c}`;
+                rerenderStudentPvOnly();
+                return;
               }
-              return true;
-            };
-            let ok = false;
-            const pt = String(mover.type || "").toUpperCase();
-            if (pt === "N") ok = (abs(dr) === 2 && abs(dc) === 1) || (abs(dr) === 1 && abs(dc) === 2);
-            else if (pt === "K") ok = abs(dr) <= 1 && abs(dc) <= 1;
-            else if (pt === "B") ok = abs(dr) === abs(dc) && clearRay(sign(dr), sign(dc));
-            else if (pt === "R") ok = (dr === 0 || dc === 0) && clearRay(sign(dr), sign(dc));
-            else if (pt === "Q") ok = ((dr === 0 || dc === 0) || (abs(dr) === abs(dc))) && clearRay(sign(dr), sign(dc));
-            else if (pt === "P") {
-              if (mover.color === "w") {
-                if (dest) ok = (dr === -1 && abs(dc) === 1);
-                else ok = (dc === 0 && dr === -1);
-              } else {
-                if (dest) ok = (dr === 1 && abs(dc) === 1);
-                else ok = (dc === 0 && dr === 1);
+              const [frs, fcs] = String(st.selected).split(":");
+              const fr = Number(frs), fc = Number(fcs);
+              const mover = occ.get(`${fr}:${fc}`) || null;
+              if (!mover) {
+                st.selected = "";
+                rerenderStudentPvOnly();
+                return;
               }
+              if (currentTurn && mover.color !== currentTurn) {
+                st.selected = "";
+                rerenderStudentPvOnly();
+                return;
+              }
+              if (fr === r && fc === c) {
+                st.selected = "";
+                rerenderStudentPvOnly();
+                return;
+              }
+              const dest = at;
+              if (dest && dest.color === mover.color) {
+                st.selected = `${r}:${c}`;
+                rerenderStudentPvOnly();
+                return;
+              }
+              const dr = r - fr;
+              const dc = c - fc;
+              const abs = (x) => Math.abs(x);
+              const sign = (x) => x === 0 ? 0 : x > 0 ? 1 : -1;
+              const clearRay = (sdr, sdc) => {
+                let rr = fr + sdr, cc = fc + sdc;
+                while (rr !== r || cc !== c) {
+                  if (occ.get(`${rr}:${cc}`)) return false;
+                  rr += sdr;
+                  cc += sdc;
+                }
+                return true;
+              };
+              let ok = false;
+              const pt = String(mover.type || "").toUpperCase();
+              if (pt === "N") ok = abs(dr) === 2 && abs(dc) === 1 || abs(dr) === 1 && abs(dc) === 2;
+              else if (pt === "K") ok = abs(dr) <= 1 && abs(dc) <= 1;
+              else if (pt === "B") ok = abs(dr) === abs(dc) && clearRay(sign(dr), sign(dc));
+              else if (pt === "R") ok = (dr === 0 || dc === 0) && clearRay(sign(dr), sign(dc));
+              else if (pt === "Q") ok = (dr === 0 || dc === 0 || abs(dr) === abs(dc)) && clearRay(sign(dr), sign(dc));
+              else if (pt === "P") {
+                if (mover.color === "w") {
+                  if (dest) ok = dr === -1 && abs(dc) === 1;
+                  else ok = dc === 0 && dr === -1;
+                } else {
+                  if (dest) ok = dr === 1 && abs(dc) === 1;
+                  else ok = dc === 0 && dr === 1;
+                }
+              }
+              if (!ok) return;
+              if (dest) {
+                const capI = pieces.findIndex((p) => p.r === r && p.c === c);
+                if (capI >= 0) pieces.splice(capI, 1);
+              }
+              const mi = pieces.findIndex((p) => p.r === fr && p.c === fc);
+              if (mi >= 0) {
+                pieces[mi].r = r;
+                pieces[mi].c = c;
+              }
+              st.moves.push({ color: mover.color, type: mover.type, from: `${fr}:${fc}`, to: `${r}:${c}` });
+              st.selected = "";
+              st.lastMove = { from: `${fr}:${fc}`, to: `${r}:${c}` };
+              const a = ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object" ? ui.studentWorks.answers.items[idx] : {};
+              a.pvMoves = st.moves.slice(0, plyLimit);
+              ui.studentWorks.answers.items[idx] = a;
+              rerenderStudentPvOnly();
             }
-            if (!ok) return;
-
-            // apply
-            if (dest) {
-              const capI = pieces.findIndex((p) => p.r === r && p.c === c);
-              if (capI >= 0) pieces.splice(capI, 1);
-            }
-            const mi = pieces.findIndex((p) => p.r === fr && p.c === fc);
-            if (mi >= 0) { pieces[mi].r = r; pieces[mi].c = c; }
-            st.moves.push({ color: mover.color, type: mover.type, from: `${fr}:${fc}`, to: `${r}:${c}` });
-            st.selected = "";
-            st.lastMove = { from: `${fr}:${fc}`, to: `${r}:${c}` };
-
-            // persist into answers state
-            const a = (ui.studentWorks.answers.items[idx] && typeof ui.studentWorks.answers.items[idx] === "object") ? ui.studentWorks.answers.items[idx] : {};
-            a.pvMoves = st.moves.slice(0, plyLimit);
-            ui.studentWorks.answers.items[idx] = a;
-
-            // rerender only PV board to show the move instantly (no full-screen fade)
-            rerenderStudentPvOnly();
-          }
-        });
-      }
-    }
-
-    function bindTeacherWorksHandlers() {
-      const main = root.querySelector("#cwMain");
-      if (!main) return;
-      if (!ui.teacherWorks || typeof ui.teacherWorks !== "object") ui.teacherWorks = {};
-      if (!ui.teacherWorks.reviewPvStep || typeof ui.teacherWorks.reviewPvStep !== "object") ui.teacherWorks.reviewPvStep = {};
-      main.querySelector("[data-cw-refresh-teacher-works]")?.addEventListener("click", () => loadTeacherWorksList());
-      main.querySelectorAll("[data-cw-teacher-open]")?.forEach((card) => {
-        card.addEventListener("click", () => openTeacherWork(String(card.getAttribute("data-cw-teacher-open") || "")));
-      });
-      main.querySelector("[data-cw-teacher-back]")?.addEventListener("click", () => loadTeacherWorksList());
-      main.querySelector("[data-cw-teacher-view-students]")?.addEventListener("click", () => loadTeacherStudentsForWork());
-      main.querySelector("[data-cw-teacher-view-works]")?.addEventListener("click", async () => {
-        // teacher "try works" uses student renderer locally (no saving)
-        ui.studentWorks.work = ui.teacherWorks.work;
-        ui.studentWorks.answers = { items: [] };
-        ui.studentWorks.pvState = {};
-        ui.studentWorks.idx = 0;
-        ui.studentWorks.view = "do";
-        await setMain(renderStudentDoWork());
-        bindStudentWorksHandlers();
-      });
-      main.querySelector("[data-cw-teacher-back-detail]")?.addEventListener("click", () => {
-        ui.teacherWorks.view = "detail";
-        setMain(renderTeacherWorkDetail()).then(bindTeacherWorksHandlers);
-      });
-      main.querySelector("[data-cw-teacher-refresh-students]")?.addEventListener("click", () => loadTeacherStudentsForWork());
-      main.querySelectorAll("[data-cw-review-student]")?.forEach((row) => {
-        row.addEventListener("click", () => openTeacherReviewStudent(String(row.getAttribute("data-cw-review-student") || "")));
-      });
-      main.querySelector("[data-cw-review-back]")?.addEventListener("click", () => loadTeacherStudentsForWork());
-
-      // marks click
-      main.querySelectorAll("[data-cw-mark]")?.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const v = String(btn.getAttribute("data-cw-mark") || "");
-          const [is, mk] = v.split(":");
-          const i = Number(is);
-          if (!Number.isFinite(i)) return;
-          const marks = Array.isArray(ui.teacherWorks.review?.marks) ? ui.teacherWorks.review.marks : [];
-          marks[i] = mk;
-          ui.teacherWorks.review = Object.assign({}, ui.teacherWorks.review || {}, { marks, finished: false });
-          setMain(renderTeacherReviewStudent()).then(bindTeacherWorksHandlers);
-        });
-      });
-
-      const rerenderTeacherPvMini = (qIdx) => {
-        const w = ui.teacherWorks.work;
-        if (!w) return;
-        const work = normalizeWork(w);
-        const it = work.items?.[qIdx];
-        if (!it?.pvEnabled || !it?.boardEnabled) return;
-        const submission = ui.teacherWorks.submission?.answers || {};
-        const answers = Array.isArray(submission?.items) ? submission.items : [];
-        const a = answers[qIdx] || {};
-        const pvMoves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
-        const stepRaw = ui.teacherWorks.reviewPvStep && Object.prototype.hasOwnProperty.call(ui.teacherWorks.reviewPvStep, qIdx) ? ui.teacherWorks.reviewPvStep[qIdx] : 0;
-        const step = Math.max(0, Math.min(pvMoves.length, Number(stepRaw) || 0));
-        ui.teacherWorks.reviewPvStep[qIdx] = step;
-        const pieces = applyPvMovesToPieces({ basePieces: it.pieces, moves: pvMoves, step });
-        const last = step > 0 ? pvMoves[step - 1] : null;
-        const host = main.querySelector(`[data-cw-pv-mini-board="${String(qIdx)}"]`);
-        if (host) {
-          host.innerHTML = renderBoardHtml({
-            rows: it.board.rows,
-            cols: it.board.cols,
-            pieces,
-            interactive: false,
-            flip: (it.turn === "b"),
-            lastMove: last,
-            targetPx: 240
           });
         }
-        const lab = main.querySelector(`[data-cw-pv-mini-label="${String(qIdx)}"]`);
-        if (lab) lab.textContent = `${step}/${pvMoves.length}`;
-      };
-
-      main.querySelectorAll("[data-cw-pv-prev]")?.forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          const qIdx = Number(btn.getAttribute("data-cw-pv-prev"));
-          if (!Number.isFinite(qIdx)) return;
-          const cur = Number(ui.teacherWorks.reviewPvStep?.[qIdx] || 0);
-          ui.teacherWorks.reviewPvStep[qIdx] = Math.max(0, cur - 1);
-          rerenderTeacherPvMini(qIdx);
+      }
+      function bindTeacherWorksHandlers() {
+        const main = root.querySelector("#cwMain");
+        if (!main) return;
+        if (!ui.teacherWorks || typeof ui.teacherWorks !== "object") ui.teacherWorks = {};
+        if (!ui.teacherWorks.reviewPvStep || typeof ui.teacherWorks.reviewPvStep !== "object") ui.teacherWorks.reviewPvStep = {};
+        main.querySelector("[data-cw-refresh-teacher-works]")?.addEventListener("click", () => loadTeacherWorksList());
+        main.querySelectorAll("[data-cw-teacher-open]")?.forEach((card) => {
+          card.addEventListener("click", () => openTeacherWork(String(card.getAttribute("data-cw-teacher-open") || "")));
         });
-      });
-      main.querySelectorAll("[data-cw-pv-next]")?.forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          const qIdx = Number(btn.getAttribute("data-cw-pv-next"));
-          if (!Number.isFinite(qIdx)) return;
+        main.querySelector("[data-cw-teacher-back]")?.addEventListener("click", () => loadTeacherWorksList());
+        main.querySelector("[data-cw-teacher-view-students]")?.addEventListener("click", () => loadTeacherStudentsForWork());
+        main.querySelector("[data-cw-teacher-view-works]")?.addEventListener("click", async () => {
+          ui.studentWorks.work = ui.teacherWorks.work;
+          ui.studentWorks.answers = { items: [] };
+          ui.studentWorks.pvState = {};
+          ui.studentWorks.idx = 0;
+          ui.studentWorks.view = "do";
+          await setMain(renderStudentDoWork());
+          bindStudentWorksHandlers();
+        });
+        main.querySelector("[data-cw-teacher-back-detail]")?.addEventListener("click", () => {
+          ui.teacherWorks.view = "detail";
+          setMain(renderTeacherWorkDetail()).then(bindTeacherWorksHandlers);
+        });
+        main.querySelector("[data-cw-teacher-refresh-students]")?.addEventListener("click", () => loadTeacherStudentsForWork());
+        main.querySelectorAll("[data-cw-review-student]")?.forEach((row) => {
+          row.addEventListener("click", () => openTeacherReviewStudent(String(row.getAttribute("data-cw-review-student") || "")));
+        });
+        main.querySelector("[data-cw-review-back]")?.addEventListener("click", () => loadTeacherStudentsForWork());
+        main.querySelectorAll("[data-cw-mark]")?.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const v = String(btn.getAttribute("data-cw-mark") || "");
+            const [is, mk] = v.split(":");
+            const i = Number(is);
+            if (!Number.isFinite(i)) return;
+            const marks = Array.isArray(ui.teacherWorks.review?.marks) ? ui.teacherWorks.review.marks : [];
+            marks[i] = mk;
+            ui.teacherWorks.review = Object.assign({}, ui.teacherWorks.review || {}, { marks, finished: false });
+            setMain(renderTeacherReviewStudent()).then(bindTeacherWorksHandlers);
+          });
+        });
+        const rerenderTeacherPvMini = (qIdx) => {
+          const w = ui.teacherWorks.work;
+          if (!w) return;
+          const work = normalizeWork(w);
+          const it = work.items?.[qIdx];
+          if (!it?.pvEnabled || !it?.boardEnabled) return;
           const submission = ui.teacherWorks.submission?.answers || {};
           const answers = Array.isArray(submission?.items) ? submission.items : [];
-          const pvMoves = Array.isArray(answers[qIdx]?.pvMoves) ? answers[qIdx].pvMoves : [];
-          const cur = Number(ui.teacherWorks.reviewPvStep?.[qIdx] || 0);
-          ui.teacherWorks.reviewPvStep[qIdx] = Math.min(pvMoves.length, cur + 1);
-          rerenderTeacherPvMini(qIdx);
-        });
-      });
-
-      async function saveReview(finished) {
-        const w = ui.teacherWorks.work;
-        const sid = String(ui.teacherWorks.studentId || "");
-        if (!w?.id || !sid) return;
-        const marks = Array.isArray(ui.teacherWorks.review?.marks) ? ui.teacherWorks.review.marks : [];
-        try {
-          await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(w.id)}/reviews/${encodeURIComponent(sid)}`, {
-            marks,
-            finished: !!finished
+          const a = answers[qIdx] || {};
+          const pvMoves = Array.isArray(a.pvMoves) ? a.pvMoves : [];
+          const stepRaw = ui.teacherWorks.reviewPvStep && Object.prototype.hasOwnProperty.call(ui.teacherWorks.reviewPvStep, qIdx) ? ui.teacherWorks.reviewPvStep[qIdx] : 0;
+          const step = Math.max(0, Math.min(pvMoves.length, Number(stepRaw) || 0));
+          ui.teacherWorks.reviewPvStep[qIdx] = step;
+          const pieces = applyPvMovesToPieces({ basePieces: it.pieces, moves: pvMoves, step });
+          const last = step > 0 ? pvMoves[step - 1] : null;
+          const host = main.querySelector(`[data-cw-pv-mini-board="${String(qIdx)}"]`);
+          if (host) {
+            host.innerHTML = renderBoardHtml({
+              rows: it.board.rows,
+              cols: it.board.cols,
+              pieces,
+              interactive: false,
+              flip: it.turn === "b",
+              lastMove: last,
+              targetPx: 240
+            });
+          }
+          const lab = main.querySelector(`[data-cw-pv-mini-label="${String(qIdx)}"]`);
+          if (lab) lab.textContent = `${step}/${pvMoves.length}`;
+        };
+        main.querySelectorAll("[data-cw-pv-prev]")?.forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const qIdx = Number(btn.getAttribute("data-cw-pv-prev"));
+            if (!Number.isFinite(qIdx)) return;
+            const cur = Number(ui.teacherWorks.reviewPvStep?.[qIdx] || 0);
+            ui.teacherWorks.reviewPvStep[qIdx] = Math.max(0, cur - 1);
+            rerenderTeacherPvMini(qIdx);
           });
-          await loadTeacherStudentsForWork();
-        } catch (e) {
-          alert(String(e?.message || e));
-        }
-      }
-      main.querySelector("[data-cw-review-save]")?.addEventListener("click", () => saveReview(false));
-      main.querySelector("[data-cw-review-finish]")?.addEventListener("click", () => saveReview(true));
-    }
-
-    function bindSettingsHandlers() {
-      const main = root.querySelector("#cwMain");
-      if (!main) return;
-      main.querySelector("[data-cw-create-group]")?.addEventListener("click", async () => {
-        const name = prompt("Group name?");
-        if (!name) return;
-        try {
-          await tPost("/api/teachers/chess-works/groups", { name: String(name).trim() });
-          await loadSettings();
-        } catch (e) {
-          alert(String(e?.message || e));
-        }
-      });
-      main.querySelectorAll("[data-cw-manage-group]")?.forEach((btn) => {
-        btn.addEventListener("click", () => openGroupManageModal(String(btn.getAttribute("data-cw-manage-group") || "")));
-      });
-
-      // toggle show member names when clicking the group row (but not the Manage button)
-      main.querySelectorAll("[data-cw-group-row]")?.forEach((row) => {
-        row.addEventListener("click", (e) => {
-          const tgt = e.target;
-          const manageBtn = tgt && tgt.closest ? tgt.closest("[data-cw-manage-group]") : null;
-          if (manageBtn) return;
-          const gid = String(row.getAttribute("data-cw-group-row") || "");
-          const membersEl = main.querySelector(`[data-cw-group-members="${CSS.escape(gid)}"]`);
-          if (!membersEl) return;
-          const show = membersEl.style.display !== "block";
-          membersEl.style.display = show ? "block" : "none";
         });
-      });
-    }
-
-    // ===== Main router =====
-    async function rerenderMain() {
-      if (ui.mode === "home") {
-        await setMain(renderHome());
-        bindHomeHandlers();
-        return;
+        main.querySelectorAll("[data-cw-pv-next]")?.forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const qIdx = Number(btn.getAttribute("data-cw-pv-next"));
+            if (!Number.isFinite(qIdx)) return;
+            const submission = ui.teacherWorks.submission?.answers || {};
+            const answers = Array.isArray(submission?.items) ? submission.items : [];
+            const pvMoves = Array.isArray(answers[qIdx]?.pvMoves) ? answers[qIdx].pvMoves : [];
+            const cur = Number(ui.teacherWorks.reviewPvStep?.[qIdx] || 0);
+            ui.teacherWorks.reviewPvStep[qIdx] = Math.min(pvMoves.length, cur + 1);
+            rerenderTeacherPvMini(qIdx);
+          });
+        });
+        async function saveReview(finished) {
+          const w = ui.teacherWorks.work;
+          const sid = String(ui.teacherWorks.studentId || "");
+          if (!w?.id || !sid) return;
+          const marks = Array.isArray(ui.teacherWorks.review?.marks) ? ui.teacherWorks.review.marks : [];
+          try {
+            await tPatch(`/api/teachers/chess-works/works/${encodeURIComponent(w.id)}/reviews/${encodeURIComponent(sid)}`, {
+              marks,
+              finished: !!finished
+            });
+            await loadTeacherStudentsForWork();
+          } catch (e) {
+            alert(String(e?.message || e));
+          }
+        }
+        main.querySelector("[data-cw-review-save]")?.addEventListener("click", () => saveReview(false));
+        main.querySelector("[data-cw-review-finish]")?.addEventListener("click", () => saveReview(true));
       }
-      if (ui.mode === "builder") {
-        if (!isTeacher) {
-          await setMain(`<div class="cw-muted">Builder is for teachers only.</div>`);
+      function bindSettingsHandlers() {
+        const main = root.querySelector("#cwMain");
+        if (!main) return;
+        main.querySelector("[data-cw-create-group]")?.addEventListener("click", async () => {
+          const name = prompt("Group name?");
+          if (!name) return;
+          try {
+            await tPost("/api/teachers/chess-works/groups", { name: String(name).trim() });
+            await loadSettings();
+          } catch (e) {
+            alert(String(e?.message || e));
+          }
+        });
+        main.querySelectorAll("[data-cw-manage-group]")?.forEach((btn) => {
+          btn.addEventListener("click", () => openGroupManageModal(String(btn.getAttribute("data-cw-manage-group") || "")));
+        });
+        main.querySelectorAll("[data-cw-group-row]")?.forEach((row) => {
+          row.addEventListener("click", (e) => {
+            const tgt = e.target;
+            const manageBtn = tgt && tgt.closest ? tgt.closest("[data-cw-manage-group]") : null;
+            if (manageBtn) return;
+            const gid = String(row.getAttribute("data-cw-group-row") || "");
+            const membersEl = main.querySelector(`[data-cw-group-members="${CSS.escape(gid)}"]`);
+            if (!membersEl) return;
+            const show = membersEl.style.display !== "block";
+            membersEl.style.display = show ? "block" : "none";
+          });
+        });
+      }
+      async function rerenderMain() {
+        if (ui.mode === "home") {
+          await setMain(renderHome());
+          bindHomeHandlers();
           return;
         }
-        await loadBuilder();
-        return;
+        if (ui.mode === "builder") {
+          if (!isTeacher) {
+            await setMain(`<div class="cw-muted">Builder is for teachers only.</div>`);
+            return;
+          }
+          await loadBuilder();
+          return;
+        }
+        if (ui.mode === "works") {
+          if (isTeacher) return await loadTeacherWorksList();
+          return await loadStudentWorksList();
+        }
+        if (ui.mode === "history") {
+          if (isStudent) return await loadStudentHistory();
+          await setMain(`<div class="cw-muted">History is student-only for now.</div>`);
+          return;
+        }
+        if (ui.mode === "settings") {
+          await loadSettings();
+          return;
+        }
+        await setMain(`<div class="cw-muted">Unknown mode.</div>`);
       }
-      if (ui.mode === "works") {
-        if (isTeacher) return await loadTeacherWorksList();
-        return await loadStudentWorksList();
-      }
-      if (ui.mode === "history") {
-        if (isStudent) return await loadStudentHistory();
-        await setMain(`<div class="cw-muted">History is student-only for now.</div>`);
-        return;
-      }
-      if (ui.mode === "settings") {
-        await loadSettings();
-        return;
-      }
-      await setMain(`<div class="cw-muted">Unknown mode.</div>`);
-    }
-
-    bindNav();
-    await rerenderMain();
-  };
+      bindNav();
+      await rerenderMain();
+    };
+  })();
 })();
-

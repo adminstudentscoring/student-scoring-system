@@ -1,143 +1,139 @@
-(function () {
-  const BOARD_SIZE = 8;
-  const API_BASE = window.API_BASE || '/api';
-  const WHITE_START = {
-    rook: { row: 7, col: 7 }, // h1
-    knight: { row: 7, col: 6 }, // g1
-    bishop: { row: 7, col: 5 } // f1
-  };
-  const BLACK_START = {
-    rook: { row: 0, col: 0 }, // a8
-    knight: { row: 0, col: 1 }, // b8
-    bishop: { row: 0, col: 2 } // c8
-  };
-  const TARGETS = {
-    white: { rook: BLACK_START.rook, knight: BLACK_START.knight, bishop: BLACK_START.bishop },
-    black: { rook: WHITE_START.rook, knight: WHITE_START.knight, bishop: WHITE_START.bishop }
-  };
-
-  const TARGET_LETTERS = {
-    rook: 'R',
-    knight: 'N',
-    bishop: 'B',
-    queen: 'Q'
-  };
-
-  const PIECE_INFO = {
-    white_rook: { color: 'white', type: 'rook', label: '♖', image: '/assets/pieces/white_Rook.png' },
-    white_knight: { color: 'white', type: 'knight', label: '♘', image: '/assets/pieces/white_Knight.png' },
-    white_bishop: { color: 'white', type: 'bishop', label: '♗', image: '/assets/pieces/white_Bishop.png' },
-    white_queen: { color: 'white', type: 'queen', label: '♕', image: '/assets/pieces/white_Queen.png' },
-    black_rook: { color: 'black', type: 'rook', label: '♜', image: '/assets/pieces/black_Rook.png' },
-    black_knight: { color: 'black', type: 'knight', label: '♞', image: '/assets/pieces/black_Knight.png' },
-    black_bishop: { color: 'black', type: 'bishop', label: '♝', image: '/assets/pieces/black_Bishop.png' },
-    black_queen: { color: 'black', type: 'queen', label: '♛', image: '/assets/pieces/black_Queen.png' }
-  };
-
-  const DIFFICULTY_PRESETS = {
-    starter: {
-      label: 'Starter',
-      pieces: ['white_rook', 'black_rook']
-    },
-    easy: {
-      label: 'Easy',
-      pieces: ['white_rook', 'white_bishop', 'black_rook', 'black_bishop']
-    },
-    normal: {
-      label: 'Normal',
-      pieces: ['white_rook', 'white_knight', 'white_bishop', 'black_rook', 'black_knight', 'black_bishop']
-    },
-    hard: {
-      label: 'Hard',
-      pieces: ['white_rook', 'white_knight', 'white_bishop', 'white_queen', 'black_rook', 'black_knight', 'black_bishop', 'black_queen']
-    }
-  };
-
-  const state = {
-    players: [],
-    boardEl: null,
-    logEl: null,
-    statusEl: null,
-    moveCountEl: null,
-    currentSideEl: null,
-    leaderboardEl: null,
-    startButton: null,
-    restartButton: null,
-    leaderboardOverlayEl: null,
-    leaderboardBodyEl: null,
-    keydownListenerAttached: false,
-    pieces: [],
-    currentTurn: 'white',
-    selectedPieceIndex: null,
-    moveCount: 0,
-    startTimestamp: null,
-    gameActive: false,
-    logEntries: [],
-    currentDifficulty: 'normal',
-    leaderboardLists: null,
-    leaderboardTabs: null,
-    activeLeaderboardTab: 'normal',
-    defeatOverlayEl: null,
-    defeatReasonEl: null,
-    suppressNextClick: false
-  };
-
-  function apiRequest(path, options = {}) {
-    if (window.authUtils?.authenticatedFetch) {
-      return window.authUtils.authenticatedFetch(path, options);
-    }
-    const token = localStorage.getItem('authToken');
-    const headers = { ...(options.headers || {}) };
-    if (options.body && !headers['Content-Type']) {
-      headers['Content-Type'] = 'application/json';
-    }
-    if (token && !headers.Authorization) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    return fetch(`${API_BASE}${path}`, { ...options, headers });
-  }
-
-  function initRoyalExchange() {
-    const container = document.getElementById('royalExchangeGame');
-    if (!container) {
-      console.error('Royal Exchange container not found');
-      return;
-    }
-
-    let playersSource = [];
-    if (Array.isArray(window.royalExchangePlayers)) {
-      playersSource = window.royalExchangePlayers;
-    } else {
-      try {
-        const stored = localStorage.getItem('royalExchangePlayers');
-        if (stored) {
-          playersSource = JSON.parse(stored);
-        }
-      } catch (error) {
-        console.warn('Unable to read royal exchange players from storage:', error);
+(() => {
+  // application/royal-exchange/src/game-legacy.js
+  (function() {
+    const BOARD_SIZE = 8;
+    const API_BASE = window.API_BASE || "/api";
+    const WHITE_START = {
+      rook: { row: 7, col: 7 },
+      // h1
+      knight: { row: 7, col: 6 },
+      // g1
+      bishop: { row: 7, col: 5 }
+      // f1
+    };
+    const BLACK_START = {
+      rook: { row: 0, col: 0 },
+      // a8
+      knight: { row: 0, col: 1 },
+      // b8
+      bishop: { row: 0, col: 2 }
+      // c8
+    };
+    const TARGETS = {
+      white: { rook: BLACK_START.rook, knight: BLACK_START.knight, bishop: BLACK_START.bishop },
+      black: { rook: WHITE_START.rook, knight: WHITE_START.knight, bishop: WHITE_START.bishop }
+    };
+    const TARGET_LETTERS = {
+      rook: "R",
+      knight: "N",
+      bishop: "B",
+      queen: "Q"
+    };
+    const PIECE_INFO = {
+      white_rook: { color: "white", type: "rook", label: "\u2656", image: "/assets/pieces/white_Rook.png" },
+      white_knight: { color: "white", type: "knight", label: "\u2658", image: "/assets/pieces/white_Knight.png" },
+      white_bishop: { color: "white", type: "bishop", label: "\u2657", image: "/assets/pieces/white_Bishop.png" },
+      white_queen: { color: "white", type: "queen", label: "\u2655", image: "/assets/pieces/white_Queen.png" },
+      black_rook: { color: "black", type: "rook", label: "\u265C", image: "/assets/pieces/black_Rook.png" },
+      black_knight: { color: "black", type: "knight", label: "\u265E", image: "/assets/pieces/black_Knight.png" },
+      black_bishop: { color: "black", type: "bishop", label: "\u265D", image: "/assets/pieces/black_Bishop.png" },
+      black_queen: { color: "black", type: "queen", label: "\u265B", image: "/assets/pieces/black_Queen.png" }
+    };
+    const DIFFICULTY_PRESETS = {
+      starter: {
+        label: "Starter",
+        pieces: ["white_rook", "black_rook"]
+      },
+      easy: {
+        label: "Easy",
+        pieces: ["white_rook", "white_bishop", "black_rook", "black_bishop"]
+      },
+      normal: {
+        label: "Normal",
+        pieces: ["white_rook", "white_knight", "white_bishop", "black_rook", "black_knight", "black_bishop"]
+      },
+      hard: {
+        label: "Hard",
+        pieces: ["white_rook", "white_knight", "white_bishop", "white_queen", "black_rook", "black_knight", "black_bishop", "black_queen"]
       }
+    };
+    const state = {
+      players: [],
+      boardEl: null,
+      logEl: null,
+      statusEl: null,
+      moveCountEl: null,
+      currentSideEl: null,
+      leaderboardEl: null,
+      startButton: null,
+      restartButton: null,
+      leaderboardOverlayEl: null,
+      leaderboardBodyEl: null,
+      keydownListenerAttached: false,
+      pieces: [],
+      currentTurn: "white",
+      selectedPieceIndex: null,
+      moveCount: 0,
+      startTimestamp: null,
+      gameActive: false,
+      logEntries: [],
+      currentDifficulty: "normal",
+      leaderboardLists: null,
+      leaderboardTabs: null,
+      activeLeaderboardTab: "normal",
+      defeatOverlayEl: null,
+      defeatReasonEl: null,
+      suppressNextClick: false
+    };
+    function apiRequest(path, options = {}) {
+      if (window.authUtils?.authenticatedFetch) {
+        return window.authUtils.authenticatedFetch(path, options);
+      }
+      const token = localStorage.getItem("authToken");
+      const headers = { ...options.headers || {} };
+      if (options.body && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+      if (token && !headers.Authorization) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      return fetch(`${API_BASE}${path}`, { ...options, headers });
     }
-
-    state.players = Array.isArray(playersSource)
-      ? playersSource.map(player => ({
-          id: player.id,
-          name: player.name || 'Unknown',
-          studentId: player.studentId || ''
-        }))
-      : [];
-
-    container.innerHTML = buildLayout();
-    cacheDomReferences(container);
-    attachListeners(container);
-    resetGame();
-    renderBoard();
-    updateStatus();
-    renderLog();
-    populatePlayersList();
-  }
-
-  function buildLayout() {
-    return `
+    function initRoyalExchange() {
+      const container = document.getElementById("royalExchangeGame");
+      if (!container) {
+        console.error("Royal Exchange container not found");
+        return;
+      }
+      let playersSource = [];
+      if (Array.isArray(window.royalExchangePlayers)) {
+        playersSource = window.royalExchangePlayers;
+      } else {
+        try {
+          const stored = localStorage.getItem("royalExchangePlayers");
+          if (stored) {
+            playersSource = JSON.parse(stored);
+          }
+        } catch (error) {
+          console.warn("Unable to read royal exchange players from storage:", error);
+        }
+      }
+      state.players = Array.isArray(playersSource) ? playersSource.map((player) => ({
+        id: player.id,
+        name: player.name || "Unknown",
+        studentId: player.studentId || ""
+      })) : [];
+      container.innerHTML = buildLayout();
+      cacheDomReferences(container);
+      attachListeners(container);
+      resetGame();
+      renderBoard();
+      updateStatus();
+      renderLog();
+      populatePlayersList();
+    }
+    function buildLayout() {
+      return `
       <div class="re-wrapper">
         <div class="re-board-panel">
           <div class="re-status-bar">
@@ -194,7 +190,7 @@
               <h2 id="reLeaderboardTitle" class="re-modal-title">Royal Exchange Leaderboard</h2>
               <p class="re-modal-subtitle">Fastest safe swaps</p>
             </div>
-            <button type="button" class="re-modal-close" data-modal-close="leaderboard" aria-label="Close leaderboard">✕</button>
+            <button type="button" class="re-modal-close" data-modal-close="leaderboard" aria-label="Close leaderboard">\u2715</button>
           </div>
           <div class="re-modal-tabs" role="tablist">
             <div class="re-modal-tab-group">
@@ -223,7 +219,7 @@
               <h2 id="reRulesTitle" class="re-modal-title">Royal Exchange Rules</h2>
               <p class="re-modal-subtitle">Stay safe while swapping sides</p>
             </div>
-            <button type="button" class="re-modal-close" data-modal-close="rules" aria-label="Close rules">✕</button>
+            <button type="button" class="re-modal-close" data-modal-close="rules" aria-label="Close rules">\u2715</button>
           </div>
           <div class="re-modal-body re-rules-body">
             ${getRulesHtml()}
@@ -237,7 +233,7 @@
               <h2 id="reDefeatTitle" class="re-modal-title">Defeat</h2>
               <p class="re-modal-subtitle">Puzzle failed</p>
             </div>
-            <button type="button" class="re-modal-close" data-modal-close="defeat" aria-label="Close defeat dialog">✕</button>
+            <button type="button" class="re-modal-close" data-modal-close="defeat" aria-label="Close defeat dialog">\u2715</button>
           </div>
           <div class="re-modal-body">
             <section class="re-rules-section">
@@ -252,873 +248,798 @@
         </div>
       </div>
     `;
-  }
-
-  function cacheDomReferences(container) {
-    state.boardEl = container.querySelector('#reBoard');
-    state.logEl = container.querySelector('#reLogList');
-    state.statusEl = container.querySelector('#reStatus');
-    state.moveCountEl = container.querySelector('#reMoveCount');
-    state.currentSideEl = container.querySelector('#reCurrentSide');
-    state.startButton = container.querySelector('#reStartButton');
-    state.restartButton = container.querySelector('#reRestartButton');
-    state.leaderboardOverlayEl = container.querySelector('#reLeaderboardOverlay');
-    state.leaderboardBodyEl = container.querySelector('#reLeaderboardBody');
-    state.leaderboardLists = {
-      starter: container.querySelector('#reLeaderboardListStarter'),
-      easy: container.querySelector('#reLeaderboardListEasy'),
-      normal: container.querySelector('#reLeaderboardListNormal'),
-      hard: container.querySelector('#reLeaderboardListHard')
-    };
-    state.leaderboardTabs = container.querySelectorAll('.re-modal-tab');
-    state.rulesOverlayEl = container.querySelector('#reRulesOverlay');
-    state.defeatOverlayEl = container.querySelector('#reDefeatOverlay');
-    state.defeatReasonEl = container.querySelector('#reDefeatReason');
-  }
-
-  function attachListeners(container) {
-    if (state.startButton) {
-      state.startButton.addEventListener('click', () => startGame());
     }
-    if (state.restartButton) {
-      state.restartButton.addEventListener('click', () => {
-        resetGame();
-        renderBoard();
-        updateStatus();
-        appendLog('Game reset.', 'info');
-      });
+    function cacheDomReferences(container) {
+      state.boardEl = container.querySelector("#reBoard");
+      state.logEl = container.querySelector("#reLogList");
+      state.statusEl = container.querySelector("#reStatus");
+      state.moveCountEl = container.querySelector("#reMoveCount");
+      state.currentSideEl = container.querySelector("#reCurrentSide");
+      state.startButton = container.querySelector("#reStartButton");
+      state.restartButton = container.querySelector("#reRestartButton");
+      state.leaderboardOverlayEl = container.querySelector("#reLeaderboardOverlay");
+      state.leaderboardBodyEl = container.querySelector("#reLeaderboardBody");
+      state.leaderboardLists = {
+        starter: container.querySelector("#reLeaderboardListStarter"),
+        easy: container.querySelector("#reLeaderboardListEasy"),
+        normal: container.querySelector("#reLeaderboardListNormal"),
+        hard: container.querySelector("#reLeaderboardListHard")
+      };
+      state.leaderboardTabs = container.querySelectorAll(".re-modal-tab");
+      state.rulesOverlayEl = container.querySelector("#reRulesOverlay");
+      state.defeatOverlayEl = container.querySelector("#reDefeatOverlay");
+      state.defeatReasonEl = container.querySelector("#reDefeatReason");
     }
-    const clearLogButton = container.querySelector('#reClearLogButton');
-    if (clearLogButton) {
-      clearLogButton.addEventListener('click', () => {
-        state.logEntries = [];
-        renderLog();
-      });
-    }
-    const leaderboardButton = container.querySelector('#reLeaderboardButton');
-    if (leaderboardButton) {
-      leaderboardButton.addEventListener('click', openLeaderboardModal);
-    }
-    const rulesButton = container.querySelector('#reRulesButton');
-    if (rulesButton) {
-      rulesButton.addEventListener('click', openRulesModal);
-    }
-    container.querySelectorAll('.re-modal-close').forEach(button => {
-      button.addEventListener('click', event => {
-        const key = button.getAttribute('data-modal-close');
-        if (key === 'leaderboard') {
-          closeLeaderboardModal();
-        } else if (key === 'rules') {
-          closeRulesModal();
-        } else if (key === 'defeat') {
-          closeDefeatModal();
-        }
-      });
-    });
-    const refreshButton = container.querySelector('#reRefreshLeaderboard');
-    if (refreshButton) {
-      refreshButton.addEventListener('click', loadLeaderboard);
-    }
-    if (state.leaderboardTabs) {
-      state.leaderboardTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          const key = tab.getAttribute('data-leaderboard-tab');
-          if (!key) return;
-          state.activeLeaderboardTab = key;
-          updateLeaderboardTabs();
+    function attachListeners(container) {
+      if (state.startButton) {
+        state.startButton.addEventListener("click", () => startGame());
+      }
+      if (state.restartButton) {
+        state.restartButton.addEventListener("click", () => {
+          resetGame();
+          renderBoard();
+          updateStatus();
+          appendLog("Game reset.", "info");
+        });
+      }
+      const clearLogButton = container.querySelector("#reClearLogButton");
+      if (clearLogButton) {
+        clearLogButton.addEventListener("click", () => {
+          state.logEntries = [];
+          renderLog();
+        });
+      }
+      const leaderboardButton = container.querySelector("#reLeaderboardButton");
+      if (leaderboardButton) {
+        leaderboardButton.addEventListener("click", openLeaderboardModal);
+      }
+      const rulesButton = container.querySelector("#reRulesButton");
+      if (rulesButton) {
+        rulesButton.addEventListener("click", openRulesModal);
+      }
+      container.querySelectorAll(".re-modal-close").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const key = button.getAttribute("data-modal-close");
+          if (key === "leaderboard") {
+            closeLeaderboardModal();
+          } else if (key === "rules") {
+            closeRulesModal();
+          } else if (key === "defeat") {
+            closeDefeatModal();
+          }
         });
       });
-    }
-    if (state.leaderboardOverlayEl) {
-      state.leaderboardOverlayEl.addEventListener('click', event => {
-        if (event.target === state.leaderboardOverlayEl) {
-          closeLeaderboardModal();
-        }
-      });
-    }
-    if (state.rulesOverlayEl) {
-      state.rulesOverlayEl.addEventListener('click', event => {
-        if (event.target === state.rulesOverlayEl) {
-          closeRulesModal();
-        }
-      });
-    }
-
-    const defeatCancel = container.querySelector('#reDefeatCancel');
-    if (defeatCancel) {
-      defeatCancel.addEventListener('click', closeDefeatModal);
-    }
-    const defeatRestart = container.querySelector('#reDefeatRestart');
-    if (defeatRestart) {
-      defeatRestart.addEventListener('click', () => {
-        resetGame();
-        renderBoard();
-        updateStatus();
-        appendLog('Game reset.', 'info');
-        closeDefeatModal();
-      });
-    }
-    if (state.defeatOverlayEl) {
-      state.defeatOverlayEl.addEventListener('click', event => {
-        if (event.target === state.defeatOverlayEl) {
-          closeDefeatModal();
-        }
-      });
-    }
-    container.querySelectorAll('.re-difficulty-button').forEach(button => {
-      button.addEventListener('click', () => {
-        if (state.gameActive) return;
-        const difficulty = button.getAttribute('data-difficulty');
-        if (!difficulty || difficulty === state.currentDifficulty) return;
-        state.currentDifficulty = difficulty;
-        updateDifficultyButtons();
-        resetGame();
-        renderBoard();
-        updateStatus();
-        appendLog(`Difficulty set to ${DIFFICULTY_PRESETS[difficulty].label}.`, 'info');
-      });
-    });
-    if (!state.keydownListenerAttached) {
-      document.addEventListener('keydown', onGlobalKeydown);
-      state.keydownListenerAttached = true;
-    }
-  }
-
-  function resetGame() {
-    state.pieces = buildPiecesForDifficulty(state.currentDifficulty);
-    state.currentTurn = 'white';
-    state.selectedPieceIndex = null;
-    state.moveCount = 0;
-    state.startTimestamp = null;
-    state.gameActive = false;
-    state.logEntries = ['Game ready. Press Start to begin.'];
-    if (state.startButton) state.startButton.disabled = false;
-    if (state.restartButton) state.restartButton.disabled = true;
-  }
-
-  function startGame() {
-    if (state.gameActive) return;
-    state.gameActive = true;
-    state.currentTurn = 'white';
-    state.moveCount = 0;
-    state.startTimestamp = Date.now();
-    state.logEntries = [];
-    if (state.startButton) state.startButton.disabled = true;
-    if (state.restartButton) state.restartButton.disabled = false;
-    appendLog('Game started. White moves first.', 'info');
-    updateStatus();
-    renderLog();
-    renderBoard();
-  }
-
-  function createPiece(kind, position) {
-    return {
-      id: kind,
-      ...PIECE_INFO[kind],
-      row: position.row,
-      col: position.col
-    };
-  }
-
-  function buildPiecesForDifficulty(difficulty) {
-    const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.normal;
-    return preset.pieces.map(kind => {
-      const startPosition = getStartPosition(kind);
-      return createPiece(kind, startPosition);
-    });
-  }
-
-  function getStartPosition(kind) {
-    switch (kind) {
-      case 'white_rook':
-        return WHITE_START.rook;
-      case 'white_knight':
-        return WHITE_START.knight;
-      case 'white_bishop':
-        return WHITE_START.bishop;
-      case 'white_queen':
-        return { row: 7, col: 4 }; // e1
-      case 'black_rook':
-        return BLACK_START.rook;
-      case 'black_knight':
-        return BLACK_START.knight;
-      case 'black_bishop':
-        return BLACK_START.bishop;
-      case 'black_queen':
-        return { row: 0, col: 3 }; // d8
-      default:
-        return { row: 0, col: 0 };
-    }
-  }
-
-  function renderBoard() {
-    if (!state.boardEl) return;
-    state.boardEl.innerHTML = '';
-    const targetMarkers = getTargetMarkers();
-    for (let row = 0; row < BOARD_SIZE; row += 1) {
-      for (let col = 0; col < BOARD_SIZE; col += 1) {
-        const cell = document.createElement('button');
-        cell.type = 'button';
-        cell.className = `re-cell ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
-        cell.dataset.row = String(row);
-        cell.dataset.col = String(col);
-
-        const marker = targetMarkers.get(`${row}-${col}`);
-        if (marker) {
-          const markerSpan = document.createElement('span');
-          markerSpan.className = `re-target-label ${marker.color === 'white' ? 're-target-white' : 're-target-black'}`;
-          markerSpan.textContent = marker.letter;
-          markerSpan.setAttribute('aria-hidden', 'true');
-          cell.appendChild(markerSpan);
-        }
-
-        const pieceIndex = state.pieces.findIndex(p => p.row === row && p.col === col);
-        if (pieceIndex !== -1) {
-          const piece = state.pieces[pieceIndex];
-          const pieceSpan = document.createElement('span');
-          pieceSpan.className = `re-piece ${piece.color}`;
-          const image = document.createElement('img');
-          image.className = 're-piece-image';
-          image.alt = `${capitalize(piece.color)} ${piece.type}`;
-          image.src = piece.image;
-          pieceSpan.appendChild(image);
-          cell.appendChild(pieceSpan);
-          if (state.selectedPieceIndex === pieceIndex) {
-            cell.classList.add('selected');
+      const refreshButton = container.querySelector("#reRefreshLeaderboard");
+      if (refreshButton) {
+        refreshButton.addEventListener("click", loadLeaderboard);
+      }
+      if (state.leaderboardTabs) {
+        state.leaderboardTabs.forEach((tab) => {
+          tab.addEventListener("click", () => {
+            const key = tab.getAttribute("data-leaderboard-tab");
+            if (!key) return;
+            state.activeLeaderboardTab = key;
+            updateLeaderboardTabs();
+          });
+        });
+      }
+      if (state.leaderboardOverlayEl) {
+        state.leaderboardOverlayEl.addEventListener("click", (event) => {
+          if (event.target === state.leaderboardOverlayEl) {
+            closeLeaderboardModal();
           }
-        }
-        cell.addEventListener('click', () => onCellClick(row, col));
-        state.boardEl.appendChild(cell);
+        });
+      }
+      if (state.rulesOverlayEl) {
+        state.rulesOverlayEl.addEventListener("click", (event) => {
+          if (event.target === state.rulesOverlayEl) {
+            closeRulesModal();
+          }
+        });
+      }
+      const defeatCancel = container.querySelector("#reDefeatCancel");
+      if (defeatCancel) {
+        defeatCancel.addEventListener("click", closeDefeatModal);
+      }
+      const defeatRestart = container.querySelector("#reDefeatRestart");
+      if (defeatRestart) {
+        defeatRestart.addEventListener("click", () => {
+          resetGame();
+          renderBoard();
+          updateStatus();
+          appendLog("Game reset.", "info");
+          closeDefeatModal();
+        });
+      }
+      if (state.defeatOverlayEl) {
+        state.defeatOverlayEl.addEventListener("click", (event) => {
+          if (event.target === state.defeatOverlayEl) {
+            closeDefeatModal();
+          }
+        });
+      }
+      container.querySelectorAll(".re-difficulty-button").forEach((button) => {
+        button.addEventListener("click", () => {
+          if (state.gameActive) return;
+          const difficulty = button.getAttribute("data-difficulty");
+          if (!difficulty || difficulty === state.currentDifficulty) return;
+          state.currentDifficulty = difficulty;
+          updateDifficultyButtons();
+          resetGame();
+          renderBoard();
+          updateStatus();
+          appendLog(`Difficulty set to ${DIFFICULTY_PRESETS[difficulty].label}.`, "info");
+        });
+      });
+      if (!state.keydownListenerAttached) {
+        document.addEventListener("keydown", onGlobalKeydown);
+        state.keydownListenerAttached = true;
       }
     }
-
-    enablePointerDrag();
-  }
-
-  function getTargetMarkers() {
-    const markers = new Map();
-    state.pieces.forEach(piece => {
-      const target = getTargetForPiece(piece);
-      if (!target) return;
-      const letter = TARGET_LETTERS[piece.type];
-      if (!letter) return;
-      markers.set(`${target.row}-${target.col}`, { letter, color: piece.color, type: piece.type });
-    });
-    return markers;
-  }
-
-  function getTargetForPiece(piece) {
-    if (!piece) return null;
-    if (piece.type === 'queen') {
-      return piece.color === 'white' ? { row: 7, col: 4 } : { row: 0, col: 3 };
+    function resetGame() {
+      state.pieces = buildPiecesForDifficulty(state.currentDifficulty);
+      state.currentTurn = "white";
+      state.selectedPieceIndex = null;
+      state.moveCount = 0;
+      state.startTimestamp = null;
+      state.gameActive = false;
+      state.logEntries = ["Game ready. Press Start to begin."];
+      if (state.startButton) state.startButton.disabled = false;
+      if (state.restartButton) state.restartButton.disabled = true;
     }
-    return TARGETS[piece.color]?.[piece.type] || null;
-  }
-
-  function onCellClick(row, col) {
-    if (state.suppressNextClick) {
-      state.suppressNextClick = false;
-      return;
+    function startGame() {
+      if (state.gameActive) return;
+      state.gameActive = true;
+      state.currentTurn = "white";
+      state.moveCount = 0;
+      state.startTimestamp = Date.now();
+      state.logEntries = [];
+      if (state.startButton) state.startButton.disabled = true;
+      if (state.restartButton) state.restartButton.disabled = false;
+      appendLog("Game started. White moves first.", "info");
+      updateStatus();
+      renderLog();
+      renderBoard();
     }
-    if (!state.gameActive) return;
-    const pieceIndex = state.pieces.findIndex(p => p.row === row && p.col === col);
-    if (state.selectedPieceIndex === null) {
-      if (pieceIndex === -1) return;
-      const piece = state.pieces[pieceIndex];
-      if (piece.color !== state.currentTurn) {
-        showToast('Please move the current side.', 'warning');
+    function createPiece(kind, position) {
+      return {
+        id: kind,
+        ...PIECE_INFO[kind],
+        row: position.row,
+        col: position.col
+      };
+    }
+    function buildPiecesForDifficulty(difficulty) {
+      const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.normal;
+      return preset.pieces.map((kind) => {
+        const startPosition = getStartPosition(kind);
+        return createPiece(kind, startPosition);
+      });
+    }
+    function getStartPosition(kind) {
+      switch (kind) {
+        case "white_rook":
+          return WHITE_START.rook;
+        case "white_knight":
+          return WHITE_START.knight;
+        case "white_bishop":
+          return WHITE_START.bishop;
+        case "white_queen":
+          return { row: 7, col: 4 };
+        // e1
+        case "black_rook":
+          return BLACK_START.rook;
+        case "black_knight":
+          return BLACK_START.knight;
+        case "black_bishop":
+          return BLACK_START.bishop;
+        case "black_queen":
+          return { row: 0, col: 3 };
+        // d8
+        default:
+          return { row: 0, col: 0 };
+      }
+    }
+    function renderBoard() {
+      if (!state.boardEl) return;
+      state.boardEl.innerHTML = "";
+      const targetMarkers = getTargetMarkers();
+      for (let row = 0; row < BOARD_SIZE; row += 1) {
+        for (let col = 0; col < BOARD_SIZE; col += 1) {
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = `re-cell ${(row + col) % 2 === 0 ? "light" : "dark"}`;
+          cell.dataset.row = String(row);
+          cell.dataset.col = String(col);
+          const marker = targetMarkers.get(`${row}-${col}`);
+          if (marker) {
+            const markerSpan = document.createElement("span");
+            markerSpan.className = `re-target-label ${marker.color === "white" ? "re-target-white" : "re-target-black"}`;
+            markerSpan.textContent = marker.letter;
+            markerSpan.setAttribute("aria-hidden", "true");
+            cell.appendChild(markerSpan);
+          }
+          const pieceIndex = state.pieces.findIndex((p) => p.row === row && p.col === col);
+          if (pieceIndex !== -1) {
+            const piece = state.pieces[pieceIndex];
+            const pieceSpan = document.createElement("span");
+            pieceSpan.className = `re-piece ${piece.color}`;
+            const image = document.createElement("img");
+            image.className = "re-piece-image";
+            image.alt = `${capitalize(piece.color)} ${piece.type}`;
+            image.src = piece.image;
+            pieceSpan.appendChild(image);
+            cell.appendChild(pieceSpan);
+            if (state.selectedPieceIndex === pieceIndex) {
+              cell.classList.add("selected");
+            }
+          }
+          cell.addEventListener("click", () => onCellClick(row, col));
+          state.boardEl.appendChild(cell);
+        }
+      }
+      enablePointerDrag();
+    }
+    function getTargetMarkers() {
+      const markers = /* @__PURE__ */ new Map();
+      state.pieces.forEach((piece) => {
+        const target = getTargetForPiece(piece);
+        if (!target) return;
+        const letter = TARGET_LETTERS[piece.type];
+        if (!letter) return;
+        markers.set(`${target.row}-${target.col}`, { letter, color: piece.color, type: piece.type });
+      });
+      return markers;
+    }
+    function getTargetForPiece(piece) {
+      if (!piece) return null;
+      if (piece.type === "queen") {
+        return piece.color === "white" ? { row: 7, col: 4 } : { row: 0, col: 3 };
+      }
+      return TARGETS[piece.color]?.[piece.type] || null;
+    }
+    function onCellClick(row, col) {
+      if (state.suppressNextClick) {
+        state.suppressNextClick = false;
         return;
       }
-      state.selectedPieceIndex = pieceIndex;
-      renderBoard();
-      return;
-    }
-
-    const selectedPiece = state.pieces[state.selectedPieceIndex];
-    if (pieceIndex !== -1) {
-      const targetPiece = state.pieces[pieceIndex];
-      if (targetPiece.color === selectedPiece.color) {
+      if (!state.gameActive) return;
+      const pieceIndex = state.pieces.findIndex((p) => p.row === row && p.col === col);
+      if (state.selectedPieceIndex === null) {
+        if (pieceIndex === -1) return;
+        const piece = state.pieces[pieceIndex];
+        if (piece.color !== state.currentTurn) {
+          showToast("Please move the current side.", "warning");
+          return;
+        }
         state.selectedPieceIndex = pieceIndex;
         renderBoard();
-      } else {
-        showToast('Capturing is not allowed in this puzzle.', 'warning');
-      }
-      return;
-    }
-
-    attemptMove(state.selectedPieceIndex, row, col);
-  }
-
-  function enablePointerDrag() {
-    if (!state.boardEl) return;
-    const DRAG_THRESHOLD_PX = 4;
-
-    let drag = null; // { pieceIndex, originRow, originCol, startX, startY, started, ghostEl, overCellEl, originCellEl }
-
-    const clearOver = () => {
-      if (drag?.overCellEl) {
-        drag.overCellEl.classList.remove('re-drop-target');
-        drag.overCellEl = null;
-      }
-    };
-
-    const cleanup = () => {
-      clearOver();
-      if (drag?.originCellEl) {
-        drag.originCellEl.classList.remove('re-drag-origin');
-        drag.originCellEl = null;
-      }
-      if (drag?.ghostEl) drag.ghostEl.remove();
-      drag = null;
-      document.body.classList.remove('re-dragging');
-    };
-
-    const getCellUnderPoint = (x, y) => {
-      const el = document.elementFromPoint(x, y);
-      return el?.closest?.('.re-cell') || null;
-    };
-
-    const moveGhost = (x, y) => {
-      if (!drag?.ghostEl) return;
-      drag.ghostEl.style.left = `${x}px`;
-      drag.ghostEl.style.top = `${y}px`;
-    };
-
-    const startGhostFromCell = (cellEl) => {
-      const img = cellEl.querySelector('.re-piece-image');
-      const src = img?.getAttribute('src');
-      const ghost = document.createElement('div');
-      ghost.className = 're-drag-ghost';
-      if (src) {
-        const gi = document.createElement('img');
-        gi.src = src;
-        gi.alt = '';
-        ghost.appendChild(gi);
-      }
-      document.body.appendChild(ghost);
-      drag.ghostEl = ghost;
-      drag.originCellEl = cellEl;
-      cellEl.classList.add('re-drag-origin');
-      document.body.classList.add('re-dragging');
-    };
-
-    const onPointerMove = (e) => {
-      if (!drag) return;
-      const x = e.clientX;
-      const y = e.clientY;
-      const dx = x - drag.startX;
-      const dy = y - drag.startY;
-      if (!drag.started && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
-        drag.started = true;
-        const originCell = state.boardEl.querySelector(`.re-cell[data-row="${drag.originRow}"][data-col="${drag.originCol}"]`);
-        if (originCell) startGhostFromCell(originCell);
-      }
-      if (!drag.started) return;
-
-      moveGhost(x, y);
-      const cell = getCellUnderPoint(x, y);
-      if (cell !== drag.overCellEl) {
-        clearOver();
-        if (cell) {
-          cell.classList.add('re-drop-target');
-          drag.overCellEl = cell;
-        }
-      }
-      e.preventDefault?.();
-    };
-
-    const onPointerUp = (e) => {
-      if (!drag) return;
-      window.removeEventListener('pointermove', onPointerMove, true);
-      window.removeEventListener('pointerup', onPointerUp, true);
-      window.removeEventListener('pointercancel', onPointerUp, true);
-
-      state.suppressNextClick = true;
-      setTimeout(() => { state.suppressNextClick = false; }, 0);
-
-      if (!drag.started) {
-        const { originRow, originCol } = drag;
-        cleanup();
-        onCellClick(originRow, originCol);
         return;
       }
-
-      const cell = getCellUnderPoint(e.clientX, e.clientY);
-      if (cell) {
-        const targetRow = Number(cell.getAttribute('data-row'));
-        const targetCol = Number(cell.getAttribute('data-col'));
-        if (Number.isFinite(targetRow) && Number.isFinite(targetCol)) {
-          // If dropping onto occupied square:
-          const targetPieceIndex = state.pieces.findIndex(p => p.row === targetRow && p.col === targetCol);
-          const movingPiece = state.pieces[drag.pieceIndex];
-          if (movingPiece) {
-            if (targetPieceIndex !== -1) {
-              const targetPiece = state.pieces[targetPieceIndex];
-              if (targetPiece && targetPiece.color === movingPiece.color) {
-                state.selectedPieceIndex = targetPieceIndex;
-                renderBoard();
+      const selectedPiece = state.pieces[state.selectedPieceIndex];
+      if (pieceIndex !== -1) {
+        const targetPiece = state.pieces[pieceIndex];
+        if (targetPiece.color === selectedPiece.color) {
+          state.selectedPieceIndex = pieceIndex;
+          renderBoard();
+        } else {
+          showToast("Capturing is not allowed in this puzzle.", "warning");
+        }
+        return;
+      }
+      attemptMove(state.selectedPieceIndex, row, col);
+    }
+    function enablePointerDrag() {
+      if (!state.boardEl) return;
+      const DRAG_THRESHOLD_PX = 4;
+      let drag = null;
+      const clearOver = () => {
+        if (drag?.overCellEl) {
+          drag.overCellEl.classList.remove("re-drop-target");
+          drag.overCellEl = null;
+        }
+      };
+      const cleanup = () => {
+        clearOver();
+        if (drag?.originCellEl) {
+          drag.originCellEl.classList.remove("re-drag-origin");
+          drag.originCellEl = null;
+        }
+        if (drag?.ghostEl) drag.ghostEl.remove();
+        drag = null;
+        document.body.classList.remove("re-dragging");
+      };
+      const getCellUnderPoint = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        return el?.closest?.(".re-cell") || null;
+      };
+      const moveGhost = (x, y) => {
+        if (!drag?.ghostEl) return;
+        drag.ghostEl.style.left = `${x}px`;
+        drag.ghostEl.style.top = `${y}px`;
+      };
+      const startGhostFromCell = (cellEl) => {
+        const img = cellEl.querySelector(".re-piece-image");
+        const src = img?.getAttribute("src");
+        const ghost = document.createElement("div");
+        ghost.className = "re-drag-ghost";
+        if (src) {
+          const gi = document.createElement("img");
+          gi.src = src;
+          gi.alt = "";
+          ghost.appendChild(gi);
+        }
+        document.body.appendChild(ghost);
+        drag.ghostEl = ghost;
+        drag.originCellEl = cellEl;
+        cellEl.classList.add("re-drag-origin");
+        document.body.classList.add("re-dragging");
+      };
+      const onPointerMove = (e) => {
+        if (!drag) return;
+        const x = e.clientX;
+        const y = e.clientY;
+        const dx = x - drag.startX;
+        const dy = y - drag.startY;
+        if (!drag.started && Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+          drag.started = true;
+          const originCell = state.boardEl.querySelector(`.re-cell[data-row="${drag.originRow}"][data-col="${drag.originCol}"]`);
+          if (originCell) startGhostFromCell(originCell);
+        }
+        if (!drag.started) return;
+        moveGhost(x, y);
+        const cell = getCellUnderPoint(x, y);
+        if (cell !== drag.overCellEl) {
+          clearOver();
+          if (cell) {
+            cell.classList.add("re-drop-target");
+            drag.overCellEl = cell;
+          }
+        }
+        e.preventDefault?.();
+      };
+      const onPointerUp = (e) => {
+        if (!drag) return;
+        window.removeEventListener("pointermove", onPointerMove, true);
+        window.removeEventListener("pointerup", onPointerUp, true);
+        window.removeEventListener("pointercancel", onPointerUp, true);
+        state.suppressNextClick = true;
+        setTimeout(() => {
+          state.suppressNextClick = false;
+        }, 0);
+        if (!drag.started) {
+          const { originRow, originCol } = drag;
+          cleanup();
+          onCellClick(originRow, originCol);
+          return;
+        }
+        const cell = getCellUnderPoint(e.clientX, e.clientY);
+        if (cell) {
+          const targetRow = Number(cell.getAttribute("data-row"));
+          const targetCol = Number(cell.getAttribute("data-col"));
+          if (Number.isFinite(targetRow) && Number.isFinite(targetCol)) {
+            const targetPieceIndex = state.pieces.findIndex((p) => p.row === targetRow && p.col === targetCol);
+            const movingPiece = state.pieces[drag.pieceIndex];
+            if (movingPiece) {
+              if (targetPieceIndex !== -1) {
+                const targetPiece = state.pieces[targetPieceIndex];
+                if (targetPiece && targetPiece.color === movingPiece.color) {
+                  state.selectedPieceIndex = targetPieceIndex;
+                  renderBoard();
+                } else {
+                  showToast("Capturing is not allowed in this puzzle.", "warning");
+                }
               } else {
-                showToast('Capturing is not allowed in this puzzle.', 'warning');
+                attemptMove(drag.pieceIndex, targetRow, targetCol);
               }
-            } else {
-              attemptMove(drag.pieceIndex, targetRow, targetCol);
             }
           }
         }
-      }
-
-      cleanup();
-      e.preventDefault?.();
-    };
-
-    state.boardEl.querySelectorAll('.re-cell').forEach((cell) => {
-      cell.addEventListener('pointerdown', (e) => {
-        if (!state.gameActive) return;
-        if (e.button !== undefined && e.button !== 0) return;
-        const row = Number(cell.getAttribute('data-row'));
-        const col = Number(cell.getAttribute('data-col'));
-        if (!Number.isFinite(row) || !Number.isFinite(col)) return;
-        const pieceIndex = state.pieces.findIndex(p => p.row === row && p.col === col);
-        if (pieceIndex === -1) return;
-        const piece = state.pieces[pieceIndex];
-        if (!piece || piece.color !== state.currentTurn) {
-          // Don't start drag on the wrong side; let click show warning as usual.
-          return;
-        }
-
-        drag = {
-          pieceIndex,
-          originRow: row,
-          originCol: col,
-          startX: e.clientX,
-          startY: e.clientY,
-          started: false,
-          ghostEl: null,
-          overCellEl: null,
-          originCellEl: null
-        };
-
-        window.addEventListener('pointermove', onPointerMove, true);
-        window.addEventListener('pointerup', onPointerUp, true);
-        window.addEventListener('pointercancel', onPointerUp, true);
+        cleanup();
         e.preventDefault?.();
+      };
+      state.boardEl.querySelectorAll(".re-cell").forEach((cell) => {
+        cell.addEventListener("pointerdown", (e) => {
+          if (!state.gameActive) return;
+          if (e.button !== void 0 && e.button !== 0) return;
+          const row = Number(cell.getAttribute("data-row"));
+          const col = Number(cell.getAttribute("data-col"));
+          if (!Number.isFinite(row) || !Number.isFinite(col)) return;
+          const pieceIndex = state.pieces.findIndex((p) => p.row === row && p.col === col);
+          if (pieceIndex === -1) return;
+          const piece = state.pieces[pieceIndex];
+          if (!piece || piece.color !== state.currentTurn) {
+            return;
+          }
+          drag = {
+            pieceIndex,
+            originRow: row,
+            originCol: col,
+            startX: e.clientX,
+            startY: e.clientY,
+            started: false,
+            ghostEl: null,
+            overCellEl: null,
+            originCellEl: null
+          };
+          window.addEventListener("pointermove", onPointerMove, true);
+          window.addEventListener("pointerup", onPointerUp, true);
+          window.addEventListener("pointercancel", onPointerUp, true);
+          e.preventDefault?.();
+        });
       });
-    });
-  }
-
-  function attemptMove(pieceIndex, targetRow, targetCol) {
-    const piece = state.pieces[pieceIndex];
-    if (!piece) return;
-    const targetSquareOccupied = state.pieces.some(p => p.row === targetRow && p.col === targetCol);
-    if (targetSquareOccupied) {
-      showToast('Destination must be empty.', 'error');
-      return;
     }
-    if (!isLegalMove(piece, targetRow, targetCol)) {
-      showToast('Illegal move for this piece.', 'error');
-      return;
+    function attemptMove(pieceIndex, targetRow, targetCol) {
+      const piece = state.pieces[pieceIndex];
+      if (!piece) return;
+      const targetSquareOccupied = state.pieces.some((p) => p.row === targetRow && p.col === targetCol);
+      if (targetSquareOccupied) {
+        showToast("Destination must be empty.", "error");
+        return;
+      }
+      if (!isLegalMove(piece, targetRow, targetCol)) {
+        showToast("Illegal move for this piece.", "error");
+        return;
+      }
+      const original = { row: piece.row, col: piece.col };
+      piece.row = targetRow;
+      piece.col = targetCol;
+      state.selectedPieceIndex = null;
+      renderBoard();
+      if (causesConflict()) {
+        const reason = `${capitalize(piece.color)} ${piece.type} moved to ${formatCoordinate(piece)} causing an attack. Puzzle failed.`;
+        appendLog(reason, "error");
+        showToast("Conflict detected! Puzzle failed.", "error");
+        failGame(reason);
+        return;
+      }
+      state.moveCount += 1;
+      appendLog(`${capitalize(piece.color)} ${piece.type} moved to ${formatCoordinate(piece)} safely.`, "success");
+      toggleTurn();
+      updateStatus();
+      renderLog();
+      if (checkVictory()) {
+        handleVictory();
+      }
     }
-    const original = { row: piece.row, col: piece.col };
-    piece.row = targetRow;
-    piece.col = targetCol;
-    state.selectedPieceIndex = null;
-    renderBoard();
-
-    if (causesConflict()) {
-      const reason = `${capitalize(piece.color)} ${piece.type} moved to ${formatCoordinate(piece)} causing an attack. Puzzle failed.`;
-      appendLog(reason, 'error');
-      showToast('Conflict detected! Puzzle failed.', 'error');
-      failGame(reason);
-      return;
+    function failGame(reason) {
+      state.gameActive = false;
+      if (state.startButton) state.startButton.disabled = false;
+      if (state.restartButton) state.restartButton.disabled = true;
+      updateStatus("Failure");
+      openDefeatModal(reason);
     }
-
-    state.moveCount += 1;
-    appendLog(`${capitalize(piece.color)} ${piece.type} moved to ${formatCoordinate(piece)} safely.`, 'success');
-    toggleTurn();
-    updateStatus();
-    renderLog();
-
-    if (checkVictory()) {
-      handleVictory();
+    function openDefeatModal(reason) {
+      if (!state.defeatOverlayEl) return;
+      if (state.defeatReasonEl) {
+        state.defeatReasonEl.textContent = reason || "Unknown reason.";
+      }
+      state.defeatOverlayEl.classList.remove("hidden");
+      state.defeatOverlayEl.setAttribute("aria-hidden", "false");
     }
-  }
-
-  function failGame(reason) {
-    state.gameActive = false;
-    if (state.startButton) state.startButton.disabled = false;
-    if (state.restartButton) state.restartButton.disabled = true;
-    updateStatus('Failure');
-    openDefeatModal(reason);
-  }
-
-  function openDefeatModal(reason) {
-    if (!state.defeatOverlayEl) return;
-    if (state.defeatReasonEl) {
-      state.defeatReasonEl.textContent = reason || 'Unknown reason.';
+    function closeDefeatModal() {
+      if (!state.defeatOverlayEl) return;
+      state.defeatOverlayEl.classList.add("hidden");
+      state.defeatOverlayEl.setAttribute("aria-hidden", "true");
     }
-    state.defeatOverlayEl.classList.remove('hidden');
-    state.defeatOverlayEl.setAttribute('aria-hidden', 'false');
-  }
-
-  function closeDefeatModal() {
-    if (!state.defeatOverlayEl) return;
-    state.defeatOverlayEl.classList.add('hidden');
-    state.defeatOverlayEl.setAttribute('aria-hidden', 'true');
-  }
-
-  function toggleTurn() {
-    state.currentTurn = state.currentTurn === 'white' ? 'black' : 'white';
-  }
-
-  function isLegalMove(piece, targetRow, targetCol) {
-    if (piece.row === targetRow && piece.col === targetCol) return false;
-    switch (piece.type) {
-      case 'rook':
-        if (piece.row !== targetRow && piece.col !== targetCol) return false;
-        return isPathClear(piece.row, piece.col, targetRow, targetCol);
-      case 'bishop':
-        if (Math.abs(piece.row - targetRow) !== Math.abs(piece.col - targetCol)) return false;
-        return isPathClear(piece.row, piece.col, targetRow, targetCol);
-      case 'queen':
-        if (piece.row === targetRow || piece.col === targetCol) {
+    function toggleTurn() {
+      state.currentTurn = state.currentTurn === "white" ? "black" : "white";
+    }
+    function isLegalMove(piece, targetRow, targetCol) {
+      if (piece.row === targetRow && piece.col === targetCol) return false;
+      switch (piece.type) {
+        case "rook":
+          if (piece.row !== targetRow && piece.col !== targetCol) return false;
           return isPathClear(piece.row, piece.col, targetRow, targetCol);
-        }
-        if (Math.abs(piece.row - targetRow) === Math.abs(piece.col - targetCol)) {
+        case "bishop":
+          if (Math.abs(piece.row - targetRow) !== Math.abs(piece.col - targetCol)) return false;
           return isPathClear(piece.row, piece.col, targetRow, targetCol);
-        }
-        return false;
-      case 'knight':
-        return (Math.abs(piece.row - targetRow) === 2 && Math.abs(piece.col - targetCol) === 1)
-          || (Math.abs(piece.row - targetRow) === 1 && Math.abs(piece.col - targetCol) === 2);
-      default:
-        return false;
-    }
-  }
-
-  function isPathClear(fromRow, fromCol, toRow, toCol) {
-    const rowStep = Math.sign(toRow - fromRow);
-    const colStep = Math.sign(toCol - fromCol);
-    let row = fromRow + rowStep;
-    let col = fromCol + colStep;
-    while (row !== toRow || col !== toCol) {
-      if (state.pieces.some(p => p.row === row && p.col === col)) {
-        return false;
+        case "queen":
+          if (piece.row === targetRow || piece.col === targetCol) {
+            return isPathClear(piece.row, piece.col, targetRow, targetCol);
+          }
+          if (Math.abs(piece.row - targetRow) === Math.abs(piece.col - targetCol)) {
+            return isPathClear(piece.row, piece.col, targetRow, targetCol);
+          }
+          return false;
+        case "knight":
+          return Math.abs(piece.row - targetRow) === 2 && Math.abs(piece.col - targetCol) === 1 || Math.abs(piece.row - targetRow) === 1 && Math.abs(piece.col - targetCol) === 2;
+        default:
+          return false;
       }
-      row += rowStep;
-      col += colStep;
     }
-    return true;
-  }
-
-  function causesConflict() {
-    const whitePieces = state.pieces.filter(p => p.color === 'white');
-    const blackPieces = state.pieces.filter(p => p.color === 'black');
-    return whitePieces.some(w => attacksAny(w, blackPieces)) || blackPieces.some(b => attacksAny(b, whitePieces));
-  }
-
-  function attacksAny(attacker, targets) {
-    return targets.some(target => canAttack(attacker, target));
-  }
-
-  function canAttack(attacker, target) {
-    switch (attacker.type) {
-      case 'rook':
-        if (attacker.row !== target.row && attacker.col !== target.col) return false;
-        return isCapturePathClear(attacker.row, attacker.col, target.row, target.col, target);
-      case 'bishop':
-        if (Math.abs(attacker.row - target.row) !== Math.abs(attacker.col - target.col)) return false;
-        return isCapturePathClear(attacker.row, attacker.col, target.row, target.col, target);
-      case 'queen':
-        if (attacker.row === target.row || attacker.col === target.col) {
+    function isPathClear(fromRow, fromCol, toRow, toCol) {
+      const rowStep = Math.sign(toRow - fromRow);
+      const colStep = Math.sign(toCol - fromCol);
+      let row = fromRow + rowStep;
+      let col = fromCol + colStep;
+      while (row !== toRow || col !== toCol) {
+        if (state.pieces.some((p) => p.row === row && p.col === col)) {
+          return false;
+        }
+        row += rowStep;
+        col += colStep;
+      }
+      return true;
+    }
+    function causesConflict() {
+      const whitePieces = state.pieces.filter((p) => p.color === "white");
+      const blackPieces = state.pieces.filter((p) => p.color === "black");
+      return whitePieces.some((w) => attacksAny(w, blackPieces)) || blackPieces.some((b) => attacksAny(b, whitePieces));
+    }
+    function attacksAny(attacker, targets) {
+      return targets.some((target) => canAttack(attacker, target));
+    }
+    function canAttack(attacker, target) {
+      switch (attacker.type) {
+        case "rook":
+          if (attacker.row !== target.row && attacker.col !== target.col) return false;
           return isCapturePathClear(attacker.row, attacker.col, target.row, target.col, target);
-        }
-        if (Math.abs(attacker.row - target.row) === Math.abs(attacker.col - target.col)) {
+        case "bishop":
+          if (Math.abs(attacker.row - target.row) !== Math.abs(attacker.col - target.col)) return false;
           return isCapturePathClear(attacker.row, attacker.col, target.row, target.col, target);
+        case "queen":
+          if (attacker.row === target.row || attacker.col === target.col) {
+            return isCapturePathClear(attacker.row, attacker.col, target.row, target.col, target);
+          }
+          if (Math.abs(attacker.row - target.row) === Math.abs(attacker.col - target.col)) {
+            return isCapturePathClear(attacker.row, attacker.col, target.row, target.col, target);
+          }
+          return false;
+        case "knight":
+          return Math.abs(attacker.row - target.row) === 2 && Math.abs(attacker.col - target.col) === 1 || Math.abs(attacker.row - target.row) === 1 && Math.abs(attacker.col - target.col) === 2;
+        default:
+          return false;
+      }
+    }
+    function isCapturePathClear(fromRow, fromCol, toRow, toCol, target) {
+      const rowStep = Math.sign(toRow - fromRow);
+      const colStep = Math.sign(toCol - fromCol);
+      let row = fromRow + rowStep;
+      let col = fromCol + colStep;
+      while (row !== toRow || col !== toCol) {
+        if (state.pieces.some((p) => p.row === row && p.col === col)) {
+          return false;
         }
-        return false;
-      case 'knight':
-        return (Math.abs(attacker.row - target.row) === 2 && Math.abs(attacker.col - target.col) === 1)
-          || (Math.abs(attacker.row - target.row) === 1 && Math.abs(attacker.col - target.col) === 2);
-      default:
-        return false;
-    }
-  }
-
-  function isCapturePathClear(fromRow, fromCol, toRow, toCol, target) {
-    const rowStep = Math.sign(toRow - fromRow);
-    const colStep = Math.sign(toCol - fromCol);
-    let row = fromRow + rowStep;
-    let col = fromCol + colStep;
-    while (row !== toRow || col !== toCol) {
-      if (state.pieces.some(p => p.row === row && p.col === col)) {
-        return false;
+        row += rowStep;
+        col += colStep;
       }
-      row += rowStep;
-      col += colStep;
+      return true;
     }
-    return true;
-  }
-
-  function checkVictory() {
-    const preset = DIFFICULTY_PRESETS[state.currentDifficulty] || DIFFICULTY_PRESETS.normal;
-    return preset.pieces.every(kind => {
-      const piece = state.pieces.find(p => p.id === kind);
-      if (!piece) return false;
-      if (piece.type === 'queen') {
-        const queenTarget = piece.color === 'white' ? { row: 7, col: 4 } : { row: 0, col: 3 };
-        return positionsEqual(piece, queenTarget);
-      }
-      const target = TARGETS[piece.color]?.[piece.type];
-      return target ? positionsEqual(piece, target) : false;
-    });
-  }
-
-  function positionsEqual(piece, position) {
-    return piece.row === position.row && piece.col === position.col;
-  }
-
-  async function handleVictory() {
-    state.gameActive = false;
-    const duration = state.startTimestamp ? Date.now() - state.startTimestamp : 0;
-    const message = `Success! All pieces swapped in ${state.moveCount} moves.`;
-    appendLog(message, 'success');
-    showToast(message, 'success');
-    updateStatus('Success');
-    if (state.startButton) state.startButton.disabled = false;
-    if (state.restartButton) state.restartButton.disabled = true;
-    await submitLeaderboardEntry(state.moveCount, duration);
-    loadLeaderboard();
-  }
-
-  function updateStatus(forced) {
-    if (state.moveCountEl) state.moveCountEl.textContent = String(state.moveCount);
-    if (state.currentSideEl) state.currentSideEl.textContent = capitalize(state.currentTurn);
-    if (state.statusEl) {
-      if (forced) {
-        state.statusEl.textContent = forced;
-      } else if (!state.gameActive) {
-        state.statusEl.textContent = 'Awaiting start';
-      } else {
-        state.statusEl.textContent = 'In progress';
+    function checkVictory() {
+      const preset = DIFFICULTY_PRESETS[state.currentDifficulty] || DIFFICULTY_PRESETS.normal;
+      return preset.pieces.every((kind) => {
+        const piece = state.pieces.find((p) => p.id === kind);
+        if (!piece) return false;
+        if (piece.type === "queen") {
+          const queenTarget = piece.color === "white" ? { row: 7, col: 4 } : { row: 0, col: 3 };
+          return positionsEqual(piece, queenTarget);
+        }
+        const target = TARGETS[piece.color]?.[piece.type];
+        return target ? positionsEqual(piece, target) : false;
+      });
+    }
+    function positionsEqual(piece, position) {
+      return piece.row === position.row && piece.col === position.col;
+    }
+    async function handleVictory() {
+      state.gameActive = false;
+      const duration = state.startTimestamp ? Date.now() - state.startTimestamp : 0;
+      const message = `Success! All pieces swapped in ${state.moveCount} moves.`;
+      appendLog(message, "success");
+      showToast(message, "success");
+      updateStatus("Success");
+      if (state.startButton) state.startButton.disabled = false;
+      if (state.restartButton) state.restartButton.disabled = true;
+      await submitLeaderboardEntry(state.moveCount, duration);
+      loadLeaderboard();
+    }
+    function updateStatus(forced) {
+      if (state.moveCountEl) state.moveCountEl.textContent = String(state.moveCount);
+      if (state.currentSideEl) state.currentSideEl.textContent = capitalize(state.currentTurn);
+      if (state.statusEl) {
+        if (forced) {
+          state.statusEl.textContent = forced;
+        } else if (!state.gameActive) {
+          state.statusEl.textContent = "Awaiting start";
+        } else {
+          state.statusEl.textContent = "In progress";
+        }
       }
     }
-  }
-
-  function renderLog() {
-    if (!state.logEl) return;
-    state.logEl.innerHTML = state.logEntries.map(entry => `<div class="re-log-entry ${entry.type || 'info'}">${entry.message || entry}</div>`).join('');
-    state.logEl.scrollTop = state.logEl.scrollHeight;
-  }
-
-  function appendLog(message, type = 'info') {
-    state.logEntries.push({ message, type });
-    renderLog();
-  }
-
-  function showToast(message, type) {
-    appendLog(message, type);
-  }
-
-  function openLeaderboardModal() {
-    state.activeLeaderboardTab = state.currentDifficulty;
-    updateLeaderboardTabs();
-    loadLeaderboard();
-    if (state.leaderboardOverlayEl) {
-      state.leaderboardOverlayEl.classList.remove('hidden');
-      state.leaderboardOverlayEl.setAttribute('aria-hidden', 'false');
+    function renderLog() {
+      if (!state.logEl) return;
+      state.logEl.innerHTML = state.logEntries.map((entry) => `<div class="re-log-entry ${entry.type || "info"}">${entry.message || entry}</div>`).join("");
+      state.logEl.scrollTop = state.logEl.scrollHeight;
     }
-  }
-
-  function closeLeaderboardModal() {
-    if (state.leaderboardOverlayEl) {
-      state.leaderboardOverlayEl.classList.add('hidden');
-      state.leaderboardOverlayEl.setAttribute('aria-hidden', 'true');
+    function appendLog(message, type = "info") {
+      state.logEntries.push({ message, type });
+      renderLog();
     }
-  }
-
-  function openRulesModal() {
-    if (state.rulesOverlayEl) {
-      state.rulesOverlayEl.classList.remove('hidden');
-      state.rulesOverlayEl.setAttribute('aria-hidden', 'false');
+    function showToast(message, type) {
+      appendLog(message, type);
     }
-  }
-
-  function closeRulesModal() {
-    if (state.rulesOverlayEl) {
-      state.rulesOverlayEl.classList.add('hidden');
-      state.rulesOverlayEl.setAttribute('aria-hidden', 'true');
+    function openLeaderboardModal() {
+      state.activeLeaderboardTab = state.currentDifficulty;
+      updateLeaderboardTabs();
+      loadLeaderboard();
+      if (state.leaderboardOverlayEl) {
+        state.leaderboardOverlayEl.classList.remove("hidden");
+        state.leaderboardOverlayEl.setAttribute("aria-hidden", "false");
+      }
     }
-  }
-
-  function onGlobalKeydown(event) {
-    if (event.key !== 'Escape') return;
-    let handled = false;
-    if (state.leaderboardOverlayEl && !state.leaderboardOverlayEl.classList.contains('hidden')) {
-      closeLeaderboardModal();
-      handled = true;
+    function closeLeaderboardModal() {
+      if (state.leaderboardOverlayEl) {
+        state.leaderboardOverlayEl.classList.add("hidden");
+        state.leaderboardOverlayEl.setAttribute("aria-hidden", "true");
+      }
     }
-    if (state.rulesOverlayEl && !state.rulesOverlayEl.classList.contains('hidden')) {
-      closeRulesModal();
-      handled = true;
+    function openRulesModal() {
+      if (state.rulesOverlayEl) {
+        state.rulesOverlayEl.classList.remove("hidden");
+        state.rulesOverlayEl.setAttribute("aria-hidden", "false");
+      }
     }
-    if (state.defeatOverlayEl && !state.defeatOverlayEl.classList.contains('hidden')) {
-      closeDefeatModal();
-      handled = true;
+    function closeRulesModal() {
+      if (state.rulesOverlayEl) {
+        state.rulesOverlayEl.classList.add("hidden");
+        state.rulesOverlayEl.setAttribute("aria-hidden", "true");
+      }
     }
-    if (handled) {
-      event.preventDefault();
+    function onGlobalKeydown(event) {
+      if (event.key !== "Escape") return;
+      let handled = false;
+      if (state.leaderboardOverlayEl && !state.leaderboardOverlayEl.classList.contains("hidden")) {
+        closeLeaderboardModal();
+        handled = true;
+      }
+      if (state.rulesOverlayEl && !state.rulesOverlayEl.classList.contains("hidden")) {
+        closeRulesModal();
+        handled = true;
+      }
+      if (state.defeatOverlayEl && !state.defeatOverlayEl.classList.contains("hidden")) {
+        closeDefeatModal();
+        handled = true;
+      }
+      if (handled) {
+        event.preventDefault();
+      }
     }
-  }
-
-  function loadLeaderboard() {
-    apiRequest('/royal-exchange/leaderboard')
-      .then(response => {
-        if (!response) throw new Error('No response');
+    function loadLeaderboard() {
+      apiRequest("/royal-exchange/leaderboard").then((response) => {
+        if (!response) throw new Error("No response");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
-      })
-      .then(data => {
+      }).then((data) => {
         const entries = Array.isArray(data.entries) ? data.entries : [];
         renderLeaderboardLists(entries);
-      })
-      .catch(error => {
-        console.error('Failed to load leaderboard:', error);
+      }).catch((error) => {
+        console.error("Failed to load leaderboard:", error);
         renderLeaderboardLists([], true);
       });
-  }
-
-  function renderLeaderboardLists(entries, loadError = false) {
-    if (!state.leaderboardLists) return;
-    const grouped = entries.reduce((acc, entry) => {
-      const key = entry.difficulty || 'normal';
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(entry);
-      return acc;
-    }, {});
-    Object.entries(state.leaderboardLists).forEach(([difficulty, container]) => {
-      if (!container) return;
-      const list = grouped[difficulty] || [];
-      const sorted = list.slice().sort((a, b) => {
-        const aSteps = Number(a?.steps) || 0;
-        const bSteps = Number(b?.steps) || 0;
-        if (aSteps !== bSteps) return aSteps - bSteps;
-        const aDur = Number(a?.duration) || 0;
-        const bDur = Number(b?.duration) || 0;
-        return aDur - bDur;
-      });
-      if (loadError) {
-        container.innerHTML = '<div class="re-leaderboard-empty">Unable to load leaderboard.</div>';
-        return;
-      }
-      if (sorted.length === 0) {
-        container.innerHTML = '<div class="re-leaderboard-empty">No records yet.</div>';
-        return;
-      }
-      container.innerHTML = sorted.map((entry, index) => `
+    }
+    function renderLeaderboardLists(entries, loadError = false) {
+      if (!state.leaderboardLists) return;
+      const grouped = entries.reduce((acc, entry) => {
+        const key = entry.difficulty || "normal";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(entry);
+        return acc;
+      }, {});
+      Object.entries(state.leaderboardLists).forEach(([difficulty, container]) => {
+        if (!container) return;
+        const list = grouped[difficulty] || [];
+        const sorted = list.slice().sort((a, b) => {
+          const aSteps = Number(a?.steps) || 0;
+          const bSteps = Number(b?.steps) || 0;
+          if (aSteps !== bSteps) return aSteps - bSteps;
+          const aDur = Number(a?.duration) || 0;
+          const bDur = Number(b?.duration) || 0;
+          return aDur - bDur;
+        });
+        if (loadError) {
+          container.innerHTML = '<div class="re-leaderboard-empty">Unable to load leaderboard.</div>';
+          return;
+        }
+        if (sorted.length === 0) {
+          container.innerHTML = '<div class="re-leaderboard-empty">No records yet.</div>';
+          return;
+        }
+        container.innerHTML = sorted.map((entry, index) => `
         <div class="re-leaderboard-item">
           <div class="re-leaderboard-rank">#${index + 1}</div>
           <div class="re-leaderboard-info">
-            <div class="re-leaderboard-names">${(entry.players || []).map(p => p.name).join(', ')}</div>
+            <div class="re-leaderboard-names">${(entry.players || []).map((p) => p.name).join(", ")}</div>
             <div class="re-leaderboard-meta">
               <span>Moves: ${Number(entry.steps) || 0}</span>
               <span>Time: ${formatDuration(Number(entry.duration) || 0)}</span>
-              <span>${entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}</span>
+              <span>${entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ""}</span>
             </div>
           </div>
         </div>
-      `).join('');
-    });
-    updateLeaderboardTabs();
-  }
-
-  function updateLeaderboardTabs() {
-    if (state.leaderboardTabs) {
-      state.leaderboardTabs.forEach(tab => {
-        const key = tab.getAttribute('data-leaderboard-tab');
-        tab.classList.toggle('active', key === state.activeLeaderboardTab);
+      `).join("");
+      });
+      updateLeaderboardTabs();
+    }
+    function updateLeaderboardTabs() {
+      if (state.leaderboardTabs) {
+        state.leaderboardTabs.forEach((tab) => {
+          const key = tab.getAttribute("data-leaderboard-tab");
+          tab.classList.toggle("active", key === state.activeLeaderboardTab);
+        });
+      }
+      if (state.leaderboardLists) {
+        Object.entries(state.leaderboardLists).forEach(([key, container]) => {
+          if (container) {
+            container.classList.toggle("hidden", key !== state.activeLeaderboardTab);
+          }
+        });
+      }
+    }
+    function submitLeaderboardEntry(steps, duration) {
+      return apiRequest("/royal-exchange/leaderboard", {
+        method: "POST",
+        body: JSON.stringify({
+          success: true,
+          players: state.players,
+          steps,
+          duration,
+          difficulty: state.currentDifficulty,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        })
+      }).catch((error) => {
+        console.error("Unable to record leaderboard entry:", error);
       });
     }
-    if (state.leaderboardLists) {
-      Object.entries(state.leaderboardLists).forEach(([key, container]) => {
-        if (container) {
-          container.classList.toggle('hidden', key !== state.activeLeaderboardTab);
-        }
+    function updateDifficultyButtons() {
+      document.querySelectorAll(".re-difficulty-button").forEach((button) => {
+        const key = button.getAttribute("data-difficulty");
+        button.classList.toggle("active", key === state.currentDifficulty);
       });
     }
-  }
-
-  function submitLeaderboardEntry(steps, duration) {
-    return apiRequest('/royal-exchange/leaderboard', {
-      method: 'POST',
-      body: JSON.stringify({
-        success: true,
-        players: state.players,
-        steps,
-        duration,
-        difficulty: state.currentDifficulty,
-        createdAt: new Date().toISOString()
-      })
-    }).catch(error => {
-      console.error('Unable to record leaderboard entry:', error);
-    });
-  }
-
-  function updateDifficultyButtons() {
-    document.querySelectorAll('.re-difficulty-button').forEach(button => {
-      const key = button.getAttribute('data-difficulty');
-      button.classList.toggle('active', key === state.currentDifficulty);
-    });
-  }
-
-  function populatePlayersList() {
-    const listEl = document.getElementById('rePlayersList');
-    if (!listEl) return;
-    if (!Array.isArray(state.players) || state.players.length === 0) {
-      listEl.innerHTML = '<li class="re-player-item empty">No players selected.</li>';
-      return;
+    function populatePlayersList() {
+      const listEl = document.getElementById("rePlayersList");
+      if (!listEl) return;
+      if (!Array.isArray(state.players) || state.players.length === 0) {
+        listEl.innerHTML = '<li class="re-player-item empty">No players selected.</li>';
+        return;
+      }
+      listEl.innerHTML = state.players.map((player) => `<li class="re-player-item">${player.name}</li>`).join("");
     }
-    listEl.innerHTML = state.players.map(player => `<li class="re-player-item">${player.name}</li>`).join('');
-  }
-
-  function generateColumnLabels() {
-    return Array.from({ length: BOARD_SIZE }, (_, index) => {
-      const letter = String.fromCharCode('A'.charCodeAt(0) + index);
-      return `<span class="re-col-label">${letter}</span>`;
-    }).join('');
-  }
-
-  function generateRowLabels() {
-    return Array.from({ length: BOARD_SIZE }, (_, index) => {
-      const number = BOARD_SIZE - index;
-      return `<span class="re-row-label">${number}</span>`;
-    }).join('');
-  }
-
-  function formatCoordinate(piece) {
-    const columnLetter = String.fromCharCode('a'.charCodeAt(0) + piece.col);
-    const rowNumber = BOARD_SIZE - piece.row;
-    return `${columnLetter}${rowNumber}`;
-  }
-
-  function formatDuration(ms) {
-    const safe = Number(ms) || 0;
-    const totalSeconds = Math.max(0, Math.floor(safe / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    if (minutes <= 0) return `${seconds}s`;
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }
-
-  function capitalize(text) {
-    return text.charAt(0).toUpperCase() + text.slice(1);
-  }
-
-  function getRulesHtml() {
-    return `
+    function generateColumnLabels() {
+      return Array.from({ length: BOARD_SIZE }, (_, index) => {
+        const letter = String.fromCharCode("A".charCodeAt(0) + index);
+        return `<span class="re-col-label">${letter}</span>`;
+      }).join("");
+    }
+    function generateRowLabels() {
+      return Array.from({ length: BOARD_SIZE }, (_, index) => {
+        const number = BOARD_SIZE - index;
+        return `<span class="re-row-label">${number}</span>`;
+      }).join("");
+    }
+    function formatCoordinate(piece) {
+      const columnLetter = String.fromCharCode("a".charCodeAt(0) + piece.col);
+      const rowNumber = BOARD_SIZE - piece.row;
+      return `${columnLetter}${rowNumber}`;
+    }
+    function formatDuration(ms) {
+      const safe = Number(ms) || 0;
+      const totalSeconds = Math.max(0, Math.floor(safe / 1e3));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      if (minutes <= 0) return `${seconds}s`;
+      return `${minutes}:${String(seconds).padStart(2, "0")}`;
+    }
+    function capitalize(text) {
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+    function getRulesHtml() {
+      return `
       <section class="re-rules-section">
         <h3>Goal</h3>
         <ul>
-          <li>Swap the white rook/knight/bishop with the black rook/knight/bishop so that each occupies the other side’s original square.</li>
+          <li>Swap the white rook/knight/bishop with the black rook/knight/bishop so that each occupies the other side\u2019s original square.</li>
         </ul>
       </section>
       <section class="re-rules-section">
@@ -1145,9 +1066,7 @@
         </ul>
       </section>
     `;
-  }
-
-  window.initRoyalExchange = initRoyalExchange;
+    }
+    window.initRoyalExchange = initRoyalExchange;
+  })();
 })();
-
-
