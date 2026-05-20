@@ -21,6 +21,7 @@
     "lint": "eslint .",
     "test": "node --import tsx --test test/*.test.ts",
     "test:lesson-quota": "node --import tsx --test test/lesson-quota-api.test.ts",
+    "test:timetable": "node --import tsx --test test/timetable-api-smoke.test.ts",
     "invoice-parse-smoke": "node --import tsx --test test/invoice-pdf-parse-smoke.test.ts",
     "invoice-pdf-smoke": "tsx scripts/invoice-pdf-convert-smoke.ts",
     "vchess-llm-smoke": "tsx scripts/vchess-invoice-llm-smoke.ts",
