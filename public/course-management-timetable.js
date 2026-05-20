@@ -1,1 +1,1 @@
-// Deprecated monolith — split into course-management-timetable-1.js, course-management-timetable-2.js (loaded from organization.html).
+// Deprecated — use timetable-week.js + timetable-day-month.js
