@@ -16,6 +16,8 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 7 application games | deferred | `application/*` | See `docs/refactor-phase4-games.md` | bundler TBD |
 | 8 vcpChess | done | `packages/vcp/src/vcpChess.ts` | `packages/vcp/src/vcp/*` | `pnpm test:vcp` |
 | 9 vchessImportApplyEngine | done | `packages/billing/src/lib/vchessImportApplyEngine.ts` | `packages/billing/src/lib/vchessImport/*` | `pnpm test:vchess-apply` |
+| 10 blundersPublicRoutes | done | `packages/application/blunders/src/routes/blundersPublicRoutes.ts` | `routes/public/*` | `pnpm test:blunders` |
+| 11 monsterFightCore | done | `packages/application/monster-fight/src/monsterFight/monsterFightCore.ts` | `monsterFight/core/*` | `pnpm test:monster-fight` |
 | 8 vcp (Phase 2) | done | `packages/vcp/src/vcpChess.ts` (1688 lines) | `packages/vcp/src/vcp/*` | `pnpm test:vcp` |
 
 ## Workflow per step
