@@ -42,6 +42,7 @@
   },
   "include": [
     "server.ts",
+    "server/**/*.ts",
     "packages/core/src/**/*.ts",
     "packages/application/*/src/**/*.ts",
     "packages/vcp/src/**/*.ts",

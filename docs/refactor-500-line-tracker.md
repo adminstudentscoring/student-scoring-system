@@ -9,7 +9,7 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 0 Test helper | done | — | `test/helpers/testServer.ts` | (used by smokes) |
 | 1 orgCrudRoutes | done | `packages/platform/src/routes/orgCrudRoutes.ts` | `packages/platform/src/routes/org/*` | `pnpm test:timetable` |
 | 2 organizationsBillingRoutes | done | `packages/billing/src/routes/organizationsBillingRoutes.ts` | `packages/billing/src/routes/org/*` | `pnpm test:orders` + `pnpm test:lesson-quota` |
-| 3 server.ts wiring | pending | `server.ts` | `server/bootstrap.ts`, `stores.ts`, etc. | `pnpm test` |
+| 3 server.ts wiring | done | `server.ts` | `server/*.ts` | `pnpm test` |
 | 4 platform routes | pending | studentsRoutes, adminOrganizationsRoutes, orgSettingsRoutes | TBD | `pnpm test` + domain smokes |
 | 5 public course-management | pending | `public/course-management-*.js` | split scripts | `pnpm test:static-scripts` |
 | 6 eslint max-lines | pending | — | `eslint.config.js` | `pnpm lint` |
