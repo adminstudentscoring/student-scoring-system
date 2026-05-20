@@ -14,6 +14,7 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 5 public course-management | done | `public/course-management-sales-orders.js` | `course-management-sales-orders-*.js` | `pnpm test:static-scripts` |
 | 6 eslint max-lines | done | — | `eslint.config.js` | `pnpm lint` |
 | 7 application games | deferred | `application/*` | See `docs/refactor-phase4-games.md` | bundler TBD |
+| 8 vcp (Phase 2) | done | `packages/vcp/src/vcpChess.ts` (1688 lines) | `packages/vcp/src/vcp/*` | `pnpm test:vcp` |
 
 ## Workflow per step
 
