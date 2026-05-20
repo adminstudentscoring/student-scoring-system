@@ -28,6 +28,7 @@
     "test:static-scripts": "node --import tsx --test test/static-scripts-smoke.test.ts",
     "test:blunders": "node --import tsx --test test/blunders-public-smoke.test.ts",
     "test:blunders-teacher": "node --import tsx --test test/blunders-teacher-smoke.test.ts",
+    "test:chess-works": "node --import tsx --test test/chess-works-public-smoke.test.ts",
     "test:monster-fight": "node --import tsx --test test/monster-fight-api-smoke.test.ts",
     "test:vcp": "node --import tsx --test test/vcp-health-smoke.test.ts",
     "invoice-parse-smoke": "node --import tsx --test test/invoice-pdf-parse-smoke.test.ts",

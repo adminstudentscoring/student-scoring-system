@@ -21,6 +21,10 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 12 public course-management (rest) | done | sales-packages, core, timetable*, settings-general | `*-1.js` … split parts | `pnpm test:static-scripts` |
 | 13 Phase 0 oversplit fix | done | modal-1, timetable-*, overlay, checkout-pay, settings-general-1 | semantic sub-splits | `pnpm test:static-scripts` |
 | 14 blundersTeacherRoutes | done | `blundersTeacherRoutes.ts` | `routes/teacher/*` | `pnpm test:blunders-teacher` |
+| 17 monsterFightHelpers | done | `monsterFightHelpers.ts` (~803) | `helpers/{combat,passives,status,monsterAi,lifecycle}.ts` + barrel | `pnpm test:monster-fight` |
+| 18 blunders sync/tagger | done | `blunders/sync.ts`, `blunders/tagger.ts` | `sync/*`, `tagger/*` + barrels | `pnpm test:blunders` |
+| 19 blundersInit | done | `server/blundersInit.ts` (~566) | `server/blunders/{storageInit,sharedState,wiring}.ts` + thin init | `pnpm test:blunders` |
+| 20 orgSettingsCoreRoutes | done | `orgSettingsCoreRoutes.ts` (~533) | `orgSettingsCore{Read,Write}Routes.ts`, `orgSettingsTimetableHelpers.ts` + wrapper | `pnpm test:settings-holiday` |
 
 ## Workflow per step
 
