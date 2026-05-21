@@ -90,9 +90,16 @@ module.exports = [
     },
   },
 
-  // Modularization guard: warn on large backend modules (Phase 4 application/* excluded)
+  // Modularization guard: warn on large source modules (bundles excluded via ignores)
   {
-    files: ['packages/**/*.ts', 'server/**/*.ts', 'server.ts'],
+    files: [
+      'packages/**/*.ts',
+      'server/**/*.ts',
+      'server.ts',
+      'public/**/*.js',
+      'application/**/src/**/*.js',
+      'scripts/**/*.ts',
+    ],
     rules: {
       'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
     },
@@ -104,6 +111,8 @@ module.exports = [
       'node_modules/**',
       'data/**',
       'game/chess-pal/**',
+      'application/*/*.js',
+      'application/monster-fight-shell.js',
     ],
   },
 ];
