@@ -495,6 +495,6 @@
     height: 100%;
     gap: 20px;
   }
-  
+
   .sales-left-panel {
     flex: 1;

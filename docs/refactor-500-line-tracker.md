@@ -36,10 +36,15 @@ Goal: split files over 500 lines into smaller modules; each step has smoke tests
 | 27 esbuild pilot + rollout (phase 3) | done | 19 application game JS monoliths | `src/main.js` + legacy modules; `pnpm build:applications` | `pnpm test:application-static` |
 | 28 vchess-invoice-parse (phase 4) | done | `scripts/lib/vchess-invoice-parse.ts` (~635) | `vchess-invoice-parse/{types,exportRows,money,description,parseInvoice}.ts` + barrel | `pnpm invoice-parse-smoke` |
 | 29 main.js electron split (phase 4) | done | `main.js` (~527) | `electron/{state,server,window,ipc}.js` + thin `main.js` | `node --check main.js` |
+| 30 refactor automation infra (phase 5.0) | done | — | `scripts/refactor/{audit,split-legacy-parts,concat-all,bulk-split,run-step}.mjs` + `refactor:*` scripts | `pnpm refactor:audit` |
+| 31 chessWorksTeacherRoutes split (phase 5.1) | done | `chessWorksTeacherRoutes.ts` (716) | `chessWorksTeacher{Folders,Works,Assign,Review}Routes.ts` + wrapper | `pnpm test:chess-works` |
+| 32 tacticsFighterPuzzlesBuilder split (phase 5.1) | done | `tacticsFighterPuzzlesBuilderRoutes.ts` (607) | `tacticsFighterPuzzlesBuilder{Tree,Categories,Topics,Subtopics,PuzzleCrud}Routes.ts` + wrapper | `pnpm test:tactics-fighter-tree` |
+| 33 application legacy parts (phase 5.2) | done | 19 `application/**/src/*-legacy.js` | `*-legacy-parts/*.js` (each ≤500) + concat at build | `pnpm build:applications`, `pnpm test:application-static` |
+| 34 refactor smoke + ESLint guard (phase 5.3–5.4) | done | — | `test/refactor-smoke.test.ts`, expanded application-static, ESLint `max-lines` on public + application/src | `pnpm refactor:verify`, `pnpm refactor:audit` (0 files &gt;500) |
 
 HTML cache bust: `?v=20260521-split3` on organization.html, teacher.html, admin.html, class-view.html, student.html, chess-analysis/index.html.
 
-**Note:** Generated esbuild bundles (`application/*/*.js` outputs) remain &gt;500 lines by design; source lives under `application/<app>/src/`. `tacticsFighterPuzzlesBuilderRoutes.ts` (~607) and `chessWorksTeacherRoutes.ts` (~716) may be split in a follow-up.
+**Note:** Generated esbuild bundles and concatenated `*-legacy.js` (from `*-legacy-parts/`) remain &gt;500 lines by design; editable source is under `src/*-legacy-parts/` and route submodules.
 
 ## Workflow per step
 
