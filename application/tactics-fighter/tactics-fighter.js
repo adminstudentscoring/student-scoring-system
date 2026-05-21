@@ -1416,6 +1416,7 @@
             </div>
           </div>
         </div>
+
       `;
         document.body.appendChild(modal);
         const close = () => {
@@ -2274,6 +2275,7 @@
                 <label for="tfSubMsgInput">Message (shown in Practice spacer)</label>
                 <textarea id="tfSubMsgInput" class="tf-textarea" rows="6" placeholder="Type your message...">${escapeHtml(initial)}</textarea>
               </div>
+
               <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
                 <button id="tfSubMsgClear" class="btn btn-secondary" type="button">Clear</button>
                 <button id="tfSubMsgCancel" class="btn btn-secondary" type="button">Cancel</button>

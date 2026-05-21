@@ -426,6 +426,7 @@
       ` : `
         <div class="cl-muted" style="padding:12px 2px;">No stages in this difficulty yet. Click Create.</div>
       `}
+
     `;
     }
     function openSuccessModal(root, opts = {}) {

@@ -1,3 +1,4 @@
+/** Generated from eatwhat-legacy-parts/ — run pnpm refactor:concat or build:* */
 (function () {
   "use strict";
 
@@ -448,6 +449,7 @@
 
   async function spinOnce() {
     if (ui.spinning) return;
+
     const candidates = getCandidates();
     const hint = $("ewHint");
     const res = $("ewResult");
@@ -899,6 +901,7 @@
           }
         } catch {}
 
+
         const me = await window.authUtils.verifyAuth().catch(() => null);
         if (!me || me.role !== "admin") {
           alert("You do not have permission to access this page");
@@ -916,5 +919,6 @@
     })();
   });
 })();
+
 
 

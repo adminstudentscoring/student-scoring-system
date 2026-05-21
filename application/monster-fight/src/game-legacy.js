@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Monster Fight Game Logic (legacy body; bundled via src/main.js)
 import { escapeHtml, renderIconWrap } from './html-utils.js';
 import { getImagesBase, imageSrcForFile, applyBackgroundTheme } from './images.js';
@@ -18,6 +19,7 @@ let monsterTypes = [];
 
 const CLASS_ICON_MAP = {};
 let monsterIconMap = {};
+
 
 function classImageFileById(classId) {
     const cls = getPlayerClasses().find(c => c.id === classId);
@@ -469,6 +471,7 @@ const LEVEL_DIFFICULTY_PRESETS = {
     ]
 };
 
+
 function ensureActionPopupContainer() {
     if (!document.getElementById('actionPopupContainer')) {
         const container = document.createElement('div');
@@ -898,6 +901,7 @@ async function loadGameState() {
 }
 
 // Initialize Monster Fight game
+
 async function initMonsterFight() {
     try {
         console.log('Initializing Monster Fight game...');
@@ -1329,6 +1333,7 @@ function layoutSide(list, baseX, sideSign, top, height, opts = {}) {
     return out;
 }
 
+
 function drawHpBar(ctx, x, y, w, h, pct, text) {
     const p = Math.max(0, Math.min(1, pct));
     ctx.save();
@@ -1714,6 +1719,7 @@ function mfRenderStatusIconsInline(entity) {
         </div>
     `;
 }
+
 
 function mfRenderBattleHud() {
     const hud = mfGetHudEl();
@@ -2164,6 +2170,7 @@ function mfBindBattleCanvasInput() {
     }, { passive: true });
 }
 
+
 async function mfAttemptReviveInline(studentId, puzzlePoints) {
     try {
         const response = await fetch(`${GAME_API_BASE}/game/revive`, {
@@ -2572,6 +2579,7 @@ async function openGameSettings() {
 }
 
 // Render settings modal
+
 function renderSettingsModal() {
     const container = document.getElementById('monsterFightGame');
     if (!container) return;
@@ -3004,6 +3012,7 @@ function updateLevelConfig() {
 }
 
 // Update level monsters
+
 function updateLevelMonsters(levelIndex) {
     const countInput = document.getElementById(`level_${levelIndex}_monster_count`);
     if (!countInput) return;
@@ -3397,6 +3406,7 @@ function renderBattleMode() {
 }
 
 // Render player card with all actions integrated (puzzle input + actions in player_turn)
+
 function renderPlayerCardWithActions(player, isPlayerTurn) {
     console.log(`Rendering player card for ${player.studentName}, isPlayerTurn: ${isPlayerTurn}`);
     const charClass = getPlayerClasses().find(c => c.id === player.characterClass);
@@ -3742,6 +3752,7 @@ function mfGetCurrentPuzzlePoints(studentId) {
 }
 
 // Player attack
+
 async function playerAttack(studentId, explicitTarget) {
     const parsedTarget = explicitTarget ? mfNormalizeTargetInput(explicitTarget) : (() => {
         const targetSelect = document.getElementById(`target_${studentId}`);
@@ -3918,6 +3929,7 @@ async function playerAttack(studentId, explicitTarget) {
 }
 
 // Player use skill
+
 async function playerUseSkill(studentId, skillId, explicitTarget) {
     const player = gameState.players.find(p => p.studentId === studentId);
     if (!player || !player.isAlive) {
@@ -4330,6 +4342,7 @@ async function processMonsterTurn() {
 }
 
 // Show revive modal
+
 function showReviveModal(studentId) {
     const player = gameState.players.find(p => p.studentId === studentId);
     if (!player) return;
@@ -4706,4 +4719,5 @@ function derivePopupContext(message) {
 
     return context;
 }
+
 

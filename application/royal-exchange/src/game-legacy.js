@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 (function () {
   const BOARD_SIZE = 8;
   const API_BASE = window.API_BASE || '/api';
@@ -448,6 +449,7 @@
         return { row: 0, col: 3 }; // d8
       default:
         return { row: 0, col: 0 };
+
     }
   }
 
@@ -898,6 +900,7 @@
         state.statusEl.textContent = forced;
       } else if (!state.gameActive) {
         state.statusEl.textContent = 'Awaiting start';
+
       } else {
         state.statusEl.textContent = 'In progress';
       }
@@ -1149,5 +1152,6 @@
 
   window.initRoyalExchange = initRoyalExchange;
 })();
+
 
 

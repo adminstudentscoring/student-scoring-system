@@ -1254,6 +1254,7 @@
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
             <div class="vcp-card">
+
               <div class="vcp-section">
                 ${renderTeacherSessionBar()}
                 <div id="ncMount"></div>
@@ -1704,6 +1705,7 @@
               <strong>${escapeHtml(current.teacher?.name || "Teacher")}</strong> invited you to <strong>Normal Chess</strong>.
             </div>
             ${myColor ? `
+
               <div class="vcp-list-item" style="margin-bottom:10px;">
                 <div style="font-weight:900; color:#111827;">Your side</div>
                 <div class="vcp-muted" style="margin-top:6px;">You will play as <strong>${escapeHtml(myColor)}</strong>.</div>

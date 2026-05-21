@@ -1,4 +1,6 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Chess Works main (teacher + student)
+
 (function () {
   "use strict";
   const CW = window.__ChessWorksCore;
@@ -449,6 +451,7 @@
         works: [],
         work: null,
         submission: null,
+
         answers: { items: [] },
         idx: 0
       },
@@ -899,6 +902,7 @@
       host.querySelector("#cwMoveWorkClose")?.addEventListener("click", close);
       host.querySelector("#cwMoveWorkCancel")?.addEventListener("click", close);
       host.querySelector("#cwMoveWorkBackdrop")?.addEventListener("click", (e) => {
+
         if (e.target && e.target.id === "cwMoveWorkBackdrop") close();
       });
       host.querySelector("#cwMoveWorkOk")?.addEventListener("click", async () => {
@@ -1349,6 +1353,7 @@
             return;
           }
           work.items.splice(idx, 1);
+
           idx = Math.max(0, Math.min(work.items.length - 1, idx));
           rerender();
         });
@@ -1799,6 +1804,7 @@
       });
       main.querySelectorAll("[data-cw-folder-del]")?.forEach((x) => {
         x.addEventListener("click", async (e) => {
+
           try { e.preventDefault(); } catch {}
           try { e.stopPropagation(); } catch {}
           const fid = String(x.getAttribute("data-cw-folder-del") || "").trim();
@@ -2249,6 +2255,7 @@
         return;
       }
       if (ui.mode === "builder") {
+
         if (!isTeacher) {
           await setMain(`<div class="cw-muted">Builder is for teachers only.</div>`);
           return;
@@ -2276,4 +2283,5 @@
     await rerenderMain();
   };
 })();
+
 

@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 (function () {
   const STATE = {
     role: 'student', // 'teacher'|'student'
@@ -448,6 +449,7 @@
         setBoardColors({ light: l, dark: d });
       };
       lightEl?.addEventListener('input', () => { applyFromInputs(); });
+
       darkEl?.addEventListener('input', () => { applyFromInputs(); });
       document.getElementById('vcpBoardResetBtn')?.addEventListener('click', () => {
         setBoardColors({ light: VCP_DEFAULTS.boardLight, dark: VCP_DEFAULTS.boardDark });
@@ -898,6 +900,7 @@
     const sid = String(STATE.liveViewer?.sessionId || '');
     if (sid) wsSend({ type: 'vcp_unwatch_session', sessionId: sid });
     try { STATE.liveNcApp?.destroy?.(); } catch {}
+
     STATE.liveNcApp = null;
     STATE.liveNcKey = null;
     STATE.liveViewer = { loading: false, error: null, sessionId: null, session: null };
@@ -1348,6 +1351,7 @@
         <div class="vcp-app-main">
           <div class="vcp-main-inner">
             <div class="vcp-card">
+
               <div class="vcp-section">
                 ${renderTeacherSessionBar()}
                 <div id="ncMount"></div>
@@ -1798,6 +1802,7 @@
               <strong>${escapeHtml(current.teacher?.name || 'Teacher')}</strong> invited you to <strong>Normal Chess</strong>.
             </div>
             ${myColor ? `
+
               <div class="vcp-list-item" style="margin-bottom:10px;">
                 <div style="font-weight:900; color:#111827;">Your side</div>
                 <div class="vcp-muted" style="margin-top:6px;">You will play as <strong>${escapeHtml(myColor)}</strong>.</div>
@@ -2134,5 +2139,6 @@
 
   window.initVChessPlatform = init;
 })();
+
 
 

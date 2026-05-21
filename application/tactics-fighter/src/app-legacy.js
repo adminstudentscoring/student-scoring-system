@@ -1,3 +1,4 @@
+/** Generated from app-legacy-parts/ — run pnpm refactor:concat or build:* */
 import { tfDbgTeacherPractice } from './debug.js';
 import { createTfSettingsHandlers } from './settings.js';
 
@@ -61,6 +62,7 @@ if (!TF) {
     renderHome,
     renderMode
   } = TF;
+
 
   window.initTacticsFighter = async function initTacticsFighter() {
     const root = document.getElementById('tacticsFighterRoot');
@@ -512,6 +514,7 @@ if (!TF) {
           if (puzzleIsTarget(list[i])) return (p - 1) * ps + i;
         }
       }
+
       return 0;
     }
 
@@ -962,6 +965,7 @@ if (!TF) {
           } else {
             ui.student.runner.lastVerdict = 'incorrect';
             try { ui.student.verdictByPuzzleId[String(pz.id)] = 'incorrect'; } catch {}
+
             setMsg('err', 'Wrong. Engine replied.');
           }
           renderRunner();
@@ -1412,6 +1416,7 @@ if (!TF) {
             </div>
           </div>
         </div>
+
       `;
       document.body.appendChild(modal);
 
@@ -1862,6 +1867,7 @@ if (!TF) {
 
       modal.addEventListener('pointerup', (ev) => {
         if (drag.pointerId !== ev.pointerId) return;
+
         if (!drag.active) {
           drag.pointerId = null;
           drag.from = null;
@@ -2312,6 +2318,7 @@ if (!TF) {
                 <label for="tfSubMsgInput">Message (shown in Practice spacer)</label>
                 <textarea id="tfSubMsgInput" class="tf-textarea" rows="6" placeholder="Type your message...">${escapeHtml(initial)}</textarea>
               </div>
+
               <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
                 <button id="tfSubMsgClear" class="btn btn-secondary" type="button">Clear</button>
                 <button id="tfSubMsgCancel" class="btn btn-secondary" type="button">Cancel</button>
@@ -2762,6 +2769,7 @@ if (!TF) {
         const id = String(s?.id || '').trim();
         const name = String(s?.name || '').trim() || id;
         const url = `${origin}/student.html?id=${encodeURIComponent(id)}&openTab=game&openGame=tacticsFighter&autoStart=1&tfBucket=${encodeURIComponent(b)}&tfSubtopicId=${encodeURIComponent(sid)}`;
+
         return { name, url };
       });
 
@@ -3212,6 +3220,7 @@ if (!TF) {
 
           const openPuzzleBtn = t?.closest?.('[data-tf-open-puzzle]');
           if (openPuzzleBtn) {
+
             const sid = String(openPuzzleBtn.getAttribute('data-tf-subtopic') || '');
             const pid = String(openPuzzleBtn.getAttribute('data-tf-open-puzzle') || '');
             const puzzles = ui.puzzlesBySubtopic.get(sid) || [];
@@ -3663,6 +3672,7 @@ if (!TF) {
       const puzzleMsgInput = host.querySelector('#tfPuzzleMessageInput');
       const selectedAnswerMultiPv = new Set();
 
+
       function formatPvWithMoveNumbers(fen, pvSan) {
         const parts = String(fen || '').trim().split(/\s+/);
         const side = (parts[1] === 'b') ? 'b' : 'w';
@@ -4112,6 +4122,7 @@ if (!TF) {
           ui.expanded.puzzlesLoaded.add(subtopicId);
           ui.expanded.subtopic.add(subtopicId);
           await builderRefresh();
+
           close();
         } catch (e) {
           setEngineOut(`<div class="tf-builder-msg err" style="display:block;">${escapeHtml(e?.message || String(e))}</div>`);
@@ -4563,6 +4574,7 @@ if (!TF) {
         showSelected();
       });
 
+
       // Auto-commit (Mode B): absorb on paste, or after short idle if it looks like a full FEN.
       let absorbTimer = null;
       const scheduleAbsorb = (reason) => {
@@ -5012,6 +5024,7 @@ if (!TF) {
       const pageBtn = target.closest('[data-stu-page]');
       if (pageBtn) {
         const dir = String(pageBtn.getAttribute('data-stu-page') || '').trim();
+
         return void studentChangePuzzlePage(dir);
       }
 
@@ -5042,4 +5055,5 @@ if (!TF) {
   };
 
 }
+
 

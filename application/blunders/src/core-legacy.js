@@ -1,4 +1,6 @@
+/** Generated from core-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Blunders core (shared state + helpers). Keep this file dependency-free.
+
 (function () {
   function escapeHtml(str) {
     return String(str)
@@ -449,6 +451,7 @@
     const resp = await fetch(`/api/public/students/${encodeURIComponent(String(studentId))}/blunders/challenge/attempt${qs}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+
       body: JSON.stringify({ sessionId, moveUci, revealBest: !!revealBest })
     });
     const data = await resp.json().catch(() => ({}));
@@ -668,5 +671,6 @@
     displaySquares
   };
 })();
+
 
 

@@ -1,4 +1,6 @@
+/** Generated from teacher-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Blunders Teacher module (render + actions). Depends on window.BlundersCore + window.BlundersEntryApi.
+
 (function () {
   const C = window.BlundersCore;
   if (!C) {
@@ -449,6 +451,7 @@
                 </button>
                 <div style="min-width:0;">
                   <div style="font-weight:950; color:#111827; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sname}${sid ? ` <span style="opacity:.7;">(${sid})</span>` : ''}</div>
+
                   <div class="blunders-muted" style="margin-top:4px;">Rating: <strong>${r || '—'}</strong></div>
                   <div class="blunders-muted" style="margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</div>
                   ${p.gameUrl ? `<div class="blunders-muted" style="margin-top:4px;">Source: <a href="${escapeHtml(String(p.gameUrl))}" target="_blank" rel="noopener noreferrer">Chess.com</a></div>` : ``}
@@ -899,6 +902,7 @@
       openTeacherJobModal(jobId).catch(() => {});
     }
     return out;
+
   }
 
   async function teacherLoadTagStats() {
@@ -1032,5 +1036,6 @@
     teacherLoadAllBlundersStorageStats
   };
 })();
+
 
 

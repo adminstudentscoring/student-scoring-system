@@ -1796,6 +1796,7 @@
           <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(pz.blunderSan || pz.blunderMoveUci || ""))}</div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
             ${renderMiniBoardFromFen(String(pz.startFEN || ""))}
+
             <div style="min-width:220px;">
               <div class="blunders-muted">Drop: <strong>${escapeHtml(Number(pz.dropPoints ?? Number(pz.dropCp || 0) / 100).toFixed(2))}</strong></div>
               <div class="blunders-muted" style="margin-top:6px;">Status: <strong>${escapeHtml(String(pz.status || "pending"))}</strong></div>

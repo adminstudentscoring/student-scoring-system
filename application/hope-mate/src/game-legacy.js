@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Hope Mate
 // - 5x5 board (a1-e5)
 // - Level 1: black king only
@@ -8,6 +9,7 @@
 // - No time limit. No helper overlays.
 //
 // Note: White king is NOT required to exist; it may appear as a random piece. Rule: white king cannot be placed adjacent to black king.
+
 
 (function () {
   let BOARD_SIZE = 5;
@@ -459,6 +461,7 @@
     const wk = placements.find(p => p && p.piece === 'K');
     if (wk && wk.idx != null) {
       if (isSquareAttacked(working, wk.idx, 'black')) {
+
         return { ok: false, reason: 'White king cannot be placed on a square attacked by black.' };
       }
     }
@@ -909,6 +912,7 @@
       headers: buildAuthHeaders(),
       credentials: 'include'
     });
+
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
       throw new Error(`Failed to load leaderboard (${resp.status}): ${txt}`);
@@ -1359,6 +1363,7 @@
         dragging = { slot, ghostEl: ghost, lastOverSquareEl: null, originEl: sq };
         sq.classList.add('hm-drag-origin');
         document.body.classList.add('hm-dragging');
+
         state.selectedPieceSlot = slot;
 
         moveGhost(e.clientX, e.clientY);
@@ -1809,6 +1814,7 @@
 
             <div class="hope-mate-board-wrap">
               <div class="hm-board-container">
+
                 <div class="hm-board-shell" style="--hm-board-size:${BOARD_SIZE}">
                   <div class="hm-board-col-labels" aria-hidden="true">
                     ${FILES.map(f => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join('')}
@@ -2175,5 +2181,6 @@
     init();
   };
 })();
+
 
 

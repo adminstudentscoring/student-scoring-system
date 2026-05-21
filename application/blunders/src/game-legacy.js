@@ -1,4 +1,6 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Blunders UI (Home / Blunder / Review)
+
 (function () {
   const C = window.BlundersCore;
   if (!C) {
@@ -449,6 +451,7 @@
     if (!STATE.homeRecent || typeof STATE.homeRecent !== 'object') STATE.homeRecent = { loading: false, error: '', games: [], selectedGameIdx: 0, plyIdx: 0 };
     if (STATE.homeRecent.loading) return;
     STATE.homeRecent.loading = true;
+
     STATE.homeRecent.error = '';
     render();
     try {
@@ -899,6 +902,7 @@
       STATE.uiBoard.masterBestOrigin = 'revealed';
       if (!bm && engErr) setMasterMessage(`Best move not available (${engErr})`);
     } catch (e) {
+
       setMasterMessage(`Error: ${e?.message || e}`);
     } finally {
       STATE.selectedFrom = null;
@@ -1349,6 +1353,7 @@
         const cur = new Set(Array.isArray(STATE.teacher.selectedIds) ? STATE.teacher.selectedIds.map(String) : []);
         if (checked) cur.add(sid);
         else cur.delete(sid);
+
         STATE.teacher.selectedIds = Array.from(cur).filter(Boolean);
         render();
         return;
@@ -1799,6 +1804,7 @@
           <div class="blunders-muted" style="margin-bottom:10px;">${escapeHtml(String(pz.blunderSan || pz.blunderMoveUci || ''))}</div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
             ${renderMiniBoardFromFen(String(pz.startFEN || ''))}
+
             <div style="min-width:220px;">
               <div class="blunders-muted">Drop: <strong>${escapeHtml(Number(pz.dropPoints ?? (Number(pz.dropCp || 0) / 100)).toFixed(2))}</strong></div>
               <div class="blunders-muted" style="margin-top:6px;">Status: <strong>${escapeHtml(String(pz.status || 'pending'))}</strong></div>
@@ -2096,5 +2102,6 @@
 
   window.initBlunders = initBlunders;
 })();
+
 
 

@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 (() => {
   const API_BASE = window.API_BASE || '/api';
 
@@ -447,6 +448,7 @@
         openLeaderboardModal(state.mode === 'infinite' ? 'infinite' : 'timed');
       });
     }
+
 
     const rulesButton = container.querySelector('#rqRulesButton');
     if (rulesButton) {
@@ -899,6 +901,7 @@
       }
       if (!drag.started) return;
 
+
       moveGhost(x, y);
       const cell = getCellUnderPoint(x, y);
       if (cell !== drag.overCellEl) {
@@ -1348,6 +1351,7 @@
   }
 
   function handleTimedFailure(message) {
+
     if (state.mode !== 'timed' || !state.gameActive) {
       return;
     }
@@ -1679,4 +1683,5 @@
 
   window.initRunningQueen = initRunningQueen;
 })();
+
 

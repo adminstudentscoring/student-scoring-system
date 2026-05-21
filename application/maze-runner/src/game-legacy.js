@@ -1,4 +1,6 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Maze Runner main (teacher + student shell)
+
 (function () {
   "use strict";
   const MR = window.__MazeRunnerCore;
@@ -450,6 +452,7 @@
       });
     }
 
+
     const setTool = (t) => {
       tool = String(t || "start");
       toolBtns.forEach((b) => b.classList.toggle("is-active", String(b.getAttribute("data-mr-tool")) === tool));
@@ -898,6 +901,7 @@
         r += dr; c += dc;
       }
     };
+
 
     const t = String(type || "N").toUpperCase();
     if (t === "K") {
@@ -1349,6 +1353,7 @@
         homeRulesBtn.addEventListener("click", () => openRulesModal(root));
       }
 
+
       const btn = root.querySelector("[data-mr-start-game]");
       if (btn && btn.dataset.bound !== "1") {
         btn.dataset.bound = "1";
@@ -1660,4 +1665,5 @@
     await rerenderMain();
   };
 })();
+
 

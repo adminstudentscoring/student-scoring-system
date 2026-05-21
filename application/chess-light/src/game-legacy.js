@@ -1,4 +1,6 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Chess Light main (teacher + student)
+
 (function () {
   "use strict";
   const CL = window.__ChessLightCore;
@@ -449,6 +451,7 @@
       ` : `
         <div class="cl-muted" style="padding:12px 2px;">No stages in this difficulty yet. Click Create.</div>
       `}
+
     `;
   }
 
@@ -899,6 +902,7 @@
         const deep = String(getUrlParam("stageId") || "").trim();
         if (deep) return await openStage(deep);
         return await loadStageList();
+
       }
       // Builder
       if (!isTeacher) {
@@ -1118,4 +1122,5 @@
     await rerenderMain();
   };
 })();
+
 

@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Monster Fight Game Logic
 // Use a unique constant name to avoid conflicts with other scripts
 // Check if API_BASE exists in window scope, otherwise use default
@@ -12,6 +13,7 @@ let monsterTypes = [];
 
 const CLASS_ICON_MAP = {};
 let monsterIconMap = {};
+
 
 function cacheIconMaps() {
     playerClasses.forEach(cls => {
@@ -462,6 +464,7 @@ async function initMonsterFight() {
 // Render game based on current phase
 let lastRenderPhase = null;
 let renderDebounceTimeout = null;
+
 function renderGame() {
     ensureActionPopupContainer();
     const currentPhase = gameState?.phase;
@@ -888,6 +891,7 @@ function renderMonsterTypesSettings() {
 }
 
 // Render level config settings
+
 function renderLevelConfigSettings() {
     const levels = gameSettings.levelConfig || [];
     
@@ -1314,6 +1318,7 @@ function renderBattleMode() {
 }
 
 // Render player card with all actions integrated (puzzle input + actions in player_turn)
+
 function renderPlayerCardWithActions(player, isPlayerTurn) {
     console.log(`Rendering player card for ${player.studentName}, isPlayerTurn: ${isPlayerTurn}`);
     const charClass = playerClasses.find(c => c.id === player.characterClass);
@@ -1717,6 +1722,7 @@ async function playerAttack(studentId) {
 }
 
 // Player use skill
+
 async function playerUseSkill(studentId, skillId) {
     const player = gameState.players.find(p => p.studentId === studentId);
     if (!player || !player.isAlive) {
@@ -2154,6 +2160,7 @@ async function completeGame() {
 }
 
 // Render game over screen
+
 function renderGameOver() {
     const container = document.getElementById('monsterFightGame');
     const rewardsSummary = gameState.rewardsSummary || {};
@@ -2340,4 +2347,5 @@ function derivePopupContext(message) {
 
     return context;
 }
+
 

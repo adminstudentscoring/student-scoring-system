@@ -1,3 +1,4 @@
+/** Generated from normal-chess-legacy-parts/ — run pnpm refactor:concat or build:* */
 (function () {
   // Normal Chess module (MVP)
   // - 8x8 standard chess
@@ -447,6 +448,7 @@
       for (const [dr, dc] of d) add(a.r + dr, a.c + dc);
       return moves;
     }
+
 
     if (up === 'K') {
       for (let dr = -1; dr <= 1; dr++) {
@@ -898,6 +900,7 @@
           sidebarCollapsed = !!shell.sidebarCollapsed;
         }
       } catch {}
+
       const showPanel = isViewer || (sessionMoveList && sidebarCollapsed);
       rootEl.innerHTML = `
         <div class="nc-root">
@@ -1329,5 +1332,6 @@
 
   window.NormalChess = { mountNormalChess };
 })();
+
 
 

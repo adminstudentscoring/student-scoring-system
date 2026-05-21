@@ -1,5 +1,7 @@
+/** Generated from core-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Tactics Fighter (Running Queen-like fixed sidebar scaffold)
 // UI text is English by design.
+
 
 (function () {
   function escapeHtml(s) {
@@ -451,6 +453,7 @@
 
   async function builderDeleteTopic(topicId) {
     const resp = await apiRequest(`/api/teachers/tactics-fighter/builder/topics/${encodeURIComponent(topicId)}`, {
+
       method: 'DELETE'
     });
     return await tfJson(resp);

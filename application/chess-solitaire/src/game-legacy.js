@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 /* Chess Solitaire app scaffold (UI + layout only for now) */
 (function () {
   const Core = window.ChessSolitaireCore;
@@ -448,6 +449,7 @@
 
   function openRulesModal(root) {
     const host = document.createElement("div");
+
     host.innerHTML = `
       <div class="vcp-modal-backdrop" id="csRulesBackdrop" role="presentation">
         <div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Rules" style="width: calc(100vw - 40px); max-width: 980px;">
@@ -898,6 +900,7 @@
                   </div>
                   <div style="margin-top:12px;">
                     <button type="button" class="cs-tool" data-cs-tool="remove">Remove the cell</button>
+
                   </div>
                   <div style="margin-top:10px; color:var(--cs-muted); font-weight:900;">
                     Tips: Click a piece icon, then click the board to place/remove it. Remove the cell = toggle cell removed/restored.
@@ -1197,4 +1200,5 @@
 
   window.initChessSolitaire = initChessSolitaire;
 })();
+
 

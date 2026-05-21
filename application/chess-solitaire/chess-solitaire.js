@@ -814,6 +814,7 @@
                   </div>
                   <div style="margin-top:12px;">
                     <button type="button" class="cs-tool" data-cs-tool="remove">Remove the cell</button>
+
                   </div>
                   <div style="margin-top:10px; color:var(--cs-muted); font-weight:900;">
                     Tips: Click a piece icon, then click the board to place/remove it. Remove the cell = toggle cell removed/restored.

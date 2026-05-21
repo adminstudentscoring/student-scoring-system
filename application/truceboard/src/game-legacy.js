@@ -1,3 +1,4 @@
+/** Generated from game-legacy-parts/ — run pnpm refactor:concat or build:* */
 (function () {
   'use strict';
 
@@ -448,6 +449,7 @@
           }
           el.appendChild(btn);
         }
+
       }
     }
   }
@@ -606,3 +608,4 @@
 
   renderCoords();
 })();
+

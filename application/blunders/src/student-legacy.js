@@ -1,4 +1,6 @@
+/** Generated from student-legacy-parts/ — run pnpm refactor:concat or build:* */
 // Blunders Student module (pages + student sidebar). Depends on window.BlundersCore + window.BlundersEntryApi.
+
 (function () {
   const C = window.BlundersCore;
   if (!C) {
@@ -449,6 +451,7 @@
             <div style="flex:1;"></div>
             <button class="btn btn-secondary btn-small" type="button" data-bl-home-recent-refresh ${rg.loading ? 'disabled' : ''}>Refresh</button>
           </div>
+
           ${rg.error ? `<div class="blunders-muted" style="margin-top:8px; color:#b91c1c;">${escapeHtml(String(rg.error))}</div>` : ``}
           ${rg.loading ? `<div class="blunders-muted" style="margin-top:8px;">Loading games...</div>` : ``}
           ${!rg.loading ? `
@@ -899,6 +902,7 @@
             <div class="bl-settings-grid">
               <div class="bl-settings-row">
                 <label for="blBoardLightInput">Light squares</label>
+
                 <input id="blBoardLightInput" type="color" value="${escapeHtml(light)}" />
               </div>
               <div class="bl-settings-row">
@@ -943,5 +947,6 @@
     renderSettingsPage
   };
 })();
+
 
 

@@ -1600,6 +1600,7 @@
 
             <div class="hope-mate-board-wrap">
               <div class="hm-board-container">
+
                 <div class="hm-board-shell" style="--hm-board-size:${BOARD_SIZE}">
                   <div class="hm-board-col-labels" aria-hidden="true">
                     ${FILES.map((f) => `<div class="hm-col-label">${f.toUpperCase()}</div>`).join("")}
